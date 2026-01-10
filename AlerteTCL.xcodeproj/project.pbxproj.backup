@@ -7,29 +7,29 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		AAA00001 /* AlerteTCLApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00011 /* AlerteTCLApp.swift */; };
-		AAA00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00012 /* ContentView.swift */; };
-		AAA00003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AAA00013 /* Assets.xcassets */; };
-		AAA00004 /* Alert.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00014 /* Alert.swift */; };
-		AAA00005 /* TransportLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00015 /* TransportLine.swift */; };
-		AAA00006 /* TCLAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00016 /* TCLAPIService.swift */; };
-		AAA00007 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00017 /* NotificationService.swift */; };
-		AAA00008 /* SubscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00018 /* SubscriptionService.swift */; };
-		AAA00009 /* AlertViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00019 /* AlertViewModel.swift */; };
-		AAA0000A /* AlertsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001A /* AlertsView.swift */; };
-		AAA0000B /* LinesListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001B /* LinesListView.swift */; };
-		AAA0000C /* SubscriptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001C /* SubscriptionsView.swift */; };
-		AAA0000D /* LineRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001D /* LineRow.swift */; };
-		AAA0000E /* AlertCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001E /* AlertCard.swift */; };
-		AAA0000F /* NotificationPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00020 /* NotificationPermissionView.swift */; };
-		AAA00023 /* StatCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00021 /* StatCard.swift */; };
-		AAA00024 /* Vehicle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00025 /* Vehicle.swift */; };
-		AAA00026 /* SIRILiteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00027 /* SIRILiteService.swift */; };
-		AAA00028 /* LiveVehiclesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00029 /* LiveVehiclesViewModel.swift */; };
-		AAA0002A /* LiveMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002B /* LiveMapView.swift */; };
-		AAA0002C /* AnimatedVehicle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002D /* AnimatedVehicle.swift */; };
-		AAA0002E /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002F /* LocationService.swift */; };
-		AAA00039 /* LocationPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00031 /* LocationPermissionView.swift */; };
+		AAA00001 /* AlerteTCLApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00011; };
+		AAA00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00012; };
+		AAA00003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AAA00013; };
+		AAA00004 /* Alert.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00014; };
+		AAA00005 /* TransportLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00015; };
+		AAA00006 /* TCLAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00016; };
+		AAA00007 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00017; };
+		AAA00008 /* SubscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00018; };
+		AAA00009 /* AlertViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00019; };
+		AAA0000A /* AlertsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001A; };
+		AAA0000B /* LinesListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001B; };
+		AAA0000C /* SubscriptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001C; };
+		AAA0000D /* LineRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001D; };
+		AAA0000E /* AlertCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0001E; };
+		AAA0000F /* NotificationPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00020; };
+		AAA00023 /* StatCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00021; };
+		AAA00024 /* Vehicle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00025; };
+		AAA00026 /* SIRILiteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00027; };
+		AAA00028 /* LiveVehiclesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00029; };
+		AAA0002A /* LiveMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002B; };
+		AAA0002C /* AnimatedVehicle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002D; };
+		AAA0002E /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002F; };
+		AAA00030 /* LocationPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00031; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -71,6 +71,28 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		AAA00030 = {
+			isa = PBXGroup;
+			children = (
+				AAA00038 /* AlerteTCL */,
+				AAA00032 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AAA00038 /* AlerteTCL */ = {
+			isa = PBXGroup;
+			children = (
+				AAA00011 /* AlerteTCLApp.swift */,
+				AAA00033 /* Models */,
+				AAA00034 /* Services */,
+				AAA00035 /* ViewModels */,
+				AAA00036 /* Views */,
+				AAA00013 /* Assets.xcassets */,
+				AAA0001F /* Info.plist */,
+			);
+			path = AlerteTCL;
+			sourceTree = "<group>";
+		};
 		AAA00032 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -136,34 +158,12 @@
 			path = Components;
 			sourceTree = "<group>";
 		};
-		AAA00038 /* AlerteTCL */ = {
-			isa = PBXGroup;
-			children = (
-				AAA00011 /* AlerteTCLApp.swift */,
-				AAA00033 /* Models */,
-				AAA00034 /* Services */,
-				AAA00035 /* ViewModels */,
-				AAA00036 /* Views */,
-				AAA00013 /* Assets.xcassets */,
-				AAA0001F /* Info.plist */,
-			);
-			path = AlerteTCL;
-			sourceTree = "<group>";
-		};
-		AAA0003A = {
-			isa = PBXGroup;
-			children = (
-				AAA00038 /* AlerteTCL */,
-				AAA00032 /* Products */,
-			);
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
 		AAA00040 /* AlerteTCL */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = AAA00041 /* Build configuration list for PBXNativeTarget "AlerteTCL" */;
+			buildConfigurationList = AAA00041;
 			buildPhases = (
 				AAA00042 /* Sources */,
 				AAA00022 /* Frameworks */,
@@ -175,7 +175,7 @@
 			);
 			name = AlerteTCL;
 			productName = AlerteTCL;
-			productReference = AAA00010 /* AlerteTCL.app */;
+			productReference = AAA00010;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -193,7 +193,7 @@
 					};
 				};
 			};
-			buildConfigurationList = AAA00051 /* Build configuration list for PBXProject "AlerteTCL" */;
+			buildConfigurationList = AAA00051;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = fr;
 			hasScannedForEncodings = 0;
@@ -202,8 +202,8 @@
 				Base,
 				fr,
 			);
-			mainGroup = AAA0003A;
-			productRefGroup = AAA00032 /* Products */;
+			mainGroup = AAA00030;
+			productRefGroup = AAA00032;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -249,7 +249,7 @@
 				AAA0002A /* LiveMapView.swift in Sources */,
 				AAA0002C /* AnimatedVehicle.swift in Sources */,
 				AAA0002E /* LocationService.swift in Sources */,
-				AAA00039 /* LocationPermissionView.swift in Sources */,
+				AAA00030 /* LocationPermissionView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -382,7 +382,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ZUTQ26CJ6T;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AlerteTCL/Info.plist;
@@ -416,7 +416,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ZUTQ26CJ6T;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AlerteTCL/Info.plist;

@@ -6,24 +6,30 @@ struct ContentView: View {
     
     var body: some View {
         TabView(selection: $selectedTab) {
+            LiveMapView()
+                .tabItem {
+                    Label("Live", systemImage: "location.fill")
+                }
+                .tag(0)
+            
             HomeView()
                 .tabItem {
                     Label("Accueil", systemImage: "house")
                 }
-                .tag(0)
+                .tag(1)
                 .badge(viewModel.linesInError.count)
             
             LinesListView()
                 .tabItem {
                     Label("Lignes", systemImage: "tram.fill")
                 }
-                .tag(1)
+                .tag(2)
             
             SubscriptionsView()
                 .tabItem {
                     Label("Abonnements", systemImage: "star.fill")
                 }
-                .tag(2)
+                .tag(3)
                 .badge(viewModel.subscribedLines.count)
         }
         .tint(.primary)

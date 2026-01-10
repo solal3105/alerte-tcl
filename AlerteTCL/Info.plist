@@ -76,5 +76,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>GrandLyonUsername</key>
+	<string>solal.gendrin@gmail.com</string>
+	<key>GrandLyonPassword</key>
+	<string>Gsol@lis3105</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Nous utilisons votre position pour centrer la carte sur votre localisation et vous montrer les transports en commun autour de vous.</string>
 </dict>
 </plist>

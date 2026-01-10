@@ -4,7 +4,9 @@ import SwiftUI
 struct AlerteTCLApp: App {
     @StateObject private var viewModel = AlertViewModel()
     @AppStorage("hasShownNotificationPrompt") private var hasShownNotificationPrompt = false
+    @AppStorage("hasShownLocationPrompt") private var hasShownLocationPrompt = false
     @State private var showNotificationPrompt = false
+    @State private var showLocationPrompt = false
     
     init() {
         configureAppearance()
@@ -15,12 +17,28 @@ struct AlerteTCLApp: App {
             ContentView()
                 .environmentObject(viewModel)
                 .onAppear {
-                    if !hasShownNotificationPrompt {
+                    if !hasShownLocationPrompt {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                            showLocationPrompt = true
+                            hasShownLocationPrompt = true
+                        }
+                    } else if !hasShownNotificationPrompt {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                             showNotificationPrompt = true
                             hasShownNotificationPrompt = true
                         }
                     }
+                }
+                .sheet(isPresented: $showLocationPrompt) {
+                    LocationPermissionView()
+                        .onDisappear {
+                            if !hasShownNotificationPrompt {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                    showNotificationPrompt = true
+                                    hasShownNotificationPrompt = true
+                                }
+                            }
+                        }
                 }
                 .sheet(isPresented: $showNotificationPrompt) {
                     NotificationPermissionView()
