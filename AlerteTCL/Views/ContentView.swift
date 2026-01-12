@@ -16,24 +16,30 @@ struct ContentView: View {
                     }
                     .tag(0)
                 
+                TrafficMapView()
+                    .tabItem {
+                        Label("Trafic", systemImage: "exclamationmark.triangle.fill")
+                    }
+                    .tag(1)
+                
                 ParkingMapView()
                     .tabItem {
                         Label("Parkings", systemImage: "car.fill")
                     }
-                    .tag(1)
+                    .tag(2)
                 
                 NewAlertsView()
                     .tabItem {
                         Label("Alertes", systemImage: "bell.fill")
                     }
-                    .tag(2)
+                    .tag(3)
                     .badge(viewModel.subscribedAlerts.count > 0 ? viewModel.subscribedAlerts.count : 0)
                 
                 SettingsView()
                     .tabItem {
                         Label("Paramètres", systemImage: "gearshape.fill")
                     }
-                    .tag(3)
+                    .tag(4)
             }
             .tint(.primary)
             .overlay {

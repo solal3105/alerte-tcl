@@ -11,7 +11,6 @@ import SwiftUI
 @main
 struct AlerteTCLWidgetBundle: WidgetBundle {
     var body: some Widget {
-        StopWidget()
         ParkingWidget()
     }
 }

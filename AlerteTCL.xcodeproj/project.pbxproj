@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4F38BD0C2F1558BE00E05786 /* TrafficMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD0B2F1558BE00E05786 /* TrafficMapView.swift */; };
+		4F38BD0E2F1558DB00E05786 /* TrafficViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD0D2F1558DB00E05786 /* TrafficViewModel.swift */; };
+		4F38BD102F1558E400E05786 /* TrafficService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD0F2F1558E400E05786 /* TrafficService.swift */; };
+		4F38BD122F1558EE00E05786 /* Traffic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD112F1558EE00E05786 /* Traffic.swift */; };
 		4F9DFF902F1449BB00E01BFB /* OnboardingView 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF8F2F1449BB00E01BFB /* OnboardingView 2.swift */; };
 		4F9DFF982F14515000E01BFB /* AmazingSplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF972F14515000E01BFB /* AmazingSplashView.swift */; };
 		4F9DFF9A2F14577200E01BFB /* ParkingMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF992F14577200E01BFB /* ParkingMapView.swift */; };
@@ -17,9 +21,6 @@
 		4F9DFFA52F145B4800E01BFB /* ParkingCluster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA42F145B4800E01BFB /* ParkingCluster.swift */; };
 		4F9DFFA72F14667B00E01BFB /* Stop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA62F14667B00E01BFB /* Stop.swift */; };
 		4F9DFFA92F14668400E01BFB /* StopTimesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA82F14668400E01BFB /* StopTimesService.swift */; };
-		4F9DFFAD2F1466F000E01BFB /* StopsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFAC2F1466F000E01BFB /* StopsViewModel.swift */; };
-		4F9DFFB12F14685F00E01BFB /* StopDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFB02F14685F00E01BFB /* StopDetailSheet.swift */; };
-		4F9DFFB32F14686800E01BFB /* StopMarker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFB22F14686800E01BFB /* StopMarker.swift */; };
 		4F9DFFB62F146B0800E01BFB /* GTFSStopsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFB52F146B0800E01BFB /* GTFSStopsService.swift */; };
 		4F9DFFB92F146B6F00E01BFB /* tcl_stops.json in Resources */ = {isa = PBXBuildFile; fileRef = 4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */; };
 		4F9DFFBB2F146D4B00E01BFB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */; };
@@ -91,6 +92,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		4F38BD0B2F1558BE00E05786 /* TrafficMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficMapView.swift; sourceTree = "<group>"; };
+		4F38BD0D2F1558DB00E05786 /* TrafficViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficViewModel.swift; sourceTree = "<group>"; };
+		4F38BD0F2F1558E400E05786 /* TrafficService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficService.swift; sourceTree = "<group>"; };
+		4F38BD112F1558EE00E05786 /* Traffic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Traffic.swift; sourceTree = "<group>"; };
 		4F9DFF8F2F1449BB00E01BFB /* OnboardingView 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OnboardingView 2.swift"; sourceTree = "<group>"; };
 		4F9DFF972F14515000E01BFB /* AmazingSplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmazingSplashView.swift; sourceTree = "<group>"; };
 		4F9DFF992F14577200E01BFB /* ParkingMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingMapView.swift; sourceTree = "<group>"; };
@@ -101,9 +106,6 @@
 		4F9DFFA42F145B4800E01BFB /* ParkingCluster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingCluster.swift; sourceTree = "<group>"; };
 		4F9DFFA62F14667B00E01BFB /* Stop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stop.swift; sourceTree = "<group>"; };
 		4F9DFFA82F14668400E01BFB /* StopTimesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopTimesService.swift; sourceTree = "<group>"; };
-		4F9DFFAC2F1466F000E01BFB /* StopsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopsViewModel.swift; sourceTree = "<group>"; };
-		4F9DFFB02F14685F00E01BFB /* StopDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopDetailSheet.swift; sourceTree = "<group>"; };
-		4F9DFFB22F14686800E01BFB /* StopMarker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopMarker.swift; sourceTree = "<group>"; };
 		4F9DFFB52F146B0800E01BFB /* GTFSStopsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GTFSStopsService.swift; sourceTree = "<group>"; };
 		4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = tcl_stops.json; sourceTree = "<group>"; };
 		4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -195,6 +197,7 @@
 		AAA00033 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				4F38BD112F1558EE00E05786 /* Traffic.swift */,
 				4F9DFFA62F14667B00E01BFB /* Stop.swift */,
 				4F9DFFA42F145B4800E01BFB /* ParkingCluster.swift */,
 				4F9DFF9C2F1457E200E01BFB /* Parking.swift */,
@@ -209,6 +212,7 @@
 		AAA00034 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				4F38BD0F2F1558E400E05786 /* TrafficService.swift */,
 				4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */,
 				4F9DFFB52F146B0800E01BFB /* GTFSStopsService.swift */,
 				4F9DFFA82F14668400E01BFB /* StopTimesService.swift */,
@@ -226,7 +230,7 @@
 		AAA00035 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
-				4F9DFFAC2F1466F000E01BFB /* StopsViewModel.swift */,
+				4F38BD0D2F1558DB00E05786 /* TrafficViewModel.swift */,
 				4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */,
 				AAA00019 /* AlertViewModel.swift */,
 				AAA00029 /* LiveVehiclesViewModel.swift */,
@@ -237,9 +241,8 @@
 		AAA00036 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				4F38BD0B2F1558BE00E05786 /* TrafficMapView.swift */,
 				4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */,
-				4F9DFFB22F14686800E01BFB /* StopMarker.swift */,
-				4F9DFFB02F14685F00E01BFB /* StopDetailSheet.swift */,
 				4F9DFF992F14577200E01BFB /* ParkingMapView.swift */,
 				AAA00012 /* ContentView.swift */,
 				AAA0001A /* AlertsView.swift */,
@@ -420,29 +423,30 @@
 				4F9DFF902F1449BB00E01BFB /* OnboardingView 2.swift in Sources */,
 				4F9DFF9D2F1457E200E01BFB /* Parking.swift in Sources */,
 				4F9DFFA92F14668400E01BFB /* StopTimesService.swift in Sources */,
+				4F38BD122F1558EE00E05786 /* Traffic.swift in Sources */,
 				AAA00009 /* AlertViewModel.swift in Sources */,
 				4F9DFFA02F1457EE00E01BFB /* FavoriteLinesService.swift in Sources */,
+				4F38BD0E2F1558DB00E05786 /* TrafficViewModel.swift in Sources */,
 				4F9DFFA12F1457EE00E01BFB /* ParkingService.swift in Sources */,
-				4F9DFFAD2F1466F000E01BFB /* StopsViewModel.swift in Sources */,
 				AAA0000A /* AlertsView.swift in Sources */,
 				AAA0000B /* LinesListView.swift in Sources */,
 				4F9DFFA72F14667B00E01BFB /* Stop.swift in Sources */,
 				AAA0000C /* SubscriptionsView.swift in Sources */,
-				4F9DFFB32F14686800E01BFB /* StopMarker.swift in Sources */,
 				AAA0000D /* LineRow.swift in Sources */,
 				4F9DFF9A2F14577200E01BFB /* ParkingMapView.swift in Sources */,
 				AAA0000E /* AlertCard.swift in Sources */,
 				AAA0000F /* NotificationPermissionView.swift in Sources */,
 				4F9DFFB62F146B0800E01BFB /* GTFSStopsService.swift in Sources */,
 				4F9DFF982F14515000E01BFB /* AmazingSplashView.swift in Sources */,
-				4F9DFFB12F14685F00E01BFB /* StopDetailSheet.swift in Sources */,
 				AAA00023 /* StatCard.swift in Sources */,
+				4F38BD0C2F1558BE00E05786 /* TrafficMapView.swift in Sources */,
 				AAA00024 /* Vehicle.swift in Sources */,
 				AAA00026 /* SIRILiteService.swift in Sources */,
 				AAA00028 /* LiveVehiclesViewModel.swift in Sources */,
 				AAA0002A /* LiveMapView.swift in Sources */,
 				AAA0002C /* AnimatedVehicle.swift in Sources */,
 				AAA0002E /* LocationService.swift in Sources */,
+				4F38BD102F1558E400E05786 /* TrafficService.swift in Sources */,
 				AAA00039 /* LocationPermissionView.swift in Sources */,
 				4F9DFFA32F1457F900E01BFB /* ParkingViewModel.swift in Sources */,
 			);

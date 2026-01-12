@@ -3,10 +3,8 @@ import MapKit
 
 struct LiveMapView: View {
     @StateObject private var viewModel = LiveVehiclesViewModel()
-    @StateObject private var stopsViewModel = StopsViewModel()
     @ObservedObject private var locationService = LocationService.shared
     @State private var selectedVehicle: Vehicle?
-    @State private var selectedStop: StopAnnotation?
     @State private var showFilters = false
     @State private var currentRegion: MKCoordinateRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
@@ -36,11 +34,6 @@ struct LiveMapView: View {
         .sheet(item: $selectedVehicle) { vehicle in
             VehicleDetailSheet(vehicle: vehicle)
                 .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-        }
-        .sheet(item: $selectedStop) { stop in
-            StopDetailSheet(stop: stop)
-                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showFilters) {
@@ -97,18 +90,6 @@ struct LiveMapView: View {
             Map(position: $mapCameraPosition, interactionModes: .all) {
                 UserAnnotation()
                 
-                // Afficher les arrêts si le zoom est suffisant
-                if stopsViewModel.shouldShowStops {
-                    ForEach(stopsViewModel.stops) { stop in
-                        Annotation("", coordinate: stop.stop.coordinate) {
-                            StopMarker(stop: stop)
-                                .onTapGesture {
-                                    selectedStop = stop
-                                }
-                        }
-                    }
-                }
-                
                 // Afficher les véhicules
                 if viewModel.shouldShowClusters {
                     ForEach(viewModel.clusters, id: \.id) { cluster in
@@ -151,15 +132,7 @@ struct LiveMapView: View {
             .onMapCameraChange { context in
                 viewModel.updateZoomLevel(context.region.span)
                 viewModel.updateVisibleRegion(context.region)
-                stopsViewModel.updateZoomLevel(context.region.span)
                 currentRegion = context.region
-                
-                // Charger les arrêts si le zoom est suffisant
-                if stopsViewModel.shouldShowStops {
-                    Task {
-                        await stopsViewModel.loadStops(in: context.region)
-                    }
-                }
             }
         }
     }
@@ -176,22 +149,6 @@ struct LiveMapView: View {
                 
                 // Boutons en bas à droite (stack vertical)
                 VStack(spacing: 20) {
-                    // Bouton arrêts
-                    Button {
-                        stopsViewModel.toggleStopsDisplay()
-                        if stopsViewModel.showStops {
-                            Task {
-                                await stopsViewModel.loadStops(in: currentRegion)
-                            }
-                        }
-                    } label: {
-                        Image(systemName: stopsViewModel.showStops ? "mappin.circle.fill" : "mappin.circle")
-                            .font(.system(size: 22, weight: .semibold))
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(stopsViewModel.showStops ? .green : .gray)
-                    .controlSize(.large)
-                    
                     // Bouton filtres
                     Button {
                         showFilters = true
