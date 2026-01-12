@@ -98,6 +98,10 @@ actor SIRILiteService {
             let destination = extractDestination(from: journey.DestinationRef?.value)
             let delay = parseDelay(journey.Delay)
             
+            // Extraire les informations d'arrêts
+            let nextStop = parseMonitoredCall(journey.MonitoredCall)
+            let onwardStops = parseOnwardCalls(journey.OnwardCalls)
+            
             return Vehicle(
                 id: activity.VehicleMonitoringRef?.value ?? UUID().uuidString,
                 latitude: latitude,
@@ -110,9 +114,51 @@ actor SIRILiteService {
                 delay: delay,
                 status: journey.VehicleStatus,
                 recordedAt: parseISO8601Date(activity.RecordedAtTime),
-                validUntil: parseISO8601Date(activity.ValidUntilTime)
+                validUntil: parseISO8601Date(activity.ValidUntilTime),
+                nextStop: nextStop,
+                onwardStops: onwardStops
             )
         }
+    }
+    
+    private func parseMonitoredCall(_ monitoredCall: MonitoredCall?) -> StopInfo? {
+        guard let call = monitoredCall,
+              let stopRef = call.StopPointRef?.value else {
+            return nil
+        }
+        
+        return StopInfo(
+            id: stopRef,
+            stopRef: stopRef,
+            stopName: extractStopName(from: stopRef),
+            aimedArrivalTime: parseISO8601Date(call.AimedArrivalTime),
+            aimedDepartureTime: parseISO8601Date(call.AimedDepartureTime),
+            distanceFromStop: call.DistanceFromStop,
+            order: call.Order
+        )
+    }
+    
+    private func parseOnwardCalls(_ onwardCalls: OnwardCalls?) -> [StopInfo] {
+        guard let calls = onwardCalls?.OnwardCall else { return [] }
+        
+        return calls.compactMap { call -> StopInfo? in
+            guard let stopRef = call.StopPointRef?.value else { return nil }
+            
+            return StopInfo(
+                id: stopRef,
+                stopRef: stopRef,
+                stopName: extractStopName(from: stopRef),
+                aimedArrivalTime: parseISO8601Date(call.AimedArrivalTime),
+                aimedDepartureTime: parseISO8601Date(call.AimedDepartureTime),
+                distanceFromStop: call.DistanceFromStop,
+                order: call.Order
+            )
+        }
+    }
+    
+    private func extractStopName(from stopRef: String) -> String? {
+        // Pour l'instant, retourne l'ID. Plus tard, on peut mapper avec les données GTFS
+        return stopRef.components(separatedBy: ":").last
     }
     
     private func extractLineName(from lineRef: String) -> String {

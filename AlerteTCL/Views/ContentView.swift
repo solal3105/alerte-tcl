@@ -16,9 +16,9 @@ struct ContentView: View {
                     }
                     .tag(0)
                 
-                LinesListView()
+                ParkingMapView()
                     .tabItem {
-                        Label("Lignes", systemImage: "list.bullet")
+                        Label("Parkings", systemImage: "car.fill")
                     }
                     .tag(1)
                 
@@ -28,6 +28,12 @@ struct ContentView: View {
                     }
                     .tag(2)
                     .badge(viewModel.subscribedAlerts.count > 0 ? viewModel.subscribedAlerts.count : 0)
+                
+                SettingsView()
+                    .tabItem {
+                        Label("Paramètres", systemImage: "gearshape.fill")
+                    }
+                    .tag(3)
             }
             .tint(.primary)
             .overlay {

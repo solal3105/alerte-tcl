@@ -3,40 +3,54 @@ import Foundation
 actor ParkingService {
     static let shared = ParkingService()
     
-    private let baseURL = "https://data.grandlyon.com/geoserver/metropole-de-lyon/ows"
+    private let baseURL = "https://data.grandlyon.com/geoserver/ogc/features/v1/collections"
     
     private init() {}
     
     func fetchParkings() async throws -> [Parking] {
-        var components = URLComponents(string: baseURL)!
-        components.queryItems = [
-            URLQueryItem(name: "SERVICE", value: "WFS"),
-            URLQueryItem(name: "VERSION", value: "2.0.0"),
-            URLQueryItem(name: "request", value: "GetFeature"),
-            URLQueryItem(name: "typename", value: "metropole-de-lyon:parkings-de-la-metropole-de-lyon-disponibilites-temps-reel-v2"),
-            URLQueryItem(name: "outputFormat", value: "application/json"),
-            URLQueryItem(name: "SRSNAME", value: "EPSG:4171"),
-            URLQueryItem(name: "sortBy", value: "gid")
-        ]
+        // Utiliser l'API Features (plus moderne, pas d'authentification requise)
+        let urlString = "\(baseURL)/metropole-de-lyon:parkings-de-la-metropole-de-lyon-disponibilites-temps-reel-v2/items?f=application/json&sortby=gid"
         
-        guard let url = components.url else {
+        guard let url = URL(string: urlString) else {
+            print("❌ ParkingService: URL invalide")
             throw ParkingServiceError.invalidURL
         }
         
-        let (data, response) = try await URLSession.shared.data(from: url)
+        print("🌐 ParkingService: URL de chargement: \(url.absoluteString)")
+        
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
+            print("❌ ParkingService: Réponse invalide")
             throw ParkingServiceError.invalidResponse
         }
         
+        print("📡 ParkingService: Status code: \(httpResponse.statusCode)")
+        
         guard httpResponse.statusCode == 200 else {
+            print("❌ ParkingService: Erreur HTTP \(httpResponse.statusCode)")
             throw ParkingServiceError.httpError(httpResponse.statusCode)
+        }
+        
+        // Debug: afficher les premières lignes de la réponse
+        if let jsonString = String(data: data, encoding: .utf8) {
+            let preview = String(jsonString.prefix(500))
+            print("📄 ParkingService: Réponse JSON (preview): \(preview)...")
         }
         
         let decoder = JSONDecoder()
         let parkingResponse = try decoder.decode(ParkingResponse.self, from: data)
         
-        return parkingResponse.features.map { Parking(from: $0) }
+        print("✅ ParkingService: \(parkingResponse.features.count) parkings chargés")
+        
+        let parkings = parkingResponse.features.map { Parking(from: $0) }
+        print("🅿️ ParkingService: Exemples: \(parkings.prefix(3).map { $0.nom })")
+        
+        return parkings
     }
     
     func fetchParkingsRelais() async throws -> [Parking] {

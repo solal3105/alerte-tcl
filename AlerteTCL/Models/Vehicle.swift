@@ -14,6 +14,8 @@ struct Vehicle: Identifiable, Hashable {
     let status: String?
     let recordedAt: Date?
     let validUntil: Date?
+    let nextStop: StopInfo?
+    let onwardStops: [StopInfo]
     
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -45,6 +47,34 @@ struct Vehicle: Identifiable, Hashable {
     
     var isEarly: Bool {
         delay < -60
+    }
+}
+
+struct StopInfo: Identifiable, Hashable {
+    let id: String
+    let stopRef: String
+    let stopName: String?
+    let aimedArrivalTime: Date?
+    let aimedDepartureTime: Date?
+    let distanceFromStop: Int?
+    let order: Int?
+    
+    var timeUntilArrival: TimeInterval? {
+        guard let arrivalTime = aimedArrivalTime else { return nil }
+        return arrivalTime.timeIntervalSinceNow
+    }
+    
+    var arrivalFormatted: String {
+        guard let timeUntil = timeUntilArrival else { return "?" }
+        
+        if timeUntil <= 0 {
+            return "Maintenant"
+        } else if timeUntil < 60 {
+            return "\(Int(timeUntil))s"
+        } else {
+            let minutes = Int(timeUntil / 60)
+            return "\(minutes)min"
+        }
     }
 }
 
@@ -114,6 +144,32 @@ struct MonitoredVehicleJourney: Codable {
     let Bearing: Double?
     let Delay: String?
     let VehicleStatus: String?
+    let MonitoredCall: MonitoredCall?
+    let OnwardCalls: OnwardCalls?
+}
+
+struct MonitoredCall: Codable {
+    let AimedArrivalTime: String?
+    let ActualArrivalTime: String?
+    let ArrivalStatus: String?
+    let AimedDepartureTime: String?
+    let ActualDepartureTime: String?
+    let DepartureStatus: String?
+    let DistanceFromStop: Int?
+    let StopPointRef: RefValue?
+    let Order: Int?
+}
+
+struct OnwardCalls: Codable {
+    let OnwardCall: [OnwardCall]?
+}
+
+struct OnwardCall: Codable {
+    let AimedArrivalTime: String?
+    let AimedDepartureTime: String?
+    let StopPointRef: RefValue?
+    let Order: Int?
+    let DistanceFromStop: Int?
 }
 
 struct VehicleLocation: Codable {

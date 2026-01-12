@@ -40,6 +40,7 @@ final class ParkingViewModel: ObservableObject {
     func loadParkings() async {
         guard !isLoading else { return }
         
+        print("🔄 ParkingViewModel: Début du chargement...")
         isLoading = true
         error = nil
         
@@ -48,7 +49,13 @@ final class ParkingViewModel: ObservableObject {
             parkings = fetchedParkings.sorted { $0.nom < $1.nom }
             lastUpdate = Date()
             secondsUntilNextRefresh = Int(refreshInterval)
+            
+            print("✅ ParkingViewModel: \(parkings.count) parkings chargés avec succès")
+            print("📊 ParkingViewModel: Total places: \(totalPlacesDisponibles)/\(totalCapacite)")
+            print("🅿️ ParkingViewModel: Parkings ouverts: \(parkingsOuverts)")
+            
         } catch {
+            print("❌ ParkingViewModel: Erreur de chargement: \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
         

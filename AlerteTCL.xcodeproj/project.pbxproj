@@ -3,12 +3,30 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		4F9DFF902F1449BB00E01BFB /* OnboardingView 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF8F2F1449BB00E01BFB /* OnboardingView 2.swift */; };
 		4F9DFF982F14515000E01BFB /* AmazingSplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF972F14515000E01BFB /* AmazingSplashView.swift */; };
+		4F9DFF9A2F14577200E01BFB /* ParkingMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF992F14577200E01BFB /* ParkingMapView.swift */; };
+		4F9DFF9D2F1457E200E01BFB /* Parking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF9C2F1457E200E01BFB /* Parking.swift */; };
+		4F9DFFA02F1457EE00E01BFB /* FavoriteLinesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF9E2F1457EE00E01BFB /* FavoriteLinesService.swift */; };
+		4F9DFFA12F1457EE00E01BFB /* ParkingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF9F2F1457EE00E01BFB /* ParkingService.swift */; };
+		4F9DFFA32F1457F900E01BFB /* ParkingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */; };
+		4F9DFFA52F145B4800E01BFB /* ParkingCluster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA42F145B4800E01BFB /* ParkingCluster.swift */; };
+		4F9DFFA72F14667B00E01BFB /* Stop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA62F14667B00E01BFB /* Stop.swift */; };
+		4F9DFFA92F14668400E01BFB /* StopTimesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA82F14668400E01BFB /* StopTimesService.swift */; };
+		4F9DFFAD2F1466F000E01BFB /* StopsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFAC2F1466F000E01BFB /* StopsViewModel.swift */; };
+		4F9DFFB12F14685F00E01BFB /* StopDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFB02F14685F00E01BFB /* StopDetailSheet.swift */; };
+		4F9DFFB32F14686800E01BFB /* StopMarker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFB22F14686800E01BFB /* StopMarker.swift */; };
+		4F9DFFB62F146B0800E01BFB /* GTFSStopsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFB52F146B0800E01BFB /* GTFSStopsService.swift */; };
+		4F9DFFB92F146B6F00E01BFB /* tcl_stops.json in Resources */ = {isa = PBXBuildFile; fileRef = 4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */; };
+		4F9DFFBB2F146D4B00E01BFB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */; };
+		4F9DFFC72F146EFE00E01BFB /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */; };
+		4F9DFFC92F146EFE00E01BFB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC82F146EFE00E01BFB /* SwiftUI.framework */; };
+		4F9DFFDA2F146F0100E01BFB /* AlerteTCLWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		4F9DFFEB2F147FA400E01BFB /* RecentItemsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */; };
 		AAA00001 /* AlerteTCLApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00011 /* AlerteTCLApp.swift */; };
 		AAA00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00012 /* ContentView.swift */; };
 		AAA00003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AAA00013 /* Assets.xcassets */; };
@@ -34,9 +52,67 @@
 		AAA00039 /* LocationPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00031 /* LocationPermissionView.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		4F9DFFD82F146F0100E01BFB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AAA00050 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4F9DFFC32F146EFE00E01BFB;
+			remoteInfo = AlerteTCLWidgetExtension;
+		};
+		4F9DFFE42F14764800E01BFB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AAA00050 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4F9DFFC32F146EFE00E01BFB;
+			remoteInfo = AlerteTCLWidgetExtension;
+		};
+		4F9DFFE62F14783C00E01BFB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AAA00050 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4F9DFFC32F146EFE00E01BFB;
+			remoteInfo = AlerteTCLWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		4F9DFFDF2F146F0100E01BFB /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				4F9DFFDA2F146F0100E01BFB /* AlerteTCLWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		4F9DFF8F2F1449BB00E01BFB /* OnboardingView 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OnboardingView 2.swift"; sourceTree = "<group>"; };
 		4F9DFF972F14515000E01BFB /* AmazingSplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmazingSplashView.swift; sourceTree = "<group>"; };
+		4F9DFF992F14577200E01BFB /* ParkingMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingMapView.swift; sourceTree = "<group>"; };
+		4F9DFF9C2F1457E200E01BFB /* Parking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Parking.swift; sourceTree = "<group>"; };
+		4F9DFF9E2F1457EE00E01BFB /* FavoriteLinesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteLinesService.swift; sourceTree = "<group>"; };
+		4F9DFF9F2F1457EE00E01BFB /* ParkingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingService.swift; sourceTree = "<group>"; };
+		4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingViewModel.swift; sourceTree = "<group>"; };
+		4F9DFFA42F145B4800E01BFB /* ParkingCluster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingCluster.swift; sourceTree = "<group>"; };
+		4F9DFFA62F14667B00E01BFB /* Stop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stop.swift; sourceTree = "<group>"; };
+		4F9DFFA82F14668400E01BFB /* StopTimesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopTimesService.swift; sourceTree = "<group>"; };
+		4F9DFFAC2F1466F000E01BFB /* StopsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopsViewModel.swift; sourceTree = "<group>"; };
+		4F9DFFB02F14685F00E01BFB /* StopDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopDetailSheet.swift; sourceTree = "<group>"; };
+		4F9DFFB22F14686800E01BFB /* StopMarker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopMarker.swift; sourceTree = "<group>"; };
+		4F9DFFB52F146B0800E01BFB /* GTFSStopsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GTFSStopsService.swift; sourceTree = "<group>"; };
+		4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = tcl_stops.json; sourceTree = "<group>"; };
+		4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AlerteTCLWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		4F9DFFC82F146EFE00E01BFB /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		4F9DFFE02F14700200E01BFB /* AlerteTCL.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AlerteTCL.entitlements; sourceTree = "<group>"; };
+		4F9DFFE12F14705300E01BFB /* AlerteTCLWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AlerteTCLWidgetExtension.entitlements; sourceTree = "<group>"; };
+		4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentItemsService.swift; sourceTree = "<group>"; };
 		AAA00010 /* AlerteTCL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AlerteTCL.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAA00011 /* AlerteTCLApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlerteTCLApp.swift; sourceTree = "<group>"; };
 		AAA00012 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -64,7 +140,30 @@
 		AAA00031 /* LocationPermissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPermissionView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		4F9DFFDB2F146F0100E01BFB /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 4F9DFFC32F146EFE00E01BFB /* AlerteTCLWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		4F9DFFCA2F146EFE00E01BFB /* AlerteTCLWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4F9DFFDB2F146F0100E01BFB /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = AlerteTCLWidget; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXFrameworksBuildPhase section */
+		4F9DFFC12F146EFE00E01BFB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4F9DFFC92F146EFE00E01BFB /* SwiftUI.framework in Frameworks */,
+				4F9DFFC72F146EFE00E01BFB /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AAA00022 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -75,10 +174,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		4F9DFFC52F146EFE00E01BFB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */,
+				4F9DFFC82F146EFE00E01BFB /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		AAA00032 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				AAA00010 /* AlerteTCL.app */,
+				4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -86,6 +195,9 @@
 		AAA00033 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				4F9DFFA62F14667B00E01BFB /* Stop.swift */,
+				4F9DFFA42F145B4800E01BFB /* ParkingCluster.swift */,
+				4F9DFF9C2F1457E200E01BFB /* Parking.swift */,
 				AAA00014 /* Alert.swift */,
 				AAA00015 /* TransportLine.swift */,
 				AAA00025 /* Vehicle.swift */,
@@ -97,6 +209,11 @@
 		AAA00034 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */,
+				4F9DFFB52F146B0800E01BFB /* GTFSStopsService.swift */,
+				4F9DFFA82F14668400E01BFB /* StopTimesService.swift */,
+				4F9DFF9E2F1457EE00E01BFB /* FavoriteLinesService.swift */,
+				4F9DFF9F2F1457EE00E01BFB /* ParkingService.swift */,
 				AAA00016 /* TCLAPIService.swift */,
 				AAA00017 /* NotificationService.swift */,
 				AAA00018 /* SubscriptionService.swift */,
@@ -109,6 +226,8 @@
 		AAA00035 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				4F9DFFAC2F1466F000E01BFB /* StopsViewModel.swift */,
+				4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */,
 				AAA00019 /* AlertViewModel.swift */,
 				AAA00029 /* LiveVehiclesViewModel.swift */,
 			);
@@ -118,6 +237,10 @@
 		AAA00036 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */,
+				4F9DFFB22F14686800E01BFB /* StopMarker.swift */,
+				4F9DFFB02F14685F00E01BFB /* StopDetailSheet.swift */,
+				4F9DFF992F14577200E01BFB /* ParkingMapView.swift */,
 				AAA00012 /* ContentView.swift */,
 				AAA0001A /* AlertsView.swift */,
 				AAA0001B /* LinesListView.swift */,
@@ -145,6 +268,8 @@
 		AAA00038 /* AlerteTCL */ = {
 			isa = PBXGroup;
 			children = (
+				4F9DFFE02F14700200E01BFB /* AlerteTCL.entitlements */,
+				4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */,
 				AAA00011 /* AlerteTCLApp.swift */,
 				AAA00033 /* Models */,
 				AAA00034 /* Services */,
@@ -159,7 +284,10 @@
 		AAA0003A = {
 			isa = PBXGroup;
 			children = (
+				4F9DFFE12F14705300E01BFB /* AlerteTCLWidgetExtension.entitlements */,
 				AAA00038 /* AlerteTCL */,
+				4F9DFFCA2F146EFE00E01BFB /* AlerteTCLWidget */,
+				4F9DFFC52F146EFE00E01BFB /* Frameworks */,
 				AAA00032 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -167,6 +295,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		4F9DFFC32F146EFE00E01BFB /* AlerteTCLWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4F9DFFDC2F146F0100E01BFB /* Build configuration list for PBXNativeTarget "AlerteTCLWidgetExtension" */;
+			buildPhases = (
+				4F9DFFC02F146EFE00E01BFB /* Sources */,
+				4F9DFFC12F146EFE00E01BFB /* Frameworks */,
+				4F9DFFC22F146EFE00E01BFB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				4F9DFFCA2F146EFE00E01BFB /* AlerteTCLWidget */,
+			);
+			name = AlerteTCLWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = AlerteTCLWidgetExtension;
+			productReference = 4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		AAA00040 /* AlerteTCL */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = AAA00041 /* Build configuration list for PBXNativeTarget "AlerteTCL" */;
@@ -174,10 +324,14 @@
 				AAA00042 /* Sources */,
 				AAA00022 /* Frameworks */,
 				AAA00043 /* Resources */,
+				4F9DFFDF2F146F0100E01BFB /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				4F9DFFD92F146F0100E01BFB /* PBXTargetDependency */,
+				4F9DFFE52F14764800E01BFB /* PBXTargetDependency */,
+				4F9DFFE72F14783C00E01BFB /* PBXTargetDependency */,
 			);
 			name = AlerteTCL;
 			productName = AlerteTCL;
@@ -191,9 +345,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1540;
+				LastSwiftUpdateCheck = 2610;
 				LastUpgradeCheck = 2610;
 				TargetAttributes = {
+					4F9DFFC32F146EFE00E01BFB = {
+						CreatedOnToolsVersion = 26.1;
+					};
 					AAA00040 = {
 						CreatedOnToolsVersion = 15.0;
 					};
@@ -214,22 +371,38 @@
 			projectRoot = "";
 			targets = (
 				AAA00040 /* AlerteTCL */,
+				4F9DFFC32F146EFE00E01BFB /* AlerteTCLWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		4F9DFFC22F146EFE00E01BFB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AAA00043 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				AAA00003 /* Assets.xcassets in Resources */,
+				4F9DFFB92F146B6F00E01BFB /* tcl_stops.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		4F9DFFC02F146EFE00E01BFB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AAA00042 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -240,16 +413,29 @@
 				AAA00005 /* TransportLine.swift in Sources */,
 				AAA00006 /* TCLAPIService.swift in Sources */,
 				AAA00007 /* NotificationService.swift in Sources */,
+				4F9DFFBB2F146D4B00E01BFB /* SettingsView.swift in Sources */,
 				AAA00008 /* SubscriptionService.swift in Sources */,
+				4F9DFFEB2F147FA400E01BFB /* RecentItemsService.swift in Sources */,
+				4F9DFFA52F145B4800E01BFB /* ParkingCluster.swift in Sources */,
 				4F9DFF902F1449BB00E01BFB /* OnboardingView 2.swift in Sources */,
+				4F9DFF9D2F1457E200E01BFB /* Parking.swift in Sources */,
+				4F9DFFA92F14668400E01BFB /* StopTimesService.swift in Sources */,
 				AAA00009 /* AlertViewModel.swift in Sources */,
+				4F9DFFA02F1457EE00E01BFB /* FavoriteLinesService.swift in Sources */,
+				4F9DFFA12F1457EE00E01BFB /* ParkingService.swift in Sources */,
+				4F9DFFAD2F1466F000E01BFB /* StopsViewModel.swift in Sources */,
 				AAA0000A /* AlertsView.swift in Sources */,
 				AAA0000B /* LinesListView.swift in Sources */,
+				4F9DFFA72F14667B00E01BFB /* Stop.swift in Sources */,
 				AAA0000C /* SubscriptionsView.swift in Sources */,
+				4F9DFFB32F14686800E01BFB /* StopMarker.swift in Sources */,
 				AAA0000D /* LineRow.swift in Sources */,
+				4F9DFF9A2F14577200E01BFB /* ParkingMapView.swift in Sources */,
 				AAA0000E /* AlertCard.swift in Sources */,
 				AAA0000F /* NotificationPermissionView.swift in Sources */,
+				4F9DFFB62F146B0800E01BFB /* GTFSStopsService.swift in Sources */,
 				4F9DFF982F14515000E01BFB /* AmazingSplashView.swift in Sources */,
+				4F9DFFB12F14685F00E01BFB /* StopDetailSheet.swift in Sources */,
 				AAA00023 /* StatCard.swift in Sources */,
 				AAA00024 /* Vehicle.swift in Sources */,
 				AAA00026 /* SIRILiteService.swift in Sources */,
@@ -258,12 +444,93 @@
 				AAA0002C /* AnimatedVehicle.swift in Sources */,
 				AAA0002E /* LocationService.swift in Sources */,
 				AAA00039 /* LocationPermissionView.swift in Sources */,
+				4F9DFFA32F1457F900E01BFB /* ParkingViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		4F9DFFD92F146F0100E01BFB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4F9DFFC32F146EFE00E01BFB /* AlerteTCLWidgetExtension */;
+			targetProxy = 4F9DFFD82F146F0100E01BFB /* PBXContainerItemProxy */;
+		};
+		4F9DFFE52F14764800E01BFB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4F9DFFC32F146EFE00E01BFB /* AlerteTCLWidgetExtension */;
+			targetProxy = 4F9DFFE42F14764800E01BFB /* PBXContainerItemProxy */;
+		};
+		4F9DFFE72F14783C00E01BFB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4F9DFFC32F146EFE00E01BFB /* AlerteTCLWidgetExtension */;
+			targetProxy = 4F9DFFE62F14783C00E01BFB /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		4F9DFFDD2F146F0100E01BFB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = AlerteTCLWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AlerteTCLWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = AlerteTCLWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.solal.AlerteTCL.AlerteTCLWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4F9DFFDE2F146F0100E01BFB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = AlerteTCLWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AlerteTCLWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = AlerteTCLWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.solal.AlerteTCL.AlerteTCLWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		AAA00060 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -394,6 +661,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = AlerteTCL/AlerteTCL.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
@@ -401,17 +669,17 @@
 				INFOPLIST_FILE = AlerteTCL/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Alerte TCL";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Nous utilisons votre position pour centrer la carte sur votre localisation et vous montrer les transports en commun autour de vous.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiredDeviceCapabilities = armv7;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.yourname.AlerteTCL;
+				PRODUCT_BUNDLE_IDENTIFIER = com.solal.AlerteTCL;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -427,6 +695,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = AlerteTCL/AlerteTCL.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
@@ -434,17 +703,17 @@
 				INFOPLIST_FILE = AlerteTCL/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Alerte TCL";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Nous utilisons votre position pour centrer la carte sur votre localisation et vous montrer les transports en commun autour de vous.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiredDeviceCapabilities = armv7;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.yourname.AlerteTCL;
+				PRODUCT_BUNDLE_IDENTIFIER = com.solal.AlerteTCL;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -458,6 +727,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		4F9DFFDC2F146F0100E01BFB /* Build configuration list for PBXNativeTarget "AlerteTCLWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4F9DFFDD2F146F0100E01BFB /* Debug */,
+				4F9DFFDE2F146F0100E01BFB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		AAA00041 /* Build configuration list for PBXNativeTarget "AlerteTCL" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
