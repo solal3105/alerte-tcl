@@ -157,6 +157,7 @@ struct LinesListView: View {
         switch line.mode {
         case .metro: modePrefix = "Métro"
         case .tramway: modePrefix = "Tram"
+        case .busC: modePrefix = "Bus C"
         case .bus: modePrefix = "Bus"
         case .funiculaire: modePrefix = "Funi"
         case .navette: modePrefix = "Navette"

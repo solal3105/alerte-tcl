@@ -47,7 +47,19 @@ struct TCLAlert: Codable, Identifiable, Hashable {
         self.listeObjet = try container.decodeIfPresent(String.self, forKey: .listeObjet)
         
         let modeString = try container.decodeIfPresent(String.self, forKey: .mode) ?? "Bus"
-        self.mode = TransportMode(rawValue: modeString) ?? .bus
+        let ligneCom = try container.decodeIfPresent(String.self, forKey: .ligneCom) ?? ""
+        
+        // Déterminer si c'est un Bus C
+        if modeString == "Bus" && ligneCom.hasPrefix("C") && ligneCom.count >= 2 {
+            let secondChar = ligneCom[ligneCom.index(ligneCom.startIndex, offsetBy: 1)]
+            if secondChar.isNumber {
+                self.mode = .busC
+            } else {
+                self.mode = TransportMode(rawValue: modeString) ?? .bus
+            }
+        } else {
+            self.mode = TransportMode(rawValue: modeString) ?? .bus
+        }
         
         if let debutString = try container.decodeIfPresent(String.self, forKey: .debut) {
             self.debut = Self.parseDate(debutString)

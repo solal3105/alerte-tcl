@@ -13,14 +13,25 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published var lastUpdate: Date?
     @Published var selectedVehicleType: VehicleType?
     @Published var selectedLine: String?
+    @Published var selectedLines: Set<String> = []
     @Published var mapRegion: MKCoordinateRegion
     @Published var isAutoRefreshEnabled = true
     @Published var currentZoomLevel: Double = 0.15
+    @Published var refreshProgress: Double = 0.0
+    @Published var visibleRegion: MKCoordinateRegion?
+    @Published var secondsUntilNextRefresh: Int = 15
     
     private var refreshTask: Task<Void, Never>?
-    private let refreshInterval: TimeInterval = 30
+    private var progressTask: Task<Void, Never>?
+    private let refreshInterval: TimeInterval = 15
     private var cancellables = Set<AnyCancellable>()
+    private var isFirstLoad = true
     
+    private var cachedAvailableLines: [String] = []
+    private var lastVehicleCount: Int = 0
+    
+    let favoriteLinesService = FavoriteLinesService.shared
+        
     private static let lyonCenter = CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659)
     private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
     
@@ -64,9 +75,33 @@ final class LiveVehiclesViewModel: ObservableObject {
         
         if let line = selectedLine, !line.isEmpty {
             result = result.filter { $0.lineName == line }
+        } else if !selectedLines.isEmpty {
+            result = result.filter { selectedLines.contains($0.lineName) }
+        }
+        
+        if let region = visibleRegion {
+            result = result.filter { vehicle in
+                isCoordinateInRegion(vehicle.coordinate, region: region)
+            }
         }
         
         return result
+    }
+    
+    private func isCoordinateInRegion(_ coordinate: CLLocationCoordinate2D, region: MKCoordinateRegion) -> Bool {
+        let buffer = 0.5
+        let latDelta = region.span.latitudeDelta * buffer
+        let lonDelta = region.span.longitudeDelta * buffer
+        
+        let minLat = region.center.latitude - latDelta
+        let maxLat = region.center.latitude + latDelta
+        let minLon = region.center.longitude - lonDelta
+        let maxLon = region.center.longitude + lonDelta
+        
+        return coordinate.latitude >= minLat &&
+               coordinate.latitude <= maxLat &&
+               coordinate.longitude >= minLon &&
+               coordinate.longitude <= maxLon
     }
     
     var shouldShowClusters: Bool {
@@ -83,31 +118,54 @@ final class LiveVehiclesViewModel: ObservableObject {
     }
     
     var availableLines: [String] {
+        if vehicles.count != lastVehicleCount {
+            cachedAvailableLines = computeAvailableLines()
+            lastVehicleCount = vehicles.count
+        }
+        
         let linesToFilter: [Vehicle]
         if let type = selectedVehicleType {
             linesToFilter = vehicles.filter { $0.vehicleType == type }
-        } else {
-            linesToFilter = vehicles
+            let filtered = Set(linesToFilter.map { $0.lineName })
+            return cachedAvailableLines.filter { filtered.contains($0) }
         }
         
-        return Array(Set(linesToFilter.map { $0.lineName })).sorted { line1, line2 in
-            let vehicle1 = vehicles.first { $0.lineName == line1 }
-            let vehicle2 = vehicles.first { $0.lineName == line2 }
-            
-            let type1 = vehicle1?.vehicleType.sortOrder ?? Int.max
-            let type2 = vehicle2?.vehicleType.sortOrder ?? Int.max
-            
-            if type1 != type2 {
-                return type1 < type2
-            }
-            
-            let num1 = Int(line1.filter { $0.isNumber }) ?? Int.max
-            let num2 = Int(line2.filter { $0.isNumber }) ?? Int.max
-            if num1 != num2 {
-                return num1 < num2
-            }
-            return line1 < line2
+        return cachedAvailableLines
+    }
+    
+    private func computeAvailableLines() -> [String] {
+        let uniqueLines = Array(Set(vehicles.map { $0.lineName }))
+        
+        let lineInfo = uniqueLines.compactMap { line -> (line: String, type: VehicleType, numericValue: Int)? in
+            guard let vehicle = vehicles.first(where: { $0.lineName == line }) else { return nil }
+            let numericValue = Int(line.filter { $0.isNumber }) ?? Int.max
+            return (line, vehicle.vehicleType, numericValue)
         }
+        
+        return lineInfo.sorted { a, b in
+            if a.type.sortOrder != b.type.sortOrder {
+                return a.type.sortOrder < b.type.sortOrder
+            }
+            if a.numericValue != b.numericValue {
+                return a.numericValue < b.numericValue
+            }
+            return a.line < b.line
+        }.map { $0.line }
+    }
+    
+    func getFilteredLines(searchText: String) -> [String] {
+        let lines = availableLines
+        if searchText.isEmpty {
+            return lines
+        }
+        return lines.filter { $0.localizedCaseInsensitiveContains(searchText) }
+    }
+    
+    func getSortedLinesWithFavorites(searchText: String) -> (favorites: [String], others: [String]) {
+        let filtered = getFilteredLines(searchText: searchText)
+        let favorites = filtered.filter { favoriteLinesService.isFavorite($0) }
+        let others = filtered.filter { !favoriteLinesService.isFavorite($0) }
+        return (favorites, others)
     }
     
     func vehicleTypeForLine(_ line: String) -> VehicleType? {
@@ -148,17 +206,29 @@ final class LiveVehiclesViewModel: ObservableObject {
         var newAnimatedVehicles: [String: AnimatedVehicle] = [:]
         
         for vehicle in newVehicles {
-            let previousVehicle = vehicles.first { $0.id == vehicle.id }
-            let animated = AnimatedVehicle(vehicle: vehicle, previousVehicle: previousVehicle)
-            animated.startAnimation()
-            newAnimatedVehicles[vehicle.id] = animated
+            if let existingAnimated = animatedVehicles[vehicle.id] {
+                existingAnimated.stopAnimation()
+                let previousVehicle = vehicles.first { $0.id == vehicle.id }
+                let animated = AnimatedVehicle(vehicle: vehicle, previousVehicle: previousVehicle, isFirstLoad: isFirstLoad)
+                animated.startAnimation()
+                newAnimatedVehicles[vehicle.id] = animated
+            } else {
+                let animated = AnimatedVehicle(vehicle: vehicle, previousVehicle: nil, isFirstLoad: isFirstLoad)
+                newAnimatedVehicles[vehicle.id] = animated
+            }
         }
         
-        for (_, animated) in animatedVehicles {
-            animated.stopAnimation()
+        for (id, animated) in animatedVehicles {
+            if newAnimatedVehicles[id] == nil {
+                animated.stopAnimation()
+            }
         }
         
         animatedVehicles = newAnimatedVehicles
+        
+        if isFirstLoad {
+            isFirstLoad = false
+        }
     }
     
     private func createClusters(from vehicles: [Vehicle]) -> [VehicleCluster] {
@@ -205,11 +275,34 @@ final class LiveVehiclesViewModel: ObservableObject {
                 try? await Task.sleep(nanoseconds: UInt64(refreshInterval * 1_000_000_000))
             }
         }
+        
+        progressTask = Task {
+            while !Task.isCancelled && isAutoRefreshEnabled {
+                let startTime = Date()
+                while !Task.isCancelled {
+                    let elapsed = Date().timeIntervalSince(startTime)
+                    let progress = min(elapsed / refreshInterval, 1.0)
+                    let remaining = max(0, refreshInterval - elapsed)
+                    await MainActor.run {
+                        self.refreshProgress = progress
+                        self.secondsUntilNextRefresh = Int(ceil(remaining))
+                    }
+                    
+                    if elapsed >= refreshInterval {
+                        break
+                    }
+                    
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+            }
+        }
     }
     
     func stopAutoRefresh() {
         refreshTask?.cancel()
         refreshTask = nil
+        progressTask?.cancel()
+        progressTask = nil
         
         for (_, animated) in animatedVehicles {
             animated.stopAnimation()
@@ -218,6 +311,10 @@ final class LiveVehiclesViewModel: ObservableObject {
     
     func updateZoomLevel(_ span: MKCoordinateSpan) {
         currentZoomLevel = span.latitudeDelta
+    }
+    
+    func updateVisibleRegion(_ region: MKCoordinateRegion) {
+        visibleRegion = region
     }
     
     func centerOnLyon() {
@@ -238,12 +335,58 @@ final class LiveVehiclesViewModel: ObservableObject {
         }
     }
     
+    func toggleLineSelection(_ line: String) {
+        if selectedLines.contains(line) {
+            selectedLines.remove(line)
+        } else {
+            selectedLines.insert(line)
+        }
+    }
+    
     func clearFilters() {
         selectedVehicleType = nil
         selectedLine = nil
+        selectedLines.removeAll()
     }
     
     deinit {
         refreshTask?.cancel()
+    }
+}
+
+// MARK: - FavoriteLinesService
+final class FavoriteLinesService: ObservableObject {
+    static let shared = FavoriteLinesService()
+    
+    @Published private(set) var favoriteLines: Set<String> = []
+    
+    private let favoritesKey = "favoriteLines"
+    
+    private init() {
+        loadFavorites()
+    }
+    
+    func isFavorite(_ line: String) -> Bool {
+        favoriteLines.contains(line)
+    }
+    
+    func toggleFavorite(_ line: String) {
+        if favoriteLines.contains(line) {
+            favoriteLines.remove(line)
+        } else {
+            favoriteLines.insert(line)
+        }
+        saveFavorites()
+        objectWillChange.send()
+    }
+    
+    private func loadFavorites() {
+        if let data = UserDefaults.standard.array(forKey: favoritesKey) as? [String] {
+            favoriteLines = Set(data)
+        }
+    }
+    
+    private func saveFavorites() {
+        UserDefaults.standard.set(Array(favoriteLines), forKey: favoritesKey)
     }
 }

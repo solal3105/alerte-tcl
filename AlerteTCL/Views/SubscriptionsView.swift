@@ -108,6 +108,7 @@ struct SubscriptionCard: View {
         switch line.mode {
         case .metro: return "tram.fill"
         case .tramway: return "tram"
+        case .busC: return "bus.fill"
         case .bus: return "bus.fill"
         case .funiculaire: return "cablecar.fill"
         case .navette: return "ferry.fill"
@@ -118,6 +119,7 @@ struct SubscriptionCard: View {
         switch line.mode {
         case .metro: return "Métro"
         case .tramway: return "Tram"
+        case .busC: return "Bus C"
         case .bus: return "Bus"
         case .funiculaire: return "Funi"
         case .navette: return "Navette"

@@ -2,12 +2,12 @@ import Foundation
 import CoreLocation
 import SwiftUI
 
-class AnimatedVehicle: Identifiable, ObservableObject {
+class AnimatedVehicle: Identifiable {
     let id: String
     let vehicle: Vehicle
     
-    @Published var animatedCoordinate: CLLocationCoordinate2D
-    @Published var animatedBearing: Double
+    var animatedCoordinate: CLLocationCoordinate2D
+    var animatedBearing: Double
     
     private var previousCoordinate: CLLocationCoordinate2D?
     private var targetCoordinate: CLLocationCoordinate2D
@@ -16,15 +16,15 @@ class AnimatedVehicle: Identifiable, ObservableObject {
     
     private var animationTimer: Timer?
     private var animationStartTime: Date?
-    private let animationDuration: TimeInterval = 30.0
+    private let animationDuration: TimeInterval = 15.0
     
-    init(vehicle: Vehicle, previousVehicle: Vehicle? = nil) {
+    init(vehicle: Vehicle, previousVehicle: Vehicle? = nil, isFirstLoad: Bool = false) {
         self.id = vehicle.id
         self.vehicle = vehicle
         self.targetCoordinate = vehicle.coordinate
         self.targetBearing = vehicle.bearing
         
-        if let prev = previousVehicle {
+        if let prev = previousVehicle, !isFirstLoad {
             self.previousCoordinate = prev.coordinate
             self.previousBearing = prev.bearing
             self.animatedCoordinate = prev.coordinate
@@ -71,15 +71,12 @@ class AnimatedVehicle: Identifiable, ObservableObject {
         let newLat = prevCoord.latitude + (targetCoordinate.latitude - prevCoord.latitude) * easedProgress
         let newLon = prevCoord.longitude + (targetCoordinate.longitude - prevCoord.longitude) * easedProgress
         
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            self.animatedCoordinate = CLLocationCoordinate2D(latitude: newLat, longitude: newLon)
-            
-            var bearingDiff = self.targetBearing - self.previousBearing
-            if bearingDiff > 180 { bearingDiff -= 360 }
-            if bearingDiff < -180 { bearingDiff += 360 }
-            self.animatedBearing = self.previousBearing + bearingDiff * easedProgress
-        }
+        self.animatedCoordinate = CLLocationCoordinate2D(latitude: newLat, longitude: newLon)
+        
+        var bearingDiff = self.targetBearing - self.previousBearing
+        if bearingDiff > 180 { bearingDiff -= 360 }
+        if bearingDiff < -180 { bearingDiff += 360 }
+        self.animatedBearing = self.previousBearing + bearingDiff * easedProgress
         
         if progress >= 1.0 {
             stopAnimation()
@@ -88,9 +85,9 @@ class AnimatedVehicle: Identifiable, ObservableObject {
     
     private func easeInOutCubic(_ t: Double) -> Double {
         if t < 0.5 {
-            return 4 * t * t * t
+            return 2 * t * t
         } else {
-            return 1 - pow(-2 * t + 2, 3) / 2
+            return 1 - pow(-2 * t + 2, 2) / 2
         }
     }
     
@@ -108,7 +105,8 @@ struct VehicleCluster: Identifiable {
     var count: Int { vehicles.count }
     
     init(vehicles: [Vehicle]) {
-        self.id = UUID().uuidString
+        let sortedIds = vehicles.map { $0.id }.sorted().joined(separator: "-")
+        self.id = "cluster-\(sortedIds.hashValue)"
         self.vehicles = vehicles
         
         let avgLat = vehicles.map { $0.latitude }.reduce(0, +) / Double(vehicles.count)

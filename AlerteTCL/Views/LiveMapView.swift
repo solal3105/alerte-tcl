@@ -3,6 +3,7 @@ import MapKit
 
 struct LiveMapView: View {
     @StateObject private var viewModel = LiveVehiclesViewModel()
+    @ObservedObject private var locationService = LocationService.shared
     @State private var selectedVehicle: Vehicle?
     @State private var showFilters = false
     @State private var mapCameraPosition: MapCameraPosition = .region(
@@ -11,6 +12,14 @@ struct LiveMapView: View {
             span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
         )
     )
+    
+    private func isSimulator() -> Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+    }
     
     var body: some View {
         ZStack {
@@ -29,26 +38,63 @@ struct LiveMapView: View {
                 .presentationDragIndicator(.visible)
         }
         .task {
+            locationService.requestPermission()
+            locationService.startUpdatingLocation()
+            
+            if let userLocation = locationService.currentLocation, !isSimulator() {
+                withAnimation(.easeInOut(duration: 0.8)) {
+                    mapCameraPosition = .region(
+                        MKCoordinateRegion(
+                            center: userLocation.coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                        )
+                    )
+                }
+            }
+            
             await viewModel.loadVehicles()
             viewModel.startAutoRefresh()
         }
         .onDisappear {
             viewModel.stopAutoRefresh()
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            viewModel.stopAutoRefresh()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            Task {
+                await viewModel.loadVehicles()
+                viewModel.startAutoRefresh()
+            }
+        }
+        .onChange(of: locationService.currentLocation) { oldValue, newValue in
+            if oldValue == nil, let newLocation = newValue, !isSimulator() {
+                withAnimation(.easeInOut(duration: 0.8)) {
+                    mapCameraPosition = .region(
+                        MKCoordinateRegion(
+                            center: newLocation.coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                        )
+                    )
+                }
+            }
+        }
     }
     
     private var mapContent: some View {
         MapReader { proxy in
             Map(position: $mapCameraPosition, interactionModes: .all) {
+                UserAnnotation()
                 if viewModel.shouldShowClusters {
-                    ForEach(viewModel.clusters) { cluster in
+                    ForEach(viewModel.clusters, id: \.id) { cluster in
                         Annotation("", coordinate: cluster.coordinate) {
                             ClusterMarker(cluster: cluster)
                         }
                     }
                     
                     let clusteredIds = Set(viewModel.clusters.flatMap { $0.vehicles.map { $0.id } })
-                    ForEach(viewModel.filteredVehicles.filter { !clusteredIds.contains($0.id) }) { vehicle in
+                    let unclusteredVehicles = viewModel.filteredVehicles.filter { !clusteredIds.contains($0.id) }
+                    ForEach(unclusteredVehicles, id: \.id) { vehicle in
                         let animated = viewModel.animatedVehicles[vehicle.id]
                         let coordinate = animated?.animatedCoordinate ?? vehicle.coordinate
                         let bearing = animated?.animatedBearing ?? vehicle.bearing
@@ -61,7 +107,7 @@ struct LiveMapView: View {
                         }
                     }
                 } else {
-                    ForEach(viewModel.filteredVehicles) { vehicle in
+                    ForEach(viewModel.filteredVehicles, id: \.id) { vehicle in
                         let animated = viewModel.animatedVehicles[vehicle.id]
                         let coordinate = animated?.animatedCoordinate ?? vehicle.coordinate
                         let bearing = animated?.animatedBearing ?? vehicle.bearing
@@ -79,161 +125,113 @@ struct LiveMapView: View {
             .ignoresSafeArea(edges: .top)
             .onMapCameraChange { context in
                 viewModel.updateZoomLevel(context.region.span)
+                viewModel.updateVisibleRegion(context.region)
             }
         }
     }
     
     private var overlayControls: some View {
         VStack {
-            headerBar
-            
             Spacer()
             
-            bottomControls
-        }
-    }
-    
-    private var headerBar: some View {
-        VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Transport Live")
-                        .font(.system(size: 20, weight: .bold))
-                    
-                    if let lastUpdate = viewModel.lastUpdate {
-                        Text("Mis à jour \(lastUpdate.formatted(.relative(presentation: .named)))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+            HStack(alignment: .bottom) {
+                // Card refresh en bas à gauche
+                refreshCard
                 
                 Spacer()
                 
-                HStack(spacing: 12) {
+                // Boutons en bas à droite (stack vertical)
+                VStack(spacing: 20) {
+                    // Bouton filtres
                     Button {
                         showFilters = true
                     } label: {
                         Image(systemName: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                            .font(.system(size: 22))
-                            .foregroundStyle(hasActiveFilters ? .blue : .primary)
+                            .font(.system(size: 22, weight: .semibold))
                     }
+                    .buttonStyle(.borderedProminent)
+                    .tint(hasActiveFilters ? .blue : .gray)
+                    .controlSize(.large)
                     
+                    // Bouton localisation
                     Button {
-                        Task { await viewModel.loadVehicles() }
-                    } label: {
-                        if viewModel.isLoading {
-                            ProgressView()
-                                .scaleEffect(0.8)
+                        if let userLocation = locationService.currentLocation, !isSimulator() {
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                                mapCameraPosition = .region(
+                                    MKCoordinateRegion(
+                                        center: userLocation.coordinate,
+                                        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                                    )
+                                )
+                            }
                         } else {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 20, weight: .semibold))
+                            locationService.requestPermission()
+                            locationService.startUpdatingLocation()
                         }
+                    } label: {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 22, weight: .semibold))
                     }
-                    .disabled(viewModel.isLoading)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                    .controlSize(.large)
+                }
+                .padding(.trailing, 24)
+                .padding(.bottom, 24)
+            }
+        }
+    }
+    
+    private var refreshCard: some View {
+        Button {
+            Task { await viewModel.loadVehicles() }
+        } label: {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.blue.opacity(0.2), lineWidth: 2.5)
+                        .frame(width: 36, height: 36)
+                    
+                    Circle()
+                        .trim(from: 0, to: viewModel.refreshProgress)
+                        .stroke(
+                            Color.blue,
+                            style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                        )
+                        .frame(width: 36, height: 36)
+                        .rotationEffect(.degrees(-90))
+                        .animation(.linear(duration: 0.1), value: viewModel.refreshProgress)
+                    
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.blue)
+                    }
+                }
+                
+                if !viewModel.isLoading {
+                    Text("dans \(viewModel.secondsUntilNextRefresh)s")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.vertical, 10)
             .background(.regularMaterial)
-            
-            if let error = viewModel.error {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial)
-            } else if !viewModel.isLoading && viewModel.vehicles.isEmpty && viewModel.lastUpdate != nil {
-                HStack {
-                    Image(systemName: "info.circle.fill")
-                        .foregroundStyle(.blue)
-                    Text("Aucun véhicule en circulation pour le moment")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial)
-            }
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 3)
         }
+        .buttonStyle(.plain)
+        .disabled(viewModel.isLoading)
+        .padding(.leading, 24)
+        .padding(.bottom, 24)
     }
     
     private var hasActiveFilters: Bool {
-        viewModel.selectedVehicleType != nil || viewModel.selectedLine != nil
-    }
-    
-    private var bottomControls: some View {
-        VStack(spacing: 12) {
-            if !viewModel.vehicleTypeStats.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(viewModel.vehicleTypeStats, id: \.type) { stat in
-                            VehicleTypeChip(
-                                type: stat.type,
-                                count: stat.count,
-                                isSelected: viewModel.selectedVehicleType == stat.type
-                            ) {
-                                withAnimation(.spring(response: 0.3)) {
-                                    if viewModel.selectedVehicleType == stat.type {
-                                        viewModel.selectedVehicleType = nil
-                                    } else {
-                                        viewModel.selectedVehicleType = stat.type
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                }
-            }
-            
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .scaleEffect(1.2)
-                    } else {
-                        Text("\(viewModel.filteredVehicles.count)")
-                            .font(.system(size: 28, weight: .black))
-                        Text(viewModel.vehicles.isEmpty ? "Aucun véhicule détecté" : "véhicules en circulation")
-                            .font(.caption)
-                            .foregroundStyle(viewModel.vehicles.isEmpty ? .orange : .secondary)
-                    }
-                }
-                
-                Spacer()
-                
-                Button {
-                    withAnimation {
-                        mapCameraPosition = .region(
-                            MKCoordinateRegion(
-                                center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
-                                span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
-                            )
-                        )
-                    }
-                } label: {
-                    Image(systemName: "location.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 44, height: 44)
-                        .background(.blue)
-                        .clipShape(Circle())
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
-        }
+        viewModel.selectedVehicleType != nil || viewModel.selectedLine != nil || !viewModel.selectedLines.isEmpty
     }
 }
 
@@ -473,11 +471,31 @@ struct DetailRow: View {
 
 struct FilterSheet: View {
     @ObservedObject var viewModel: LiveVehiclesViewModel
+    @ObservedObject private var favoritesService = FavoriteLinesService.shared
     @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+    @State private var showAllLines = false
     
     var body: some View {
         NavigationStack {
             List {
+                if hasActiveFilters {
+                    Section {
+                        Button {
+                            viewModel.clearFilters()
+                            searchText = ""
+                            showAllLines = false
+                        } label: {
+                            HStack {
+                                Image(systemName: "arrow.counterclockwise")
+                                    .foregroundStyle(.red)
+                                Text("Réinitialiser les filtres")
+                                    .foregroundStyle(.red)
+                            }
+                        }
+                    }
+                }
+                
                 Section("Type de véhicule") {
                     Button {
                         withAnimation {
@@ -538,58 +556,64 @@ struct FilterSheet: View {
                 
                 if !viewModel.availableLines.isEmpty {
                     Section {
-                        Button {
-                            viewModel.selectedLine = nil
-                        } label: {
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(.secondary)
+                            TextField("Rechercher une ligne...", text: $searchText)
+                                .textFieldStyle(.plain)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    
+                    let sortedLines = viewModel.getSortedLinesWithFavorites(searchText: searchText)
+                    
+                    if !sortedLines.favorites.isEmpty {
+                        Section {
+                            ForEach(sortedLines.favorites, id: \.self) { line in
+                                lineRow(line: line)
+                            }
+                        } header: {
                             HStack {
-                                Text("Toutes les lignes")
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                if viewModel.selectedLine == nil {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(.blue)
-                                }
+                                Image(systemName: "star.fill")
+                                    .foregroundStyle(.yellow)
+                                    .font(.caption)
+                                Text("Favoris")
                             }
                         }
-                        
-                        ForEach(viewModel.availableLines, id: \.self) { line in
-                            let lineType = viewModel.vehicleTypeForLine(line)
-                            Button {
-                                viewModel.selectedLine = line
-                            } label: {
-                                HStack {
-                                    if let type = lineType {
-                                        Image(systemName: type.icon)
-                                            .foregroundStyle(typeColor(type))
-                                            .frame(width: 24)
+                    }
+                    
+                    if !sortedLines.others.isEmpty {
+                        Section {
+                            if !showAllLines && sortedLines.others.count > 10 {
+                                ForEach(sortedLines.others.prefix(10), id: \.self) { line in
+                                    lineRow(line: line)
+                                }
+                                
+                                Button {
+                                    withAnimation {
+                                        showAllLines = true
                                     }
-                                    
-                                    Text(line)
-                                        .foregroundStyle(.primary)
-                                    
-                                    Spacer()
-                                    
-                                    if viewModel.selectedLine == line {
-                                        Image(systemName: "checkmark")
+                                } label: {
+                                    HStack {
+                                        Spacer()
+                                        Text("Afficher toutes les lignes (\(sortedLines.others.count))")
                                             .foregroundStyle(.blue)
+                                        Spacer()
                                     }
                                 }
+                            } else {
+                                ForEach(sortedLines.others, id: \.self) { line in
+                                    lineRow(line: line)
+                                }
+                            }
+                        } header: {
+                            if let type = viewModel.selectedVehicleType {
+                                Text("Lignes \(type.rawValue)")
+                            } else {
+                                Text("Toutes les lignes")
                             }
                         }
-                    } header: {
-                        if let type = viewModel.selectedVehicleType {
-                            Text("Lignes \(type.rawValue)")
-                        } else {
-                            Text("Lignes (triées par mode)")
-                        }
                     }
-                }
-                
-                Section {
-                    Button("Réinitialiser les filtres", role: .destructive) {
-                        viewModel.clearFilters()
-                    }
-                    .disabled(viewModel.selectedVehicleType == nil && viewModel.selectedLine == nil)
                 }
             }
             .navigationTitle("Filtres")
@@ -601,6 +625,47 @@ struct FilterSheet: View {
                     }
                     .fontWeight(.semibold)
                 }
+            }
+        }
+    }
+    
+    private var hasActiveFilters: Bool {
+        viewModel.selectedVehicleType != nil || viewModel.selectedLine != nil || !viewModel.selectedLines.isEmpty
+    }
+    
+    @ViewBuilder
+    private func lineRow(line: String) -> some View {
+        let lineType = viewModel.vehicleTypeForLine(line)
+        let isSelected = viewModel.selectedLines.contains(line)
+        
+        Button {
+            viewModel.toggleLineSelection(line)
+        } label: {
+            HStack {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? .blue : .gray)
+                    .frame(width: 24)
+                
+                if let type = lineType {
+                    Image(systemName: type.icon)
+                        .foregroundStyle(typeColor(type))
+                        .frame(width: 24)
+                }
+                
+                Text(line)
+                    .foregroundStyle(.primary)
+                
+                Spacer()
+                
+                Button {
+                    favoritesService.toggleFavorite(line)
+                } label: {
+                    let isFavorite = favoritesService.isFavorite(line)
+                    Image(systemName: isFavorite ? "star.fill" : "star")
+                        .foregroundStyle(isFavorite ? .yellow : .gray)
+                        .font(.system(size: 16))
+                }
+                .buttonStyle(.plain)
             }
         }
     }

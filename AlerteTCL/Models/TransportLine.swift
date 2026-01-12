@@ -4,6 +4,7 @@ import SwiftUI
 enum TransportMode: String, Codable, CaseIterable, Identifiable {
     case metro = "Métro"
     case tramway = "Tramway"
+    case busC = "Bus C"
     case bus = "Bus"
     case funiculaire = "Funiculaire"
     case navette = "Navette maritime/fluviale"
@@ -14,6 +15,7 @@ enum TransportMode: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .metro: return "tram.fill"
         case .tramway: return "tram"
+        case .busC: return "bus.fill"
         case .bus: return "bus.fill"
         case .funiculaire: return "cablecar.fill"
         case .navette: return "ferry.fill"
@@ -24,7 +26,8 @@ enum TransportMode: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .metro: return .orange
         case .tramway: return .blue
-        case .bus: return .purple
+        case .busC: return .purple
+        case .bus: return .indigo
         case .funiculaire: return .green
         case .navette: return .cyan
         }
@@ -35,8 +38,9 @@ enum TransportMode: String, Codable, CaseIterable, Identifiable {
         case .metro: return 0
         case .funiculaire: return 1
         case .tramway: return 2
-        case .bus: return 3
-        case .navette: return 4
+        case .busC: return 3
+        case .bus: return 4
+        case .navette: return 5
         }
     }
 }
@@ -85,33 +89,36 @@ extension TransportLine {
         TransportLine(ligneCom: "F2", ligneCli: "F2", mode: .funiculaire),
     ]
     
+    static let busCLines: [TransportLine] = [
+        TransportLine(ligneCom: "C1", ligneCli: "C1", mode: .busC),
+        TransportLine(ligneCom: "C2", ligneCli: "C2", mode: .busC),
+        TransportLine(ligneCom: "C3", ligneCli: "C3", mode: .busC),
+        TransportLine(ligneCom: "C4", ligneCli: "C4", mode: .busC),
+        TransportLine(ligneCom: "C5", ligneCli: "C5", mode: .busC),
+        TransportLine(ligneCom: "C6", ligneCli: "C6", mode: .busC),
+        TransportLine(ligneCom: "C7", ligneCli: "C7", mode: .busC),
+        TransportLine(ligneCom: "C8", ligneCli: "C8", mode: .busC),
+        TransportLine(ligneCom: "C9", ligneCli: "C9", mode: .busC),
+        TransportLine(ligneCom: "C10", ligneCli: "C10", mode: .busC),
+        TransportLine(ligneCom: "C11", ligneCli: "C11", mode: .busC),
+        TransportLine(ligneCom: "C12", ligneCli: "C12", mode: .busC),
+        TransportLine(ligneCom: "C13", ligneCli: "C13", mode: .busC),
+        TransportLine(ligneCom: "C14", ligneCli: "C14", mode: .busC),
+        TransportLine(ligneCom: "C15", ligneCli: "C15", mode: .busC),
+        TransportLine(ligneCom: "C16", ligneCli: "C16", mode: .busC),
+        TransportLine(ligneCom: "C17", ligneCli: "C17", mode: .busC),
+        TransportLine(ligneCom: "C18", ligneCli: "C18", mode: .busC),
+        TransportLine(ligneCom: "C19", ligneCli: "C19", mode: .busC),
+        TransportLine(ligneCom: "C20", ligneCli: "C20", mode: .busC),
+        TransportLine(ligneCom: "C21", ligneCli: "C21", mode: .busC),
+        TransportLine(ligneCom: "C22", ligneCli: "C22", mode: .busC),
+        TransportLine(ligneCom: "C23", ligneCli: "C23", mode: .busC),
+        TransportLine(ligneCom: "C24", ligneCli: "C24", mode: .busC),
+        TransportLine(ligneCom: "C25", ligneCli: "C25", mode: .busC),
+        TransportLine(ligneCom: "C26", ligneCli: "C26", mode: .busC),
+    ]
+    
     static let busLines: [TransportLine] = [
-        TransportLine(ligneCom: "C1", ligneCli: "C1", mode: .bus),
-        TransportLine(ligneCom: "C2", ligneCli: "C2", mode: .bus),
-        TransportLine(ligneCom: "C3", ligneCli: "C3", mode: .bus),
-        TransportLine(ligneCom: "C4", ligneCli: "C4", mode: .bus),
-        TransportLine(ligneCom: "C5", ligneCli: "C5", mode: .bus),
-        TransportLine(ligneCom: "C6", ligneCli: "C6", mode: .bus),
-        TransportLine(ligneCom: "C7", ligneCli: "C7", mode: .bus),
-        TransportLine(ligneCom: "C8", ligneCli: "C8", mode: .bus),
-        TransportLine(ligneCom: "C9", ligneCli: "C9", mode: .bus),
-        TransportLine(ligneCom: "C10", ligneCli: "C10", mode: .bus),
-        TransportLine(ligneCom: "C11", ligneCli: "C11", mode: .bus),
-        TransportLine(ligneCom: "C12", ligneCli: "C12", mode: .bus),
-        TransportLine(ligneCom: "C13", ligneCli: "C13", mode: .bus),
-        TransportLine(ligneCom: "C14", ligneCli: "C14", mode: .bus),
-        TransportLine(ligneCom: "C15", ligneCli: "C15", mode: .bus),
-        TransportLine(ligneCom: "C16", ligneCli: "C16", mode: .bus),
-        TransportLine(ligneCom: "C17", ligneCli: "C17", mode: .bus),
-        TransportLine(ligneCom: "C18", ligneCli: "C18", mode: .bus),
-        TransportLine(ligneCom: "C19", ligneCli: "C19", mode: .bus),
-        TransportLine(ligneCom: "C20", ligneCli: "C20", mode: .bus),
-        TransportLine(ligneCom: "C21", ligneCli: "C21", mode: .bus),
-        TransportLine(ligneCom: "C22", ligneCli: "C22", mode: .bus),
-        TransportLine(ligneCom: "C23", ligneCli: "C23", mode: .bus),
-        TransportLine(ligneCom: "C24", ligneCli: "C24", mode: .bus),
-        TransportLine(ligneCom: "C25", ligneCli: "C25", mode: .bus),
-        TransportLine(ligneCom: "C26", ligneCli: "C26", mode: .bus),
         TransportLine(ligneCom: "S1", ligneCli: "S1", mode: .bus),
         TransportLine(ligneCom: "S2", ligneCli: "S2", mode: .bus),
         TransportLine(ligneCom: "S3", ligneCli: "S3", mode: .bus),
@@ -199,5 +206,5 @@ extension TransportLine {
         TransportLine(ligneCom: "7601", ligneCli: "NAVI1", mode: .navette),
     ]
     
-    static let allPredefinedLines: [TransportLine] = metroLines + funicularLines + tramwayLines + busLines + navetteLines
+    static let allPredefinedLines: [TransportLine] = metroLines + funicularLines + tramwayLines + busCLines + busLines + navetteLines
 }
