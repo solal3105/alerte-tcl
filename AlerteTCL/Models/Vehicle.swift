@@ -1,5 +1,6 @@
 import Foundation
 import CoreLocation
+import SwiftUI
 
 struct Vehicle: Identifiable, Hashable {
     let id: String
@@ -113,6 +114,28 @@ enum VehicleType: String, CaseIterable {
         case .trolley: return 3
         case .bus: return 4
         }
+    }
+    
+    var clusterColor: Color {
+        switch self {
+        case .metro: return Color(hex: "EE3898")
+        case .tram: return Color(hex: "8C368C")
+        case .bus: return .blue
+        case .trolley: return Color(hex: "DAA520")
+        case .funicular: return Color(hex: "8BC752")
+        }
+    }
+}
+
+// MARK: - Clusterable Conformance
+
+extension Vehicle: Clusterable {
+    var clusterColor: Color {
+        vehicleType.clusterColor
+    }
+    
+    var clusterIcon: String {
+        vehicleType.icon
     }
 }
 

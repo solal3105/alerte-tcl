@@ -9,9 +9,10 @@ final class TravauxViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
     @Published var lastUpdate: Date?
+    @Published var currentZoomLevel: Double = 0.15
+    @Published var visibleRegion: MKCoordinateRegion?
     
-    @Published var selectedImportance: Set<TravauxImportance> = Set(TravauxImportance.allCases)
-    @Published var selectedPerturbation: Set<TravauxPerturbation> = Set(TravauxPerturbation.allCases)
+    @Published var selectedNatureChantier: Set<TravauxNatureChantier> = Set(TravauxNatureChantier.allCases)
     @Published var searchText: String = ""
     
     @Published var refreshProgress: Double = 0.0
@@ -19,30 +20,29 @@ final class TravauxViewModel: ObservableObject {
     
     private var refreshTask: Task<Void, Never>?
     private var countdownTask: Task<Void, Never>?
-    private let refreshInterval: TimeInterval = 300 // 5 minutes
+    private let refreshInterval: TimeInterval = 300 // 5 minutes (non utilisé - cache journalier)
+    private let cacheExpirationInterval: TimeInterval = 86400 // 24 heures
+    private let clusteringConfig = ClusteringEngine.Configuration.default
     
     // MARK: - Computed Properties
     
     var filteredTravaux: [Travaux] {
         var result = travaux
         
-        // Filter by importance
-        result = result.filter { selectedImportance.contains($0.importance) }
-        
-        // Filter by perturbation type
-        result = result.filter { selectedPerturbation.contains($0.typeperturbation) }
+        // Filter by nature de chantier
+        result = result.filter { selectedNatureChantier.contains($0.natureChantier) }
         
         // Filter by search text
         if !searchText.isEmpty {
             result = result.filter {
                 $0.nom.localizedCaseInsensitiveContains(searchText) ||
                 $0.nomChantier.localizedCaseInsensitiveContains(searchText) ||
-                $0.commune.localizedCaseInsensitiveContains(searchText)
+                $0.commune.localizedCaseInsensitiveContains(searchText) ||
+                $0.intervenant.localizedCaseInsensitiveContains(searchText)
             }
         }
         
-        // Sort by importance (most disruptive first)
-        return result.sorted { $0.importance < $1.importance }
+        return result
     }
     
     var travauxEnCours: Int {
@@ -59,9 +59,76 @@ final class TravauxViewModel: ObservableObject {
     }
     
     var hasActiveFilters: Bool {
-        selectedImportance.count < TravauxImportance.allCases.count ||
-        selectedPerturbation.count < TravauxPerturbation.allCases.count ||
+        selectedNatureChantier.count < TravauxNatureChantier.allCases.count ||
         !searchText.isEmpty
+    }
+    
+    // MARK: - Viewport Filtering
+    
+    /// Travaux visibles dans la région actuelle (avec buffer)
+    var visibleTravaux: [Travaux] {
+        filteredTravaux.visibleIn(region: visibleRegion, buffer: .large)
+    }
+    
+    // MARK: - Clustering
+    
+    @Published private(set) var cachedClusters: [MapCluster<Travaux>] = []
+    @Published private(set) var cachedUnclusteredTravaux: [Travaux] = []
+    private var lastClusteringZoom: Double = 0
+    private var lastClusteringTravauxCount: Int = 0
+    
+    var shouldShowClusters: Bool {
+        ClusteringEngine.shouldCluster(zoomLevel: currentZoomLevel, config: clusteringConfig)
+    }
+    
+    private func updateClustersIfNeeded() {
+        let zoomChanged = abs(currentZoomLevel - lastClusteringZoom) > 0.002
+        let travauxChanged = visibleTravaux.count != lastClusteringTravauxCount
+        
+        guard zoomChanged || travauxChanged else { return }
+        
+        let result = ClusteringEngine.createClusters(from: visibleTravaux, zoomLevel: currentZoomLevel, config: clusteringConfig)
+        cachedClusters = result.clusters
+        cachedUnclusteredTravaux = result.unclustered
+        lastClusteringZoom = currentZoomLevel
+        lastClusteringTravauxCount = visibleTravaux.count
+    }
+    
+    var clusters: [MapCluster<Travaux>] {
+        cachedClusters
+    }
+    
+    var unclusteredTravaux: [Travaux] {
+        cachedUnclusteredTravaux
+    }
+    
+    // MARK: - Display Limits
+    
+    private let maxDisplayMarkers = 1000
+    
+    var shouldShowTooManyMarkersWarning: Bool {
+        // Compter TOUS les travaux visibles (pas les markers)
+        return visibleTravaux.count > maxDisplayMarkers
+    }
+    
+    var displayClusters: [MapCluster<Travaux>] {
+        guard !shouldShowTooManyMarkersWarning else { return [] }
+        return clusters
+    }
+    
+    var displayTravaux: [Travaux] {
+        guard !shouldShowTooManyMarkersWarning else { return [] }
+        return unclusteredTravaux
+    }
+    
+    func updateZoomLevel(_ span: MKCoordinateSpan) {
+        currentZoomLevel = span.latitudeDelta
+        updateClustersIfNeeded()
+    }
+    
+    func updateVisibleRegion(_ region: MKCoordinateRegion) {
+        visibleRegion = region
+        updateClustersIfNeeded()
     }
     
     // MARK: - Lifecycle
@@ -81,6 +148,15 @@ final class TravauxViewModel: ObservableObject {
     // MARK: - Data Loading
     
     func loadTravaux() async {
+        // Vérifier si le cache est encore valide (< 24h)
+        if let lastUpdate = lastUpdate {
+            let timeSinceLastUpdate = Date().timeIntervalSince(lastUpdate)
+            if timeSinceLastUpdate < cacheExpirationInterval && !travaux.isEmpty {
+                print("✅ TravauxViewModel: Utilisation du cache (mis à jour il y a \(Int(timeSinceLastUpdate / 3600))h)")
+                return
+            }
+        }
+        
         isLoading = true
         error = nil
         
@@ -89,6 +165,11 @@ final class TravauxViewModel: ObservableObject {
             travaux = fetchedTravaux
             lastUpdate = Date()
             resetCountdown()
+            
+            // Forcer la mise à jour des clusters
+            updateClustersIfNeeded()
+            
+            print("✅ TravauxViewModel: \(travaux.count) travaux chargés et mis en cache pour 24h")
         } catch {
             self.error = error.localizedDescription
             print("❌ TravauxViewModel: Erreur de chargement: \(error)")
@@ -102,23 +183,20 @@ final class TravauxViewModel: ObservableObject {
     private func startAutoRefresh() {
         stopAutoRefresh()
         
-        refreshTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: UInt64(refreshInterval * 1_000_000_000))
-                guard !Task.isCancelled else { break }
-                await loadTravaux()
-            }
-        }
+        // Pas de refresh auto pour les travaux - cache de 24h
+        print("ℹ️ TravauxViewModel: Pas de refresh auto (cache journalier)")
         
-        // Countdown timer
+        // Countdown timer pour afficher le temps restant avant expiration du cache
         countdownTask = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 guard !Task.isCancelled else { break }
                 
-                if secondsUntilNextRefresh > 0 {
-                    secondsUntilNextRefresh -= 1
-                    refreshProgress = 1.0 - (Double(secondsUntilNextRefresh) / refreshInterval)
+                if let lastUpdate = lastUpdate {
+                    let timeSinceUpdate = Date().timeIntervalSince(lastUpdate)
+                    let remaining = max(0, cacheExpirationInterval - timeSinceUpdate)
+                    secondsUntilNextRefresh = Int(remaining)
+                    refreshProgress = timeSinceUpdate / cacheExpirationInterval
                 }
             }
         }
@@ -138,25 +216,16 @@ final class TravauxViewModel: ObservableObject {
     
     // MARK: - Filters
     
-    func toggleImportance(_ importance: TravauxImportance) {
-        if selectedImportance.contains(importance) {
-            selectedImportance.remove(importance)
+    func toggleNatureChantier(_ nature: TravauxNatureChantier) {
+        if selectedNatureChantier.contains(nature) {
+            selectedNatureChantier.remove(nature)
         } else {
-            selectedImportance.insert(importance)
-        }
-    }
-    
-    func togglePerturbation(_ perturbation: TravauxPerturbation) {
-        if selectedPerturbation.contains(perturbation) {
-            selectedPerturbation.remove(perturbation)
-        } else {
-            selectedPerturbation.insert(perturbation)
+            selectedNatureChantier.insert(nature)
         }
     }
     
     func resetFilters() {
-        selectedImportance = Set(TravauxImportance.allCases)
-        selectedPerturbation = Set(TravauxPerturbation.allCases)
+        selectedNatureChantier = Set(TravauxNatureChantier.allCases)
         searchText = ""
     }
     

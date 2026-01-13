@@ -166,9 +166,13 @@ struct LinesListView: View {
     }
     
     private func subscribeWithTypes(line: TransportLine, types: Set<AlertSeverity>) {
-        NotificationService.shared.requestPermission()
-        viewModel.subscriptionService.subscribe(to: line, notificationTypes: types)
-        selectedLineForSubscription = nil
+        Task {
+            _ = await NotificationService.shared.requestPermission()
+            viewModel.subscriptionService.subscribe(to: line, notificationTypes: types)
+            await MainActor.run {
+                selectedLineForSubscription = nil
+            }
+        }
     }
 }
 

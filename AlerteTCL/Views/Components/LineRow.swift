@@ -8,7 +8,7 @@ struct LineRow: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            LineBadge(line: line)
+            TransportLineBadge(line: line)
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(line.displayName)
@@ -42,19 +42,38 @@ struct LineRow: View {
     }
 }
 
-struct LineBadge: View {
+struct TransportLineBadge: View {
     let line: TransportLine
+    
+    private var lineName: String {
+        line.ligneCli.isEmpty ? line.ligneCom : line.ligneCli
+    }
+    
+    private var bgColor: Color {
+        LineColorHelper.backgroundColor(for: lineName)
+    }
+    
+    private var textColor: Color {
+        LineColorHelper.textColor(for: lineName)
+    }
+    
+    private var needsBorder: Bool {
+        LineColorHelper.needsBorder(for: lineName)
+    }
     
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 8)
-                .fill(line.mode.color.gradient)
+                .fill(bgColor)
                 .frame(width: 44, height: 44)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color(.systemGray3), lineWidth: needsBorder ? 1 : 0)
+                )
             
-            Image(systemName: line.mode.icon)
-                .font(.title3)
-                .fontWeight(.semibold)
-                .foregroundStyle(.white)
+            Text(lineName)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(textColor)
         }
     }
 }

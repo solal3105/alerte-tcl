@@ -45,23 +45,14 @@ struct AlertCard: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isExpanded)
     }
     
+    private var lineName: String {
+        alert.ligneCli.isEmpty ? alert.ligneCom : alert.ligneCli
+    }
+    
     private var header: some View {
         HStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(alert.mode.color.gradient)
-                    .frame(width: 36, height: 36)
-                
-                Image(systemName: alert.mode.icon)
-                    .font(.footnote)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.white)
-            }
-            
-            Text(alert.ligneCli.isEmpty ? alert.ligneCom : alert.ligneCli)
-                .font(.subheadline)
-                .fontWeight(.bold)
-                .foregroundStyle(alert.mode.color)
+            // Badge de ligne avec couleurs appropriées
+            LineBadge(line: lineName, size: 14)
             
             Spacer()
             

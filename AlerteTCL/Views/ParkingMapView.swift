@@ -34,7 +34,7 @@ struct ParkingMapView: View {
                 mapCameraPosition = .region(
                     MKCoordinateRegion(
                         center: userLocation.coordinate,
-                        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                     )
                 )
                 hasSetInitialLocation = true
@@ -48,7 +48,7 @@ struct ParkingMapView: View {
                     mapCameraPosition = .region(
                         MKCoordinateRegion(
                             center: newLocation.coordinate,
-                            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                         )
                     )
                 }
@@ -61,20 +61,73 @@ struct ParkingMapView: View {
     }
     
     private var parkingTypeSelector: some View {
-        Picker("Type de parking", selection: $viewModel.selectedParkingType) {
+        HStack(spacing: 0) {
             ForEach(ParkingType.allCases, id: \.self) { type in
-                Text(type.rawValue).tag(type)
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        viewModel.selectedParkingType = type
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: type.icon)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(type == .motorized2Wheel ? "2-Roues" : type.rawValue)
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(viewModel.selectedParkingType == type ? .white : .primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background {
+                        if viewModel.selectedParkingType == type {
+                            Capsule()
+                                .fill(parkingTypeColor(type))
+                                .shadow(color: parkingTypeColor(type).opacity(0.4), radius: 4, x: 0, y: 2)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
             }
         }
-        .pickerStyle(.segmented)
+        .padding(4)
+        .background(.regularMaterial)
+        .clipShape(Capsule())
+        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 2)
         .padding(.horizontal, 16)
         .padding(.top, 60)
+    }
+    
+    private func parkingTypeColor(_ type: ParkingType) -> Color {
+        switch type {
+        case .car: return .blue
+        case .bike: return .green
+        case .motorized2Wheel: return .orange
+        }
     }
     
     private var mapContent: some View {
         MapReader { proxy in
             Map(position: $mapCameraPosition) {
-                ForEach(viewModel.parkings) { parking in
+                // Afficher les clusters de parkings
+                ForEach(viewModel.displayClusters, id: \.id) { cluster in
+                    Annotation("", coordinate: cluster.coordinate) {
+                        ParkingClusterMarker(cluster: cluster)
+                            .onTapGesture {
+                                // Zoom sur le cluster au tap
+                                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                                    mapCameraPosition = .region(
+                                        MKCoordinateRegion(
+                                            center: cluster.coordinate,
+                                            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                                        )
+                                    )
+                                }
+                            }
+                    }
+                }
+                
+                // Afficher les parkings non clusterisés
+                ForEach(viewModel.displayParkings) { parking in
                     Annotation(parking.nom, coordinate: parking.coordinate) {
                         ParkingMarker(parking: parking)
                             .onTapGesture {
@@ -92,8 +145,15 @@ struct ParkingMapView: View {
             .ignoresSafeArea(edges: .top)
             .onMapCameraChange { context in
                 currentSpan = context.region.span
+                viewModel.updateZoomLevel(context.region.span)
+                viewModel.updateVisibleRegion(context.region)
             }
             .overlay {
+                // Warning pour trop de markers
+                if viewModel.shouldShowTooManyMarkersWarning {
+                    tooManyMarkersWarning
+                }
+                
                 // Overlay pour les erreurs uniquement
                 if let error = viewModel.error {
                     VStack(spacing: 16) {
@@ -124,13 +184,36 @@ struct ParkingMapView: View {
         }
     }
     
+    private var tooManyMarkersWarning: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 48))
+                .foregroundStyle(.orange)
+            
+            Text("Trop de résultats")
+                .font(.headline)
+            
+            Text("Zoomez sur la carte pour afficher les parkings")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(24)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 3)
+        .padding(20)
+    }
+    
     private var overlayControls: some View {
         VStack {
             Spacer()
             
             HStack(alignment: .bottom) {
-                // Card refresh en bas à gauche
-                refreshCard
+                // Card refresh en bas à gauche (uniquement pour voitures - données temps réel)
+                if viewModel.selectedParkingType == .car {
+                    refreshCard
+                }
                 
                 Spacer()
                 
@@ -141,7 +224,7 @@ struct ParkingMapView: View {
                             mapCameraPosition = .region(
                                 MKCoordinateRegion(
                                     center: userLocation.coordinate,
-                                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                                 )
                             )
                         }

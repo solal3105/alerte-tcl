@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4F095CAF2F16E92F001D059A /* UnifiedCluster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F095CAE2F16E92F001D059A /* UnifiedCluster.swift */; };
+		4F095CB22F16EA78001D059A /* ViewportFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F095CB02F16EA78001D059A /* ViewportFilter.swift */; };
 		4F38BD0C2F1558BE00E05786 /* TrafficMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD0B2F1558BE00E05786 /* TrafficMapView.swift */; };
 		4F38BD0E2F1558DB00E05786 /* TrafficViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD0D2F1558DB00E05786 /* TrafficViewModel.swift */; };
 		4F38BD102F1558E400E05786 /* TrafficService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD0F2F1558E400E05786 /* TrafficService.swift */; };
@@ -27,7 +29,6 @@
 		4F9DFFA02F1457EE00E01BFB /* FavoriteLinesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF9E2F1457EE00E01BFB /* FavoriteLinesService.swift */; };
 		4F9DFFA12F1457EE00E01BFB /* ParkingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF9F2F1457EE00E01BFB /* ParkingService.swift */; };
 		4F9DFFA32F1457F900E01BFB /* ParkingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */; };
-		4F9DFFA52F145B4800E01BFB /* ParkingCluster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA42F145B4800E01BFB /* ParkingCluster.swift */; };
 		4F9DFFA72F14667B00E01BFB /* Stop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA62F14667B00E01BFB /* Stop.swift */; };
 		4F9DFFA92F14668400E01BFB /* StopTimesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA82F14668400E01BFB /* StopTimesService.swift */; };
 		4F9DFFB62F146B0800E01BFB /* GTFSStopsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFB52F146B0800E01BFB /* GTFSStopsService.swift */; };
@@ -37,6 +38,9 @@
 		4F9DFFC92F146EFE00E01BFB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC82F146EFE00E01BFB /* SwiftUI.framework */; };
 		4F9DFFDA2F146F0100E01BFB /* AlerteTCLWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4F9DFFEB2F147FA400E01BFB /* RecentItemsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */; };
+		4FCD05DF2F1704F700390BE1 /* TransitStopService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */; };
+		4FCD05E12F17051200390BE1 /* TransitStop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05E02F17051200390BE1 /* TransitStop.swift */; };
+		4FCD05E32F17056D00390BE1 /* TransitStopViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */; };
 		AAA00001 /* AlerteTCLApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00011 /* AlerteTCLApp.swift */; };
 		AAA00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00012 /* ContentView.swift */; };
 		AAA00003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AAA00013 /* Assets.xcassets */; };
@@ -101,6 +105,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		4F095CAE2F16E92F001D059A /* UnifiedCluster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedCluster.swift; sourceTree = "<group>"; };
+		4F095CB02F16EA78001D059A /* ViewportFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewportFilter.swift; sourceTree = "<group>"; };
 		4F38BD0B2F1558BE00E05786 /* TrafficMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficMapView.swift; sourceTree = "<group>"; };
 		4F38BD0D2F1558DB00E05786 /* TrafficViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficViewModel.swift; sourceTree = "<group>"; };
 		4F38BD0F2F1558E400E05786 /* TrafficService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficService.swift; sourceTree = "<group>"; };
@@ -121,7 +127,6 @@
 		4F9DFF9E2F1457EE00E01BFB /* FavoriteLinesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteLinesService.swift; sourceTree = "<group>"; };
 		4F9DFF9F2F1457EE00E01BFB /* ParkingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingService.swift; sourceTree = "<group>"; };
 		4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingViewModel.swift; sourceTree = "<group>"; };
-		4F9DFFA42F145B4800E01BFB /* ParkingCluster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingCluster.swift; sourceTree = "<group>"; };
 		4F9DFFA62F14667B00E01BFB /* Stop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stop.swift; sourceTree = "<group>"; };
 		4F9DFFA82F14668400E01BFB /* StopTimesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopTimesService.swift; sourceTree = "<group>"; };
 		4F9DFFB52F146B0800E01BFB /* GTFSStopsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GTFSStopsService.swift; sourceTree = "<group>"; };
@@ -133,6 +138,9 @@
 		4F9DFFE02F14700200E01BFB /* AlerteTCL.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AlerteTCL.entitlements; sourceTree = "<group>"; };
 		4F9DFFE12F14705300E01BFB /* AlerteTCLWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AlerteTCLWidgetExtension.entitlements; sourceTree = "<group>"; };
 		4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentItemsService.swift; sourceTree = "<group>"; };
+		4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopService.swift; sourceTree = "<group>"; };
+		4FCD05E02F17051200390BE1 /* TransitStop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStop.swift; sourceTree = "<group>"; };
+		4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopViews.swift; sourceTree = "<group>"; };
 		AAA00010 /* AlerteTCL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AlerteTCL.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAA00011 /* AlerteTCLApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlerteTCLApp.swift; sourceTree = "<group>"; };
 		AAA00012 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -194,6 +202,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		4F095CB12F16EA78001D059A /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				4F095CB02F16EA78001D059A /* ViewportFilter.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
 		4F9DFFC52F146EFE00E01BFB /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -215,12 +231,13 @@
 		AAA00033 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				4FCD05E02F17051200390BE1 /* TransitStop.swift */,
 				4F38BD272F15B0AC00E05786 /* Travaux.swift */,
+				4F095CAE2F16E92F001D059A /* UnifiedCluster.swift */,
 				4F38BD252F159CCA00E05786 /* MetroLine.swift */,
 				4F38BD1F2F1591C000E05786 /* BusLine.swift */,
 				4F38BD112F1558EE00E05786 /* Traffic.swift */,
 				4F9DFFA62F14667B00E01BFB /* Stop.swift */,
-				4F9DFFA42F145B4800E01BFB /* ParkingCluster.swift */,
 				4F9DFF9C2F1457E200E01BFB /* Parking.swift */,
 				AAA00014 /* Alert.swift */,
 				AAA00015 /* TransportLine.swift */,
@@ -233,6 +250,7 @@
 		AAA00034 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */,
 				4F38BD292F15B0BB00E05786 /* TravauxService.swift */,
 				4F38BD232F159CBE00E05786 /* MetroLineService.swift */,
 				4F38BD212F1591C900E05786 /* BusLineService.swift */,
@@ -267,6 +285,7 @@
 		AAA00036 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */,
 				4F38BD2F2F15B17000E05786 /* TravauxMapView.swift */,
 				4F38BD0B2F1558BE00E05786 /* TrafficMapView.swift */,
 				4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */,
@@ -298,6 +317,7 @@
 		AAA00038 /* AlerteTCL */ = {
 			isa = PBXGroup;
 			children = (
+				4F095CB12F16EA78001D059A /* Utilities */,
 				4F9DFFE02F14700200E01BFB /* AlerteTCL.entitlements */,
 				4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */,
 				AAA00011 /* AlerteTCLApp.swift */,
@@ -447,18 +467,21 @@
 				4F9DFFBB2F146D4B00E01BFB /* SettingsView.swift in Sources */,
 				AAA00008 /* SubscriptionService.swift in Sources */,
 				4F9DFFEB2F147FA400E01BFB /* RecentItemsService.swift in Sources */,
-				4F9DFFA52F145B4800E01BFB /* ParkingCluster.swift in Sources */,
+				4F095CB22F16EA78001D059A /* ViewportFilter.swift in Sources */,
 				4F38BD202F1591C000E05786 /* BusLine.swift in Sources */,
 				4F38BD282F15B0AC00E05786 /* Travaux.swift in Sources */,
 				4F38BD2E2F15B0E200E05786 /* TravauxViewModel.swift in Sources */,
 				4F9DFF902F1449BB00E01BFB /* OnboardingView 2.swift in Sources */,
+				4FCD05DF2F1704F700390BE1 /* TransitStopService.swift in Sources */,
 				4F38BD262F159CCA00E05786 /* MetroLine.swift in Sources */,
 				4F9DFF9D2F1457E200E01BFB /* Parking.swift in Sources */,
 				4F9DFFA92F14668400E01BFB /* StopTimesService.swift in Sources */,
+				4FCD05E12F17051200390BE1 /* TransitStop.swift in Sources */,
 				4F38BD122F1558EE00E05786 /* Traffic.swift in Sources */,
 				AAA00009 /* AlertViewModel.swift in Sources */,
 				4F38BD2C2F15B0C500E05786 /* StopsViewModel.swift in Sources */,
 				4F9DFFA02F1457EE00E01BFB /* FavoriteLinesService.swift in Sources */,
+				4F095CAF2F16E92F001D059A /* UnifiedCluster.swift in Sources */,
 				4F38BD0E2F1558DB00E05786 /* TrafficViewModel.swift in Sources */,
 				4F9DFFA12F1457EE00E01BFB /* ParkingService.swift in Sources */,
 				AAA0000A /* AlertsView.swift in Sources */,
@@ -472,6 +495,7 @@
 				4F9DFFB62F146B0800E01BFB /* GTFSStopsService.swift in Sources */,
 				4F38BD2A2F15B0BB00E05786 /* TravauxService.swift in Sources */,
 				4F9DFF982F14515000E01BFB /* AmazingSplashView.swift in Sources */,
+				4FCD05E32F17056D00390BE1 /* TransitStopViews.swift in Sources */,
 				AAA00023 /* StatCard.swift in Sources */,
 				4F38BD0C2F1558BE00E05786 /* TrafficMapView.swift in Sources */,
 				4F38BD242F159CBE00E05786 /* MetroLineService.swift in Sources */,

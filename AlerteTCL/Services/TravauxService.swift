@@ -3,12 +3,14 @@ import Foundation
 actor TravauxService {
     static let shared = TravauxService()
     
-    private let baseURL = "https://data.grandlyon.com/geoserver/metropole-de-lyon/ows"
+    // Nouveau endpoint OGC Features pour "Travaux engagés sur la Métropole de Lyon"
+    private let baseURL = "https://data.grandlyon.com/geoserver/ogc/features/v1/collections/metropole-de-lyon:lyv_lyvia.lyvchantier/items"
     
     private init() {}
     
     func fetchTravaux() async throws -> [Travaux] {
-        let urlString = "\(baseURL)?SERVICE=WFS&VERSION=2.0.0&request=GetFeature&typeName=pvo_patrimoine_voirie.pvochantierperturbant&outputFormat=application/json"
+        // Utiliser le nouveau endpoint OGC Features API
+        let urlString = "\(baseURL)?f=application/json&limit=500"
         
         guard let url = URL(string: urlString) else {
             print("❌ TravauxService: URL invalide")

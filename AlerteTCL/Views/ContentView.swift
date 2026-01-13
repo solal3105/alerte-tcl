@@ -29,7 +29,7 @@ struct ContentView: View {
                     }
                 }
                 .tabItem {
-                    Label("Travaux", systemImage: "cone.fill")
+                    Label("Travaux", systemImage: "hammer.fill")
                 }
                 .tag(1)
                 
@@ -47,21 +47,6 @@ struct ContentView: View {
                     Label("Parkings", systemImage: "car.fill")
                 }
                 .tag(2)
-                
-                Group {
-                    if loadedTabs.contains(3) {
-                        SettingsView()
-                    } else {
-                        Color.clear
-                            .onAppear {
-                                loadedTabs.insert(3)
-                            }
-                    }
-                }
-                .tabItem {
-                    Label("Paramètres", systemImage: "gearshape.fill")
-                }
-                .tag(3)
             }
             .tint(.primary)
             .onChange(of: selectedTab) { _, newTab in

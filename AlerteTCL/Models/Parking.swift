@@ -1,5 +1,6 @@
 import Foundation
 import CoreLocation
+import SwiftUI
 
 enum ParkingType: String, Codable, CaseIterable {
     case car = "Voiture"
@@ -81,6 +82,7 @@ struct ParkingProperties: Codable {
     let lastUpdate: String?
     
     let commune: String?
+    let codeinsee: String?
     let avancement: String?
     let mobiliervelo: String?
     let localisation: String?
@@ -96,7 +98,7 @@ struct ParkingProperties: Codable {
     
     let numeroVoie: String?
     let arrondissement: String?
-    let longueur: Int?
+    let longueur: Double?  // Double car l'API peut renvoyer des valeurs décimales (ex: 7.5)
     let datemaj: String?
     
     enum CodingKeys: String, CodingKey {
@@ -126,7 +128,7 @@ struct ParkingProperties: Codable {
         case placesDisponibles = "places_disponibles"
         case lastUpdate = "last_update"
         
-        case commune, avancement, mobiliervelo, localisation, abrite, duree, nbarceaux, capacite, anneerealisation, arceauxprojetes, pole, observation, validite
+        case commune, codeinsee, avancement, mobiliervelo, localisation, abrite, duree, nbarceaux, capacite, anneerealisation, arceauxprojetes, pole, observation, validite
         case numeroVoie = "numero_voie"
         case arrondissement, longueur, datemaj
     }
@@ -197,25 +199,33 @@ struct Parking: Identifiable, Hashable {
         self.id = feature.properties.id ?? "\(feature.properties.gid)"
         self.gid = feature.properties.gid
         self.nom = feature.properties.nom
-        self.gestionnaire = feature.properties.gestionnaire ?? "Non spécifié"
-        self.adresse = feature.properties.adresse ?? "Adresse non disponible"
-        self.coordinate = feature.geometry.coordinate
         self.parkingType = type
         
         switch type {
         case .car:
+            self.gestionnaire = feature.properties.gestionnaire ?? "Non spécifié"
+            self.adresse = feature.properties.adresse ?? "Adresse non disponible"
             self.capaciteTotale = feature.properties.nbPlaces ?? 0
             self.placesDisponibles = feature.properties.placesDisponibles ?? 0
             self.etat = ParkingState(rawValue: feature.properties.etat ?? "inconnu") ?? .inconnu
         case .bike:
+            self.gestionnaire = feature.properties.gestionnaire ?? "Ville de Lyon"
+            self.adresse = feature.properties.adresse ?? feature.properties.nom
             self.capaciteTotale = feature.properties.capacite ?? (feature.properties.nbarceaux ?? 0) * 2
             self.placesDisponibles = self.capaciteTotale
             self.etat = .ouvert
         case .motorized2Wheel:
-            self.capaciteTotale = feature.properties.longueur ?? 0
+            // Les 2-roues ont une structure différente
+            self.gestionnaire = "Ville de Lyon"
+            let arrondissement = feature.properties.arrondissement ?? ""
+            let numeroVoie = feature.properties.numeroVoie ?? ""
+            self.adresse = numeroVoie.isEmpty ? feature.properties.nom : "\(numeroVoie) \(feature.properties.nom), \(arrondissement)e arr."
+            self.capaciteTotale = Int(feature.properties.longueur ?? 0)
             self.placesDisponibles = self.capaciteTotale
             self.etat = .ouvert
         }
+        
+        self.coordinate = feature.geometry.coordinate
         
         if let lastUpdateStr = feature.properties.lastUpdate {
             let formatter = ISO8601DateFormatter()
@@ -266,5 +276,22 @@ enum ParkingState: String, Codable {
         case .complet: return "exclamationmark.circle.fill"
         case .inconnu: return "questionmark.circle.fill"
         }
+    }
+}
+
+// MARK: - Clusterable Conformance
+
+extension Parking: Clusterable {
+    var clusterColor: Color {
+        if etat != .ouvert { return .gray }
+        switch tauxOccupation {
+        case 0..<0.5: return .green
+        case 0.5..<0.8: return .orange
+        default: return .red
+        }
+    }
+    
+    var clusterIcon: String {
+        parkingType.icon
     }
 }

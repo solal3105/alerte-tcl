@@ -153,24 +153,3 @@ class AnimatedVehicle: Identifiable, ObservableObject {
     }
 }
 
-struct VehicleCluster: Identifiable {
-    let id: String
-    let coordinate: CLLocationCoordinate2D
-    let vehicles: [Vehicle]
-    let dominantType: VehicleType
-    
-    var count: Int { vehicles.count }
-    
-    init(vehicles: [Vehicle]) {
-        let sortedIds = vehicles.map { $0.id }.sorted().joined(separator: "-")
-        self.id = "cluster-\(sortedIds.hashValue)"
-        self.vehicles = vehicles
-        
-        let avgLat = vehicles.map { $0.latitude }.reduce(0, +) / Double(vehicles.count)
-        let avgLon = vehicles.map { $0.longitude }.reduce(0, +) / Double(vehicles.count)
-        self.coordinate = CLLocationCoordinate2D(latitude: avgLat, longitude: avgLon)
-        
-        let typeCounts = Dictionary(grouping: vehicles, by: { $0.vehicleType })
-        self.dominantType = typeCounts.max(by: { $0.value.count < $1.value.count })?.key ?? .bus
-    }
-}

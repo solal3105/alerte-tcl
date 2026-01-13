@@ -6,6 +6,7 @@ struct LiveMapView: View {
     @EnvironmentObject var alertViewModel: AlertViewModel
     @ObservedObject private var locationService = LocationService.shared
     @State private var selectedVehicle: Vehicle?
+    @State private var selectedStop: TransitStop?
     @State private var showFilters = false
     @State private var showAlerts = false
     @State private var currentRegion: MKCoordinateRegion = MKCoordinateRegion(
@@ -38,14 +39,31 @@ struct LiveMapView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(item: $selectedStop) { stop in
+            TransitStopDetailSheet(stop: stop)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
         .sheet(isPresented: $showFilters) {
             FilterSheet(viewModel: viewModel)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showAlerts) {
-            NewAlertsView()
-                .environmentObject(alertViewModel)
+            NavigationStack {
+                NewAlertsView()
+                    .environmentObject(alertViewModel)
+                    .navigationTitle("Alertes trafic")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Fermer") {
+                                showAlerts = false
+                            }
+                        }
+                    }
+            }
+            .interactiveDismissDisabled(false)
         }
         .onAppear {
             // Démarrer immédiatement la localisation (non bloquant)
@@ -57,7 +75,7 @@ struct LiveMapView: View {
                     mapCameraPosition = .region(
                         MKCoordinateRegion(
                             center: userLocation.coordinate,
-                            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                         )
                     )
                 }
@@ -69,9 +87,15 @@ struct LiveMapView: View {
                 await viewModel.loadVehicles()
                 viewModel.startAutoRefresh()
                 
+                // Charger les alertes pour la carte de résumé
+                await alertViewModel.loadAlerts()
+                
                 // Puis les lignes (moins prioritaire)
                 await viewModel.loadBusLines()
                 await viewModel.loadTransitLines()
+                
+                // Charger les arrêts avec passages
+                await viewModel.loadTransitStops()
             }
         }
         .onDisappear {
@@ -92,7 +116,7 @@ struct LiveMapView: View {
                     mapCameraPosition = .region(
                         MKCoordinateRegion(
                             center: newLocation.coordinate,
-                            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                         )
                     )
                 }
@@ -121,47 +145,39 @@ struct LiveMapView: View {
                     }
                 }
                 
-                // Afficher les véhicules
-                if viewModel.shouldShowClusters {
-                    ForEach(viewModel.clusters, id: \.id) { cluster in
-                        Annotation("", coordinate: cluster.coordinate) {
-                            ClusterMarker(cluster: cluster)
-                        }
+                // Afficher les clusters
+                ForEach(viewModel.displayClusters, id: \.id) { cluster in
+                    Annotation("", coordinate: cluster.coordinate) {
+                        TransportClusterMarker(cluster: cluster)
                     }
+                }
+                
+                // Afficher les véhicules non clusterisés
+                ForEach(viewModel.displayVehicles, id: \.id) { vehicle in
+                    let animated = viewModel.animatedVehicles[vehicle.id]
+                    let coordinate = animated?.animatedCoordinate ?? vehicle.coordinate
+                    let bearing = animated?.animatedBearing ?? vehicle.bearing
                     
-                    let clusteredIds = Set(viewModel.clusters.flatMap { $0.vehicles.map { $0.id } })
-                    let unclusteredVehicles = viewModel.filteredVehicles.filter { !clusteredIds.contains($0.id) }
-                    ForEach(unclusteredVehicles, id: \.id) { vehicle in
-                        let animated = viewModel.animatedVehicles[vehicle.id]
-                        let coordinate = animated?.animatedCoordinate ?? vehicle.coordinate
-                        let bearing = animated?.animatedBearing ?? vehicle.bearing
-                        
-                        Annotation(vehicle.lineName, coordinate: coordinate) {
-                            VehicleMarker(vehicle: vehicle, bearing: bearing)
-                                .accessibilityElement(children: .ignore)
-                                .accessibilityLabel(vehicle.accessibilityDescription)
-                                .accessibilityHint("Double-cliquer pour voir les détails du véhicule")
-                                .onTapGesture {
-                                    selectedVehicle = vehicle
-                                }
-                        }
+                    Annotation(vehicle.lineName, coordinate: coordinate) {
+                        VehicleMarker(vehicle: vehicle, bearing: bearing)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(vehicle.accessibilityDescription)
+                            .accessibilityHint("Double-cliquer pour voir les détails du véhicule")
+                            .onTapGesture {
+                                selectedVehicle = vehicle
+                            }
                     }
-                } else {
-                    ForEach(viewModel.filteredVehicles, id: \.id) { vehicle in
-                        let animated = viewModel.animatedVehicles[vehicle.id]
-                        let coordinate = animated?.animatedCoordinate ?? vehicle.coordinate
-                        let bearing = animated?.animatedBearing ?? vehicle.bearing
-                        
-                        Annotation(vehicle.lineName, coordinate: coordinate) {
-                            VehicleMarker(vehicle: vehicle, bearing: bearing)
-                                .accessibilityElement(children: .ignore)
-                                .accessibilityLabel(vehicle.accessibilityDescription)
-                                .accessibilityHint("Double-cliquer pour voir les détails du véhicule")
-                                .onTapGesture {
-                                    selectedVehicle = vehicle
-                                }
-                        }
+                }
+                
+                // Afficher les arrêts avec prochains passages (au zoom fort uniquement)
+                ForEach(viewModel.visibleStops, id: \.id) { stop in
+                    Annotation(stop.nom, coordinate: stop.coordinate) {
+                        TransitStopMarker(stop: stop)
+                            .onTapGesture {
+                                selectedStop = stop
+                            }
                     }
+                    .annotationTitles(.hidden)
                 }
             }
             .mapStyle(.standard(pointsOfInterest: .excludingAll))
@@ -171,19 +187,42 @@ struct LiveMapView: View {
                 viewModel.updateVisibleRegion(context.region)
                 currentRegion = context.region
             }
+            .overlay {
+                if viewModel.shouldShowTooManyMarkersWarning {
+                    tooManyMarkersWarning
+                }
+            }
         }
+    }
+    
+    private var tooManyMarkersWarning: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 48))
+                .foregroundStyle(.orange)
+            
+            Text("Trop de résultats")
+                .font(.headline)
+            
+            Text("Zoomez sur la carte pour afficher les véhicules")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(24)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 3)
+        .padding(20)
     }
     
     private var overlayControls: some View {
         VStack {
-            // Compact alerts card en haut
-            if !alertViewModel.subscribedAlerts.isEmpty {
-                HStack {
-                    alertsCard
-                    Spacer()
-                }
-                .padding(.top, 60)
-                .padding(.leading, 16)
+            // Carte d'alertes en haut (visible s'il y a des alertes)
+            if !alertViewModel.linesInError.isEmpty {
+                alertsSummaryCard
+                    .padding(.top, 60)
+                    .padding(.horizontal, 16)
             }
             
             Spacer()
@@ -195,7 +234,20 @@ struct LiveMapView: View {
                 Spacer()
                 
                 // Boutons en bas à droite (stack vertical)
-                VStack(spacing: 20) {
+                VStack(spacing: 12) {
+                    // Bouton toggle arrêts
+                    Button {
+                        withAnimation(.spring(response: 0.3)) {
+                            viewModel.showTransitStops.toggle()
+                        }
+                    } label: {
+                        Image(systemName: viewModel.showTransitStops ? "mappin.circle.fill" : "mappin.circle")
+                            .font(.system(size: 22, weight: .semibold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(viewModel.showTransitStops ? .purple : .gray)
+                    .controlSize(.large)
+                    
                     // Bouton filtres
                     Button {
                         showFilters = true
@@ -214,7 +266,7 @@ struct LiveMapView: View {
                                 mapCameraPosition = .region(
                                     MKCoordinateRegion(
                                         center: userLocation.coordinate,
-                                        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                                     )
                                 )
                             }
@@ -236,72 +288,114 @@ struct LiveMapView: View {
         }
     }
     
-    private var alertsCard: some View {
+    // MARK: - Alerts Summary Card
+    
+    private var alertsSummaryCard: some View {
         Button {
             showAlerts = true
         } label: {
-            HStack(spacing: 12) {
-                // Icône alerte
-                ZStack {
-                    Circle()
-                        .fill(.red)
-                        .frame(width: 36, height: 36)
-                    
+            VStack(alignment: .leading, spacing: 10) {
+                // Header
+                HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Alertes trafic")
-                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.orange)
+                    
+                    Text("\(alertViewModel.linesInError.count) ligne\(alertViewModel.linesInError.count > 1 ? "s" : "") perturbée\(alertViewModel.linesInError.count > 1 ? "s" : "")")
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(.primary)
                     
-                    // Mini icônes des lignes avec alertes
-                    alertLineIcons
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
                 }
                 
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                // Lignes affectées (priorité aux abonnées)
+                alertLinesPreview
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(14)
             .background(.regularMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 3)
+            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 2)
         }
         .buttonStyle(.plain)
     }
     
-    private var alertLineIcons: some View {
-        HStack(spacing: 6) {
-            ForEach(alertViewModel.subscribedAlerts.prefix(5)) { alert in
-                // Construire une ligne à partir de l'alerte
-                let line = TransportLine(
-                    ligneCom: alert.ligneCom,
-                    ligneCli: alert.ligneCli,
-                    mode: alert.mode
-                )
-                
-                ZStack {
-                    Circle()
-                        .fill(lineColor(for: line))
-                        .frame(width: 20, height: 20)
-                    
-                    Text(line.ligneCli.isEmpty ? line.ligneCom : line.ligneCli)
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white)
-                }
+    private var alertLinesPreview: some View {
+        let subscribedLinesInError = alertViewModel.linesInError.filter { summary in
+            alertViewModel.subscribedLines.contains { $0.ligneCom == summary.id || $0.ligneCli == summary.id }
+        }
+        let otherLinesInError = alertViewModel.linesInError.filter { summary in
+            !subscribedLinesInError.contains { $0.id == summary.id }
+        }
+        
+        // Prioriser les lignes abonnées, puis les autres
+        let sortedLines = subscribedLinesInError + otherLinesInError
+        let displayLines = Array(sortedLines.prefix(6))
+        
+        return HStack(spacing: 8) {
+            ForEach(displayLines, id: \.id) { summary in
+                alertLineBadge(summary: summary, isSubscribed: subscribedLinesInError.contains { $0.id == summary.id })
             }
             
-            if alertViewModel.subscribedAlerts.count > 5 {
-                Text("+\(alertViewModel.subscribedAlerts.count - 5)")
-                    .font(.system(size: 10, weight: .semibold))
+            if sortedLines.count > 6 {
+                Text("+\(sortedLines.count - 6)")
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
+            
+            Spacer()
+        }
+    }
+    
+    private func alertLineBadge(summary: AlertViewModel.LineAlertSummary, isSubscribed: Bool) -> some View {
+        let bgColor = LineColorHelper.backgroundColor(for: summary.displayName)
+        let textColor = LineColorHelper.textColor(for: summary.displayName)
+        let needsBorder = LineColorHelper.needsBorder(for: summary.displayName)
+        
+        return ZStack {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(bgColor)
+                .frame(width: 32, height: 24)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color(.systemGray3), lineWidth: needsBorder ? 1 : 0)
+                )
+            
+            Text(summary.displayName)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(textColor)
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+        }
+        .overlay(alignment: .topTrailing) {
+            if isSubscribed {
+                Circle()
+                    .fill(.blue)
+                    .frame(width: 10, height: 10)
+                    .overlay {
+                        Image(systemName: "bell.fill")
+                            .font(.system(size: 6, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .offset(x: 4, y: -4)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            Circle()
+                .fill(severityColor(summary.highestSeverity))
+                .frame(width: 8, height: 8)
+                .offset(x: 2, y: 2)
+        }
+    }
+    
+    private func severityColor(_ severity: AlertSeverity) -> Color {
+        switch severity {
+        case .major: return .red
+        case .disruption: return .orange
+        case .info: return .blue
         }
     }
     
@@ -480,30 +574,6 @@ struct VehicleMarker: View {
     }
 }
 
-struct ClusterMarker: View {
-    let cluster: VehicleCluster
-    
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(clusterColor)
-                .frame(width: 44, height: 44)
-                .shadow(color: clusterColor.opacity(0.5), radius: 6, x: 0, y: 3)
-            
-            Circle()
-                .fill(.white.opacity(0.3))
-                .frame(width: 36, height: 36)
-            
-            Text("\(cluster.count)")
-                .font(.system(size: 16, weight: .black))
-                .foregroundStyle(.white)
-        }
-    }
-    
-    private var clusterColor: Color {
-        return .blue // Tous les clusters en bleu pour éviter le clignotement
-    }
-}
 
 struct VehicleTypeChip: View {
     let type: VehicleType
@@ -588,7 +658,8 @@ struct VehicleDetailSheet: View {
                     Divider()
                     
                     VStack(spacing: 12) {
-                        if !vehicle.destination.isEmpty {
+                        // Masquer la destination si elle ressemble à un ID technique
+                        if !vehicle.destination.isEmpty && !vehicle.destination.contains(":") && vehicle.destination.count < 50 {
                             DetailRow(icon: "arrow.right.circle.fill", title: "Destination", value: vehicle.destination)
                         }
                         

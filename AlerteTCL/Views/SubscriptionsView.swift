@@ -293,7 +293,7 @@ struct SubscriptionLineSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                LineBadge(line: line)
+                LineBadge(line: line.displayName)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(line.displayName)
@@ -378,7 +378,7 @@ struct NotificationPreferencesSheet: View {
             List {
                 Section {
                     HStack(spacing: 12) {
-                        LineBadge(line: line)
+                        LineBadge(line: line.displayName)
                         VStack(alignment: .leading) {
                             Text(line.displayName)
                                 .font(.headline)

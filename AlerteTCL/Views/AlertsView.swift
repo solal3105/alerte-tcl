@@ -233,23 +233,7 @@ private struct SubscribedLineCard: View {
     var body: some View {
         HStack(spacing: 14) {
             // Badge ligne
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(line.mode.color.gradient)
-                    .frame(width: 52, height: 52)
-                
-                VStack(spacing: 2) {
-                    Image(systemName: line.mode.icon)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.8))
-                    
-                    Text(line.displayName)
-                        .font(.system(size: 14, weight: .black))
-                        .foregroundStyle(.white)
-                        .minimumScaleFactor(0.5)
-                        .lineLimit(1)
-                }
-            }
+            AlertLineBadgeView(line: line, size: 52)
             
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -325,21 +309,7 @@ private struct CompactLineChip: View {
     var body: some View {
         VStack(spacing: 6) {
             ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(line.mode.color.gradient)
-                    .frame(width: 56, height: 56)
-                
-                VStack(spacing: 2) {
-                    Image(systemName: line.mode.icon)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.8))
-                    
-                    Text(line.displayName)
-                        .font(.system(size: 14, weight: .black))
-                        .foregroundStyle(.white)
-                        .minimumScaleFactor(0.5)
-                        .lineLimit(1)
-                }
+                AlertLineBadgeView(line: line, size: 56)
                 
                 if alertCount > 0 {
                     Circle()
@@ -405,7 +375,7 @@ struct LineDetailSheet: View {
             .navigationTitle("Ligne \(line.displayName)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Fermer") {
                         dismiss()
                     }
@@ -416,27 +386,12 @@ struct LineDetailSheet: View {
                 SubscriptionOptionsSheet(line: line, viewModel: viewModel)
             }
         }
+        .interactiveDismissDisabled(false)
     }
     
     private var lineHeader: some View {
         HStack(spacing: 16) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(line.mode.color.gradient)
-                    .frame(width: 72, height: 72)
-                
-                VStack(spacing: 2) {
-                    Image(systemName: line.mode.icon)
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.8))
-                    
-                    Text(line.displayName)
-                        .font(.system(size: 22, weight: .black))
-                        .foregroundStyle(.white)
-                        .minimumScaleFactor(0.5)
-                        .lineLimit(1)
-                }
-            }
+            AlertLineBadgeView(line: line, size: 72)
             
             VStack(alignment: .leading, spacing: 6) {
                 Text(line.mode.rawValue)
@@ -647,21 +602,7 @@ struct SubscriptionOptionsSheet: View {
             VStack(spacing: 24) {
                 // Header
                 VStack(spacing: 8) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(line.mode.color.gradient)
-                            .frame(width: 72, height: 72)
-                        
-                        VStack(spacing: 2) {
-                            Image(systemName: line.mode.icon)
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.8))
-                            
-                            Text(line.displayName)
-                                .font(.system(size: 22, weight: .black))
-                                .foregroundStyle(.white)
-                        }
-                    }
+                    AlertLineBadgeView(line: line, size: 72)
                     
                     Text("Notifications pour la ligne \(line.displayName)")
                         .font(.headline)
@@ -822,16 +763,7 @@ struct SubscribeLineSheet: View {
                                     selectedLine = line
                                 } label: {
                                     HStack(spacing: 12) {
-                                        ZStack {
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .fill(line.mode.color.gradient)
-                                                .frame(width: 40, height: 40)
-                                            
-                                            Text(line.displayName)
-                                                .font(.system(size: 12, weight: .bold))
-                                                .foregroundStyle(.white)
-                                                .minimumScaleFactor(0.5)
-                                        }
+                                        AlertLineBadgeView(line: line, size: 40)
                                         
                                         Text("Ligne \(line.displayName)")
                                             .foregroundStyle(.primary)
@@ -870,6 +802,47 @@ struct SubscribeLineSheet: View {
             .sheet(item: $selectedLine) { line in
                 SubscriptionOptionsSheet(line: line, viewModel: viewModel)
             }
+        }
+    }
+}
+
+// MARK: - Alert Line Badge View (with proper colors per line type)
+
+struct AlertLineBadgeView: View {
+    let line: TransportLine
+    let size: CGFloat
+    
+    private var lineName: String {
+        line.ligneCli.isEmpty ? line.ligneCom : line.ligneCli
+    }
+    
+    private var bgColor: Color {
+        LineColorHelper.backgroundColor(for: lineName)
+    }
+    
+    private var textColor: Color {
+        LineColorHelper.textColor(for: lineName)
+    }
+    
+    private var needsBorder: Bool {
+        LineColorHelper.needsBorder(for: lineName)
+    }
+    
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.2)
+                .fill(bgColor)
+                .frame(width: size, height: size)
+                .overlay(
+                    RoundedRectangle(cornerRadius: size * 0.2)
+                        .stroke(Color(.systemGray3), lineWidth: needsBorder ? 1 : 0)
+                )
+            
+            Text(lineName)
+                .font(.system(size: size * 0.28, weight: .black))
+                .foregroundStyle(textColor)
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
         }
     }
 }

@@ -157,12 +157,13 @@ final class AlertViewModel: ObservableObject {
             
             extractLinesFromAlerts(fetchedAlerts)
             
-            NotificationService.shared.scheduleNotifications(
-                for: fetchedAlerts,
-                subscribedLines: subscriptionService.subscribedLineIds
-            )
+            // Traiter les nouvelles alertes pour les notifications
+            NotificationService.shared.processNewAlerts(fetchedAlerts, subscriptionService: subscriptionService)
+            
+            print("✅ AlertViewModel: \(fetchedAlerts.count) alertes chargées depuis l'API")
         } catch {
             self.error = error.localizedDescription
+            print("❌ AlertViewModel: Erreur - \(error.localizedDescription)")
         }
         
         isLoading = false

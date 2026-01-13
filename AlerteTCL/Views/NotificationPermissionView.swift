@@ -50,7 +50,7 @@ struct NotificationPermissionView: View {
                     Button {
                         isRequesting = true
                         Task {
-                            NotificationService.shared.requestPermission()
+                            _ = await NotificationService.shared.requestPermission()
                             try? await Task.sleep(nanoseconds: 500_000_000)
                             dismiss()
                         }

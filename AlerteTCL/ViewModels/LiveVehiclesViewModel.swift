@@ -26,6 +26,11 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published var secondsUntilNextRefresh: Int = 15
     @Published var isInitialLoadComplete = false
     
+    // Transit Stops
+    @Published var transitStops: [TransitStop] = []
+    @Published var isLoadingStops = false
+    @Published var showTransitStops = true
+    
     private var refreshTask: Task<Void, Never>?
     private var progressTask: Task<Void, Never>?
     private let refreshInterval: TimeInterval = 15
@@ -41,6 +46,7 @@ final class LiveVehiclesViewModel: ObservableObject {
     private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
     
     static let clusteringZoomThreshold: Double = 0.08
+    private let clusteringConfig = ClusteringEngine.Configuration.default
     
     init() {
         if LocationService.shared.isLocationAvailable,
@@ -84,38 +90,60 @@ final class LiveVehiclesViewModel: ObservableObject {
             result = result.filter { selectedLines.contains($0.lineName) }
         }
         
-        if let region = visibleRegion {
-            result = result.filter { vehicle in
-                isCoordinateInRegion(vehicle.coordinate, region: region)
-            }
-        }
+        // Filtrage viewport avec buffer standard
+        result = result.visibleIn(region: visibleRegion, buffer: .standard)
         
         return result
     }
     
-    private func isCoordinateInRegion(_ coordinate: CLLocationCoordinate2D, region: MKCoordinateRegion) -> Bool {
-        let buffer = 1.0
-        let latDelta = region.span.latitudeDelta * buffer
-        let lonDelta = region.span.longitudeDelta * buffer
-        
-        let minLat = region.center.latitude - latDelta
-        let maxLat = region.center.latitude + latDelta
-        let minLon = region.center.longitude - lonDelta
-        let maxLon = region.center.longitude + lonDelta
-        
-        return coordinate.latitude >= minLat &&
-               coordinate.latitude <= maxLat &&
-               coordinate.longitude >= minLon &&
-               coordinate.longitude <= maxLon
-    }
+    @Published private(set) var cachedClusters: [MapCluster<Vehicle>] = []
+    @Published private(set) var cachedUnclusteredVehicles: [Vehicle] = []
+    private var lastClusteringZoom: Double = 0
+    private var lastClusteringVehicleCount: Int = 0
     
     var shouldShowClusters: Bool {
-        currentZoomLevel > Self.clusteringZoomThreshold
+        ClusteringEngine.shouldCluster(zoomLevel: currentZoomLevel, config: clusteringConfig)
     }
     
-    var clusters: [VehicleCluster] {
-        guard shouldShowClusters else { return [] }
-        return createClusters(from: filteredVehicles)
+    private func updateClustersIfNeeded() {
+        // Ne recalculer que si le zoom ou le nombre de véhicules a changé significativement
+        let zoomChanged = abs(currentZoomLevel - lastClusteringZoom) > 0.005
+        let vehiclesChanged = filteredVehicles.count != lastClusteringVehicleCount
+        
+        guard zoomChanged || vehiclesChanged else { return }
+        
+        let result = ClusteringEngine.createClusters(from: filteredVehicles, zoomLevel: currentZoomLevel, config: clusteringConfig)
+        cachedClusters = result.clusters
+        cachedUnclusteredVehicles = result.unclustered
+        lastClusteringZoom = currentZoomLevel
+        lastClusteringVehicleCount = filteredVehicles.count
+    }
+    
+    var clusters: [MapCluster<Vehicle>] {
+        cachedClusters
+    }
+    
+    var unclusteredVehicles: [Vehicle] {
+        cachedUnclusteredVehicles
+    }
+    
+    // MARK: - Display Limits
+    
+    private let maxDisplayMarkers = 1000
+    
+    var shouldShowTooManyMarkersWarning: Bool {
+        // Compter TOUS les véhicules filtrés (pas les markers)
+        return filteredVehicles.count > maxDisplayMarkers
+    }
+    
+    var displayClusters: [MapCluster<Vehicle>] {
+        guard !shouldShowTooManyMarkersWarning else { return [] }
+        return clusters
+    }
+    
+    var displayVehicles: [Vehicle] {
+        guard !shouldShowTooManyMarkersWarning else { return [] }
+        return unclusteredVehicles
     }
     
     var vehiclesByType: [VehicleType: [Vehicle]] {
@@ -227,6 +255,9 @@ final class LiveVehiclesViewModel: ObservableObject {
             lastUpdate = Date()
             error = nil
             isInitialLoadComplete = true
+            
+            // Forcer la mise à jour des clusters après chargement
+            updateClustersIfNeeded()
         } catch let siriError as SIRIError {
             self.error = siriError.errorDescription
         } catch {
@@ -270,40 +301,6 @@ final class LiveVehiclesViewModel: ObservableObject {
         }
     }
     
-    private func createClusters(from vehicles: [Vehicle]) -> [VehicleCluster] {
-        guard !vehicles.isEmpty else { return [] }
-        
-        let clusterRadius = currentZoomLevel * 0.15
-        var clustered: Set<String> = []
-        var clusters: [VehicleCluster] = []
-        
-        for vehicle in vehicles {
-            guard !clustered.contains(vehicle.id) else { continue }
-            
-            var clusterVehicles = [vehicle]
-            clustered.insert(vehicle.id)
-            
-            for other in vehicles {
-                guard !clustered.contains(other.id) else { continue }
-                
-                let distance = sqrt(
-                    pow(vehicle.latitude - other.latitude, 2) +
-                    pow(vehicle.longitude - other.longitude, 2)
-                )
-                
-                if distance < clusterRadius {
-                    clusterVehicles.append(other)
-                    clustered.insert(other.id)
-                }
-            }
-            
-            if clusterVehicles.count > 1 {
-                clusters.append(VehicleCluster(vehicles: clusterVehicles))
-            }
-        }
-        
-        return clusters
-    }
     
     func startAutoRefresh() {
         stopAutoRefresh()
@@ -350,10 +347,12 @@ final class LiveVehiclesViewModel: ObservableObject {
     
     func updateZoomLevel(_ span: MKCoordinateSpan) {
         currentZoomLevel = span.latitudeDelta
+        updateClustersIfNeeded()
     }
     
     func updateVisibleRegion(_ region: MKCoordinateRegion) {
         visibleRegion = region
+        updateClustersIfNeeded()
     }
     
     func centerOnLyon() {
@@ -386,6 +385,52 @@ final class LiveVehiclesViewModel: ObservableObject {
         selectedVehicleType = nil
         selectedLine = nil
         selectedLines.removeAll()
+    }
+    
+    // MARK: - Transit Stops
+    
+    /// Zoom threshold pour afficher les arrêts (zoom fort = latitudeDelta petit)
+    private let stopsZoomThreshold: Double = 0.008
+    
+    var shouldShowStops: Bool {
+        showTransitStops && currentZoomLevel < stopsZoomThreshold
+    }
+    
+    var visibleStops: [TransitStop] {
+        guard shouldShowStops else { return [] }
+        return transitStops.visibleIn(region: visibleRegion, buffer: .small)
+    }
+    
+    func loadTransitStops() async {
+        guard !isLoadingStops else { return }
+        
+        isLoadingStops = true
+        
+        do {
+            let stops = try await TransitStopService.shared.fetchStopsWithPassages()
+            transitStops = stops
+            print("✅ ViewModel: \(stops.count) arrêts avec passages chargés")
+        } catch {
+            print("❌ Erreur chargement arrêts: \(error)")
+        }
+        
+        isLoadingStops = false
+    }
+    
+    func refreshStopPassages() async {
+        do {
+            let passagesByStop = try await TransitStopService.shared.fetchPassages()
+            
+            // Update passages in existing stops
+            for i in transitStops.indices {
+                if let passages = passagesByStop[transitStops[i].id] {
+                    transitStops[i].passages = passages
+                }
+            }
+            print("🔄 ViewModel: Passages rafraîchis pour \(passagesByStop.count) arrêts")
+        } catch {
+            print("❌ Erreur rafraîchissement passages: \(error)")
+        }
     }
     
     deinit {

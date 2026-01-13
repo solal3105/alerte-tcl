@@ -1,6 +1,57 @@
 import Foundation
 import CoreLocation
+import SwiftUI
 
+/// Type de chantier basé sur nature_chantier du dataset
+enum TravauxNatureChantier: String, CaseIterable {
+    case transportsCommun = "Transports en commun"
+    case cyclab = "Aménagements cyclables"
+    case espacePublic = "Espace public"
+    case carrefour = "Carrefours"
+    case assainissement = "Assainissement"
+    case autre = "Autre"
+    
+    var icon: String {
+        switch self {
+        case .transportsCommun: return "tram.fill"
+        case .cyclab: return "bicycle"
+        case .espacePublic: return "building.2.fill"
+        case .carrefour: return "arrow.triangle.branch"
+        case .assainissement: return "pipe.and.drop.fill"
+        case .autre: return "hammer.fill"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .transportsCommun: return .purple
+        case .cyclab: return .green
+        case .espacePublic: return .blue
+        case .carrefour: return .orange
+        case .assainissement: return .brown
+        case .autre: return .gray
+        }
+    }
+    
+    static func detect(from natureChantier: String?) -> TravauxNatureChantier {
+        guard let nature = natureChantier?.lowercased() else { return .autre }
+        
+        if nature.contains("transport") || nature.contains("bus") || nature.contains("tram") {
+            return .transportsCommun
+        } else if nature.contains("cyclable") || nature.contains("vélo") || nature.contains("velo") || nature.contains("edp") {
+            return .cyclab
+        } else if nature.contains("espace public") || nature.contains("aménagement") {
+            return .espacePublic
+        } else if nature.contains("carrefour") {
+            return .carrefour
+        } else if nature.contains("assainissement") {
+            return .assainissement
+        }
+        return .autre
+    }
+}
+
+/// Type de travaux ancien (gardé pour compatibilité)
 enum TravauxType: String, CaseIterable {
     case tramway = "Tramway"
     case metro = "Métro"
@@ -49,7 +100,7 @@ enum TravauxType: String, CaseIterable {
     static func detect(from nomChantier: String) -> TravauxType {
         let nom = nomChantier.lowercased()
         
-        if nom.contains("tramway") || nom.contains("t10") || nom.contains("t1") || nom.contains("t2") || nom.contains("t3") || nom.contains("t4") || nom.contains("t5") || nom.contains("t6") || nom.contains("t7") {
+        if nom.contains("tramway") || nom.contains("tram") || nom.contains("bus") {
             return .tramway
         } else if nom.contains("métro") || nom.contains("metro") {
             return .metro
@@ -67,7 +118,7 @@ enum TravauxType: String, CaseIterable {
             return .telecom
         } else if nom.contains("chauffage") || nom.contains("thermique") {
             return .chauffage
-        } else if nom.contains("voirie") || nom.contains("chaussée") || nom.contains("chaussee") || nom.contains("revêtement") || nom.contains("revetement") {
+        } else if nom.contains("voirie") || nom.contains("chaussée") || nom.contains("chaussee") || nom.contains("revêtement") || nom.contains("revetement") || nom.contains("requalification") {
             return .voirie
         } else {
             return .autre
@@ -92,6 +143,7 @@ struct Travaux: Identifiable, Hashable {
     let coordinates: [[CLLocationCoordinate2D]]
     let centroid: CLLocationCoordinate2D
     let type: TravauxType
+    let natureChantier: TravauxNatureChantier
     
     var isActive: Bool {
         guard let fin = finChantier else { return true }
@@ -259,9 +311,8 @@ enum TravauxPerturbation: String, CaseIterable {
 struct TravauxResponse: Decodable {
     let type: String
     let features: [TravauxFeature]
-    let totalFeatures: Int
-    let numberMatched: Int
-    let numberReturned: Int
+    let numberMatched: Int?
+    let numberReturned: Int?
 }
 
 struct TravauxFeature: Decodable {
@@ -277,6 +328,21 @@ struct TravauxGeometry: Decodable {
 }
 
 struct TravauxProperties: Decodable {
+    // Champs du nouveau dataset "Travaux engagés"
+    let numero: String?
+    let intervenant: String?
+    let nature_chantier: String?
+    let nature_travaux: String?
+    let etat: String?
+    let date_debut: String?
+    let date_fin: String?
+    let mesures_police: String?
+    let adresse: String?
+    let commune: String?
+    let code_insee: Int?
+    let gid: Int
+    
+    // Anciens champs (pour compatibilité)
     let nom: String?
     let nomchantier: String?
     let commune1: String?
@@ -288,37 +354,111 @@ struct TravauxProperties: Decodable {
     let avancement: String?
     let importance: String?
     let typeperturbation: String?
-    let intervenant: String?
     let codeimportance: Int?
-    let gid: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case numero, intervenant, nature_chantier, nature_travaux, etat
+        case date_debut, date_fin, mesures_police, adresse, commune, code_insee, gid
+        case nom, nomchantier, commune1, insee, precisionlocalisation
+        case debutchantier, finchantier, descripchantierinternet
+        case avancement, importance, typeperturbation, codeimportance
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Nouveaux champs
+        numero = try container.decodeIfPresent(String.self, forKey: .numero)
+        intervenant = try container.decodeIfPresent(String.self, forKey: .intervenant)
+        nature_chantier = try container.decodeIfPresent(String.self, forKey: .nature_chantier)
+        nature_travaux = try container.decodeIfPresent(String.self, forKey: .nature_travaux)
+        etat = try container.decodeIfPresent(String.self, forKey: .etat)
+        date_debut = try container.decodeIfPresent(String.self, forKey: .date_debut)
+        date_fin = try container.decodeIfPresent(String.self, forKey: .date_fin)
+        mesures_police = try container.decodeIfPresent(String.self, forKey: .mesures_police)
+        adresse = try container.decodeIfPresent(String.self, forKey: .adresse)
+        commune = try container.decodeIfPresent(String.self, forKey: .commune)
+        code_insee = try container.decodeIfPresent(Int.self, forKey: .code_insee)
+        gid = try container.decode(Int.self, forKey: .gid)
+        
+        // Anciens champs (optionnels)
+        nom = try container.decodeIfPresent(String.self, forKey: .nom)
+        nomchantier = try container.decodeIfPresent(String.self, forKey: .nomchantier)
+        commune1 = try container.decodeIfPresent(String.self, forKey: .commune1)
+        insee = try container.decodeIfPresent(String.self, forKey: .insee)
+        precisionlocalisation = try container.decodeIfPresent(String.self, forKey: .precisionlocalisation)
+        debutchantier = try container.decodeIfPresent(String.self, forKey: .debutchantier)
+        finchantier = try container.decodeIfPresent(String.self, forKey: .finchantier)
+        descripchantierinternet = try container.decodeIfPresent(String.self, forKey: .descripchantierinternet)
+        avancement = try container.decodeIfPresent(String.self, forKey: .avancement)
+        importance = try container.decodeIfPresent(String.self, forKey: .importance)
+        typeperturbation = try container.decodeIfPresent(String.self, forKey: .typeperturbation)
+        codeimportance = try container.decodeIfPresent(Int.self, forKey: .codeimportance)
+    }
+}
+
+// MARK: - Clusterable Conformance
+
+extension Travaux: Clusterable {
+    var coordinate: CLLocationCoordinate2D {
+        centroid
+    }
+    
+    var clusterColor: Color {
+        switch importance {
+        case .tresPerturbant: return .red
+        case .perturbant: return .orange
+        case .peuPerturbant: return .yellow
+        case .inconnu: return .gray
+        }
+    }
+    
+    var clusterIcon: String {
+        type.icon
+    }
 }
 
 extension Travaux {
     init(from feature: TravauxFeature) {
         self.id = feature.id
-        self.nom = feature.properties.nom ?? "Rue inconnue"
-        self.nomChantier = feature.properties.nomchantier ?? "Travaux"
-        self.commune = feature.properties.commune1 ?? "Lyon"
-        self.codeInsee = feature.properties.insee ?? ""
-        self.precisionLocalisation = feature.properties.precisionlocalisation
-        self.description = feature.properties.descripchantierinternet
-        self.avancement = TravauxAvancement(from: feature.properties.avancement)
+        
+        // Utiliser les nouveaux champs en priorité, sinon les anciens
+        self.nom = feature.properties.adresse ?? feature.properties.nom ?? "Rue inconnue"
+        self.nomChantier = feature.properties.nature_chantier ?? feature.properties.nomchantier ?? "Travaux"
+        self.commune = feature.properties.commune ?? feature.properties.commune1 ?? "Lyon"
+        self.codeInsee = feature.properties.code_insee.map { String($0) } ?? feature.properties.insee ?? ""
+        self.precisionLocalisation = feature.properties.nature_travaux ?? feature.properties.precisionlocalisation
+        self.description = feature.properties.mesures_police ?? feature.properties.descripchantierinternet
+        
+        // État du nouveau dataset -> avancement
+        let etat = feature.properties.etat?.lowercased() ?? ""
+        if etat.contains("ouvert") || etat.contains("en cours") {
+            self.avancement = .enCours
+        } else if etat.contains("termin") {
+            self.avancement = .termine
+        } else {
+            self.avancement = TravauxAvancement(from: feature.properties.avancement)
+        }
+        
         self.importance = TravauxImportance(from: feature.properties.codeimportance)
         self.typeperturbation = TravauxPerturbation(from: feature.properties.typeperturbation)
         self.intervenant = feature.properties.intervenant ?? "Non spécifié"
-        self.type = TravauxType.detect(from: feature.properties.nomchantier ?? "")
+        self.type = TravauxType.detect(from: feature.properties.nature_chantier ?? feature.properties.nomchantier ?? "")
+        self.natureChantier = TravauxNatureChantier.detect(from: feature.properties.nature_chantier)
         
-        // Parse dates
+        // Parse dates (nouveau format ou ancien)
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         
-        if let dateStr = feature.properties.debutchantier {
+        let debutStr = feature.properties.date_debut ?? feature.properties.debutchantier
+        if let dateStr = debutStr {
             self.debutChantier = dateFormatter.date(from: dateStr)
         } else {
             self.debutChantier = nil
         }
         
-        if let dateStr = feature.properties.finchantier {
+        let finStr = feature.properties.date_fin ?? feature.properties.finchantier
+        if let dateStr = finStr {
             self.finChantier = dateFormatter.date(from: dateStr)
         } else {
             self.finChantier = nil

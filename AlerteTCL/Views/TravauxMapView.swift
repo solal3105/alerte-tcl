@@ -17,25 +17,6 @@ struct TravauxMapView: View {
         currentSpan.latitudeDelta < 0.03 // Zoom moyen (< 3km)
     }
     
-    // Filtrer les travaux visibles dans le viewport
-    private var visibleTravaux: [Travaux] {
-        let buffer = 1.5 // Buffer pour charger un peu au-delà du viewport
-        let latDelta = currentSpan.latitudeDelta * buffer
-        let lonDelta = currentSpan.longitudeDelta * buffer
-        
-        let minLat = currentCenter.latitude - latDelta / 2
-        let maxLat = currentCenter.latitude + latDelta / 2
-        let minLon = currentCenter.longitude - lonDelta / 2
-        let maxLon = currentCenter.longitude + lonDelta / 2
-        
-        return viewModel.filteredTravaux.filter { travaux in
-            travaux.centroid.latitude >= minLat &&
-            travaux.centroid.latitude <= maxLat &&
-            travaux.centroid.longitude >= minLon &&
-            travaux.centroid.longitude <= maxLon
-        }
-    }
-    
     var body: some View {
         ZStack {
             mapContent
@@ -59,7 +40,7 @@ struct TravauxMapView: View {
                 mapCameraPosition = .region(
                     MKCoordinateRegion(
                         center: userLocation.coordinate,
-                        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                     )
                 )
                 hasSetInitialLocation = true
@@ -73,7 +54,7 @@ struct TravauxMapView: View {
                     mapCameraPosition = .region(
                         MKCoordinateRegion(
                             center: newLocation.coordinate,
-                            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                         )
                     )
                 }
@@ -88,9 +69,9 @@ struct TravauxMapView: View {
     private var mapContent: some View {
         MapReader { proxy in
             Map(position: $mapCameraPosition) {
-                // Afficher les polygones seulement en zoom moyen
+                // Afficher les polygones seulement en zoom moyen (pour les non-clusterisés)
                 if shouldShowPolygons {
-                    ForEach(visibleTravaux) { travaux in
+                    ForEach(viewModel.displayTravaux) { travaux in
                         ForEach(travaux.coordinates.indices, id: \.self) { index in
                             MapPolygon(coordinates: travaux.coordinates[index])
                                 .foregroundStyle(polygonColor(for: travaux).opacity(0.3))
@@ -99,8 +80,26 @@ struct TravauxMapView: View {
                     }
                 }
                 
-                // Markers avec clustering natif MapKit
-                ForEach(visibleTravaux) { travaux in
+                // Afficher les clusters de travaux
+                ForEach(viewModel.displayClusters, id: \.id) { cluster in
+                    Annotation("", coordinate: cluster.coordinate) {
+                        TravauxClusterMarker(cluster: cluster)
+                            .onTapGesture {
+                                // Zoom sur le cluster au tap
+                                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                                    mapCameraPosition = .region(
+                                        MKCoordinateRegion(
+                                            center: cluster.coordinate,
+                                            span: MKCoordinateSpan(latitudeDelta: 0.015, longitudeDelta: 0.015)
+                                        )
+                                    )
+                                }
+                            }
+                    }
+                }
+                
+                // Afficher les travaux non clusterisés
+                ForEach(viewModel.displayTravaux) { travaux in
                     Annotation(travaux.nomChantier, coordinate: travaux.centroid, anchor: .bottom) {
                         TravauxMarker(travaux: travaux)
                             .onTapGesture {
@@ -119,8 +118,14 @@ struct TravauxMapView: View {
             .onMapCameraChange { context in
                 currentSpan = context.region.span
                 currentCenter = context.region.center
+                viewModel.updateZoomLevel(context.region.span)
+                viewModel.updateVisibleRegion(context.region)
             }
             .overlay {
+                if viewModel.shouldShowTooManyMarkersWarning {
+                    tooManyMarkersWarning
+                }
+                
                 if viewModel.isLoading && viewModel.travaux.isEmpty {
                     loadingOverlay
                 }
@@ -141,6 +146,27 @@ struct TravauxMapView: View {
         }
     }
     
+    
+    private var tooManyMarkersWarning: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 48))
+                .foregroundStyle(.orange)
+            
+            Text("Trop de résultats")
+                .font(.headline)
+            
+            Text("Zoomez sur la carte pour afficher les travaux")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(24)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 3)
+        .padding(20)
+    }
     
     private var loadingOverlay: some View {
         VStack(spacing: 16) {
@@ -187,31 +213,19 @@ struct TravauxMapView: View {
             Spacer()
             
             HStack(alignment: .bottom) {
-                // Refresh card en bas à gauche
-                refreshCard
-                
                 Spacer()
                 
                 // Boutons à droite
                 VStack(spacing: 12) {
-                    // Bouton filtres
+                    // Bouton filtres (harmonisé avec Transport)
                     Button {
                         showFilters = true
                     } label: {
-                        ZStack {
-                            Image(systemName: "line.3.horizontal.decrease.circle.fill")
-                                .font(.system(size: 22, weight: .semibold))
-                            
-                            if viewModel.hasActiveFilters {
-                                Circle()
-                                    .fill(.red)
-                                    .frame(width: 10, height: 10)
-                                    .offset(x: 10, y: -10)
-                            }
-                        }
+                        Image(systemName: viewModel.hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                            .font(.system(size: 22, weight: .semibold))
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.orange)
+                    .tint(viewModel.hasActiveFilters ? .orange : .gray)
                     .controlSize(.large)
                     
                     // Bouton localisation
@@ -221,7 +235,7 @@ struct TravauxMapView: View {
                                 mapCameraPosition = .region(
                                     MKCoordinateRegion(
                                         center: userLocation.coordinate,
-                                        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                                     )
                                 )
                             }
@@ -397,18 +411,12 @@ struct TravauxDetailSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
-                    // Header
+                VStack(spacing: 16) {
+                    // Header simplifié
                     headerSection
                     
                     // Dates
                     datesCard
-                    
-                    // Perturbation info
-                    perturbationCard
-                    
-                    // Localisation
-                    localisationCard
                     
                     // Navigation button
                     navigationButton
@@ -416,71 +424,67 @@ struct TravauxDetailSheet: View {
                 .padding(20)
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("Détails du chantier")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Fermer") {
                         dismiss()
                     }
+                    .fontWeight(.semibold)
                 }
             }
         }
     }
     
     private var headerSection: some View {
-        VStack(spacing: 12) {
-            // Type de travaux avec icône
+        VStack(spacing: 16) {
+            // Badge type de chantier
             HStack(spacing: 8) {
-                Image(systemName: travaux.type.icon)
-                    .font(.system(size: 16, weight: .semibold))
-                Text(travaux.type.rawValue)
+                Image(systemName: travaux.natureChantier.icon)
+                    .font(.system(size: 18, weight: .semibold))
+                Text(travaux.natureChantier.rawValue)
                     .font(.subheadline)
                     .fontWeight(.semibold)
             }
-            .foregroundStyle(typeColor)
+            .foregroundStyle(.white)
             .padding(.horizontal, 16)
-            .padding(.vertical, 6)
-            .background(typeColor.opacity(0.15))
+            .padding(.vertical, 10)
+            .background(travaux.natureChantier.color)
             .clipShape(Capsule())
             
-            // Importance badge
-            HStack {
-                Image(systemName: travaux.importance.icon)
-                    .font(.system(size: 14, weight: .bold))
-                Text(travaux.importance.displayName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-            }
-            .foregroundStyle(importanceColor)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(importanceColor.opacity(0.15))
-            .clipShape(Capsule())
-            
-            // Nom du chantier
+            // Nom du chantier (simplifié)
             Text(travaux.nomChantier)
-                .font(.title2)
+                .font(.title3)
                 .fontWeight(.bold)
                 .multilineTextAlignment(.center)
+                .lineLimit(3)
             
-            // Rue
-            HStack(spacing: 4) {
-                Image(systemName: "mappin")
-                    .foregroundStyle(.secondary)
-                Text(travaux.nom)
+            // Adresse
+            VStack(spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "mappin.circle.fill")
+                        .foregroundStyle(.red)
+                    Text(travaux.nom)
+                        .lineLimit(2)
+                }
+                .font(.subheadline)
+                
+                Text(travaux.commune)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .font(.subheadline)
             
-            // Commune
-            Text(travaux.commune)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(Color(.systemGray5))
-                .clipShape(Capsule())
+            // Intervenant (si pertinent)
+            if travaux.intervenant != "Non spécifié" && !travaux.intervenant.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "person.circle.fill")
+                        .foregroundStyle(.blue)
+                    Text(travaux.intervenant)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(24)
@@ -704,51 +708,45 @@ struct TravauxFiltersSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Importance") {
-                    ForEach(TravauxImportance.allCases, id: \.self) { importance in
+                Section {
+                    TextField("Rechercher...", text: $viewModel.searchText)
+                        .textFieldStyle(.plain)
+                }
+                
+                Section("Type de chantier") {
+                    ForEach(TravauxNatureChantier.allCases, id: \.self) { nature in
                         Button {
-                            viewModel.toggleImportance(importance)
+                            viewModel.toggleNatureChantier(nature)
                         } label: {
                             HStack {
-                                Image(systemName: importance.icon)
-                                    .foregroundStyle(colorFor(importance))
-                                    .frame(width: 24)
+                                Image(systemName: nature.icon)
+                                    .foregroundStyle(nature.color)
+                                    .frame(width: 28)
                                 
-                                Text(importance.displayName)
+                                Text(nature.rawValue)
                                     .foregroundStyle(.primary)
                                 
                                 Spacer()
                                 
-                                if viewModel.selectedImportance.contains(importance) {
-                                    Image(systemName: "checkmark")
+                                if viewModel.selectedNatureChantier.contains(nature) {
+                                    Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(.blue)
+                                } else {
+                                    Image(systemName: "circle")
+                                        .foregroundStyle(.secondary)
                                 }
                             }
                         }
                     }
                 }
                 
-                Section("Type de perturbation") {
-                    ForEach(TravauxPerturbation.allCases, id: \.self) { perturbation in
-                        Button {
-                            viewModel.togglePerturbation(perturbation)
-                        } label: {
-                            HStack {
-                                Image(systemName: perturbation.icon)
-                                    .foregroundStyle(colorForPerturbation(perturbation))
-                                    .frame(width: 24)
-                                
-                                Text(perturbation.displayName)
-                                    .foregroundStyle(.primary)
-                                
-                                Spacer()
-                                
-                                if viewModel.selectedPerturbation.contains(perturbation) {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(.blue)
-                                }
-                            }
-                        }
+                Section {
+                    HStack {
+                        Text("Chantiers affichés")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("\(viewModel.filteredTravaux.count)")
+                            .fontWeight(.semibold)
                     }
                 }
                 
@@ -766,57 +764,8 @@ struct TravauxFiltersSheet: View {
                     Button("Terminé") {
                         dismiss()
                     }
+                    .fontWeight(.semibold)
                 }
-            }
-        }
-    }
-    
-    private func colorFor(_ importance: TravauxImportance) -> Color {
-        switch importance {
-        case .tresPerturbant: return .red
-        case .perturbant: return .orange
-        case .peuPerturbant: return .yellow
-        case .inconnu: return .gray
-        }
-    }
-    
-    private func colorForPerturbation(_ perturbation: TravauxPerturbation) -> Color {
-        switch perturbation {
-        case .circulationInterdite: return .red
-        case .circulationReduite: return .orange
-        case .circulationAlternee: return .yellow
-        case .genePonctuelle: return .blue
-        case .autre: return .gray
-        }
-    }
-}
-
-// MARK: - Travaux Cluster
-
-struct TravauxCluster: Identifiable {
-    let id: String
-    let coordinate: CLLocationCoordinate2D
-    let travaux: [Travaux]
-}
-
-struct TravauxClusterMarker: View {
-    let cluster: TravauxCluster
-    
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(.orange)
-                .frame(width: 50, height: 50)
-                .shadow(color: .orange.opacity(0.4), radius: 6, x: 0, y: 3)
-            
-            VStack(spacing: 2) {
-                Image(systemName: "hammer.fill")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
-                
-                Text("\(cluster.travaux.count)")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
             }
         }
     }
