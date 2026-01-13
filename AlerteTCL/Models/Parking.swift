@@ -1,6 +1,28 @@
 import Foundation
 import CoreLocation
 
+enum ParkingType: String, Codable, CaseIterable {
+    case car = "Voiture"
+    case bike = "Vélo"
+    case motorized2Wheel = "2 roues motorisé"
+    
+    var icon: String {
+        switch self {
+        case .car: return "car.fill"
+        case .bike: return "bicycle"
+        case .motorized2Wheel: return "motorcycle.fill"
+        }
+    }
+    
+    var color: String {
+        switch self {
+        case .car: return "blue"
+        case .bike: return "green"
+        case .motorized2Wheel: return "orange"
+        }
+    }
+}
+
 struct ParkingResponse: Codable {
     let type: String
     let features: [ParkingFeature]
@@ -24,9 +46,9 @@ struct ParkingGeometry: Codable {
 
 struct ParkingProperties: Codable {
     let gid: Int
-    let id: String
+    let id: String?
     let nom: String
-    let gestionnaire: String
+    let gestionnaire: String?
     let idGestionnaire: String?
     let insee: String?
     let adresse: String?
@@ -58,6 +80,25 @@ struct ParkingProperties: Codable {
     let etat: String?
     let lastUpdate: String?
     
+    let commune: String?
+    let avancement: String?
+    let mobiliervelo: String?
+    let localisation: String?
+    let abrite: Bool?
+    let duree: String?
+    let nbarceaux: Int?
+    let capacite: Int?
+    let anneerealisation: Int?
+    let arceauxprojetes: Int?
+    let pole: String?
+    let observation: String?
+    let validite: String?
+    
+    let numeroVoie: String?
+    let arrondissement: String?
+    let longueur: Int?
+    let datemaj: String?
+    
     enum CodingKeys: String, CodingKey {
         case gid, id, nom, gestionnaire, insee, adresse, url, gratuit, info, etat
         case idGestionnaire = "id_gestionnaire"
@@ -84,6 +125,10 @@ struct ParkingProperties: Codable {
         case typeOuvrage = "type_ouvrage"
         case placesDisponibles = "places_disponibles"
         case lastUpdate = "last_update"
+        
+        case commune, avancement, mobiliervelo, localisation, abrite, duree, nbarceaux, capacite, anneerealisation, arceauxprojetes, pole, observation, validite
+        case numeroVoie = "numero_voie"
+        case arrondissement, longueur, datemaj
     }
 }
 
@@ -98,6 +143,7 @@ struct Parking: Identifiable, Hashable {
     let placesDisponibles: Int
     let etat: ParkingState
     let lastUpdate: Date?
+    let parkingType: ParkingType
     
     // Détails optionnels
     let url: String?
@@ -147,16 +193,29 @@ struct Parking: Identifiable, Hashable {
         hasher.combine(id)
     }
     
-    init(from feature: ParkingFeature) {
-        self.id = feature.properties.id
+    init(from feature: ParkingFeature, type: ParkingType = .car) {
+        self.id = feature.properties.id ?? "\(feature.properties.gid)"
         self.gid = feature.properties.gid
         self.nom = feature.properties.nom
-        self.gestionnaire = feature.properties.gestionnaire
+        self.gestionnaire = feature.properties.gestionnaire ?? "Non spécifié"
         self.adresse = feature.properties.adresse ?? "Adresse non disponible"
         self.coordinate = feature.geometry.coordinate
-        self.capaciteTotale = feature.properties.nbPlaces ?? 0
-        self.placesDisponibles = feature.properties.placesDisponibles ?? 0
-        self.etat = ParkingState(rawValue: feature.properties.etat ?? "inconnu") ?? .inconnu
+        self.parkingType = type
+        
+        switch type {
+        case .car:
+            self.capaciteTotale = feature.properties.nbPlaces ?? 0
+            self.placesDisponibles = feature.properties.placesDisponibles ?? 0
+            self.etat = ParkingState(rawValue: feature.properties.etat ?? "inconnu") ?? .inconnu
+        case .bike:
+            self.capaciteTotale = feature.properties.capacite ?? (feature.properties.nbarceaux ?? 0) * 2
+            self.placesDisponibles = self.capaciteTotale
+            self.etat = .ouvert
+        case .motorized2Wheel:
+            self.capaciteTotale = feature.properties.longueur ?? 0
+            self.placesDisponibles = self.capaciteTotale
+            self.etat = .ouvert
+        }
         
         if let lastUpdateStr = feature.properties.lastUpdate {
             let formatter = ISO8601DateFormatter()

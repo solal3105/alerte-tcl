@@ -11,6 +11,15 @@ final class ParkingViewModel: ObservableObject {
     @Published var secondsUntilNextRefresh: Int = 60
     @Published var refreshProgress: Double = 0.0
     @Published var isViewActive = false
+    @Published var selectedParkingType: ParkingType = .car {
+        didSet {
+            if oldValue != selectedParkingType {
+                Task {
+                    await loadParkings()
+                }
+            }
+        }
+    }
     
     @Published var mapRegion: MKCoordinateRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
@@ -40,17 +49,17 @@ final class ParkingViewModel: ObservableObject {
     func loadParkings() async {
         guard !isLoading else { return }
         
-        print("🔄 ParkingViewModel: Début du chargement...")
+        print("🔄 ParkingViewModel: Début du chargement (\(selectedParkingType.rawValue))...")
         isLoading = true
         error = nil
         
         do {
-            let fetchedParkings = try await ParkingService.shared.fetchParkings()
+            let fetchedParkings = try await ParkingService.shared.fetchParkings(type: selectedParkingType)
             parkings = fetchedParkings.sorted { $0.nom < $1.nom }
             lastUpdate = Date()
             secondsUntilNextRefresh = Int(refreshInterval)
             
-            print("✅ ParkingViewModel: \(parkings.count) parkings chargés avec succès")
+            print("✅ ParkingViewModel: \(parkings.count) parkings \(selectedParkingType.rawValue) chargés avec succès")
             print("📊 ParkingViewModel: Total places: \(totalPlacesDisponibles)/\(totalCapacite)")
             print("🅿️ ParkingViewModel: Parkings ouverts: \(parkingsOuverts)")
             
@@ -67,8 +76,9 @@ final class ParkingViewModel: ObservableObject {
         
         refreshTask = Task {
             while !Task.isCancelled && isViewActive {
-                await loadParkings()
                 try? await Task.sleep(nanoseconds: UInt64(refreshInterval * 1_000_000_000))
+                guard !Task.isCancelled && isViewActive else { break }
+                await loadParkings()
             }
         }
         
@@ -102,7 +112,11 @@ final class ParkingViewModel: ObservableObject {
     
     func onAppear() {
         isViewActive = true
-        startAutoRefresh()
+        // Charger les données en arrière-plan sans bloquer l'affichage
+        Task(priority: .userInitiated) {
+            await loadParkings()
+            startAutoRefresh()
+        }
     }
     
     func onDisappear() {

@@ -143,6 +143,9 @@ struct NewAlertsView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
+            .accessibilityElement()
+            .accessibilityLabel("Aucune ligne suivie. Abonnez-vous à des lignes pour recevoir leurs alertes.")
+            .accessibilityHint("Double-cliquer pour s'abonner à des lignes")
             
             Button {
                 showSubscribeSheet = true

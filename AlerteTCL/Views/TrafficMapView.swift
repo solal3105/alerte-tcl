@@ -17,6 +17,42 @@ struct TrafficMapView: View {
         ZStack {
             mapContent
             
+            // Indicateur de chargement progressif
+            if viewModel.isLoading {
+                VStack(spacing: 16) {
+                    // Barre de progression
+                    VStack(spacing: 8) {
+                        ZStack(alignment: .leading) {
+                            // Fond de la barre
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(height: 8)
+                            
+                            // Progression
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.blue)
+                                .frame(width: max(0, viewModel.loadingProgress * 280), height: 8)
+                                .animation(.easeInOut(duration: 0.3), value: viewModel.loadingProgress)
+                        }
+                        .frame(width: 280)
+                        
+                        // Message de progression
+                        if !viewModel.loadingMessage.isEmpty {
+                            Text(viewModel.loadingMessage)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    // Spinner
+                    ProgressView()
+                        .tint(.blue)
+                }
+                .padding(24)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 4)
+            }
+            
             overlayControls
         }
         .sheet(item: $selectedEvent) { event in
@@ -33,10 +69,15 @@ struct TrafficMapView: View {
             locationService.requestPermission()
             locationService.startUpdatingLocation()
             
+            // Centrer sur la localisation utilisateur avec un zoom plus serré
             if let userLocation = locationService.currentLocation {
                 mapCameraPosition = .region(MKCoordinateRegion(
                     center: userLocation.coordinate,
-                    span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
+                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                ))
+                viewModel.updateMapRegion(MKCoordinateRegion(
+                    center: userLocation.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
                 ))
             }
             

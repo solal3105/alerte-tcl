@@ -11,6 +11,15 @@
 		4F38BD0E2F1558DB00E05786 /* TrafficViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD0D2F1558DB00E05786 /* TrafficViewModel.swift */; };
 		4F38BD102F1558E400E05786 /* TrafficService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD0F2F1558E400E05786 /* TrafficService.swift */; };
 		4F38BD122F1558EE00E05786 /* Traffic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD112F1558EE00E05786 /* Traffic.swift */; };
+		4F38BD202F1591C000E05786 /* BusLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD1F2F1591C000E05786 /* BusLine.swift */; };
+		4F38BD222F1591C900E05786 /* BusLineService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD212F1591C900E05786 /* BusLineService.swift */; };
+		4F38BD242F159CBE00E05786 /* MetroLineService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD232F159CBE00E05786 /* MetroLineService.swift */; };
+		4F38BD262F159CCA00E05786 /* MetroLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD252F159CCA00E05786 /* MetroLine.swift */; };
+		4F38BD282F15B0AC00E05786 /* Travaux.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD272F15B0AC00E05786 /* Travaux.swift */; };
+		4F38BD2A2F15B0BB00E05786 /* TravauxService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD292F15B0BB00E05786 /* TravauxService.swift */; };
+		4F38BD2C2F15B0C500E05786 /* StopsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD2B2F15B0C500E05786 /* StopsViewModel.swift */; };
+		4F38BD2E2F15B0E200E05786 /* TravauxViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD2D2F15B0E200E05786 /* TravauxViewModel.swift */; };
+		4F38BD302F15B17000E05786 /* TravauxMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD2F2F15B17000E05786 /* TravauxMapView.swift */; };
 		4F9DFF902F1449BB00E01BFB /* OnboardingView 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF8F2F1449BB00E01BFB /* OnboardingView 2.swift */; };
 		4F9DFF982F14515000E01BFB /* AmazingSplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF972F14515000E01BFB /* AmazingSplashView.swift */; };
 		4F9DFF9A2F14577200E01BFB /* ParkingMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF992F14577200E01BFB /* ParkingMapView.swift */; };
@@ -96,6 +105,15 @@
 		4F38BD0D2F1558DB00E05786 /* TrafficViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficViewModel.swift; sourceTree = "<group>"; };
 		4F38BD0F2F1558E400E05786 /* TrafficService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficService.swift; sourceTree = "<group>"; };
 		4F38BD112F1558EE00E05786 /* Traffic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Traffic.swift; sourceTree = "<group>"; };
+		4F38BD1F2F1591C000E05786 /* BusLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusLine.swift; sourceTree = "<group>"; };
+		4F38BD212F1591C900E05786 /* BusLineService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusLineService.swift; sourceTree = "<group>"; };
+		4F38BD232F159CBE00E05786 /* MetroLineService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetroLineService.swift; sourceTree = "<group>"; };
+		4F38BD252F159CCA00E05786 /* MetroLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetroLine.swift; sourceTree = "<group>"; };
+		4F38BD272F15B0AC00E05786 /* Travaux.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Travaux.swift; sourceTree = "<group>"; };
+		4F38BD292F15B0BB00E05786 /* TravauxService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravauxService.swift; sourceTree = "<group>"; };
+		4F38BD2B2F15B0C500E05786 /* StopsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopsViewModel.swift; sourceTree = "<group>"; };
+		4F38BD2D2F15B0E200E05786 /* TravauxViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravauxViewModel.swift; sourceTree = "<group>"; };
+		4F38BD2F2F15B17000E05786 /* TravauxMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravauxMapView.swift; sourceTree = "<group>"; };
 		4F9DFF8F2F1449BB00E01BFB /* OnboardingView 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OnboardingView 2.swift"; sourceTree = "<group>"; };
 		4F9DFF972F14515000E01BFB /* AmazingSplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmazingSplashView.swift; sourceTree = "<group>"; };
 		4F9DFF992F14577200E01BFB /* ParkingMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingMapView.swift; sourceTree = "<group>"; };
@@ -197,6 +215,9 @@
 		AAA00033 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				4F38BD272F15B0AC00E05786 /* Travaux.swift */,
+				4F38BD252F159CCA00E05786 /* MetroLine.swift */,
+				4F38BD1F2F1591C000E05786 /* BusLine.swift */,
 				4F38BD112F1558EE00E05786 /* Traffic.swift */,
 				4F9DFFA62F14667B00E01BFB /* Stop.swift */,
 				4F9DFFA42F145B4800E01BFB /* ParkingCluster.swift */,
@@ -212,6 +233,9 @@
 		AAA00034 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				4F38BD292F15B0BB00E05786 /* TravauxService.swift */,
+				4F38BD232F159CBE00E05786 /* MetroLineService.swift */,
+				4F38BD212F1591C900E05786 /* BusLineService.swift */,
 				4F38BD0F2F1558E400E05786 /* TrafficService.swift */,
 				4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */,
 				4F9DFFB52F146B0800E01BFB /* GTFSStopsService.swift */,
@@ -230,6 +254,8 @@
 		AAA00035 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				4F38BD2D2F15B0E200E05786 /* TravauxViewModel.swift */,
+				4F38BD2B2F15B0C500E05786 /* StopsViewModel.swift */,
 				4F38BD0D2F1558DB00E05786 /* TrafficViewModel.swift */,
 				4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */,
 				AAA00019 /* AlertViewModel.swift */,
@@ -241,6 +267,7 @@
 		AAA00036 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				4F38BD2F2F15B17000E05786 /* TravauxMapView.swift */,
 				4F38BD0B2F1558BE00E05786 /* TrafficMapView.swift */,
 				4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */,
 				4F9DFF992F14577200E01BFB /* ParkingMapView.swift */,
@@ -413,6 +440,7 @@
 				AAA00001 /* AlerteTCLApp.swift in Sources */,
 				AAA00002 /* ContentView.swift in Sources */,
 				AAA00004 /* Alert.swift in Sources */,
+				4F38BD302F15B17000E05786 /* TravauxMapView.swift in Sources */,
 				AAA00005 /* TransportLine.swift in Sources */,
 				AAA00006 /* TCLAPIService.swift in Sources */,
 				AAA00007 /* NotificationService.swift in Sources */,
@@ -420,11 +448,16 @@
 				AAA00008 /* SubscriptionService.swift in Sources */,
 				4F9DFFEB2F147FA400E01BFB /* RecentItemsService.swift in Sources */,
 				4F9DFFA52F145B4800E01BFB /* ParkingCluster.swift in Sources */,
+				4F38BD202F1591C000E05786 /* BusLine.swift in Sources */,
+				4F38BD282F15B0AC00E05786 /* Travaux.swift in Sources */,
+				4F38BD2E2F15B0E200E05786 /* TravauxViewModel.swift in Sources */,
 				4F9DFF902F1449BB00E01BFB /* OnboardingView 2.swift in Sources */,
+				4F38BD262F159CCA00E05786 /* MetroLine.swift in Sources */,
 				4F9DFF9D2F1457E200E01BFB /* Parking.swift in Sources */,
 				4F9DFFA92F14668400E01BFB /* StopTimesService.swift in Sources */,
 				4F38BD122F1558EE00E05786 /* Traffic.swift in Sources */,
 				AAA00009 /* AlertViewModel.swift in Sources */,
+				4F38BD2C2F15B0C500E05786 /* StopsViewModel.swift in Sources */,
 				4F9DFFA02F1457EE00E01BFB /* FavoriteLinesService.swift in Sources */,
 				4F38BD0E2F1558DB00E05786 /* TrafficViewModel.swift in Sources */,
 				4F9DFFA12F1457EE00E01BFB /* ParkingService.swift in Sources */,
@@ -437,9 +470,11 @@
 				AAA0000E /* AlertCard.swift in Sources */,
 				AAA0000F /* NotificationPermissionView.swift in Sources */,
 				4F9DFFB62F146B0800E01BFB /* GTFSStopsService.swift in Sources */,
+				4F38BD2A2F15B0BB00E05786 /* TravauxService.swift in Sources */,
 				4F9DFF982F14515000E01BFB /* AmazingSplashView.swift in Sources */,
 				AAA00023 /* StatCard.swift in Sources */,
 				4F38BD0C2F1558BE00E05786 /* TrafficMapView.swift in Sources */,
+				4F38BD242F159CBE00E05786 /* MetroLineService.swift in Sources */,
 				AAA00024 /* Vehicle.swift in Sources */,
 				AAA00026 /* SIRILiteService.swift in Sources */,
 				AAA00028 /* LiveVehiclesViewModel.swift in Sources */,
@@ -448,6 +483,7 @@
 				AAA0002E /* LocationService.swift in Sources */,
 				4F38BD102F1558E400E05786 /* TrafficService.swift in Sources */,
 				AAA00039 /* LocationPermissionView.swift in Sources */,
+				4F38BD222F1591C900E05786 /* BusLineService.swift in Sources */,
 				4F9DFFA32F1457F900E01BFB /* ParkingViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

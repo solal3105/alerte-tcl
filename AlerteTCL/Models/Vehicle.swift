@@ -48,6 +48,16 @@ struct Vehicle: Identifiable, Hashable {
     var isEarly: Bool {
         delay < -60
     }
+    
+    /// Description pour VoiceOver et accessibilité
+    var accessibilityDescription: String {
+        let type = vehicleType.rawValue
+        let line = lineName
+        let delay = delayFormatted
+        let destination = destination.isEmpty ? "destination inconnue" : destination
+        
+        return "\(type) ligne \(line), direction \(destination), \(delay)"
+    }
 }
 
 struct StopInfo: Identifiable, Hashable {

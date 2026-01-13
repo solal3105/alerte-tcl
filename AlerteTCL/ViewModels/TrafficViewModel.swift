@@ -9,13 +9,15 @@ final class TrafficViewModel: ObservableObject {
     @Published var events: [TrafficEvent] = []
     @Published var segments: [TrafficSegment] = []
     @Published var isLoading = false
+    @Published var loadingProgress: Double = 0.0
+    @Published var loadingMessage: String = ""
     @Published var error: String?
     @Published var lastUpdate: Date?
     
     @Published var showEvents = true
     @Published var showTrafficState = true
     @Published var selectedEventTypes: Set<TrafficEventType> = Set(TrafficEventType.allCases)
-    @Published var selectedFluidity: Set<TrafficFluidity> = [.dense, .sature, .bloque, .inconnu] // Exclure .fluide par défaut
+    @Published var selectedFluidity: Set<TrafficFluidity> = [.dense, .sature, .bloque] // Afficher dense, saturé et bloqué par défaut
     
     @Published var mapRegion: MKCoordinateRegion
     @Published var currentZoomLevel: Double = 0.15
@@ -56,9 +58,9 @@ final class TrafficViewModel: ObservableObject {
     var filteredSegments: [TrafficSegment] {
         // Utiliser le cache si la région n'a pas significativement changé
         if let lastRegion = lastFilteredRegion,
-           abs(lastRegion.center.latitude - mapRegion.center.latitude) < 0.01 &&
-           abs(lastRegion.center.longitude - mapRegion.center.longitude) < 0.01 &&
-           abs(lastRegion.span.latitudeDelta - mapRegion.span.latitudeDelta) < 0.01 {
+           abs(lastRegion.center.latitude - mapRegion.center.latitude) < 0.005 &&
+           abs(lastRegion.center.longitude - mapRegion.center.longitude) < 0.005 &&
+           abs(lastRegion.span.latitudeDelta - mapRegion.span.latitudeDelta) < 0.005 {
             return cachedFilteredSegments
         }
         
@@ -71,31 +73,25 @@ final class TrafficViewModel: ObservableObject {
         
         // Créer une nouvelle tâche avec debounce
         filterTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 300_000_000) // 300ms debounce
+            try? await Task.sleep(nanoseconds: 200_000_000) // 200ms debounce (optimisé)
             
             guard !Task.isCancelled else { return }
             
-            let filtered = segments.filter { segment in
-                // Filtrer par fluidité sélectionnée
-                guard selectedFluidity.contains(segment.fluidity) else { return false }
-                
-                // Ne pas afficher les segments fluides (optimisation)
-                guard segment.fluidity != .fluide else { return false }
-                
-                // Filtrer par viewport visible
-                guard isSegmentInViewport(segment) else { return false }
-                
-                return true
-            }
+            // Optimisation : filtrer en une seule passe
+            let filtered = segments.lazy
+                .filter { self.selectedFluidity.contains($0.fluidity) }
+                .filter { $0.fluidity != .fluide }
+                .filter { self.isSegmentInViewport($0) }
+                .map { $0 }
             
-            cachedFilteredSegments = filtered
+            cachedFilteredSegments = Array(filtered)
             lastFilteredRegion = mapRegion
         }
     }
     
     private func isSegmentInViewport(_ segment: TrafficSegment) -> Bool {
-        // Calculer les bounds du viewport avec un buffer réduit
-        let buffer = 0.3
+        // Calculer les bounds du viewport avec un buffer large pour afficher tout le viewport et au-delà
+        let buffer = 1.0
         let latDelta = mapRegion.span.latitudeDelta * buffer
         let lonDelta = mapRegion.span.longitudeDelta * buffer
         
@@ -137,19 +133,28 @@ final class TrafficViewModel: ObservableObject {
     
     func loadData() async {
         isLoading = true
+        loadingProgress = 0.0
         error = nil
         
-        async let eventsTask = loadEvents()
-        async let segmentsTask = loadTrafficState()
+        // Chargement progressif : événements d'abord (plus légers, plus critiques)
+        loadingMessage = "Chargement des événements..."
+        loadingProgress = 0.1
+        await loadEvents()
+        loadingProgress = 0.5
         
-        await eventsTask
-        await segmentsTask
+        // Puis segments de trafic (plus lourds)
+        loadingMessage = "Chargement de l'état du trafic..."
+        await loadTrafficState()
+        loadingProgress = 0.9
         
+        // Finalisation
+        loadingMessage = "Optimisation de l'affichage..."
         lastUpdate = Date()
-        isLoading = false
-        
-        // Mettre à jour le cache après le chargement
         updateFilteredSegments()
+        
+        loadingProgress = 1.0
+        isLoading = false
+        loadingMessage = ""
     }
     
     func loadEvents() async {

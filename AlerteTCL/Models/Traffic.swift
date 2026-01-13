@@ -124,11 +124,14 @@ struct TrafficSegment: Identifiable, Codable {
     private func simplifyPolyline(_ points: [CLLocationCoordinate2D], tolerance: Double) -> [CLLocationCoordinate2D] {
         guard points.count > 2 else { return points }
         
-        // Algorithme de Douglas-Peucker simplifié
-        // Garder 1 point sur 3 pour les polylignes complexes
+        // Algorithme de Douglas-Peucker simplifié optimisé
+        // Garder 1 point sur 4 pour les polylignes très complexes (>50 points)
+        // Garder 1 point sur 3 pour les polylignes moyennes
         var simplified: [CLLocationCoordinate2D] = [points.first!]
         
-        for i in stride(from: 3, to: points.count - 1, by: 3) {
+        let stride = points.count > 50 ? 4 : 3
+        
+        for i in Swift.stride(from: stride, to: points.count - 1, by: stride) {
             simplified.append(points[i])
         }
         

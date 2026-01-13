@@ -8,18 +8,23 @@ import MapKit
 final class LiveVehiclesViewModel: ObservableObject {
     @Published var vehicles: [Vehicle] = []
     @Published var animatedVehicles: [String: AnimatedVehicle] = [:]
+    @Published var busLines: [BusLine] = []
+    @Published var transitLines: [TransitLine] = []
     @Published var isLoading = false
     @Published var error: String?
     @Published var lastUpdate: Date?
     @Published var selectedVehicleType: VehicleType?
     @Published var selectedLine: String?
     @Published var selectedLines: Set<String> = []
+    @Published var showBusLines = true
+    @Published var showTransitLines = true
     @Published var mapRegion: MKCoordinateRegion
     @Published var isAutoRefreshEnabled = true
     @Published var currentZoomLevel: Double = 0.15
     @Published var refreshProgress: Double = 0.0
     @Published var visibleRegion: MKCoordinateRegion?
     @Published var secondsUntilNextRefresh: Int = 15
+    @Published var isInitialLoadComplete = false
     
     private var refreshTask: Task<Void, Never>?
     private var progressTask: Task<Void, Never>?
@@ -89,7 +94,7 @@ final class LiveVehiclesViewModel: ObservableObject {
     }
     
     private func isCoordinateInRegion(_ coordinate: CLLocationCoordinate2D, region: MKCoordinateRegion) -> Bool {
-        let buffer = 0.5
+        let buffer = 1.0
         let latDelta = region.span.latitudeDelta * buffer
         let lonDelta = region.span.longitudeDelta * buffer
         
@@ -179,6 +184,34 @@ final class LiveVehiclesViewModel: ObservableObject {
             .sorted { $0.type.sortOrder < $1.type.sortOrder }
     }
     
+    func loadBusLines() async {
+        do {
+            busLines = try await BusLineService.shared.fetchBusLines()
+            #if DEBUG
+            print("✅ ViewModel: \(busLines.count) lignes C chargées")
+            print("✅ ViewModel: showBusLines = \(showBusLines)")
+            #endif
+        } catch {
+            #if DEBUG
+            print("❌ Erreur chargement lignes de bus: \(error)")
+            #endif
+        }
+    }
+    
+    func loadTransitLines() async {
+        do {
+            transitLines = try await TransitLineService.shared.fetchTransitLines()
+            #if DEBUG
+            print("✅ ViewModel: \(transitLines.count) lignes de transport chargées")
+            print("✅ ViewModel: showTransitLines = \(showTransitLines)")
+            #endif
+        } catch {
+            #if DEBUG
+            print("❌ Erreur chargement lignes de transport: \(error)")
+            #endif
+        }
+    }
+    
     func loadVehicles() async {
         guard !isLoading else { return }
         
@@ -193,6 +226,7 @@ final class LiveVehiclesViewModel: ObservableObject {
             vehicles = fetchedVehicles
             lastUpdate = Date()
             error = nil
+            isInitialLoadComplete = true
         } catch let siriError as SIRIError {
             self.error = siriError.errorDescription
         } catch {
@@ -203,28 +237,33 @@ final class LiveVehiclesViewModel: ObservableObject {
     }
     
     private func updateAnimatedVehicles(with newVehicles: [Vehicle]) {
-        var newAnimatedVehicles: [String: AnimatedVehicle] = [:]
+        var updatedVehicles: [String: AnimatedVehicle] = [:]
         
         for vehicle in newVehicles {
             if let existingAnimated = animatedVehicles[vehicle.id] {
-                existingAnimated.stopAnimation()
+                // ✅ Mettre à jour la cible sans recréer l'objet
                 let previousVehicle = vehicles.first { $0.id == vehicle.id }
-                let animated = AnimatedVehicle(vehicle: vehicle, previousVehicle: previousVehicle, isFirstLoad: isFirstLoad)
-                animated.startAnimation()
-                newAnimatedVehicles[vehicle.id] = animated
+                existingAnimated.updateTarget(
+                    newVehicle: vehicle,
+                    previousCoordinate: previousVehicle?.coordinate,
+                    previousBearing: previousVehicle?.bearing
+                )
+                updatedVehicles[vehicle.id] = existingAnimated
             } else {
-                let animated = AnimatedVehicle(vehicle: vehicle, previousVehicle: nil, isFirstLoad: isFirstLoad)
-                newAnimatedVehicles[vehicle.id] = animated
+                // ✅ Créer un nouveau véhicule animé seulement s'il n'existe pas
+                let animated = AnimatedVehicle(vehicle: vehicle)
+                updatedVehicles[vehicle.id] = animated
             }
         }
         
+        // ✅ Nettoyer les véhicules qui ont disparu
         for (id, animated) in animatedVehicles {
-            if newAnimatedVehicles[id] == nil {
+            if updatedVehicles[id] == nil {
                 animated.stopAnimation()
             }
         }
         
-        animatedVehicles = newAnimatedVehicles
+        animatedVehicles = updatedVehicles
         
         if isFirstLoad {
             isFirstLoad = false

@@ -3,9 +3,11 @@ import MapKit
 
 struct LiveMapView: View {
     @StateObject private var viewModel = LiveVehiclesViewModel()
+    @EnvironmentObject var alertViewModel: AlertViewModel
     @ObservedObject private var locationService = LocationService.shared
     @State private var selectedVehicle: Vehicle?
     @State private var showFilters = false
+    @State private var showAlerts = false
     @State private var currentRegion: MKCoordinateRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
         span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
@@ -41,7 +43,12 @@ struct LiveMapView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
-        .task {
+        .sheet(isPresented: $showAlerts) {
+            NewAlertsView()
+                .environmentObject(alertViewModel)
+        }
+        .onAppear {
+            // Démarrer immédiatement la localisation (non bloquant)
             locationService.requestPermission()
             locationService.startUpdatingLocation()
             
@@ -56,8 +63,16 @@ struct LiveMapView: View {
                 }
             }
             
-            await viewModel.loadVehicles()
-            viewModel.startAutoRefresh()
+            // Charger les données progressivement en arrière-plan
+            Task(priority: .userInitiated) {
+                // D'abord les véhicules (plus important)
+                await viewModel.loadVehicles()
+                viewModel.startAutoRefresh()
+                
+                // Puis les lignes (moins prioritaire)
+                await viewModel.loadBusLines()
+                await viewModel.loadTransitLines()
+            }
         }
         .onDisappear {
             viewModel.stopAutoRefresh()
@@ -90,6 +105,22 @@ struct LiveMapView: View {
             Map(position: $mapCameraPosition, interactionModes: .all) {
                 UserAnnotation()
                 
+                // Afficher les lignes de bus
+                if viewModel.showBusLines {
+                    ForEach(viewModel.busLines) { line in
+                        MapPolyline(coordinates: line.clLocationCoordinates)
+                            .stroke(line.lineColor, lineWidth: line.lineWidth)
+                    }
+                }
+                
+                // Afficher les lignes de métro/funiculaire/tramway
+                if viewModel.showTransitLines {
+                    ForEach(viewModel.transitLines) { line in
+                        MapPolyline(coordinates: line.clLocationCoordinates)
+                            .stroke(line.lineColor, lineWidth: line.lineWidth)
+                    }
+                }
+                
                 // Afficher les véhicules
                 if viewModel.shouldShowClusters {
                     ForEach(viewModel.clusters, id: \.id) { cluster in
@@ -107,6 +138,9 @@ struct LiveMapView: View {
                         
                         Annotation(vehicle.lineName, coordinate: coordinate) {
                             VehicleMarker(vehicle: vehicle, bearing: bearing)
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel(vehicle.accessibilityDescription)
+                                .accessibilityHint("Double-cliquer pour voir les détails du véhicule")
                                 .onTapGesture {
                                     selectedVehicle = vehicle
                                 }
@@ -120,6 +154,9 @@ struct LiveMapView: View {
                         
                         Annotation(vehicle.lineName, coordinate: coordinate) {
                             VehicleMarker(vehicle: vehicle, bearing: bearing)
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel(vehicle.accessibilityDescription)
+                                .accessibilityHint("Double-cliquer pour voir les détails du véhicule")
                                 .onTapGesture {
                                     selectedVehicle = vehicle
                                 }
@@ -139,6 +176,16 @@ struct LiveMapView: View {
     
     private var overlayControls: some View {
         VStack {
+            // Compact alerts card en haut
+            if !alertViewModel.subscribedAlerts.isEmpty {
+                HStack {
+                    alertsCard
+                    Spacer()
+                }
+                .padding(.top, 60)
+                .padding(.leading, 16)
+            }
+            
             Spacer()
             
             HStack(alignment: .bottom) {
@@ -186,6 +233,107 @@ struct LiveMapView: View {
                 .padding(.trailing, 24)
                 .padding(.bottom, 24)
             }
+        }
+    }
+    
+    private var alertsCard: some View {
+        Button {
+            showAlerts = true
+        } label: {
+            HStack(spacing: 12) {
+                // Icône alerte
+                ZStack {
+                    Circle()
+                        .fill(.red)
+                        .frame(width: 36, height: 36)
+                    
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Alertes trafic")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    
+                    // Mini icônes des lignes avec alertes
+                    alertLineIcons
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 3)
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private var alertLineIcons: some View {
+        HStack(spacing: 6) {
+            ForEach(alertViewModel.subscribedAlerts.prefix(5)) { alert in
+                // Construire une ligne à partir de l'alerte
+                let line = TransportLine(
+                    ligneCom: alert.ligneCom,
+                    ligneCli: alert.ligneCli,
+                    mode: alert.mode
+                )
+                
+                ZStack {
+                    Circle()
+                        .fill(lineColor(for: line))
+                        .frame(width: 20, height: 20)
+                    
+                    Text(line.ligneCli.isEmpty ? line.ligneCom : line.ligneCli)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+            }
+            
+            if alertViewModel.subscribedAlerts.count > 5 {
+                Text("+\(alertViewModel.subscribedAlerts.count - 5)")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+    
+    private func lineColor(for line: TransportLine) -> Color {
+        switch line.mode {
+        case .metro:
+            switch line.ligneCli {
+            case "A": return Color(red: 0.95, green: 0.26, blue: 0.21)
+            case "B": return Color(red: 0.0, green: 0.45, blue: 0.81)
+            case "C": return Color(red: 1.0, green: 0.6, blue: 0.0)
+            case "D": return Color(red: 0.0, green: 0.59, blue: 0.53)
+            default: return .gray
+            }
+        case .tramway:
+            switch line.ligneCli {
+            case "T1": return Color(red: 0.95, green: 0.26, blue: 0.21)
+            case "T2": return Color(red: 0.95, green: 0.26, blue: 0.21)
+            case "T3": return Color(red: 1.0, green: 0.6, blue: 0.0)
+            case "T4": return Color(red: 0.61, green: 0.15, blue: 0.69)
+            case "T5": return Color(red: 0.0, green: 0.59, blue: 0.53)
+            case "T6": return Color(red: 0.95, green: 0.26, blue: 0.21)
+            case "T7": return Color(red: 0.0, green: 0.45, blue: 0.81)
+            default: return .red
+            }
+        case .busC:
+            return Color(red: 1.0, green: 0.6, blue: 0.0)
+        case .bus:
+            return Color(red: 0.0, green: 0.45, blue: 0.81)
+        case .funiculaire:
+            return Color(red: 0.0, green: 0.59, blue: 0.53)
+        case .navette:
+            return .purple
         }
     }
     
@@ -258,9 +406,18 @@ struct VehicleMarker: View {
                 .frame(width: 32, height: 32)
                 .shadow(color: markerColor.opacity(0.5), radius: 4, x: 0, y: 2)
             
-            Image(systemName: vehicle.vehicleType.icon)
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.white)
+            Group {
+                if UIAccessibility.isVoiceOverRunning {
+                    // Mode VoiceOver : afficher le texte du type de véhicule
+                    Text(String(vehicle.vehicleType.rawValue.first ?? "?"))
+                        .font(.system(size: 16, weight: .bold))
+                } else {
+                    // Mode normal : icône
+                    Image(systemName: vehicle.vehicleType.icon)
+                        .font(.system(size: 14, weight: .bold))
+                }
+            }
+            .foregroundStyle(iconColor)
             
             if bearing != 0 {
                 Image(systemName: "arrowtriangle.up.fill")
@@ -275,16 +432,51 @@ struct VehicleMarker: View {
     private var markerColor: Color {
         switch vehicle.vehicleType {
         case .metro:
-            return .orange
+            // Métro : couleurs selon la ligne
+            switch vehicle.lineName.uppercased() {
+            case let line where line.contains("A"):
+                return Color(hex: "EE3898") // Rose/Fuchsia
+            case let line where line.contains("B"):
+                return Color(hex: "007DC5") // Bleu
+            case let line where line.contains("C"):
+                return Color(hex: "F99D1D") // Orange
+            case let line where line.contains("D"):
+                return Color(hex: "00AC4D") // Vert
+            default:
+                return .orange
+            }
         case .tram:
-            return .blue
+            return Color(hex: "8C368C") // Violet/Mauve pour tous les trams
         case .bus:
-            return .purple
+            // Bus : différencier C, TB et autres
+            let lineName = vehicle.lineName.uppercased()
+            if lineName.hasPrefix("C") && lineName.count >= 2 && lineName[lineName.index(after: lineName.startIndex)].isNumber {
+                return Color.gray // Gris pour les lignes C
+            } else if lineName.hasPrefix("TB") {
+                return Color(hex: "DAA520") // Jaune foncé (goldenrod) pour trambus
+            } else {
+                return .white // Fond blanc pour les autres bus
+            }
         case .trolley:
-            return .green
+            return Color(hex: "DAA520") // Jaune foncé pour trolleybus
         case .funicular:
-            return .teal
+            return Color(hex: "8BC752") // Vert clair pour funiculaires
         }
+    }
+    
+    private var iconColor: Color {
+        switch vehicle.vehicleType {
+        case .bus:
+            let lineName = vehicle.lineName.uppercased()
+            if lineName.hasPrefix("C") && lineName.count >= 2 && lineName[lineName.index(after: lineName.startIndex)].isNumber {
+                return .white // Icône blanche pour les lignes C
+            } else if !lineName.hasPrefix("TB") {
+                return .gray // Icône grise pour les autres bus (non-C, non-TB)
+            }
+        default:
+            break
+        }
+        return .white // Icône blanche par défaut
     }
 }
 
@@ -309,13 +501,7 @@ struct ClusterMarker: View {
     }
     
     private var clusterColor: Color {
-        switch cluster.dominantType {
-        case .metro: return .orange
-        case .tram: return .blue
-        case .bus: return .purple
-        case .trolley: return .green
-        case .funicular: return .teal
-        }
+        return .blue // Tous les clusters en bleu pour éviter le clignotement
     }
 }
 

@@ -6,45 +6,19 @@ struct ParkingMapView: View {
     @StateObject private var viewModel = ParkingViewModel()
     @ObservedObject private var locationService = LocationService.shared
     @State private var selectedParking: Parking?
-    @State private var mapCameraPosition: MapCameraPosition = .region(
-        MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
-            span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
-        )
-    )
+    @State private var mapCameraPosition: MapCameraPosition = .automatic
     @State private var currentSpan: MKCoordinateSpan = MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
-    
-    // Niveaux de clustering dynamiques
-    private var currentZoomLevel: Double {
-        // Calculer le niveau de zoom à partir du span
-        let span = currentSpan.latitudeDelta
-        if span > 0.5 { return 10 }      // Très éloigné
-        else if span > 0.2 { return 12 } // Éloigné
-        else if span > 0.1 { return 14 } // Moyen
-        else if span > 0.05 { return 16 } // Rapproché
-        else if span > 0.02 { return 18 } // Très rapproché
-        else { return 20 }                // Maximum
-    }
-    
-    // Rayon de clustering selon le zoom
-    private var clusterRadius: Double {
-        switch currentZoomLevel {
-        case 10..<12: return 0.05   // Très éloigné : 5km
-        case 12..<14: return 0.02   // Éloigné : 2km
-        case 14..<16: return 0.01   // Moyen : 1km
-        case 16..<18: return 0.005  // Rapproché : 500m
-        default: return 0.002        // Très rapproché : 200m
-        }
-    }
-    
-    // Afficher les marqueurs individuels si le zoom est très élevé
-    private var shouldShowIndividualMarkers: Bool {
-        currentZoomLevel >= 18
-    }
+    @State private var hasSetInitialLocation = false
     
     var body: some View {
         ZStack {
             mapContent
+            
+            VStack {
+                parkingTypeSelector
+                Spacer()
+            }
+            
             overlayControls
         }
         .sheet(item: $selectedParking) { parking in
@@ -53,90 +27,74 @@ struct ParkingMapView: View {
                 .presentationDragIndicator(.visible)
         }
         .onAppear {
+            locationService.requestPermission()
+            locationService.startUpdatingLocation()
+            
+            if let userLocation = locationService.currentLocation {
+                mapCameraPosition = .region(
+                    MKCoordinateRegion(
+                        center: userLocation.coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                    )
+                )
+                hasSetInitialLocation = true
+            }
+            
             viewModel.onAppear()
+        }
+        .onChange(of: locationService.currentLocation) { oldValue, newValue in
+            if !hasSetInitialLocation, let newLocation = newValue {
+                withAnimation(.easeInOut(duration: 0.8)) {
+                    mapCameraPosition = .region(
+                        MKCoordinateRegion(
+                            center: newLocation.coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                        )
+                    )
+                }
+                hasSetInitialLocation = true
+            }
         }
         .onDisappear {
             viewModel.onDisappear()
         }
     }
     
+    private var parkingTypeSelector: some View {
+        Picker("Type de parking", selection: $viewModel.selectedParkingType) {
+            ForEach(ParkingType.allCases, id: \.self) { type in
+                Text(type.rawValue).tag(type)
+            }
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 16)
+        .padding(.top, 60)
+    }
+    
     private var mapContent: some View {
         MapReader { proxy in
             Map(position: $mapCameraPosition) {
-                // Afficher les clusters ou les marqueurs individuels selon le zoom
-                if shouldShowIndividualMarkers {
-                    // Zoom élevé : afficher les parkings individuels
-                    ForEach(viewModel.parkings) { parking in
-                        Annotation("", coordinate: parking.coordinate) {
-                            ParkingMarker(parking: parking)
-                                .onTapGesture {
-                                    selectedParking = parking
-                                }
-                        }
-                    }
-                } else {
-                    // Zoom éloigné : afficher les clusters
-                    ForEach(createClusters(), id: \.id) { cluster in
-                        // Afficher un cluster seulement s'il contient plusieurs parkings
-                        if cluster.parkings.count > 1 {
-                            Annotation("", coordinate: cluster.coordinate) {
-                                ParkingClusterMarker(cluster: cluster)
-                                    .onTapGesture {
-                                        // Zoom intelligent sur le cluster
-                                        withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                                            let newSpan: Double
-                                            if cluster.parkings.count <= 3 {
-                                                newSpan = 0.01 // Zoom rapproché pour petits clusters
-                                            } else if cluster.parkings.count <= 10 {
-                                                newSpan = 0.02 // Zoom moyen
-                                            } else {
-                                                newSpan = 0.03 // Zoom plus large pour gros clusters
-                                            }
-                                            
-                                            mapCameraPosition = .region(
-                                                MKCoordinateRegion(
-                                                    center: cluster.coordinate,
-                                                    span: MKCoordinateSpan(latitudeDelta: newSpan, longitudeDelta: newSpan)
-                                                )
-                                            )
-                                        }
-                                    }
+                ForEach(viewModel.parkings) { parking in
+                    Annotation(parking.nom, coordinate: parking.coordinate) {
+                        ParkingMarker(parking: parking)
+                            .onTapGesture {
+                                selectedParking = parking
                             }
-                        } else if let parking = cluster.parkings.first {
-                            // Afficher le parking seul sans cluster
-                            Annotation("", coordinate: parking.coordinate) {
-                                ParkingMarker(parking: parking)
-                                    .onTapGesture {
-                                        selectedParking = parking
-                                    }
-                            }
-                        }
                     }
+                    .annotationTitles(.hidden)
+                    .tag(parking.id)
                 }
                 
                 UserAnnotation()
             }
             .mapStyle(.standard(pointsOfInterest: .excludingAll))
+            .mapControlVisibility(.hidden)
             .ignoresSafeArea(edges: .top)
             .onMapCameraChange { context in
                 currentSpan = context.region.span
             }
             .overlay {
-                // Overlay pour l'état de chargement et les erreurs
-                if viewModel.isLoading {
-                    VStack {
-                        ProgressView("Chargement des parkings...")
-                            .scaleEffect(1.2)
-                            .padding(20)
-                            .background(.regularMaterial)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .shadow(radius: 10)
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(.ultraThinMaterial)
-                }
-                
+                // Overlay pour les erreurs uniquement
                 if let error = viewModel.error {
                     VStack(spacing: 16) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -147,7 +105,7 @@ struct ParkingMapView: View {
                             .font(.headline)
                         
                         Text(error)
-                            .font(.subheadline)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                         
@@ -166,60 +124,8 @@ struct ParkingMapView: View {
         }
     }
     
-    // Créer des clusters de parkings dynamiques selon le zoom
-    private func createClusters() -> [ParkingCluster] {
-        var clusters: [ParkingCluster] = []
-        var processedParkings: Set<String> = []
-        
-        for parking in viewModel.parkings {
-            if processedParkings.contains(parking.id) { continue }
-            
-            // Trouver les parkings proches avec le rayon dynamique
-            let nearbyParkings = viewModel.parkings.filter { other in
-                let distance = calculateDistance(from: parking.coordinate, to: other.coordinate)
-                return distance <= clusterRadius && !processedParkings.contains(other.id)
-            }
-            
-            // Toujours créer un cluster (même pour 1 parking) pour simplifier la logique
-            // La vue décidera si elle affiche le cluster ou le parking seul
-            let cluster = ParkingCluster(
-                id: "cluster_\(parking.id)_\(Int(currentZoomLevel))",
-                coordinate: nearbyParkings.count > 1 
-                    ? calculateCenterCoordinate(parkings: nearbyParkings)
-                    : parking.coordinate,
-                parkings: nearbyParkings
-            )
-            
-            clusters.append(cluster)
-            processedParkings.formUnion(Set(nearbyParkings.map { $0.id }))
-        }
-        
-        return clusters
-    }
-    
-    private func calculateDistance(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) -> Double {
-        let location1 = CLLocation(latitude: from.latitude, longitude: from.longitude)
-        let location2 = CLLocation(latitude: to.latitude, longitude: to.longitude)
-        return location1.distance(from: location2) / 111000 // Convertir en degrés approximatifs
-    }
-    
-    private func calculateCenterCoordinate(parkings: [Parking]) -> CLLocationCoordinate2D {
-        guard !parkings.isEmpty else { return CLLocationCoordinate2D() }
-        
-        let totalLat = parkings.reduce(0) { $0 + $1.coordinate.latitude }
-        let totalLon = parkings.reduce(0) { $0 + $1.coordinate.longitude }
-        
-        return CLLocationCoordinate2D(
-            latitude: totalLat / Double(parkings.count),
-            longitude: totalLon / Double(parkings.count)
-        )
-    }
-    
     private var overlayControls: some View {
         VStack {
-            // Stats card en haut
-            statsCard
-            
             Spacer()
             
             HStack(alignment: .bottom) {
@@ -352,40 +258,56 @@ struct ParkingMarker: View {
             
             // Inner content
             VStack(spacing: 0) {
-                Image(systemName: "car.fill")
+                Image(systemName: parking.parkingType.icon)
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(.white)
                 
-                Text("\(parking.placesDisponibles)")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                if parking.parkingType == .car {
+                    Text("\(parking.placesDisponibles)")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                } else {
+                    Text("\(parking.capaciteTotale)")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                }
             }
         }
         .overlay(
-            // État indicator
-            Circle()
-                .fill(parking.etat == .ouvert ? .green : .red)
-                .frame(width: 12, height: 12)
-                .overlay(
+            // État indicator (only for car parkings with real-time data)
+            Group {
+                if parking.parkingType == .car {
                     Circle()
-                        .stroke(.white, lineWidth: 2)
-                )
-                .offset(x: 16, y: -16)
+                        .fill(parking.etat == .ouvert ? .green : .red)
+                        .frame(width: 12, height: 12)
+                        .overlay(
+                            Circle()
+                                .stroke(.white, lineWidth: 2)
+                        )
+                        .offset(x: 16, y: -16)
+                }
+            }
         )
     }
     
     private var markerColor: Color {
-        if parking.etat != .ouvert {
-            return .gray
-        }
-        
-        switch parking.tauxOccupation {
+        switch parking.parkingType {
+        case .car:
+            if parking.etat != .ouvert {
+                return .gray
+            }
+            switch parking.tauxOccupation {
             case 0..<0.5:
                 return .green
             case 0.5..<0.8:
                 return .orange
             default:
                 return .red
+            }
+        case .bike:
+            return .green
+        case .motorized2Wheel:
+            return .orange
         }
     }
 }

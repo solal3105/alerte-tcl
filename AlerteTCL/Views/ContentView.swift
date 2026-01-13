@@ -4,63 +4,86 @@ struct ContentView: View {
     @EnvironmentObject var viewModel: AlertViewModel
     @State private var selectedTab = 0
     @State private var showSplash = true
-    @State private var apiHasResponded = false
+    @State private var uiReady = false
+    @State private var loadedTabs: Set<Int> = [0]
     
     var body: some View {
         ZStack {
-            // Contenu principal (toujours rendu pour précharger)
+            // Contenu principal avec lazy loading
             TabView(selection: $selectedTab) {
                 LiveMapView()
                     .tabItem {
-                        Label("Live", systemImage: "location.fill")
+                        Label("Transport", systemImage: "tram.fill")
                     }
                     .tag(0)
+                    .environmentObject(viewModel)
                 
-                TrafficMapView()
-                    .tabItem {
-                        Label("Trafic", systemImage: "exclamationmark.triangle.fill")
+                Group {
+                    if loadedTabs.contains(1) {
+                        TravauxMapView()
+                    } else {
+                        Color.clear
+                            .onAppear {
+                                loadedTabs.insert(1)
+                            }
                     }
-                    .tag(1)
+                }
+                .tabItem {
+                    Label("Travaux", systemImage: "cone.fill")
+                }
+                .tag(1)
                 
-                ParkingMapView()
-                    .tabItem {
-                        Label("Parkings", systemImage: "car.fill")
+                Group {
+                    if loadedTabs.contains(2) {
+                        ParkingMapView()
+                    } else {
+                        Color.clear
+                            .onAppear {
+                                loadedTabs.insert(2)
+                            }
                     }
-                    .tag(2)
+                }
+                .tabItem {
+                    Label("Parkings", systemImage: "car.fill")
+                }
+                .tag(2)
                 
-                NewAlertsView()
-                    .tabItem {
-                        Label("Alertes", systemImage: "bell.fill")
+                Group {
+                    if loadedTabs.contains(3) {
+                        SettingsView()
+                    } else {
+                        Color.clear
+                            .onAppear {
+                                loadedTabs.insert(3)
+                            }
                     }
-                    .tag(3)
-                    .badge(viewModel.subscribedAlerts.count > 0 ? viewModel.subscribedAlerts.count : 0)
-                
-                SettingsView()
-                    .tabItem {
-                        Label("Paramètres", systemImage: "gearshape.fill")
-                    }
-                    .tag(4)
+                }
+                .tabItem {
+                    Label("Paramètres", systemImage: "gearshape.fill")
+                }
+                .tag(3)
             }
             .tint(.primary)
-            .overlay {
-                // Overlay pour masquer le contenu pendant le splash
-                if showSplash {
-                    Color(.systemBackground)
-                        .ignoresSafeArea()
-                        .transition(.opacity)
-                }
+            .onChange(of: selectedTab) { _, newTab in
+                loadedTabs.insert(newTab)
             }
             
             // Splash screen
             if showSplash {
-                AmazingSplashView(isActive: $showSplash, apiReady: $apiHasResponded)
+                AmazingSplashView(isActive: $showSplash, uiReady: $uiReady)
                     .transition(.opacity)
             }
         }
-        .task {
-            await viewModel.loadAlerts()
-            // Signaler que l'API a répondu
-            apiHasResponded = true
+        .onAppear {
+            // Signaler immédiatement que l'UI est prête
+            DispatchQueue.main.async {
+                uiReady = true
+            }
+            
+            // Charger les alertes en arrière-plan sans bloquer l'UI
+            Task(priority: .userInitiated) {
+                await viewModel.loadAlerts()
+            }
         }
     }
 }
