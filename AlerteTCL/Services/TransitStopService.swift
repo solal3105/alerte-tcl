@@ -10,7 +10,7 @@ actor TransitStopService {
     
     private var cachedStops: [Int: TransitStop] = [:]
     private var lastStopsFetch: Date?
-    private let stopsCacheExpiration: TimeInterval = 86400 // 24h for static stop data
+    private let stopsCacheExpiration: TimeInterval = 300 // 5 minutes
     
     private var username: String {
         Bundle.main.object(forInfoDictionaryKey: "GrandLyonUsername") as? String ?? ""
@@ -93,20 +93,37 @@ actor TransitStopService {
         return stops
     }
     
-    // MARK: - Fetch Passages
+    // MARK: - Fetch All Stops
     
-    func fetchPassages() async throws -> [Int: [Passage]] {
-        guard let url = URL(string: passagesEndpoint) else {
+    func fetchAllStops(in region: MKCoordinateRegion? = nil) async throws -> [TransitStop] {
+        let stops = try await fetchStops(in: region)
+        print("📊 TransitStopService: \(stops.count) arrêts chargés")
+        return stops
+    }
+    
+    // MARK: - Fetch Passages for Specific Stop (Detail View)
+    
+    private static let passageDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        formatter.locale = Locale(identifier: "fr_FR")
+        return formatter
+    }()
+    
+    func fetchPassagesForStop(stopId: Int) async throws -> [Passage] {
+        print("🚌 TransitStopService: Chargement passages pour arrêt \(stopId)...")
+        
+        // Utiliser le filtrage direct de l'API pour récupérer UNIQUEMENT les passages de cet arrêt
+        // Cette approche est ultra-optimisée car l'API filtre côté serveur
+        let urlString = "\(passagesEndpoint)?field=id&value=\(stopId)&compact=false&sortby=heurepassage&sortorder=asc"
+        guard let url = URL(string: urlString) else {
             throw APIError.invalidURL
         }
-        
-        print("🚌 TransitStopService: Chargement des passages temps réel...")
         
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 15
         
-        // Add Basic Auth
         if !username.isEmpty && !password.isEmpty {
             let credentials = "\(username):\(password)"
             if let credentialsData = credentials.data(using: .utf8) {
@@ -124,56 +141,27 @@ actor TransitStopService {
         let decoder = JSONDecoder()
         let passagesResponse = try decoder.decode(PassagesResponse.self, from: data)
         
-        // Group passages by stop ID
-        var passagesByStop: [Int: [Passage]] = [:]
-        for value in passagesResponse.values {
-            let passage = value.toPassage()
-            if passagesByStop[passage.stopId] == nil {
-                passagesByStop[passage.stopId] = []
+        // Filtrer uniquement les passages futurs
+        let now = Date()
+        let relevantValues = passagesResponse.values.filter { value in
+            if let passageDate = Self.passageDateFormatter.date(from: value.heurepassage) {
+                return passageDate >= now
             }
-            passagesByStop[passage.stopId]?.append(passage)
+            return true
         }
         
-        // Sort passages by time for each stop
-        for (stopId, passages) in passagesByStop {
-            passagesByStop[stopId] = passages.sorted { $0.heurepassage < $1.heurepassage }
+        // Convertir et trier par heure de passage
+        let passages = relevantValues.map { $0.toPassage() }.sorted { p1, p2 in
+            let date1 = Self.passageDateFormatter.date(from: p1.heurepassage) ?? Date.distantFuture
+            let date2 = Self.passageDateFormatter.date(from: p2.heurepassage) ?? Date.distantFuture
+            return date1 < date2
         }
         
-        print("✅ TransitStopService: Passages pour \(passagesByStop.count) arrêts")
+        // Compter les lignes uniques
+        let uniqueLines = Set(passages.map { $0.ligne })
+        print("✅ TransitStopService: \(passages.count) passages chargés pour arrêt \(stopId) (\(uniqueLines.count) lignes: \(uniqueLines.sorted().joined(separator: ", ")))")
         
-        return passagesByStop
-    }
-    
-    // MARK: - Fetch Stops with Passages
-    
-    func fetchStopsWithPassages(in region: MKCoordinateRegion? = nil) async throws -> [TransitStop] {
-        // Fetch stops and passages in parallel
-        async let stopsTask = fetchStops(in: region)
-        async let passagesTask = fetchPassages()
-        
-        let (stops, passagesByStop) = try await (stopsTask, passagesTask)
-        
-        // Merge passages into stops
-        var stopsWithPassages: [TransitStop] = []
-        for var stop in stops {
-            if let passages = passagesByStop[stop.id] {
-                stop.passages = passages
-            }
-            stopsWithPassages.append(stop)
-        }
-        
-        // Filter to only stops with passages
-        let activeStops = stopsWithPassages.filter { $0.hasPassages }
-        print("📊 TransitStopService: \(activeStops.count) arrêts actifs avec passages")
-        
-        return activeStops
-    }
-    
-    // MARK: - Fetch Passages for Specific Stop
-    
-    func fetchPassagesForStop(stopId: Int) async throws -> [Passage] {
-        let allPassages = try await fetchPassages()
-        return allPassages[stopId] ?? []
+        return passages
     }
     
     // MARK: - Get Stop from Cache

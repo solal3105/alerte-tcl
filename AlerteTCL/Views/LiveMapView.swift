@@ -40,7 +40,7 @@ struct LiveMapView: View {
                 .presentationDragIndicator(.visible)
         }
         .sheet(item: $selectedStop) { stop in
-            TransitStopDetailSheet(stop: stop)
+            TransitStopDetailSheet(stop: stop, viewModel: viewModel)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
@@ -94,7 +94,7 @@ struct LiveMapView: View {
                 await viewModel.loadBusLines()
                 await viewModel.loadTransitLines()
                 
-                // Charger les arrêts avec passages
+                // Charger les arrêts (affichage ultra-rapide sans passages)
                 await viewModel.loadTransitStops()
             }
         }
@@ -169,10 +169,10 @@ struct LiveMapView: View {
                     }
                 }
                 
-                // Afficher les arrêts avec prochains passages (au zoom fort uniquement)
+                // Afficher les arrêts (au zoom fort uniquement)
                 ForEach(viewModel.visibleStops, id: \.id) { stop in
                     Annotation(stop.nom, coordinate: stop.coordinate) {
-                        TransitStopMarker(stop: stop)
+                        TransitStopMarker(stop: stop, currentZoomLevel: viewModel.currentZoomLevel)
                             .onTapGesture {
                                 selectedStop = stop
                             }
@@ -524,53 +524,13 @@ struct VehicleMarker: View {
     }
     
     private var markerColor: Color {
-        switch vehicle.vehicleType {
-        case .metro:
-            // Métro : couleurs selon la ligne
-            switch vehicle.lineName.uppercased() {
-            case let line where line.contains("A"):
-                return Color(hex: "EE3898") // Rose/Fuchsia
-            case let line where line.contains("B"):
-                return Color(hex: "007DC5") // Bleu
-            case let line where line.contains("C"):
-                return Color(hex: "F99D1D") // Orange
-            case let line where line.contains("D"):
-                return Color(hex: "00AC4D") // Vert
-            default:
-                return .orange
-            }
-        case .tram:
-            return Color(hex: "8C368C") // Violet/Mauve pour tous les trams
-        case .bus:
-            // Bus : différencier C, TB et autres
-            let lineName = vehicle.lineName.uppercased()
-            if lineName.hasPrefix("C") && lineName.count >= 2 && lineName[lineName.index(after: lineName.startIndex)].isNumber {
-                return Color.gray // Gris pour les lignes C
-            } else if lineName.hasPrefix("TB") {
-                return Color(hex: "DAA520") // Jaune foncé (goldenrod) pour trambus
-            } else {
-                return .white // Fond blanc pour les autres bus
-            }
-        case .trolley:
-            return Color(hex: "DAA520") // Jaune foncé pour trolleybus
-        case .funicular:
-            return Color(hex: "8BC752") // Vert clair pour funiculaires
-        }
+        // Utiliser les mêmes couleurs que LineColorHelper pour la cohérence
+        return LineColorHelper.backgroundColor(for: vehicle.lineName)
     }
     
     private var iconColor: Color {
-        switch vehicle.vehicleType {
-        case .bus:
-            let lineName = vehicle.lineName.uppercased()
-            if lineName.hasPrefix("C") && lineName.count >= 2 && lineName[lineName.index(after: lineName.startIndex)].isNumber {
-                return .white // Icône blanche pour les lignes C
-            } else if !lineName.hasPrefix("TB") {
-                return .gray // Icône grise pour les autres bus (non-C, non-TB)
-            }
-        default:
-            break
-        }
-        return .white // Icône blanche par défaut
+        // Utiliser les mêmes couleurs que LineColorHelper pour la cohérence
+        return LineColorHelper.textColor(for: vehicle.lineName)
     }
 }
 

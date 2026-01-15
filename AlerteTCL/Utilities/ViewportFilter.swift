@@ -18,6 +18,9 @@ enum ViewportFilter {
         /// Buffer large (2.0x la région visible) - pour données moins denses
         static let large = BufferConfig(multiplier: 2.0)
         
+        /// Buffer extra large (3.0x la région visible) - pour données très dispersées
+        static let extraLarge = BufferConfig(multiplier: 3.0)
+        
         /// Buffer petit (1.2x la région visible) - pour données très denses
         static let small = BufferConfig(multiplier: 1.2)
     }

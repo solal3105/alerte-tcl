@@ -18,12 +18,24 @@ final class ParkingViewModel: ObservableObject {
             if oldValue != selectedParkingType {
                 // Invalider le cache de clustering pour forcer le recalcul
                 invalidateClusterCache()
-                Task {
-                    await loadParkings()
+                // Pour les vélos, charger seulement si pas déjà en cache
+                if selectedParkingType == .bike && !bikeParkingsLoaded {
+                    Task {
+                        await loadParkings()
+                    }
+                } else if selectedParkingType != .bike {
+                    Task {
+                        await loadParkings()
+                    }
+                } else {
+                    // Vélos déjà chargés, juste mettre à jour les clusters
+                    updateClustersIfNeeded(force: true)
                 }
             }
         }
     }
+    
+    private var bikeParkingsLoaded = false
     
     @Published var mapRegion: MKCoordinateRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
@@ -61,7 +73,9 @@ final class ParkingViewModel: ObservableObject {
     /// Note: Si aucune région n'est définie, retourne tous les parkings
     var visibleParkings: [Parking] {
         guard visibleRegion != nil else { return parkings }
-        return parkings.visibleIn(region: visibleRegion, buffer: .standard)
+        // Buffer plus large pour les vélos pour améliorer les performances
+        let bufferConfig: ViewportFilter.BufferConfig = selectedParkingType == .bike ? .large : .standard
+        return parkings.visibleIn(region: visibleRegion, buffer: bufferConfig)
     }
     
     // MARK: - Clustering
@@ -149,6 +163,11 @@ final class ParkingViewModel: ObservableObject {
             parkings = fetchedParkings.sorted { $0.nom < $1.nom }
             lastUpdate = Date()
             secondsUntilNextRefresh = Int(refreshInterval)
+            
+            // Marquer les vélos comme chargés pour éviter de recharger
+            if selectedParkingType == .bike {
+                bikeParkingsLoaded = true
+            }
             
             // Forcer la mise à jour des clusters
             updateClustersIfNeeded(force: true)

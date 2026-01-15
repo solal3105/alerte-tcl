@@ -31,8 +31,13 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published var isLoadingStops = false
     @Published var showTransitStops = true
     
+    // Cached computed properties for performance
+    @Published private(set) var filteredVehicles: [Vehicle] = []
+    @Published private(set) var visibleStops: [TransitStop] = []
+    
     private var refreshTask: Task<Void, Never>?
     private var progressTask: Task<Void, Never>?
+    private var regionUpdateTask: Task<Void, Never>?
     private let refreshInterval: TimeInterval = 15
     private var cancellables = Set<AnyCancellable>()
     private var isFirstLoad = true
@@ -45,7 +50,7 @@ final class LiveVehiclesViewModel: ObservableObject {
     private static let lyonCenter = CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659)
     private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
     
-    static let clusteringZoomThreshold: Double = 0.08
+    static let clusteringZoomThreshold: Double = 0.02
     private let clusteringConfig = ClusteringEngine.Configuration.default
     
     init() {
@@ -77,7 +82,7 @@ final class LiveVehiclesViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    var filteredVehicles: [Vehicle] {
+    private func updateFilteredVehicles() {
         var result = vehicles
         
         if let type = selectedVehicleType {
@@ -93,7 +98,7 @@ final class LiveVehiclesViewModel: ObservableObject {
         // Filtrage viewport avec buffer standard
         result = result.visibleIn(region: visibleRegion, buffer: .standard)
         
-        return result
+        filteredVehicles = result
     }
     
     @Published private(set) var cachedClusters: [MapCluster<Vehicle>] = []
@@ -105,12 +110,12 @@ final class LiveVehiclesViewModel: ObservableObject {
         ClusteringEngine.shouldCluster(zoomLevel: currentZoomLevel, config: clusteringConfig)
     }
     
-    private func updateClustersIfNeeded() {
+    private func updateClustersIfNeeded(force: Bool = false) {
         // Ne recalculer que si le zoom ou le nombre de véhicules a changé significativement
         let zoomChanged = abs(currentZoomLevel - lastClusteringZoom) > 0.005
         let vehiclesChanged = filteredVehicles.count != lastClusteringVehicleCount
         
-        guard zoomChanged || vehiclesChanged else { return }
+        guard force || zoomChanged || vehiclesChanged else { return }
         
         let result = ClusteringEngine.createClusters(from: filteredVehicles, zoomLevel: currentZoomLevel, config: clusteringConfig)
         cachedClusters = result.clusters
@@ -256,8 +261,10 @@ final class LiveVehiclesViewModel: ObservableObject {
             error = nil
             isInitialLoadComplete = true
             
-            // Forcer la mise à jour des clusters après chargement
-            updateClustersIfNeeded()
+            // Mettre à jour les véhicules filtrés et clusters
+            updateFilteredVehicles()
+            // Forcer la mise à jour des clusters pour actualiser leur position quand les véhicules bougent
+            updateClustersIfNeeded(force: shouldShowClusters)
         } catch let siriError as SIRIError {
             self.error = siriError.errorDescription
         } catch {
@@ -347,12 +354,23 @@ final class LiveVehiclesViewModel: ObservableObject {
     
     func updateZoomLevel(_ span: MKCoordinateSpan) {
         currentZoomLevel = span.latitudeDelta
-        updateClustersIfNeeded()
     }
     
     func updateVisibleRegion(_ region: MKCoordinateRegion) {
         visibleRegion = region
-        updateClustersIfNeeded()
+        
+        // Annuler la mise à jour précédente
+        regionUpdateTask?.cancel()
+        
+        // Debounce de 150ms pour éviter les calculs excessifs pendant le scroll
+        regionUpdateTask = Task {
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            guard !Task.isCancelled else { return }
+            
+            updateFilteredVehicles()
+            updateVisibleStops()
+            updateClustersIfNeeded()
+        }
     }
     
     func centerOnLyon() {
@@ -379,26 +397,43 @@ final class LiveVehiclesViewModel: ObservableObject {
         } else {
             selectedLines.insert(line)
         }
+        updateFilteredVehicles()
+        updateClustersIfNeeded()
     }
     
     func clearFilters() {
         selectedVehicleType = nil
         selectedLine = nil
         selectedLines.removeAll()
+        updateFilteredVehicles()
+        updateClustersIfNeeded()
     }
     
     // MARK: - Transit Stops
     
-    /// Zoom threshold pour afficher les arrêts (zoom fort = latitudeDelta petit)
-    private let stopsZoomThreshold: Double = 0.008
+    /// Zoom threshold pour afficher les arrêts (plus permissif pour affichage rapide)
+    /// Plus le latitudeDelta est petit, plus on est zoomé
+    private let stopsZoomThreshold: Double = 0.02
     
     var shouldShowStops: Bool {
-        showTransitStops && currentZoomLevel < stopsZoomThreshold
+        showTransitStops && currentZoomLevel <= stopsZoomThreshold
     }
     
-    var visibleStops: [TransitStop] {
-        guard shouldShowStops else { return [] }
-        return transitStops.visibleIn(region: visibleRegion, buffer: .small)
+    private func updateVisibleStops() {
+        guard shouldShowStops, let region = visibleRegion else {
+            visibleStops = []
+            return
+        }
+        // Filtrer strictement les arrêts dans le viewport (sans buffer)
+        visibleStops = transitStops.filter { stop in
+            let lat = stop.coordinate.latitude
+            let lon = stop.coordinate.longitude
+            let minLat = region.center.latitude - region.span.latitudeDelta / 2
+            let maxLat = region.center.latitude + region.span.latitudeDelta / 2
+            let minLon = region.center.longitude - region.span.longitudeDelta / 2
+            let maxLon = region.center.longitude + region.span.longitudeDelta / 2
+            return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon
+        }
     }
     
     func loadTransitStops() async {
@@ -407,9 +442,10 @@ final class LiveVehiclesViewModel: ObservableObject {
         isLoadingStops = true
         
         do {
-            let stops = try await TransitStopService.shared.fetchStopsWithPassages()
+            let stops = try await TransitStopService.shared.fetchAllStops()
             transitStops = stops
-            print("✅ ViewModel: \(stops.count) arrêts avec passages chargés")
+            updateVisibleStops()
+            print("✅ ViewModel: \(stops.count) arrêts chargés")
         } catch {
             print("❌ Erreur chargement arrêts: \(error)")
         }
@@ -417,20 +453,29 @@ final class LiveVehiclesViewModel: ObservableObject {
         isLoadingStops = false
     }
     
-    func refreshStopPassages() async {
-        do {
-            let passagesByStop = try await TransitStopService.shared.fetchPassages()
-            
-            // Update passages in existing stops
-            for i in transitStops.indices {
-                if let passages = passagesByStop[transitStops[i].id] {
-                    transitStops[i].passages = passages
-                }
-            }
-            print("🔄 ViewModel: Passages rafraîchis pour \(passagesByStop.count) arrêts")
-        } catch {
-            print("❌ Erreur rafraîchissement passages: \(error)")
+    func loadAllPassagesForStop(stopId: Int) async {
+        guard let index = transitStops.firstIndex(where: { $0.id == stopId }) else {
+            print("⚠️ ViewModel: Arrêt \(stopId) non trouvé")
+            return
         }
+        
+        guard !transitStops[index].isLoadingPassages else {
+            print("⏳ ViewModel: Chargement déjà en cours pour arrêt \(stopId)")
+            return
+        }
+        
+        transitStops[index].isLoadingPassages = true
+        
+        do {
+            let passages = try await TransitStopService.shared.fetchPassagesForStop(stopId: stopId)
+            transitStops[index].passages = passages
+            transitStops[index].passagesLoaded = true
+            print("✅ ViewModel: \(passages.count) passages chargés pour arrêt \(stopId)")
+        } catch {
+            print("❌ Erreur chargement passages pour arrêt \(stopId): \(error)")
+        }
+        
+        transitStops[index].isLoadingPassages = false
     }
     
     deinit {

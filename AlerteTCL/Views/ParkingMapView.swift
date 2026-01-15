@@ -197,12 +197,54 @@ struct ParkingMapView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+            
+            // Bouton pour zoomer automatiquement
+            Button {
+                zoomToCurrentLocation()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "location.magnifyingglass")
+                        .font(.system(size: 16, weight: .semibold))
+                    Text("Zoomer ici")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.blue)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .buttonStyle(.plain)
         }
         .padding(24)
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 20))
         .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 3)
         .padding(20)
+    }
+    
+    private func zoomToCurrentLocation() {
+        if let userLocation = locationService.currentLocation {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                mapCameraPosition = .region(
+                    MKCoordinateRegion(
+                        center: userLocation.coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                    )
+                )
+            }
+        } else {
+            // Si pas de localisation, zoomer sur Lyon centre
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                mapCameraPosition = .region(
+                    MKCoordinateRegion(
+                        center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
+                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                    )
+                )
+            }
+        }
     }
     
     private var overlayControls: some View {

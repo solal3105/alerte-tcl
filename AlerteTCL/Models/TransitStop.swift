@@ -13,6 +13,8 @@ struct TransitStop: Identifiable, Hashable {
     let desserte: String // Lines serving this stop (e.g. "C20:A,C20E:A,JD975:R")
     let pmr: Bool
     var passages: [Passage] = []
+    var isLoadingPassages: Bool = false
+    var passagesLoaded: Bool = false
     
     var lines: [String] {
         // Parse desserte to extract line names
@@ -202,26 +204,26 @@ struct LineColorHelper {
     static func backgroundColor(for ligne: String) -> Color {
         let upper = ligne.uppercased()
         
-        // Metro - couleurs spécifiques par ligne
+        // Metro - couleurs officielles TCL
         if upper == "MA" || upper == "A" {
-            return Color(red: 0.95, green: 0.26, blue: 0.21) // Rouge
+            return Color(red: 238/255, green: 56/255, blue: 152/255) // Rose/fuchsia rgb(238, 56, 152)
         }
         else if upper == "MB" || upper == "B" {
-            return Color(red: 0.0, green: 0.45, blue: 0.81) // Bleu
+            return Color(red: 0/255, green: 125/255, blue: 197/255) // Bleu rgb(0, 125, 197)
         }
         else if upper == "MC" || upper == "C" {
-            return Color(red: 0.96, green: 0.65, blue: 0.14) // Orange/Jaune
+            return Color(red: 249/255, green: 157/255, blue: 29/255) // Orange rgb(249, 157, 29)
         }
         else if upper == "MD" || upper == "D" {
-            return Color(red: 0.0, green: 0.65, blue: 0.42) // Vert
+            return Color(red: 0/255, green: 172/255, blue: 77/255) // Vert rgb(0, 172, 77)
         }
-        // Rhônexpress - violet (comme tram)
+        // Rhônexpress - fond C92B21
         else if upper == "RX" || upper.contains("RHONEXPRESS") {
-            return .purple
+            return Color(red: 201/255, green: 43/255, blue: 33/255) // C92B21
         }
-        // Tramway - violet
+        // Tramway - fond 673877
         else if upper.hasPrefix("T") && upper.count <= 3 {
-            return .purple
+            return Color(red: 103/255, green: 56/255, blue: 119/255) // 673877
         }
         // Trolleybus TB - jaune
         else if upper.hasPrefix("TB") {
@@ -231,42 +233,66 @@ struct LineColorHelper {
         else if upper.hasPrefix("F") && upper.count <= 3 {
             return .orange
         }
-        // Bus C - gris
+        // Bus C - gris (inchangé)
         else if upper.hasPrefix("C") && upper.count <= 4 {
             return Color(.systemGray)
         }
-        // Bus régulier - blanc (fond clair)
-        return Color(.systemBackground)
+        // Bus JD - fond 2A2475
+        else if upper.hasPrefix("JD") {
+            return Color(red: 42/255, green: 36/255, blue: 117/255) // 2A2475
+        }
+        // Bus régulier (non-C, non-JD) - fond blanc
+        return .white
     }
     
     /// Couleur du texte pour une ligne
     static func textColor(for ligne: String) -> Color {
         let upper = ligne.uppercased()
         
-        // Bus régulier (pas M, T, F, C, TB, RX) - texte sombre sur fond blanc
-        if !upper.hasPrefix("M") && 
-           !upper.hasPrefix("T") && 
-           !upper.hasPrefix("F") && 
-           !upper.hasPrefix("C") && 
-           !upper.hasPrefix("TB") &&
-           upper != "A" && upper != "B" && upper != "C" && upper != "D" &&
-           !upper.contains("RHONEXPRESS") && upper != "RX" {
-            return .primary
+        // Bus JD - texte EBCA2F sur fond 2A2475
+        if upper.hasPrefix("JD") {
+            return Color(red: 235/255, green: 202/255, blue: 47/255) // EBCA2F
         }
-        // Autres - texte blanc sur fond coloré
+        // Bus C - texte blanc sur fond gris
+        else if upper.hasPrefix("C") && upper.count <= 4 {
+            return .white
+        }
+        // Trams - texte blanc sur fond 673877
+        else if upper.hasPrefix("T") && upper.count <= 3 {
+            return .white
+        }
+        // Bus classiques - couleurs spécifiques
+        else if !upper.hasPrefix("M") && 
+                !upper.hasPrefix("F") &&
+                !upper.hasPrefix("TB") &&
+                upper != "A" && upper != "B" && upper != "C" && upper != "D" &&
+                !upper.contains("RHONEXPRESS") && upper != "RX" {
+            // Bus qui commencent par N - texte DC7921
+            if upper.hasPrefix("N") {
+                return Color(red: 220/255, green: 121/255, blue: 33/255) // DC7921
+            }
+            // Bus qui finissent par E - texte 5E3A18
+            else if upper.hasSuffix("E") {
+                return Color(red: 94/255, green: 58/255, blue: 24/255) // 5E3A18
+            }
+            // Autres bus classiques - texte rouge
+            return .red
+        }
+        // Métro - texte blanc sur fond de couleur
         return .white
     }
     
     /// Style de bordure nécessaire (pour les fonds blancs)
     static func needsBorder(for ligne: String) -> Bool {
         let upper = ligne.uppercased()
-        // Bordure uniquement pour les bus réguliers (fond blanc)
+        // Bordure uniquement pour les fonds blancs (bus classiques)
         return !upper.hasPrefix("M") && 
-               !upper.hasPrefix("T") && 
-               !upper.hasPrefix("F") && 
-               !upper.hasPrefix("C") && 
+               !upper.hasPrefix("F") &&
+               !upper.hasPrefix("C") &&
+               !upper.hasPrefix("T") &&
                !upper.hasPrefix("TB") &&
-               upper != "A" && upper != "B" && upper != "D" &&
+               !upper.hasPrefix("JD") &&
+               upper != "A" && upper != "B" && upper != "C" && upper != "D" &&
                !upper.contains("RHONEXPRESS") && upper != "RX"
     }
 }
@@ -287,4 +313,3 @@ extension TransitStop: Clusterable {
         "bus.fill"
     }
 }
-

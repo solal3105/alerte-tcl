@@ -75,9 +75,14 @@ enum ClusteringEngine {
         )
     }
     
-    /// Le clustering est toujours actif
+    /// Seuil de zoom en dessous duquel on désactive le clustering (zoom fort = latitudeDelta petit)
+    /// Basé sur 0.02 : clusters apparaissent uniquement quand les arrêts disparaissent
+    static let clusteringZoomThreshold: Double = 0.02
+    
+    /// Le clustering est désactivé quand on zoome fortement (pour voir les détails)
     static func shouldCluster(zoomLevel: Double, config: Configuration = .default) -> Bool {
-        true
+        // Pas de clustering si on est à 0.02 ou moins zoomé (quand les arrêts sont visibles)
+        return zoomLevel > clusteringZoomThreshold + 0.001
     }
     
     /// Convertit une distance écran (pixels) en distance géographique (degrés)
@@ -249,18 +254,30 @@ struct ParkingClusterMarker: View {
     }
     
     private var clusterColor: Color {
-        switch averageOccupancy {
-        case 0..<0.5: return .green
-        case 0.5..<0.8: return .orange
-        default: return .red
+        // Déterminer le type dominant du cluster
+        let typeCounts = Dictionary(grouping: cluster.items, by: { $0.parkingType })
+        let dominantType = typeCounts.max(by: { $0.value.count < $1.value.count })?.key ?? .car
+        
+        switch dominantType {
+        case .bike:
+            return .green
+        case .motorized2Wheel:
+            return .orange
+        case .car:
+            // Pour les voitures, couleur selon la disponibilité
+            switch averageOccupancy {
+            case 0..<0.5: return .green
+            case 0.5..<0.8: return .orange
+            default: return .red
+            }
         }
     }
     
     private var placesText: String {
         if availablePlaces >= 1000 {
-            return "P\(availablePlaces / 1000)k"
+            return "\(availablePlaces / 1000)k places"
         }
-        return "P\(availablePlaces)"
+        return "\(availablePlaces) places"
     }
     
     var body: some View {
@@ -287,6 +304,8 @@ struct ParkingClusterMarker: View {
                 Text(placesText)
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
                     .background(
@@ -382,13 +401,8 @@ struct TransportClusterMarker: View {
     }
     
     private var clusterColor: Color {
-        switch dominantType {
-        case .metro: return Color(hex: "EE3898")
-        case .tram: return Color(hex: "8C368C")
-        case .bus: return .blue
-        case .trolley: return Color(hex: "DAA520")
-        case .funicular: return Color(hex: "8BC752")
-        }
+        // Tous les clusters de transports sont bleus
+        .blue
     }
     
     var body: some View {

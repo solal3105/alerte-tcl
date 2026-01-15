@@ -283,11 +283,20 @@ enum ParkingState: String, Codable {
 
 extension Parking: Clusterable {
     var clusterColor: Color {
-        if etat != .ouvert { return .gray }
-        switch tauxOccupation {
-        case 0..<0.5: return .green
-        case 0.5..<0.8: return .orange
-        default: return .red
+        // Couleur selon le type de parking
+        switch parkingType {
+        case .bike:
+            return .green
+        case .motorized2Wheel:
+            return .orange
+        case .car:
+            // Pour les voitures, couleur selon la disponibilité
+            if etat != .ouvert { return .gray }
+            switch tauxOccupation {
+            case 0..<0.5: return .green
+            case 0.5..<0.8: return .orange
+            default: return .red
+            }
         }
     }
     

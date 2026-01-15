@@ -5,11 +5,13 @@ import Combine
 
 /// Gère l'animation fluide d'un véhicule entre deux positions GPS
 /// Optimisé pour les données SIRI qui arrivent toutes les 15 secondes
+/// Note: animatedCoordinate et animatedBearing ne sont PAS @Published pour éviter
+/// de déclencher des re-renders 60 fois/seconde. La Map lit directement ces propriétés.
 @MainActor
-class AnimatedVehicle: Identifiable, ObservableObject {
+class AnimatedVehicle: Identifiable {
     let id: String
-    @Published var animatedCoordinate: CLLocationCoordinate2D
-    @Published var animatedBearing: Double
+    var animatedCoordinate: CLLocationCoordinate2D
+    var animatedBearing: Double
     
     private var sourceCoordinate: CLLocationCoordinate2D
     private var targetCoordinate: CLLocationCoordinate2D

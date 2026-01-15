@@ -69,13 +69,16 @@ struct TravauxMapView: View {
     private var mapContent: some View {
         MapReader { proxy in
             Map(position: $mapCameraPosition) {
-                // Afficher les polygones seulement en zoom moyen (pour les non-clusterisés)
+                // Afficher les polygones pour les travaux qui ne sont PAS dans des clusters
                 if shouldShowPolygons {
-                    ForEach(viewModel.displayTravaux) { travaux in
-                        ForEach(travaux.coordinates.indices, id: \.self) { index in
-                            MapPolygon(coordinates: travaux.coordinates[index])
-                                .foregroundStyle(polygonColor(for: travaux).opacity(0.3))
-                                .stroke(polygonColor(for: travaux), lineWidth: 2)
+                    let nonClusteredTravaux = viewModel.nonClusteredTravaux
+                    
+                    ForEach(nonClusteredTravaux.indices, id: \.self) { travauxIndex in
+                        let travaux = nonClusteredTravaux[travauxIndex]
+                        ForEach(travaux.coordinates.indices, id: \.self) { polygonIndex in
+                            MapPolygon(coordinates: travaux.coordinates[polygonIndex])
+                                .foregroundStyle(travaux.progressColor.opacity(0.3))
+                                .stroke(travaux.progressColor, lineWidth: 2)
                         }
                     }
                 }
@@ -354,27 +357,19 @@ struct TravauxMarker: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(markerColor)
-                .frame(width: 44, height: 44)
-                .shadow(color: markerColor.opacity(0.4), radius: 6, x: 0, y: 3)
+                .fill(travaux.progressColor)
+                .frame(width: 32, height: 32)
+                .shadow(color: travaux.progressColor.opacity(0.4), radius: 4, x: 0, y: 2)
             
             Image(systemName: travaux.type.icon)
-                .font(.system(size: 18, weight: .bold))
+                .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 1)
         }
         .overlay(
             importanceBadge
-                .offset(x: 16, y: -16)
+                .offset(x: 12, y: -12)
         )
-    }
-    
-    private var markerColor: Color {
-        switch travaux.importance {
-        case .tresPerturbant: return .red
-        case .perturbant: return .orange
-        case .peuPerturbant: return .yellow
-        case .inconnu: return .gray
-        }
     }
     
     private var importanceBadge: some View {
@@ -411,14 +406,28 @@ struct TravauxDetailSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
-                    // Header simplifié
-                    headerSection
+                VStack(spacing: 20) {
+                    // Graphe de progression circulaire
+                    progressCircle
                     
-                    // Dates
-                    datesCard
+                    // Type de travaux
+                    typeCard
                     
-                    // Navigation button
+                    // Adresse et localisation
+                    locationCard
+                    
+                    // Responsable
+                    responsableCard
+                    
+                    // Période et dates
+                    periodCard
+                    
+                    // Description si disponible
+                    if let description = travaux.description, !description.isEmpty {
+                        descriptionCard
+                    }
+                    
+                    // Bouton de navigation
                     navigationButton
                 }
                 .padding(20)
@@ -435,6 +444,247 @@ struct TravauxDetailSheet: View {
                 }
             }
         }
+    }
+    
+    // MARK: - Progress Circle
+    
+    private var progressCircle: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                // Background circle
+                Circle()
+                    .stroke(travaux.progressColor.opacity(0.2), lineWidth: 12)
+                    .frame(width: 140, height: 140)
+                
+                // Progress circle
+                Circle()
+                    .trim(from: 0, to: travaux.completionPercentage / 100)
+                    .stroke(
+                        travaux.progressColor,
+                        style: StrokeStyle(lineWidth: 12, lineCap: .round)
+                    )
+                    .frame(width: 140, height: 140)
+                    .rotationEffect(.degrees(-90))
+                    .animation(.spring(response: 0.6, dampingFraction: 0.8), value: travaux.completionPercentage)
+                
+                // Percentage text
+                VStack(spacing: 4) {
+                    Text("\(Int(travaux.completionPercentage))%")
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundStyle(travaux.progressColor)
+                    
+                    Text("Réalisé")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            // Status badge
+            HStack(spacing: 8) {
+                Image(systemName: travaux.avancement.icon)
+                    .font(.system(size: 14, weight: .semibold))
+                Text(travaux.avancement.displayName)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(travaux.progressColor)
+            .clipShape(Capsule())
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+    
+    // MARK: - Type Card
+    
+    private var typeCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Type de travaux", systemImage: "hammer.fill")
+                .font(.headline)
+                .foregroundStyle(.primary)
+            
+            HStack(spacing: 12) {
+                Image(systemName: travaux.type.icon)
+                    .font(.system(size: 24))
+                    .foregroundStyle(travaux.progressColor)
+                    .frame(width: 44, height: 44)
+                    .background(travaux.progressColor.opacity(0.15))
+                    .clipShape(Circle())
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(travaux.type.rawValue)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    
+                    Text(travaux.natureChantier.rawValue)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+            }
+        }
+        .padding(16)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+    
+    // MARK: - Location Card
+    
+    private var locationCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Localisation", systemImage: "mappin.circle.fill")
+                .font(.headline)
+                .foregroundStyle(.primary)
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Text(travaux.nomChantier)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                
+                HStack(spacing: 6) {
+                    Image(systemName: "location.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                    Text(travaux.nom)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                HStack(spacing: 6) {
+                    Image(systemName: "building.2.fill")
+                        .font(.caption)
+                        .foregroundStyle(.blue)
+                    Text(travaux.commune)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(16)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+    
+    // MARK: - Responsable Card
+    
+    private var responsableCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Responsable", systemImage: "person.circle.fill")
+                .font(.headline)
+                .foregroundStyle(.primary)
+            
+            HStack(spacing: 12) {
+                Image(systemName: "building.columns.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(.blue)
+                    .frame(width: 40, height: 40)
+                    .background(Color.blue.opacity(0.15))
+                    .clipShape(Circle())
+                
+                Text(travaux.intervenant)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Spacer()
+            }
+        }
+        .padding(16)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+    
+    // MARK: - Period Card
+    
+    private var periodCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Période des travaux", systemImage: "calendar")
+                .font(.headline)
+                .foregroundStyle(.primary)
+            
+            HStack(spacing: 16) {
+                // Début
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Début")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+                    
+                    if let debut = travaux.debutChantier {
+                        Text(debut.formatted(date: .abbreviated, time: .omitted))
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    } else {
+                        Text("Non spécifié")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                Image(systemName: "arrow.right")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+                
+                // Fin
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Fin prévue")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+                    
+                    if let fin = travaux.finChantier {
+                        Text(fin.formatted(date: .abbreviated, time: .omitted))
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    } else {
+                        Text("Non spécifié")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                Spacer()
+            }
+            
+            // Jours restants
+            if let remaining = travaux.remainingDays, remaining > 0 {
+                Divider()
+                
+                HStack(spacing: 8) {
+                    Image(systemName: "clock.fill")
+                        .foregroundStyle(.orange)
+                    Text("\(remaining) jours restants")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.orange)
+                }
+            }
+        }
+        .padding(16)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+    
+    // MARK: - Description Card
+    
+    private var descriptionCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Description", systemImage: "text.alignleft")
+                .font(.headline)
+                .foregroundStyle(.primary)
+            
+            Text(travaux.description ?? "")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
     
     private var headerSection: some View {
@@ -633,18 +883,29 @@ struct TravauxDetailSheet: View {
         Button {
             openInMaps()
         } label: {
-            HStack {
-                Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
+            HStack(spacing: 12) {
+                Image(systemName: "location.fill.viewfinder")
                     .font(.system(size: 20, weight: .semibold))
-                Text("Voir sur la carte")
+                Text("S'y rendre")
                     .font(.headline)
+                    .fontWeight(.semibold)
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 16, weight: .bold))
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            .padding(.vertical, 18)
+            .background(
+                LinearGradient(
+                    colors: [Color.blue, Color.blue.opacity(0.8)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .foregroundStyle(.white)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .blue.opacity(0.3), radius: 8, x: 0, y: 4)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(.blue)
-        .controlSize(.large)
+        .buttonStyle(.plain)
     }
     
     private var typeColor: Color {

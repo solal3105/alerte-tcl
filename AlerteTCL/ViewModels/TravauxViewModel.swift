@@ -65,9 +65,9 @@ final class TravauxViewModel: ObservableObject {
     
     // MARK: - Viewport Filtering
     
-    /// Travaux visibles dans la région actuelle (avec buffer)
+    /// Travaux visibles dans la région actuelle (avec buffer très large)
     var visibleTravaux: [Travaux] {
-        filteredTravaux.visibleIn(region: visibleRegion, buffer: .large)
+        filteredTravaux.visibleIn(region: visibleRegion, buffer: .extraLarge)
     }
     
     // MARK: - Clustering
@@ -78,7 +78,9 @@ final class TravauxViewModel: ObservableObject {
     private var lastClusteringTravauxCount: Int = 0
     
     var shouldShowClusters: Bool {
-        ClusteringEngine.shouldCluster(zoomLevel: currentZoomLevel, config: clusteringConfig)
+        // Pas de clustering en dessous de 0.1 de zoom ET minimum 20 markers requis
+        // On ignore ClusteringEngine.shouldCluster pour forcer nos propres règles
+        currentZoomLevel >= 0.02 && visibleTravaux.count >= 20
     }
     
     private func updateClustersIfNeeded() {
@@ -92,6 +94,7 @@ final class TravauxViewModel: ObservableObject {
         cachedUnclusteredTravaux = result.unclustered
         lastClusteringZoom = currentZoomLevel
         lastClusteringTravauxCount = visibleTravaux.count
+        
     }
     
     var clusters: [MapCluster<Travaux>] {
@@ -112,13 +115,30 @@ final class TravauxViewModel: ObservableObject {
     }
     
     var displayClusters: [MapCluster<Travaux>] {
-        guard !shouldShowTooManyMarkersWarning else { return [] }
+        guard !shouldShowTooManyMarkersWarning && shouldShowClusters else { return [] }
         return clusters
     }
     
     var displayTravaux: [Travaux] {
         guard !shouldShowTooManyMarkersWarning else { return [] }
-        return unclusteredTravaux
+        // Si on ne doit pas clusterer, afficher tous les travaux visibles
+        return shouldShowClusters ? unclusteredTravaux : visibleTravaux
+    }
+    
+    /// Travaux qui ne sont PAS dans des clusters (pour afficher les polygones)
+    var nonClusteredTravaux: [Travaux] {
+        guard !shouldShowTooManyMarkersWarning else { return [] }
+        
+        if !shouldShowClusters {
+            // Pas de clustering = tous les travaux sont non-clusterés
+            return visibleTravaux
+        }
+        
+        // Récupérer tous les IDs des travaux dans les clusters
+        let clusteredIds = Set(cachedClusters.flatMap { $0.items.map { $0.id } })
+        
+        // Retourner les travaux visibles qui ne sont PAS dans les clusters
+        return visibleTravaux.filter { !clusteredIds.contains($0.id) }
     }
     
     func updateZoomLevel(_ span: MKCoordinateSpan) {

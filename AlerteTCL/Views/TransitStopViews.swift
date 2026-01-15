@@ -5,56 +5,58 @@ import MapKit
 
 struct TransitStopMarker: View {
     let stop: TransitStop
+    let currentZoomLevel: Double
     
-    @State private var scale: CGFloat = 0.8
-    @State private var opacity: Double = 0.0
+    private var shouldShowTooltip: Bool {
+        // Afficher le tooltip uniquement si zoom très fort (< 0.005)
+        currentZoomLevel < 0.005
+    }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Chip avec prochain passage
-            if let next = stop.nextPassage {
-                let bgColor = LineColorHelper.backgroundColor(for: next.ligne)
-                let textColor = LineColorHelper.textColor(for: next.ligne)
-                let needsBorder = LineColorHelper.needsBorder(for: next.ligne)
-                
+        VStack(spacing: 2) {
+            // Tooltip avec noms des lignes (uniquement au zoom très fort)
+            if shouldShowTooltip && !stop.lines.isEmpty {
                 HStack(spacing: 4) {
-                    Text(next.ligne)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(textColor)
-                    
-                    Text(next.shortDelay)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(textColor.opacity(0.85))
+                    ForEach(stop.lines.prefix(3), id: \.self) { line in
+                        let bgColor = LineColorHelper.backgroundColor(for: line)
+                        let textColor = LineColorHelper.textColor(for: line)
+                        let needsBorder = LineColorHelper.needsBorder(for: line)
+                        
+                        Text(line)
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(textColor)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(bgColor)
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color(.systemGray3), lineWidth: needsBorder ? 0.5 : 0)
+                            )
+                    }
+                    if stop.lines.count > 3 {
+                        Text("+\(stop.lines.count - 3)")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(bgColor)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(.ultraThinMaterial)
                 .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(Color(.systemGray3), lineWidth: needsBorder ? 1 : 0)
-                )
-                .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 2)
+                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
             }
             
-            // Point de l'arrêt
+            // Point de l'arrêt (toujours visible)
             Circle()
                 .fill(.white)
-                .frame(width: 10, height: 10)
+                .frame(width: 8, height: 8)
                 .overlay(
                     Circle()
                         .fill(Color.purple)
-                        .frame(width: 6, height: 6)
+                        .frame(width: 5, height: 5)
                 )
-                .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
-        }
-        .scaleEffect(scale)
-        .opacity(opacity)
-        .onAppear {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                scale = 1.0
-                opacity = 1.0
-            }
+                .shadow(color: .black.opacity(0.2), radius: 1.5, x: 0, y: 0.5)
         }
     }
 }
@@ -63,12 +65,19 @@ struct TransitStopMarker: View {
 
 struct TransitStopDetailSheet: View {
     let stop: TransitStop
+    let viewModel: LiveVehiclesViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var passages: [Passage] = []
+    @State private var localStop: TransitStop
     @State private var isLoading = false
     
+    init(stop: TransitStop, viewModel: LiveVehiclesViewModel) {
+        self.stop = stop
+        self.viewModel = viewModel
+        self._localStop = State(initialValue: stop)
+    }
+    
     private var passagesByLine: [String: [Passage]] {
-        Dictionary(grouping: stop.passages) { $0.ligne }
+        Dictionary(grouping: localStop.passages) { $0.ligne }
     }
     
     private var sortedLines: [String] {
@@ -90,7 +99,9 @@ struct TransitStopDetailSheet: View {
                     headerSection
                     
                     // Passages par ligne
-                    if stop.passages.isEmpty {
+                    if isLoading || localStop.isLoadingPassages {
+                        loadingState
+                    } else if localStop.passages.isEmpty {
                         emptyState
                     } else {
                         passagesSection
@@ -110,6 +121,20 @@ struct TransitStopDetailSheet: View {
                 }
             }
         }
+        .onAppear {
+            // Charger tous les passages au clic
+            if localStop.passages.isEmpty && !localStop.isLoadingPassages {
+                isLoading = true
+                Task {
+                    await viewModel.loadAllPassagesForStop(stopId: stop.id)
+                    // Récupérer l'arrêt mis à jour
+                    if let updatedStop = viewModel.transitStops.first(where: { $0.id == stop.id }) {
+                        localStop = updatedStop
+                    }
+                    isLoading = false
+                }
+            }
+        }
     }
     
     private var headerSection: some View {
@@ -123,24 +148,24 @@ struct TransitStopDetailSheet: View {
                 .clipShape(Circle())
             
             // Nom de l'arrêt
-            Text(stop.nom)
+            Text(localStop.nom)
                 .font(.title2)
                 .fontWeight(.bold)
                 .multilineTextAlignment(.center)
             
             // Commune
-            Text(stop.commune)
+            Text(localStop.commune)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             
             // Lignes desservies
-            if !stop.lines.isEmpty {
+            if !localStop.lines.isEmpty {
                 HStack(spacing: 6) {
-                    ForEach(stop.lines.prefix(6), id: \.self) { line in
+                    ForEach(localStop.lines.prefix(6), id: \.self) { line in
                         LineBadge(line: line)
                     }
-                    if stop.lines.count > 6 {
-                        Text("+\(stop.lines.count - 6)")
+                    if localStop.lines.count > 6 {
+                        Text("+\(localStop.lines.count - 6)")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
                     }
@@ -148,7 +173,7 @@ struct TransitStopDetailSheet: View {
             }
             
             // Accessibilité PMR
-            if stop.pmr {
+            if localStop.pmr {
                 HStack(spacing: 4) {
                     Image(systemName: "figure.roll")
                         .foregroundStyle(.blue)
@@ -177,6 +202,21 @@ struct TransitStopDetailSheet: View {
             }
         }
         .padding(20)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+    
+    private var loadingState: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .scaleEffect(1.2)
+            
+            Text("Chargement des passages...")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity)
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
@@ -289,28 +329,24 @@ struct PassageChip: View {
     let color: Color
     
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 4) {
+            // Délai en minutes
             Text(passage.delaipassage)
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(color)
+                .foregroundStyle(Color(.systemGray))
             
-            if passage.isRealTime {
-                Image(systemName: "antenna.radiowaves.left.and.right")
-                    .font(.system(size: 8))
-                    .foregroundStyle(.green)
-            } else {
-                Text(passage.formattedTime)
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-            }
+            // Heure de passage
+            Text(passage.formattedTime)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(Color(.systemGray))
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color(.systemBackground))
+        .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(color.opacity(0.3), lineWidth: 1)
+                .stroke(Color(.systemGray4), lineWidth: 1)
         )
     }
 }
@@ -318,18 +354,22 @@ struct PassageChip: View {
 // MARK: - Preview
 
 #Preview {
-    TransitStopDetailSheet(stop: TransitStop(
-        id: 1,
-        nom: "Bellecour",
-        commune: "Lyon 2e",
-        adresse: "Place Bellecour",
-        coordinate: CLLocationCoordinate2D(latitude: 45.757, longitude: 4.832),
-        desserte: "MA:A,MA:R,MD:A,MD:R,T1:A,T1:R",
-        pmr: true,
-        passages: [
-            Passage(stopId: 1, ligne: "MA", direction: "Vaulx-en-Velin", delaipassage: "2 min", heurepassage: "2026-01-14 10:30:00", type: "R"),
-            Passage(stopId: 1, ligne: "MA", direction: "Vaulx-en-Velin", delaipassage: "7 min", heurepassage: "2026-01-14 10:35:00", type: "T"),
-            Passage(stopId: 1, ligne: "T1", direction: "IUT Feyssine", delaipassage: "3 min", heurepassage: "2026-01-14 10:31:00", type: "R")
-        ]
-    ))
+    let vm = LiveVehiclesViewModel()
+    return TransitStopDetailSheet(
+        stop: TransitStop(
+            id: 1,
+            nom: "Bellecour",
+            commune: "Lyon 2e",
+            adresse: "Place Bellecour",
+            coordinate: CLLocationCoordinate2D(latitude: 45.757, longitude: 4.832),
+            desserte: "MA:A,MA:R,MD:A,MD:R,T1:A,T1:R",
+            pmr: true,
+            passages: [
+                Passage(stopId: 1, ligne: "MA", direction: "Vaulx-en-Velin", delaipassage: "2 min", heurepassage: "2026-01-14 10:30:00", type: "R"),
+                Passage(stopId: 1, ligne: "MA", direction: "Vaulx-en-Velin", delaipassage: "7 min", heurepassage: "2026-01-14 10:35:00", type: "T"),
+                Passage(stopId: 1, ligne: "T1", direction: "IUT Feyssine", delaipassage: "3 min", heurepassage: "2026-01-14 10:31:00", type: "R")
+            ]
+        ),
+        viewModel: vm
+    )
 }
