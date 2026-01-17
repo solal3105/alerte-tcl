@@ -9,8 +9,10 @@ struct ParkingWidgetProvider: AppIntentTimelineProvider {
         ParkingWidgetEntry(
             date: Date(),
             configuration: ParkingWidgetConfigurationIntent(),
+            parkingId: "",
             parkingName: "Parking",
-            availableSpots: nil
+            availableSpots: nil,
+            totalCapacity: nil
         )
     }
 
@@ -31,17 +33,23 @@ struct ParkingWidgetProvider: AppIntentTimelineProvider {
         let parkingId = configuration.selectedParking?.id ?? ""
         
         var availableSpots: Int? = nil
+        var totalCapacity: Int? = nil
         
-        // Récupérer les places disponibles temps réel si un parking est sélectionné
+        // Récupérer les données temps réel si un parking est sélectionné
         if !parkingId.isEmpty {
-            availableSpots = await WidgetParkingService.fetchParking(withId: parkingId)
+            if let parking = await WidgetParkingService.fetchParking(withId: parkingId) {
+                availableSpots = parking.placesDisponibles
+                totalCapacity = parking.capaciteTotale
+            }
         }
         
         return ParkingWidgetEntry(
             date: Date(),
             configuration: configuration,
+            parkingId: parkingId,
             parkingName: parkingName,
-            availableSpots: availableSpots
+            availableSpots: availableSpots,
+            totalCapacity: totalCapacity
         )
     }
 }
@@ -49,8 +57,10 @@ struct ParkingWidgetProvider: AppIntentTimelineProvider {
 struct ParkingWidgetEntry: TimelineEntry {
     let date: Date
     let configuration: ParkingWidgetConfigurationIntent
+    let parkingId: String
     let parkingName: String
     let availableSpots: Int?
+    let totalCapacity: Int?
 }
 
 // MARK: - Parking Widget View
@@ -61,6 +71,7 @@ struct ParkingWidgetEntryView : View {
 
     var body: some View {
         ParkingWidgetContentView(entry: entry, family: family)
+            .widgetURL(URL(string: "alertetcl://parking/\(entry.parkingId)"))
     }
 }
 
@@ -68,63 +79,139 @@ struct ParkingWidgetContentView: View {
     let entry: ParkingWidgetEntry
     let family: WidgetFamily
     
-    var body: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Image(systemName: "parkingsign.circle.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(.blue)
-                
-                Text(entry.parkingName)
-                    .font(.system(size: 14, weight: .bold))
-                    .lineLimit(1)
-                
-                Spacer()
-            }
-            
-            Spacer()
-            
-            if let spots = entry.availableSpots {
-                VStack(spacing: 8) {
-                    Text("\(spots)")
-                        .font(.system(size: 48, weight: .bold))
-                        .foregroundColor(spotsColor(spots))
-                    
-                    Text("places disponibles")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            } else {
-                VStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 32))
-                        .foregroundColor(.orange)
-                    
-                    Text("Données indisponibles")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            Spacer()
-            
-            HStack {
-                Spacer()
-                Text("Mis à jour: \(entry.date, style: .time)")
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding()
+    var occupancyRate: Double {
+        guard let spots = entry.availableSpots,
+              let total = entry.totalCapacity,
+              total > 0 else { return 0 }
+        return Double(total - spots) / Double(total)
     }
     
-    private func spotsColor(_ spots: Int) -> Color {
-        if spots > 50 {
-            return .green
-        } else if spots > 20 {
-            return .orange
+    var occupancyColor: Color {
+        switch occupancyRate {
+        case 0..<0.5: return .green
+        case 0.5..<0.8: return .orange
+        default: return .red
+        }
+    }
+    
+    var body: some View {
+        if let spots = entry.availableSpots, let total = entry.totalCapacity {
+            VStack(spacing: 0) {
+                // Header avec nom du parking
+                HStack(spacing: 8) {
+                    Image(systemName: "parkingsign.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.blue)
+                    
+                    Text(entry.parkingName)
+                        .font(.system(size: 13, weight: .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                
+                Spacer()
+                
+                // Cercle de progression central
+                ZStack {
+                    // Cercle de fond
+                    Circle()
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 12)
+                        .frame(width: 100, height: 100)
+                    
+                    // Cercle de progression
+                    Circle()
+                        .trim(from: 0, to: occupancyRate)
+                        .stroke(
+                            occupancyColor,
+                            style: StrokeStyle(lineWidth: 12, lineCap: .round)
+                        )
+                        .frame(width: 100, height: 100)
+                        .rotationEffect(.degrees(-90))
+                        .animation(.easeInOut, value: occupancyRate)
+                    
+                    // Texte central
+                    VStack(spacing: 2) {
+                        Text("\(spots)")
+                            .font(.system(size: 32, weight: .bold))
+                            .foregroundColor(occupancyColor)
+                        
+                        Text("/ \(total)")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                // Footer avec info et heure
+                VStack(spacing: 4) {
+                    Text("places disponibles")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                    
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.fill")
+                            .font(.system(size: 9))
+                        Text(timeAgo(from: entry.date))
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .foregroundColor(.secondary.opacity(0.8))
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+            }
         } else {
-            return .red
+            // État sans données
+            VStack(spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "parkingsign.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.blue)
+                    
+                    Text(entry.parkingName)
+                        .font(.system(size: 13, weight: .bold))
+                        .lineLimit(1)
+                    
+                    Spacer()
+                }
+                
+                Spacer()
+                
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(.orange)
+                    
+                    Text("Données\nindisponibles")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                
+                Spacer()
+            }
+            .padding(16)
+        }
+    }
+    
+    private func timeAgo(from date: Date) -> String {
+        let interval = Date().timeIntervalSince(date)
+        let minutes = Int(interval / 60)
+        
+        if minutes < 1 {
+            return "À l'instant"
+        } else if minutes == 1 {
+            return "Il y a 1 min"
+        } else if minutes < 60 {
+            return "Il y a \(minutes) min"
+        } else {
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short
+            return formatter.string(from: date)
         }
     }
 }
@@ -153,8 +240,10 @@ struct ParkingWidget: Widget {
     ParkingWidgetEntry(
         date: .now,
         configuration: ParkingWidgetConfigurationIntent(),
+        parkingId: "test-parking",
         parkingName: "Parking Part-Dieu",
-        availableSpots: 42
+        availableSpots: 42,
+        totalCapacity: 150
     )
 }
 

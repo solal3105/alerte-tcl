@@ -1,20 +1,81 @@
 import SwiftUI
 import MapKit
 
-// MARK: - Transit Stop Marker
+// MARK: - Merged Stop Marker (groupes d'arrêts fusionnés)
+
+struct MergedStopMarker: View {
+    let mergedStop: MergedStop
+    let currentZoomLevel: Double
+    
+    private var shouldShowTooltip: Bool {
+        currentZoomLevel < 0.005
+    }
+    
+    private var allLines: [String] {
+        mergedStop.allLines
+    }
+    
+    var body: some View {
+        VStack(spacing: 2) {
+            // Tooltip avec lignes (même style que TransitStopMarker)
+            if shouldShowTooltip && !allLines.isEmpty {
+                HStack(spacing: 4) {
+                    ForEach(allLines.prefix(3), id: \.self) { line in
+                        let bgColor = LineColorHelper.backgroundColor(for: line)
+                        let textColor = LineColorHelper.textColor(for: line)
+                        let needsBorder = LineColorHelper.needsBorder(for: line)
+                        
+                        Text(line)
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(textColor)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(bgColor)
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color(.systemGray3), lineWidth: needsBorder ? 0.5 : 0)
+                            )
+                    }
+                    if allLines.count > 3 {
+                        Text("+\(allLines.count - 3)")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+            }
+            
+            // Point de l'arrêt (même style que TransitStopMarker)
+            Circle()
+                .fill(.white)
+                .frame(width: 8, height: 8)
+                .overlay(
+                    Circle()
+                        .fill(Color.purple)
+                        .frame(width: 5, height: 5)
+                )
+                .shadow(color: .black.opacity(0.2), radius: 1.5, x: 0, y: 0.5)
+        }
+    }
+}
+
+// MARK: - Transit Stop Marker (legacy, kept for compatibility)
 
 struct TransitStopMarker: View {
     let stop: TransitStop
     let currentZoomLevel: Double
     
     private var shouldShowTooltip: Bool {
-        // Afficher le tooltip uniquement si zoom très fort (< 0.005)
         currentZoomLevel < 0.005
     }
     
     var body: some View {
         VStack(spacing: 2) {
-            // Tooltip avec noms des lignes (uniquement au zoom très fort)
             if shouldShowTooltip && !stop.lines.isEmpty {
                 HStack(spacing: 4) {
                     ForEach(stop.lines.prefix(3), id: \.self) { line in
@@ -47,7 +108,6 @@ struct TransitStopMarker: View {
                 .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
             }
             
-            // Point de l'arrêt (toujours visible)
             Circle()
                 .fill(.white)
                 .frame(width: 8, height: 8)
@@ -76,18 +136,27 @@ struct TransitStopDetailSheet: View {
         self._localStop = State(initialValue: stop)
     }
     
-    private var passagesByLine: [String: [Passage]] {
-        Dictionary(grouping: localStop.passages) { $0.ligne }
+    /// Clé unique pour grouper par ligne ET direction
+    private struct LineDirectionKey: Hashable {
+        let line: String
+        let direction: String
     }
     
-    private var sortedLines: [String] {
-        passagesByLine.keys.sorted { line1, line2 in
-            let mode1 = TransportMode.detectFromLine(line1)
-            let mode2 = TransportMode.detectFromLine(line2)
+    private var passagesByLineDirection: [LineDirectionKey: [Passage]] {
+        Dictionary(grouping: localStop.passages) { LineDirectionKey(line: $0.ligne, direction: $0.direction) }
+    }
+    
+    private var sortedLineDirections: [LineDirectionKey] {
+        passagesByLineDirection.keys.sorted { key1, key2 in
+            let mode1 = TransportMode.detectFromLine(key1.line)
+            let mode2 = TransportMode.detectFromLine(key2.line)
             if mode1.sortOrder != mode2.sortOrder {
                 return mode1.sortOrder < mode2.sortOrder
             }
-            return line1 < line2
+            if key1.line != key2.line {
+                return key1.line < key2.line
+            }
+            return key1.direction < key2.direction
         }
     }
     
@@ -125,7 +194,7 @@ struct TransitStopDetailSheet: View {
             // Charger tous les passages au clic
             if localStop.passages.isEmpty && !localStop.isLoadingPassages {
                 isLoading = true
-                Task {
+                Task { @MainActor in
                     await viewModel.loadAllPassagesForStop(stopId: stop.id)
                     // Récupérer l'arrêt mis à jour
                     if let updatedStop = viewModel.transitStops.first(where: { $0.id == stop.id }) {
@@ -195,9 +264,9 @@ struct TransitStopDetailSheet: View {
                 .font(.headline)
                 .foregroundStyle(.blue)
             
-            ForEach(sortedLines, id: \.self) { line in
-                if let linePassages = passagesByLine[line] {
-                    LinePassagesCard(line: line, passages: linePassages)
+            ForEach(sortedLineDirections, id: \.self) { key in
+                if let linePassages = passagesByLineDirection[key] {
+                    LinePassagesCard(line: key.line, direction: key.direction, passages: linePassages)
                 }
             }
         }
@@ -280,14 +349,11 @@ struct LineBadge: View {
 
 struct LinePassagesCard: View {
     let line: String
+    let direction: String
     let passages: [Passage]
     
     private var bgColor: Color {
         LineColorHelper.backgroundColor(for: line)
-    }
-    
-    private var direction: String {
-        passages.first?.direction ?? ""
     }
     
     var body: some View {
@@ -348,6 +414,198 @@ struct PassageChip: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color(.systemGray4), lineWidth: 1)
         )
+    }
+}
+
+// MARK: - Merged Stop Detail Sheet (affiche les passages de TOUS les arrêts fusionnés)
+
+struct MergedStopDetailSheet: View {
+    let mergedStop: MergedStop
+    let viewModel: LiveVehiclesViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var allPassages: [Passage] = []
+    @State private var isLoading = false
+    
+    /// Clé unique pour grouper par ligne ET direction
+    private struct LineDirectionKey: Hashable {
+        let line: String
+        let direction: String
+    }
+    
+    private var passagesByLineDirection: [LineDirectionKey: [Passage]] {
+        Dictionary(grouping: allPassages) { LineDirectionKey(line: $0.ligne, direction: $0.direction) }
+    }
+    
+    private var sortedLineDirections: [LineDirectionKey] {
+        passagesByLineDirection.keys.sorted { key1, key2 in
+            let mode1 = TransportMode.detectFromLine(key1.line)
+            let mode2 = TransportMode.detectFromLine(key2.line)
+            if mode1.sortOrder != mode2.sortOrder {
+                return mode1.sortOrder < mode2.sortOrder
+            }
+            if key1.line != key2.line {
+                return key1.line < key2.line
+            }
+            return key1.direction < key2.direction
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    headerSection
+                    
+                    if isLoading {
+                        loadingState
+                    } else if allPassages.isEmpty {
+                        emptyState
+                    } else {
+                        passagesSection
+                    }
+                }
+                .padding(20)
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fermer") {
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .onAppear {
+            loadAllPassages()
+        }
+    }
+    
+    private func loadAllPassages() {
+        isLoading = true
+        Task { @MainActor in
+            // Charger les passages de TOUS les arrêts du groupe
+            for stop in mergedStop.stops {
+                await viewModel.loadAllPassagesForStop(stopId: stop.id)
+            }
+            
+            // Collecter tous les passages
+            var passages: [Passage] = []
+            for stop in mergedStop.stops {
+                if let updatedStop = viewModel.transitStops.first(where: { $0.id == stop.id }) {
+                    passages.append(contentsOf: updatedStop.passages)
+                }
+            }
+            
+            // Trier par heure et dédupliquer
+            allPassages = passages.sorted { p1, p2 in
+                p1.heurepassage < p2.heurepassage
+            }
+            
+            isLoading = false
+        }
+    }
+    
+    private var headerSection: some View {
+        VStack(spacing: 12) {
+            // Icône (même style que TransitStopDetailSheet)
+            Image(systemName: "tram.fill")
+                .font(.system(size: 32))
+                .foregroundStyle(.blue)
+                .padding(16)
+                .background(Color.blue.opacity(0.1))
+                .clipShape(Circle())
+            
+            // Nom de l'arrêt
+            Text(mergedStop.nom)
+                .font(.title2)
+                .fontWeight(.bold)
+                .multilineTextAlignment(.center)
+            
+            // Lignes desservies
+            if !mergedStop.allLines.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(mergedStop.allLines.prefix(6), id: \.self) { line in
+                        LineBadge(line: line)
+                    }
+                    if mergedStop.allLines.count > 6 {
+                        Text("+\(mergedStop.allLines.count - 6)")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            
+            // Accessibilité PMR
+            if mergedStop.pmr {
+                HStack(spacing: 4) {
+                    Image(systemName: "figure.roll")
+                        .foregroundStyle(.blue)
+                    Text("Accessible PMR")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(24)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+    
+    private var passagesSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Label("Prochains passages", systemImage: "clock.fill")
+                .font(.headline)
+                .foregroundStyle(.blue)
+            
+            ForEach(sortedLineDirections, id: \.self) { key in
+                if let linePassages = passagesByLineDirection[key] {
+                    LinePassagesCard(line: key.line, direction: key.direction, passages: linePassages)
+                }
+            }
+        }
+        .padding(20)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+    
+    private var loadingState: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .scaleEffect(1.2)
+            
+            Text("Chargement des passages...")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+    
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "clock.badge.questionmark")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary)
+            
+            Text("Aucun passage prévu")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            
+            Text("Les horaires seront affichés quand des véhicules seront en approche")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 

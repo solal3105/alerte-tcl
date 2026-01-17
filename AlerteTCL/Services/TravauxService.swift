@@ -19,12 +19,11 @@ actor TravauxService {
         
         print("🌐 TravauxService: URL de chargement: \(url.absoluteString)")
         
-        var request = URLRequest(url: url)
+        var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.sharedTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 30
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await NetworkConfiguration.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             print("❌ TravauxService: Réponse invalide")

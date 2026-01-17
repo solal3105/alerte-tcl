@@ -7,6 +7,7 @@ struct AlerteTCLApp: App {
     @AppStorage("hasShownLocationPrompt") private var hasShownLocationPrompt = false
     @State private var showNotificationPrompt = false
     @State private var showLocationPrompt = false
+    @State private var selectedParkingId: String?
     
     init() {
         configureAppearance()
@@ -23,7 +24,7 @@ struct AlerteTCLApp: App {
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(selectedParkingId: $selectedParkingId)
                 .environmentObject(viewModel)
                 .onAppear {
                     if !hasShownLocationPrompt {
@@ -37,6 +38,9 @@ struct AlerteTCLApp: App {
                             hasShownNotificationPrompt = true
                         }
                     }
+                }
+                .onOpenURL { url in
+                    handleDeepLink(url)
                 }
                 .sheet(isPresented: $showLocationPrompt) {
                     LocationPermissionView()
@@ -52,6 +56,18 @@ struct AlerteTCLApp: App {
                 .sheet(isPresented: $showNotificationPrompt) {
                     NotificationPermissionView()
                 }
+        }
+    }
+    
+    private func handleDeepLink(_ url: URL) {
+        guard url.scheme == "alertetcl" else { return }
+        
+        let pathComponents = url.pathComponents
+        
+        if pathComponents.count >= 2 && pathComponents[1] == "parking" {
+            if pathComponents.count >= 3 {
+                selectedParkingId = pathComponents[2]
+            }
         }
     }
     

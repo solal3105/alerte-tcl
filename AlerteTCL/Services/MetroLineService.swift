@@ -81,8 +81,7 @@ actor TransitLineService {
             throw ServiceError.invalidURL
         }
         
-        var request = URLRequest(url: finalURL)
-        request.timeoutInterval = 30
+        var request = NetworkConfiguration.request(url: finalURL, timeout: NetworkConfiguration.sharedTimeout)
         
         // Ajouter l'authentification Basic Auth
         if let username = Bundle.main.object(forInfoDictionaryKey: "GrandLyonUsername") as? String,
@@ -94,7 +93,7 @@ actor TransitLineService {
             }
         }
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await NetworkConfiguration.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ServiceError.invalidResponse

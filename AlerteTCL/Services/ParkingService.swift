@@ -7,15 +7,6 @@ actor ParkingService {
     private var cache: [ParkingType: (parkings: [Parking], timestamp: Date)] = [:]
     private let cacheValidityDuration: TimeInterval = 30 // 30 secondes pour les données temps réel
     
-    private lazy var urlSession: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15
-        config.timeoutIntervalForResource = 30
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        config.urlCache = URLCache(memoryCapacity: 20 * 1024 * 1024, diskCapacity: 50 * 1024 * 1024)
-        return URLSession(configuration: config)
-    }()
-    
     private init() {}
     
     func fetchParkings(type: ParkingType = .car, forceRefresh: Bool = false) async throws -> [Parking] {
@@ -48,12 +39,12 @@ actor ParkingService {
         
         print("🌐 ParkingService: URL de chargement (\(type.rawValue)): \(url.absoluteString)")
         
-        var request = URLRequest(url: url)
+        var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.sharedTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
         request.cachePolicy = .reloadIgnoringLocalCacheData
         
-        let (data, response) = try await urlSession.data(for: request)
+        let (data, response) = try await NetworkConfiguration.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             print("❌ ParkingService: Réponse invalide")

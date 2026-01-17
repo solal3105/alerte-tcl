@@ -79,7 +79,8 @@ final class AlertViewModel: ObservableObject {
     }
 
     var linesInError: [LineAlertSummary] {
-        let activeAlerts = alerts.filter { $0.isActive }
+        // Ne prendre que les alertes actives avec une vraie perturbation (pas juste info)
+        let activeAlerts = alerts.filter { $0.isActive && $0.severity != .info }
         let grouped = Dictionary(grouping: activeAlerts) { alert in
             alert.ligneCli.isEmpty ? alert.ligneCom : alert.ligneCli
         }
@@ -149,6 +150,7 @@ final class AlertViewModel: ObservableObject {
         
         isLoading = true
         error = nil
+        defer { isLoading = false }
         
         do {
             let fetchedAlerts = try await TCLAPIService.shared.fetchAlerts()
@@ -163,10 +165,8 @@ final class AlertViewModel: ObservableObject {
             print("✅ AlertViewModel: \(fetchedAlerts.count) alertes chargées depuis l'API")
         } catch {
             self.error = error.localizedDescription
-            print("❌ AlertViewModel: Erreur - \(error.localizedDescription)")
+            print("⚠️ Erreur alertes (non-bloquante): \(error.localizedDescription)")
         }
-        
-        isLoading = false
     }
     
     private func extractLinesFromAlerts(_ alerts: [TCLAlert]) {

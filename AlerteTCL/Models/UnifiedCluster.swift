@@ -76,12 +76,13 @@ enum ClusteringEngine {
     }
     
     /// Seuil de zoom en dessous duquel on désactive le clustering (zoom fort = latitudeDelta petit)
-    /// Basé sur 0.02 : clusters apparaissent uniquement quand les arrêts disparaissent
-    static let clusteringZoomThreshold: Double = 0.02
+    /// Basé sur 0.03 : niveau de zoom utilisé lors de la localisation utilisateur
+    /// Jamais de clusters en dessous de ce niveau quelque soit l'onglet
+    static let clusteringZoomThreshold: Double = 0.03
     
     /// Le clustering est désactivé quand on zoome fortement (pour voir les détails)
     static func shouldCluster(zoomLevel: Double, config: Configuration = .default) -> Bool {
-        // Pas de clustering si on est à 0.02 ou moins zoomé (quand les arrêts sont visibles)
+        // Pas de clustering si on est à 0.01 ou moins (niveau de localisation utilisateur)
         return zoomLevel > clusteringZoomThreshold + 0.001
     }
     

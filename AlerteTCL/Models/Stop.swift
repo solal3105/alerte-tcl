@@ -17,14 +17,14 @@ struct Stop: Identifiable, Hashable {
 struct StopAnnotation: Identifiable, Hashable {
     let id: String
     let stop: Stop
-    let passages: [StopPassage]
+    let passages: [Passage]
     
     var nextPassageTime: String? {
-        passages.first?.arrivalFormatted
+        passages.first?.formattedTime
     }
     
     var linesServed: [String] {
-        Array(Set(passages.map { $0.lineName })).sorted()
+        Array(Set(passages.map { $0.ligne })).sorted()
     }
     
     func hash(into hasher: inout Hasher) {

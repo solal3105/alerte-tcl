@@ -313,3 +313,107 @@ extension TransitStop: Clusterable {
         "bus.fill"
     }
 }
+
+// MARK: - Merged Stop (groups stops within 30m)
+
+struct MergedStop: Identifiable, Hashable {
+    let id: String
+    let nom: String
+    let coordinate: CLLocationCoordinate2D
+    let stops: [TransitStop]
+    let directions: [String] // Directions uniques des arrêts fusionnés
+    
+    var allLines: [String] {
+        stops.flatMap { $0.lines }.unique()
+    }
+    
+    var pmr: Bool {
+        stops.contains { $0.pmr }
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: MergedStop, rhs: MergedStop) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+// MARK: - Stop Merging Engine
+
+struct StopMergingEngine {
+    /// Distance maximale en mètres pour fusionner des arrêts
+    static let mergeDistanceMeters: Double = 30.0
+    
+    /// Fusionne les arrêts qui sont à moins de 30m ET ont EXACTEMENT les mêmes lignes
+    static func mergeNearbyStops(_ stops: [TransitStop]) -> [MergedStop] {
+        guard !stops.isEmpty else { return [] }
+        
+        var remainingStops = stops
+        var mergedStops: [MergedStop] = []
+        
+        while !remainingStops.isEmpty {
+            let baseStop = remainingStops.removeFirst()
+            var group = [baseStop]
+            var directions: Set<String> = []
+            
+            // Lignes du baseStop (triées pour comparaison)
+            let baseLines = Set(baseStop.lines)
+            
+            // Extraire les directions du baseStop depuis desserte
+            extractDirections(from: baseStop.desserte).forEach { directions.insert($0) }
+            
+            // Trouver tous les arrêts proches AVEC LES MÊMES LIGNES
+            var i = 0
+            while i < remainingStops.count {
+                let candidate = remainingStops[i]
+                let distance = distanceInMeters(from: baseStop.coordinate, to: candidate.coordinate)
+                let candidateLines = Set(candidate.lines)
+                
+                // Fusionner seulement si < 30m ET EXACTEMENT les mêmes lignes
+                if distance <= mergeDistanceMeters && baseLines == candidateLines {
+                    group.append(candidate)
+                    extractDirections(from: candidate.desserte).forEach { directions.insert($0) }
+                    remainingStops.remove(at: i)
+                } else {
+                    i += 1
+                }
+            }
+            
+            // Calculer le centre du groupe
+            let centerLat = group.map { $0.coordinate.latitude }.reduce(0, +) / Double(group.count)
+            let centerLon = group.map { $0.coordinate.longitude }.reduce(0, +) / Double(group.count)
+            
+            let merged = MergedStop(
+                id: group.map { String($0.id) }.sorted().joined(separator: "-"),
+                nom: baseStop.nom,
+                coordinate: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon),
+                stops: group,
+                directions: Array(directions).sorted()
+            )
+            
+            mergedStops.append(merged)
+        }
+        
+        return mergedStops
+    }
+    
+    /// Extrait les directions depuis le champ desserte (ex: "C20:A,C20E:R" -> ["A", "R"])
+    private static func extractDirections(from desserte: String) -> [String] {
+        desserte.split(separator: ",").compactMap { part in
+            let components = part.split(separator: ":")
+            if components.count >= 2 {
+                return String(components[1])
+            }
+            return nil
+        }.unique()
+    }
+    
+    /// Calcule la distance en mètres entre deux coordonnées
+    private static func distanceInMeters(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) -> Double {
+        let fromLocation = CLLocation(latitude: from.latitude, longitude: from.longitude)
+        let toLocation = CLLocation(latitude: to.latitude, longitude: to.longitude)
+        return fromLocation.distance(from: toLocation)
+    }
+}

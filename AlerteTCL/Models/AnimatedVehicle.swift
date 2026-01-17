@@ -24,6 +24,20 @@ class AnimatedVehicle: Identifiable {
     
     private var isAnimating = false
     
+    /// Date de la dernière mise à jour depuis l'API
+    var lastSeenAt: Date = Date()
+    
+    /// Indique si le véhicule est toujours présent dans les données API
+    var isActive: Bool = true
+    
+    /// Durée de grâce avant suppression (2 cycles de refresh = 30s)
+    static let gracePeriod: TimeInterval = 30.0
+    
+    /// Vérifie si le véhicule doit être supprimé (pas vu depuis trop longtemps)
+    var shouldBeRemoved: Bool {
+        !isActive && Date().timeIntervalSince(lastSeenAt) > Self.gracePeriod
+    }
+    
     init(vehicle: Vehicle) {
         self.id = vehicle.id
         self.sourceCoordinate = vehicle.coordinate

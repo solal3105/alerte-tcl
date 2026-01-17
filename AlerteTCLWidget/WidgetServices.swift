@@ -10,10 +10,10 @@ import Foundation
 // MARK: - Parking Service for Widget
 
 struct WidgetParkingService {
-    static func fetchParking(withId parkingId: String) async -> Int? {
+    static func fetchParking(withId parkingId: String) async -> WidgetParking? {
         do {
             let parkings = try await fetchParkings()
-            return parkings.first(where: { $0.id == parkingId })?.placesDisponibles
+            return parkings.first(where: { $0.id == parkingId })
         } catch {
             print("❌ Widget: Erreur récupération parking: \(error)")
             return nil
@@ -44,11 +44,15 @@ struct WidgetParkingService {
 
 struct WidgetParking {
     let id: String
+    let nom: String
     let placesDisponibles: Int
+    let capaciteTotale: Int
     
     init(from feature: WidgetParkingFeature) {
         self.id = feature.properties.id
+        self.nom = feature.properties.nom
         self.placesDisponibles = feature.properties.placesDisponibles ?? 0
+        self.capaciteTotale = feature.properties.nbPlaces ?? 0
     }
 }
 
@@ -62,11 +66,15 @@ struct WidgetParkingFeature: Codable {
 
 struct WidgetParkingProperties: Codable {
     let id: String
+    let nom: String
     let placesDisponibles: Int?
+    let nbPlaces: Int?
     
     enum CodingKeys: String, CodingKey {
         case id
+        case nom
         case placesDisponibles = "places_disponibles"
+        case nbPlaces = "nb_places"
     }
 }
 

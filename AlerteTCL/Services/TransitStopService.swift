@@ -50,9 +50,9 @@ actor TransitStopService {
         
         print("🌐 TransitStopService: Chargement des arrêts...")
         
-        var request = URLRequest(url: url)
+        var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.heavyTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 30
+        print("🚀 Arrêts: Début requête (timeout: \(NetworkConfiguration.heavyTimeout)s)")
         
         // Add Basic Auth
         if !username.isEmpty && !password.isEmpty {
@@ -63,7 +63,7 @@ actor TransitStopService {
             }
         }
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await NetworkConfiguration.heavy.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw APIError.invalidResponse
@@ -120,9 +120,8 @@ actor TransitStopService {
             throw APIError.invalidURL
         }
         
-        var request = URLRequest(url: url)
+        var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.heavyTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 15
         
         if !username.isEmpty && !password.isEmpty {
             let credentials = "\(username):\(password)"
@@ -132,7 +131,7 @@ actor TransitStopService {
             }
         }
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await NetworkConfiguration.heavy.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw APIError.invalidResponse

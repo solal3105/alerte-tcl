@@ -2,6 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.solal.AlerteTCL</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>alertetcl</string>
+			</array>
+		</dict>
+	</array>
 	<key>GrandLyonPassword</key>
 	<string>Gsol@lis3105</string>
 	<key>GrandLyonUsername</key>

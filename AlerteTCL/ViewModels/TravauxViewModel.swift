@@ -78,9 +78,9 @@ final class TravauxViewModel: ObservableObject {
     private var lastClusteringTravauxCount: Int = 0
     
     var shouldShowClusters: Bool {
-        // Pas de clustering en dessous de 0.1 de zoom ET minimum 20 markers requis
-        // On ignore ClusteringEngine.shouldCluster pour forcer nos propres règles
-        currentZoomLevel >= 0.02 && visibleTravaux.count >= 20
+        // Utiliser le seuil unifié de ClusteringEngine (0.01 = niveau localisation utilisateur)
+        // ET minimum 20 markers requis pour former des clusters
+        ClusteringEngine.shouldCluster(zoomLevel: currentZoomLevel, config: clusteringConfig) && visibleTravaux.count >= 20
     }
     
     private func updateClustersIfNeeded() {
@@ -155,9 +155,10 @@ final class TravauxViewModel: ObservableObject {
     
     func onAppear() {
         // Charger les données en arrière-plan sans bloquer l'affichage
-        Task(priority: .userInitiated) {
-            await loadTravaux()
-            startAutoRefresh()
+        Task(priority: .userInitiated) { [weak self] in
+            guard let self = self else { return }
+            await self.loadTravaux()
+            self.startAutoRefresh()
         }
     }
     
@@ -179,6 +180,7 @@ final class TravauxViewModel: ObservableObject {
         
         isLoading = true
         error = nil
+        defer { isLoading = false }
         
         do {
             let fetchedTravaux = try await TravauxService.shared.fetchTravaux()
@@ -192,10 +194,8 @@ final class TravauxViewModel: ObservableObject {
             print("✅ TravauxViewModel: \(travaux.count) travaux chargés et mis en cache pour 24h")
         } catch {
             self.error = error.localizedDescription
-            print("❌ TravauxViewModel: Erreur de chargement: \(error)")
+            print("⚠️ Erreur travaux (non-bloquante): \(error.localizedDescription)")
         }
-        
-        isLoading = false
     }
     
     // MARK: - Auto Refresh

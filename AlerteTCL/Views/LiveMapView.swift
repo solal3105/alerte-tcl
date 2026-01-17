@@ -5,10 +5,15 @@ struct LiveMapView: View {
     @StateObject private var viewModel = LiveVehiclesViewModel()
     @EnvironmentObject var alertViewModel: AlertViewModel
     @ObservedObject private var locationService = LocationService.shared
+    
     @State private var selectedVehicle: Vehicle?
     @State private var selectedStop: TransitStop?
+    @State private var selectedMergedStop: MergedStop?
     @State private var showFilters = false
     @State private var showAlerts = false
+    @State private var showLoadingError = false
+    @State private var hasStartedLoading = false
+    
     @State private var currentRegion: MKCoordinateRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
         span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
@@ -20,7 +25,7 @@ struct LiveMapView: View {
         )
     )
     
-    private func isSimulator() -> Bool {
+    private var isSimulator: Bool {
         #if targetEnvironment(simulator)
         return true
         #else
@@ -32,6 +37,17 @@ struct LiveMapView: View {
         ZStack {
             mapContent
             
+            // Warning si trop de markers (centré, sans bloquer les touches)
+            if viewModel.shouldShowTooManyMarkersWarning {
+                VStack {
+                    Spacer()
+                    tooManyMarkersWarning
+                        .allowsHitTesting(false)
+                    Spacer()
+                }
+                .allowsHitTesting(false)
+            }
+            
             overlayControls
         }
         .sheet(item: $selectedVehicle) { vehicle in
@@ -41,6 +57,11 @@ struct LiveMapView: View {
         }
         .sheet(item: $selectedStop) { stop in
             TransitStopDetailSheet(stop: stop, viewModel: viewModel)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $selectedMergedStop) { mergedStop in
+            MergedStopDetailSheet(mergedStop: mergedStop, viewModel: viewModel)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
@@ -66,11 +87,11 @@ struct LiveMapView: View {
             .interactiveDismissDisabled(false)
         }
         .onAppear {
-            // Démarrer immédiatement la localisation (non bloquant)
+            // Localisation (non bloquant)
             locationService.requestPermission()
             locationService.startUpdatingLocation()
             
-            if let userLocation = locationService.currentLocation, !isSimulator() {
+            if let userLocation = locationService.currentLocation, !isSimulator {
                 withAnimation(.easeInOut(duration: 0.8)) {
                     mapCameraPosition = .region(
                         MKCoordinateRegion(
@@ -81,22 +102,10 @@ struct LiveMapView: View {
                 }
             }
             
-            // Charger les données progressivement en arrière-plan
-            Task(priority: .userInitiated) {
-                // D'abord les véhicules (plus important)
-                await viewModel.loadVehicles()
-                viewModel.startAutoRefresh()
-                
-                // Charger les alertes pour la carte de résumé
-                await alertViewModel.loadAlerts()
-                
-                // Puis les lignes (moins prioritaire)
-                await viewModel.loadBusLines()
-                await viewModel.loadTransitLines()
-                
-                // Charger les arrêts (affichage ultra-rapide sans passages)
-                await viewModel.loadTransitStops()
-            }
+            // Charger les données en arrière-plan APRÈS affichage de la Map
+            guard !hasStartedLoading else { return }
+            hasStartedLoading = true
+            startBackgroundLoading()
         }
         .onDisappear {
             viewModel.stopAutoRefresh()
@@ -105,13 +114,14 @@ struct LiveMapView: View {
             viewModel.stopAutoRefresh()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-            Task {
-                await viewModel.loadVehicles()
-                viewModel.startAutoRefresh()
+            // Reprendre le chargement et l'auto-refresh
+            Task { @MainActor in
+                await loadSafely("Véhicules (reprise)") { await self.viewModel.loadVehicles() }
+                self.viewModel.startAutoRefresh()
             }
         }
         .onChange(of: locationService.currentLocation) { oldValue, newValue in
-            if oldValue == nil, let newLocation = newValue, !isSimulator() {
+            if oldValue == nil, let newLocation = newValue, !isSimulator {
                 withAnimation(.easeInOut(duration: 0.8)) {
                     mapCameraPosition = .region(
                         MKCoordinateRegion(
@@ -123,6 +133,42 @@ struct LiveMapView: View {
             }
         }
     }
+    
+    // MARK: - Background Data Loading
+    
+    private func startBackgroundLoading() {
+        // ⚠️ NE PAS démarrer l'auto-refresh immédiatement - évite la contention MainActor
+        // Charger les données d'abord, puis démarrer l'auto-refresh
+        
+        Task { @MainActor in
+            // 1. Charger les véhicules en premier (priorité haute)
+            await loadSafely("Véhicules") { await self.viewModel.loadVehicles() }
+            
+            // 2. Démarrer l'auto-refresh APRÈS le premier chargement réussi
+            self.viewModel.startAutoRefresh()
+            
+            // 3. Charger les autres données en parallèle (priorité basse)
+            async let _ = loadSafely("Lignes bus") { await self.viewModel.loadBusLines() }
+            async let _ = loadSafely("Lignes transport") { await self.viewModel.loadTransitLines() }
+            async let _ = loadSafely("Arrêts") { await self.viewModel.loadTransitStops() }
+            async let _ = loadSafely("Alertes") { await self.alertViewModel.loadAlerts() }
+        }
+    }
+    
+    /// Charge des données de manière isolée - une erreur n'affecte JAMAIS les autres chargements
+    @MainActor
+    private func loadSafely(_ name: String, action: () async -> Void) async {
+        do {
+            try Task.checkCancellation()
+            await action()
+        } catch is CancellationError {
+            print("⏹️ Chargement \(name) annulé")
+        } catch {
+            print("⚠️ Erreur \(name) (non-bloquante): \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - Map Content
     
     private var mapContent: some View {
         MapReader { proxy in
@@ -159,7 +205,7 @@ struct LiveMapView: View {
                     let bearing = animated?.animatedBearing ?? vehicle.bearing
                     
                     Annotation(vehicle.lineName, coordinate: coordinate) {
-                        VehicleMarker(vehicle: vehicle, bearing: bearing)
+                        VehicleMarker(vehicle: vehicle, bearing: bearing, currentZoomLevel: viewModel.currentZoomLevel)
                             .accessibilityElement(children: .ignore)
                             .accessibilityLabel(vehicle.accessibilityDescription)
                             .accessibilityHint("Double-cliquer pour voir les détails du véhicule")
@@ -169,12 +215,12 @@ struct LiveMapView: View {
                     }
                 }
                 
-                // Afficher les arrêts (au zoom fort uniquement)
-                ForEach(viewModel.visibleStops, id: \.id) { stop in
-                    Annotation(stop.nom, coordinate: stop.coordinate) {
-                        TransitStopMarker(stop: stop, currentZoomLevel: viewModel.currentZoomLevel)
+                // Afficher les arrêts fusionnés (au zoom fort uniquement)
+                ForEach(viewModel.visibleMergedStops, id: \.id) { mergedStop in
+                    Annotation(mergedStop.nom, coordinate: mergedStop.coordinate) {
+                        MergedStopMarker(mergedStop: mergedStop, currentZoomLevel: viewModel.currentZoomLevel)
                             .onTapGesture {
-                                selectedStop = stop
+                                selectedMergedStop = mergedStop
                             }
                     }
                     .annotationTitles(.hidden)
@@ -186,11 +232,6 @@ struct LiveMapView: View {
                 viewModel.updateZoomLevel(context.region.span)
                 viewModel.updateVisibleRegion(context.region)
                 currentRegion = context.region
-            }
-            .overlay {
-                if viewModel.shouldShowTooManyMarkersWarning {
-                    tooManyMarkersWarning
-                }
             }
         }
     }
@@ -226,12 +267,14 @@ struct LiveMapView: View {
             }
             
             Spacer()
+                .allowsHitTesting(false)
             
             HStack(alignment: .bottom) {
                 // Card refresh en bas à gauche
                 refreshCard
                 
                 Spacer()
+                    .allowsHitTesting(false)
                 
                 // Boutons en bas à droite (stack vertical)
                 VStack(spacing: 12) {
@@ -261,7 +304,7 @@ struct LiveMapView: View {
                     
                     // Bouton localisation
                     Button {
-                        if let userLocation = locationService.currentLocation, !isSimulator() {
+                        if let userLocation = locationService.currentLocation, !isSimulator {
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                                 mapCameraPosition = .region(
                                     MKCoordinateRegion(
@@ -487,10 +530,19 @@ struct LiveMapView: View {
 struct VehicleMarker: View {
     let vehicle: Vehicle
     var bearing: Double
+    var currentZoomLevel: Double
     
-    init(vehicle: Vehicle, bearing: Double? = nil) {
+    /// Seuil de zoom pour afficher la ponctualité (zoom fort = valeur basse)
+    private let punctualityZoomThreshold: Double = 0.005
+    
+    private var shouldShowPunctuality: Bool {
+        currentZoomLevel <= punctualityZoomThreshold
+    }
+    
+    init(vehicle: Vehicle, bearing: Double? = nil, currentZoomLevel: Double = 0.01) {
         self.vehicle = vehicle
         self.bearing = bearing ?? vehicle.bearing
+        self.currentZoomLevel = currentZoomLevel
     }
     
     var body: some View {
@@ -520,6 +572,32 @@ struct VehicleMarker: View {
                     .offset(y: -18)
                     .rotationEffect(.degrees(bearing))
             }
+            
+            // Tooltip de ponctualité au zoom fort
+            if shouldShowPunctuality {
+                Text(vehicle.delayFormatted)
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .fixedSize()
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(punctualityColor)
+                            .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
+                    )
+                    .offset(y: -24)
+            }
+        }
+    }
+    
+    private var punctualityColor: Color {
+        if vehicle.isDelayed {
+            return .red
+        } else if vehicle.isEarly {
+            return .orange
+        } else {
+            return .green
         }
     }
     

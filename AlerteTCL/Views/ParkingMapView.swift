@@ -9,6 +9,7 @@ struct ParkingMapView: View {
     @State private var mapCameraPosition: MapCameraPosition = .automatic
     @State private var currentSpan: MKCoordinateSpan = MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
     @State private var hasSetInitialLocation = false
+    @Binding var selectedParkingId: String?
     
     var body: some View {
         ZStack {
@@ -40,6 +41,11 @@ struct ParkingMapView: View {
                 hasSetInitialLocation = true
             }
             
+            // Charger les parkings en arrière-plan
+            Task { @MainActor in
+                await self.viewModel.loadParkings()
+            }
+            
             viewModel.onAppear()
         }
         .onChange(of: locationService.currentLocation) { oldValue, newValue in
@@ -57,6 +63,12 @@ struct ParkingMapView: View {
         }
         .onDisappear {
             viewModel.onDisappear()
+        }
+        .onChange(of: selectedParkingId) { _, newParkingId in
+            if let parkingId = newParkingId {
+                openParkingById(parkingId)
+                selectedParkingId = nil
+            }
         }
     }
     
@@ -129,7 +141,7 @@ struct ParkingMapView: View {
                 // Afficher les parkings non clusterisés
                 ForEach(viewModel.displayParkings) { parking in
                     Annotation(parking.nom, coordinate: parking.coordinate) {
-                        ParkingMarker(parking: parking)
+                        ParkingMarker(parking: parking, currentZoomLevel: viewModel.currentZoomLevel)
                             .onTapGesture {
                                 selectedParking = parking
                             }
@@ -247,9 +259,48 @@ struct ParkingMapView: View {
         }
     }
     
+    private func openParkingById(_ parkingId: String) {
+        // Attendre que les parkings soient chargés si nécessaire
+        Task {
+            // Si les parkings ne sont pas encore chargés, attendre un peu
+            if viewModel.parkings.isEmpty {
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 secondes
+            }
+            
+            // Chercher le parking dans tous les parkings chargés
+            if let parking = viewModel.parkings.first(where: { $0.id == parkingId }) {
+                // Changer le type de parking si nécessaire
+                if parking.parkingType != viewModel.selectedParkingType {
+                    viewModel.selectedParkingType = parking.parkingType
+                }
+                
+                // Zoomer sur le parking
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                    mapCameraPosition = .region(
+                        MKCoordinateRegion(
+                            center: parking.coordinate,
+                            span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
+                        )
+                    )
+                }
+                
+                // Ouvrir la fiche du parking après un court délai
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    selectedParking = parking
+                }
+            }
+        }
+    }
+    
     private var overlayControls: some View {
         VStack {
             Spacer()
+            
+            // Indicateur de chargement progressif (non-bloquant) en bas
+            if viewModel.isLoadingInBackground && !viewModel.loadingMessage.isEmpty {
+                progressiveLoadingCard
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             
             HStack(alignment: .bottom) {
                 // Card refresh en bas à gauche (uniquement pour voitures - données temps réel)
@@ -285,6 +336,54 @@ struct ParkingMapView: View {
                 .padding(.bottom, 24)
             }
         }
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.isLoadingInBackground)
+    }
+    
+    /// Card de chargement progressif non-bloquant
+    private var progressiveLoadingCard: some View {
+        HStack(spacing: 12) {
+            // Icône animée
+            ZStack {
+                Circle()
+                    .stroke(parkingTypeColor(viewModel.selectedParkingType).opacity(0.2), lineWidth: 3)
+                    .frame(width: 32, height: 32)
+                
+                Circle()
+                    .trim(from: 0, to: viewModel.loadingProgress)
+                    .stroke(
+                        parkingTypeColor(viewModel.selectedParkingType),
+                        style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                    )
+                    .frame(width: 32, height: 32)
+                    .rotationEffect(.degrees(-90))
+                    .animation(.linear(duration: 0.2), value: viewModel.loadingProgress)
+                
+                Image(systemName: viewModel.selectedParkingType.icon)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(parkingTypeColor(viewModel.selectedParkingType))
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(viewModel.loadingMessage)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.primary)
+                
+                if viewModel.loadedCount > 0 && viewModel.totalToLoad > 0 {
+                    Text("\(viewModel.parkings.count) affichés sur la carte")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 2)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
     }
     
     private var statsCard: some View {
@@ -372,8 +471,66 @@ struct ParkingMapView: View {
 // MARK: - Parking Marker
 struct ParkingMarker: View {
     let parking: Parking
+    var currentZoomLevel: Double = 0.01
+    
+    /// Seuil de zoom pour afficher le tooltip (zoom fort = valeur basse)
+    private let tooltipZoomThreshold: Double = 0.005
+    
+    /// Markers compacts pour vélos et 2-roues
+    private var isCompactMarker: Bool {
+        parking.parkingType == .bike || parking.parkingType == .motorized2Wheel
+    }
+    
+    /// Afficher le tooltip uniquement au zoom fort
+    private var shouldShowTooltip: Bool {
+        isCompactMarker && currentZoomLevel <= tooltipZoomThreshold
+    }
     
     var body: some View {
+        if isCompactMarker {
+            compactMarkerView
+        } else {
+            fullMarkerView
+        }
+    }
+    
+    // MARK: - Compact Marker (Vélos & 2-Roues)
+    
+    private var compactMarkerView: some View {
+        ZStack {
+            // Simple dot marker
+            Circle()
+                .fill(markerColor)
+                .frame(width: 16, height: 16)
+                .shadow(color: markerColor.opacity(0.5), radius: 3, x: 0, y: 1)
+                .overlay(
+                    Circle()
+                        .stroke(.white, lineWidth: 2)
+                )
+            
+            // Tooltip avec nombre de places (uniquement au zoom fort)
+            if shouldShowTooltip {
+                VStack(spacing: 0) {
+                    Text("\(parking.capaciteTotale) places")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .fixedSize()
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(markerColor)
+                                .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
+                        )
+                }
+                .offset(y: -20)
+            }
+        }
+    }
+    
+    // MARK: - Full Marker (Voitures)
+    
+    private var fullMarkerView: some View {
         ZStack {
             // Background circle
             Circle()
@@ -387,31 +544,21 @@ struct ParkingMarker: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(.white)
                 
-                if parking.parkingType == .car {
-                    Text("\(parking.placesDisponibles)")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                } else {
-                    Text("\(parking.capaciteTotale)")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                }
+                Text("\(parking.placesDisponibles)")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
             }
         }
         .overlay(
             // État indicator (only for car parkings with real-time data)
-            Group {
-                if parking.parkingType == .car {
+            Circle()
+                .fill(parking.etat == .ouvert ? .green : .red)
+                .frame(width: 12, height: 12)
+                .overlay(
                     Circle()
-                        .fill(parking.etat == .ouvert ? .green : .red)
-                        .frame(width: 12, height: 12)
-                        .overlay(
-                            Circle()
-                                .stroke(.white, lineWidth: 2)
-                        )
-                        .offset(x: 16, y: -16)
-                }
-            }
+                        .stroke(.white, lineWidth: 2)
+                )
+                .offset(x: 16, y: -16)
         )
     }
     
@@ -852,5 +999,5 @@ private struct ServiceCell: View {
 
 // MARK: - Preview
 #Preview {
-    ParkingMapView()
+    ParkingMapView(selectedParkingId: .constant(nil))
 }

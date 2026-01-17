@@ -46,6 +46,11 @@ struct TravauxMapView: View {
                 hasSetInitialLocation = true
             }
             
+            // Charger les travaux en arrière-plan
+            Task { @MainActor in
+                await self.viewModel.loadTravaux()
+            }
+            
             viewModel.onAppear()
         }
         .onChange(of: locationService.currentLocation) { oldValue, newValue in

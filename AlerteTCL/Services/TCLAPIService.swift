@@ -23,10 +23,10 @@ actor TCLAPIService {
         
         print("🌐 TCLAPIService: Chargement des alertes depuis \(alertsEndpoint)")
         
-        var request = URLRequest(url: url)
+        var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.fastTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 30
+        print("🚀 Alertes: Début requête (timeout: \(NetworkConfiguration.fastTimeout)s)")
         
         // Ajouter l'authentification Basic Auth
         if !username.isEmpty && !password.isEmpty {
@@ -40,7 +40,7 @@ actor TCLAPIService {
             print("⚠️ TCLAPIService: Pas d'identifiants configurés")
         }
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await NetworkConfiguration.fast.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             print("❌ TCLAPIService: Réponse invalide")
