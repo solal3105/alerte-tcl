@@ -12,6 +12,7 @@ struct LiveMapView: View {
     @State private var showFilters = false
     @State private var showAlerts = false
     @State private var showLoadingError = false
+    @State private var showDataSourceErrors = false
     @State private var hasStartedLoading = false
     
     @State private var currentRegion: MKCoordinateRegion = MKCoordinateRegion(
@@ -86,6 +87,15 @@ struct LiveMapView: View {
             }
             .interactiveDismissDisabled(false)
         }
+        .sheet(isPresented: $showDataSourceErrors) {
+            DataSourceErrorsSheet(
+                viewModel: viewModel,
+                alertViewModel: alertViewModel,
+                isPresented: $showDataSourceErrors
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
         .onAppear {
             // Localisation (non bloquant)
             locationService.requestPermission()
@@ -147,12 +157,37 @@ struct LiveMapView: View {
             // 2. Démarrer l'auto-refresh APRÈS le premier chargement réussi
             self.viewModel.startAutoRefresh()
             
-            // 3. Charger les autres données en parallèle (priorité basse)
-            async let _ = loadSafely("Lignes bus") { await self.viewModel.loadBusLines() }
-            async let _ = loadSafely("Lignes transport") { await self.viewModel.loadTransitLines() }
-            async let _ = loadSafely("Arrêts") { await self.viewModel.loadTransitStops() }
-            async let _ = loadSafely("Alertes") { await self.alertViewModel.loadAlerts() }
+            // 3. Charger les autres données avec léger décalage pour éviter contention réseau
+            // Attendre un peu que le réseau soit "chaud"
+            try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
+            
+            // Lancer en parallèle mais dans des Tasks séparées
+            async let busTask: () = loadInBackground("Lignes bus") { 
+                await self.viewModel.loadBusLines() 
+            }
+            async let transitTask: () = loadInBackground("Lignes transport") { 
+                await self.viewModel.loadTransitLines() 
+            }
+            async let stopsTask: () = loadInBackground("Arrêts") { 
+                await self.viewModel.loadTransitStops() 
+            }
+            async let alertsTask: () = loadInBackground("Alertes") { 
+                await self.alertViewModel.loadAlerts() 
+            }
+            
+            // Attendre que tout soit terminé (mais chacun gère ses erreurs)
+            _ = await (busTask, transitTask, stopsTask, alertsTask)
         }
+    }
+    
+    /// Charge une donnée en background avec logging
+    @MainActor
+    private func loadInBackground(_ name: String, action: () async -> Void) async {
+        let start = Date()
+        print("📡 [\(name)] Début chargement...")
+        await action()
+        let duration = Date().timeIntervalSince(start)
+        print("📡 [\(name)] Terminé en \(String(format: "%.1f", duration))s")
     }
     
     /// Charge des données de manière isolée - une erreur n'affecte JAMAIS les autres chargements
@@ -475,51 +510,90 @@ struct LiveMapView: View {
     }
     
     private var refreshCard: some View {
-        Button {
-            Task { await viewModel.loadVehicles() }
-        } label: {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .stroke(Color.blue.opacity(0.2), lineWidth: 2.5)
-                        .frame(width: 36, height: 36)
+        VStack(alignment: .leading, spacing: 8) {
+            // Warning indicator si erreurs de données
+            if hasDataSourceErrors {
+                Button {
+                    showDataSourceErrors = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.orange)
+                        
+                        Text("\(totalDataSourceErrors) source\(totalDataSourceErrors > 1 ? "s" : "") en erreur")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.primary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.orange.opacity(0.5), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+            
+            // Refresh button
+            Button {
+                Task { await viewModel.loadVehicles() }
+            } label: {
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .stroke(Color.blue.opacity(0.2), lineWidth: 2.5)
+                            .frame(width: 36, height: 36)
+                        
+                        Circle()
+                            .trim(from: 0, to: viewModel.refreshProgress)
+                            .stroke(
+                                Color.blue,
+                                style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                            )
+                            .frame(width: 36, height: 36)
+                            .rotationEffect(.degrees(-90))
+                            .animation(.linear(duration: 0.1), value: viewModel.refreshProgress)
+                        
+                        if viewModel.isLoading {
+                            ProgressView()
+                                .scaleEffect(0.6)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.blue)
+                        }
+                    }
                     
-                    Circle()
-                        .trim(from: 0, to: viewModel.refreshProgress)
-                        .stroke(
-                            Color.blue,
-                            style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
-                        )
-                        .frame(width: 36, height: 36)
-                        .rotationEffect(.degrees(-90))
-                        .animation(.linear(duration: 0.1), value: viewModel.refreshProgress)
-                    
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.blue)
+                    if !viewModel.isLoading {
+                        Text("dans \(viewModel.secondsUntilNextRefresh)s")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.secondary)
                     }
                 }
-                
-                if !viewModel.isLoading {
-                    Text("dans \(viewModel.secondsUntilNextRefresh)s")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 24))
+                .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 3)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 3)
+            .buttonStyle(.plain)
+            .disabled(viewModel.isLoading)
         }
-        .buttonStyle(.plain)
-        .disabled(viewModel.isLoading)
         .padding(.leading, 24)
         .padding(.bottom, 24)
+    }
+    
+    private var hasDataSourceErrors: Bool {
+        viewModel.hasDataSourceErrors || alertViewModel.alertsError != nil
+    }
+    
+    private var totalDataSourceErrors: Int {
+        var count = viewModel.dataSourceErrors.count
+        if alertViewModel.alertsError != nil { count += 1 }
+        return count
     }
     
     private var hasActiveFilters: Bool {
