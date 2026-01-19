@@ -164,8 +164,46 @@ struct ParkingWidgetContentView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
             }
+        } else if entry.parkingId.isEmpty {
+            // Empty state - Aucun parking sélectionné
+            VStack(spacing: 16) {
+                Spacer()
+                
+                ZStack {
+                    Circle()
+                        .fill(LinearGradient(
+                            colors: [.blue.opacity(0.2), .purple.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ))
+                        .frame(width: 80, height: 80)
+                    
+                    Image(systemName: "parkingsign.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.blue, .purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+                
+                VStack(spacing: 6) {
+                    Text("Parking TCL")
+                        .font(.system(size: 15, weight: .bold))
+                    
+                    Text("Maintenez appuyé\npour configurer")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                
+                Spacer()
+            }
+            .padding(16)
         } else {
-            // État sans données
+            // État erreur données
             VStack(spacing: 16) {
                 HStack(spacing: 8) {
                     Image(systemName: "parkingsign.circle.fill")

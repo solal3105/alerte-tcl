@@ -26,6 +26,7 @@ enum ViewportFilter {
     }
     
     /// Vérifie si une coordonnée est dans la région visible (avec buffer)
+    @inline(__always)
     static func isCoordinateVisible(
         _ coordinate: CLLocationCoordinate2D,
         in region: MKCoordinateRegion,
@@ -46,6 +47,7 @@ enum ViewportFilter {
     }
     
     /// Filtre une collection d'éléments selon leur visibilité dans la région
+    /// Optimisé: pré-calcule les bornes une seule fois
     static func filterVisible<T>(
         items: [T],
         in region: MKCoordinateRegion?,
@@ -54,8 +56,20 @@ enum ViewportFilter {
     ) -> [T] {
         guard let region = region else { return items }
         
+        // Pré-calculer les bornes une seule fois (évite recalcul par item)
+        let latDelta = region.span.latitudeDelta * buffer.multiplier
+        let lonDelta = region.span.longitudeDelta * buffer.multiplier
+        let minLat = region.center.latitude - latDelta / 2
+        let maxLat = region.center.latitude + latDelta / 2
+        let minLon = region.center.longitude - lonDelta / 2
+        let maxLon = region.center.longitude + lonDelta / 2
+        
         return items.filter { item in
-            isCoordinateVisible(coordinateProvider(item), in: region, buffer: buffer)
+            let coord = coordinateProvider(item)
+            return coord.latitude >= minLat &&
+                   coord.latitude <= maxLat &&
+                   coord.longitude >= minLon &&
+                   coord.longitude <= maxLon
         }
     }
 }

@@ -425,11 +425,16 @@ struct MergedStopDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var allPassages: [Passage] = []
     @State private var isLoading = false
+    @State private var showWidgetSheet = false
     
     /// Clé unique pour grouper par ligne ET direction
     private struct LineDirectionKey: Hashable {
         let line: String
         let direction: String
+    }
+    
+    private var availableLineDirections: [(line: String, direction: String)] {
+        sortedLineDirections.map { ($0.line, $0.direction) }
     }
     
     private var passagesByLineDirection: [LineDirectionKey: [Passage]] {
@@ -480,6 +485,13 @@ struct MergedStopDetailSheet: View {
         }
         .onAppear {
             loadAllPassages()
+        }
+        .sheet(isPresented: $showWidgetSheet) {
+            AddToWidgetSheet(
+                stopId: mergedStop.stops.first?.id ?? 0,
+                stopName: mergedStop.nom,
+                availableLineDirections: availableLineDirections
+            )
         }
     }
     
@@ -548,6 +560,33 @@ struct MergedStopDetailSheet: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            
+            // Bouton Ajouter au widget
+            if !availableLineDirections.isEmpty {
+                Button {
+                    showWidgetSheet = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus.rectangle.on.rectangle")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Ajouter au widget")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        LinearGradient(
+                            colors: [.blue, .purple],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(Capsule())
+                }
+                .padding(.top, 8)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(24)
@@ -613,7 +652,7 @@ struct MergedStopDetailSheet: View {
 
 #Preview {
     let vm = LiveVehiclesViewModel()
-    return TransitStopDetailSheet(
+    TransitStopDetailSheet(
         stop: TransitStop(
             id: 1,
             nom: "Bellecour",
@@ -621,12 +660,7 @@ struct MergedStopDetailSheet: View {
             adresse: "Place Bellecour",
             coordinate: CLLocationCoordinate2D(latitude: 45.757, longitude: 4.832),
             desserte: "MA:A,MA:R,MD:A,MD:R,T1:A,T1:R",
-            pmr: true,
-            passages: [
-                Passage(stopId: 1, ligne: "MA", direction: "Vaulx-en-Velin", delaipassage: "2 min", heurepassage: "2026-01-14 10:30:00", type: "R"),
-                Passage(stopId: 1, ligne: "MA", direction: "Vaulx-en-Velin", delaipassage: "7 min", heurepassage: "2026-01-14 10:35:00", type: "T"),
-                Passage(stopId: 1, ligne: "T1", direction: "IUT Feyssine", delaipassage: "3 min", heurepassage: "2026-01-14 10:31:00", type: "R")
-            ]
+            pmr: true
         ),
         viewModel: vm
     )

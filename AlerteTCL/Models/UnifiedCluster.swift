@@ -19,30 +19,47 @@ struct MapCluster<T: Clusterable>: Identifiable {
     let coordinate: CLLocationCoordinate2D
     let items: [T]
     
-    var count: Int { items.count }
-    
-    /// Couleur dominante du cluster (basée sur la majorité des items)
-    var dominantColor: Color {
-        let colorCounts = Dictionary(grouping: items, by: { $0.clusterColor.description })
-        let dominantColorGroup = colorCounts.max(by: { $0.value.count < $1.value.count })
-        return dominantColorGroup?.value.first?.clusterColor ?? .blue
-    }
-    
-    /// Icône dominante du cluster
-    var dominantIcon: String {
-        let iconCounts = Dictionary(grouping: items, by: { $0.clusterIcon })
-        let dominantIconGroup = iconCounts.max(by: { $0.value.count < $1.value.count })
-        return dominantIconGroup?.key ?? "mappin"
-    }
+    /// Valeurs pré-calculées pour éviter recalculs
+    let count: Int
+    let dominantColor: Color
+    let dominantIcon: String
     
     init(items: [T]) {
-        let sortedIds = items.map { "\($0.id)" }.sorted().joined(separator: "-")
-        self.id = "cluster-\(sortedIds.hashValue)"
         self.items = items
+        self.count = items.count
         
-        let avgLat = items.map { $0.coordinate.latitude }.reduce(0, +) / Double(items.count)
-        let avgLon = items.map { $0.coordinate.longitude }.reduce(0, +) / Double(items.count)
-        self.coordinate = CLLocationCoordinate2D(latitude: avgLat, longitude: avgLon)
+        // ID basé sur hash combiné (évite le tri O(n log n))
+        var hasher = Hasher()
+        for item in items {
+            hasher.combine(item.id)
+        }
+        self.id = "cluster-\(hasher.finalize())"
+        
+        // Centre calculé en une seule passe
+        var sumLat = 0.0, sumLon = 0.0
+        for item in items {
+            sumLat += item.coordinate.latitude
+            sumLon += item.coordinate.longitude
+        }
+        let countD = Double(items.count)
+        self.coordinate = CLLocationCoordinate2D(latitude: sumLat / countD, longitude: sumLon / countD)
+        
+        // Pré-calculer couleur et icône dominantes
+        var colorCounts: [String: (count: Int, color: Color)] = [:]
+        var iconCounts: [String: Int] = [:]
+        
+        for item in items {
+            let colorKey = item.clusterColor.description
+            if let existing = colorCounts[colorKey] {
+                colorCounts[colorKey] = (existing.count + 1, existing.color)
+            } else {
+                colorCounts[colorKey] = (1, item.clusterColor)
+            }
+            iconCounts[item.clusterIcon, default: 0] += 1
+        }
+        
+        self.dominantColor = colorCounts.max(by: { $0.value.count < $1.value.count })?.value.color ?? .blue
+        self.dominantIcon = iconCounts.max(by: { $0.value < $1.value })?.key ?? "mappin"
     }
 }
 
@@ -97,6 +114,7 @@ enum ClusteringEngine {
     }
     
     /// Crée des clusters basés sur la distance écran (les markers ne se chevauchent pas)
+    /// Optimisé avec spatial hashing pour O(n) au lieu de O(n²)
     static func createClusters<T: Clusterable>(
         from items: [T],
         zoomLevel: Double,
@@ -106,35 +124,103 @@ enum ClusteringEngine {
         
         // Convertir la taille écran cible en distance géographique
         let clusterRadius = screenToGeoDistance(screenPixels: config.screenClusterSize, zoomLevel: zoomLevel)
+        let clusterRadiusSquared = clusterRadius * clusterRadius
         
-        var clusteredIds: Set<String> = []
+        // Pour peu d'items, l'algo simple est plus rapide
+        if items.count < 50 {
+            return createClustersSimple(from: items, clusterRadiusSquared: clusterRadiusSquared, config: config)
+        }
+        
+        // Spatial grid pour O(n) lookup
+        let cellSize = clusterRadius * 2 // Cellule = diamètre du cluster
+        var grid: [Int: [T]] = [:]
+        grid.reserveCapacity(items.count)
+        
+        @inline(__always)
+        func gridKey(for coord: CLLocationCoordinate2D) -> Int {
+            let x = Int(coord.latitude / cellSize)
+            let y = Int(coord.longitude / cellSize)
+            return x &* 73856093 ^ y &* 19349663 // Hash spatial rapide
+        }
+        
+        // Remplir la grille
+        for item in items {
+            let key = gridKey(for: item.coordinate)
+            grid[key, default: []].append(item)
+        }
+        
+        var clusteredIds: Set<AnyHashable> = []
+        clusteredIds.reserveCapacity(items.count)
         var clusters: [MapCluster<T>] = []
         var unclustered: [T] = []
         
-        // Trier par position pour un clustering plus cohérent
-        let sortedItems = items.sorted { 
-            $0.coordinate.latitude + $0.coordinate.longitude < $1.coordinate.latitude + $1.coordinate.longitude 
-        }
-        
-        for item in sortedItems {
-            let itemId = "\(item.id)"
-            guard !clusteredIds.contains(itemId) else { continue }
+        for item in items {
+            guard !clusteredIds.contains(item.id) else { continue }
             
             var clusterItems = [item]
-            clusteredIds.insert(itemId)
+            clusteredIds.insert(item.id)
             
-            for other in sortedItems {
-                let otherId = "\(other.id)"
-                guard !clusteredIds.contains(otherId) else { continue }
+            let baseX = Int(item.coordinate.latitude / cellSize)
+            let baseY = Int(item.coordinate.longitude / cellSize)
+            
+            // Vérifier les 9 cellules voisines
+            for dx in -1...1 {
+                for dy in -1...1 {
+                    let neighborKey = (baseX + dx) &* 73856093 ^ (baseY + dy) &* 19349663
+                    guard let neighbors = grid[neighborKey] else { continue }
+                    
+                    for other in neighbors {
+                        guard !clusteredIds.contains(other.id) else { continue }
+                        
+                        // Distance au carré (évite sqrt)
+                        let dLat = item.coordinate.latitude - other.coordinate.latitude
+                        let dLon = item.coordinate.longitude - other.coordinate.longitude
+                        let distSq = dLat * dLat + dLon * dLon
+                        
+                        if distSq < clusterRadiusSquared {
+                            clusterItems.append(other)
+                            clusteredIds.insert(other.id)
+                        }
+                    }
+                }
+            }
+            
+            if clusterItems.count >= config.minItemsForCluster {
+                clusters.append(MapCluster(items: clusterItems))
+            } else {
+                unclustered.append(contentsOf: clusterItems)
+            }
+        }
+        
+        return (clusters, unclustered)
+    }
+    
+    /// Version simple pour peu d'items (overhead de la grille non rentable)
+    private static func createClustersSimple<T: Clusterable>(
+        from items: [T],
+        clusterRadiusSquared: Double,
+        config: Configuration
+    ) -> (clusters: [MapCluster<T>], unclustered: [T]) {
+        var clusteredIds: Set<AnyHashable> = []
+        var clusters: [MapCluster<T>] = []
+        var unclustered: [T] = []
+        
+        for item in items {
+            guard !clusteredIds.contains(item.id) else { continue }
+            
+            var clusterItems = [item]
+            clusteredIds.insert(item.id)
+            
+            for other in items {
+                guard !clusteredIds.contains(other.id) else { continue }
                 
-                let distance = sqrt(
-                    pow(item.coordinate.latitude - other.coordinate.latitude, 2) +
-                    pow(item.coordinate.longitude - other.coordinate.longitude, 2)
-                )
+                let dLat = item.coordinate.latitude - other.coordinate.latitude
+                let dLon = item.coordinate.longitude - other.coordinate.longitude
+                let distSq = dLat * dLat + dLon * dLon
                 
-                if distance < clusterRadius {
+                if distSq < clusterRadiusSquared {
                     clusterItems.append(other)
-                    clusteredIds.insert(otherId)
+                    clusteredIds.insert(other.id)
                 }
             }
             

@@ -391,17 +391,35 @@ final class LiveVehiclesViewModel: ObservableObject {
         currentZoomLevel = span.latitudeDelta
     }
     
+    /// Seuil de changement de région pour déclencher une mise à jour (évite micro-mouvements)
+    private let regionChangeThreshold: Double = 0.0001
+    private var lastProcessedRegion: MKCoordinateRegion?
+    
     func updateVisibleRegion(_ region: MKCoordinateRegion) {
         visibleRegion = region
+        
+        // Early exit si le changement est trop petit (micro-mouvements)
+        if let last = lastProcessedRegion {
+            let latChange = abs(region.center.latitude - last.center.latitude)
+            let lonChange = abs(region.center.longitude - last.center.longitude)
+            let spanChange = abs(region.span.latitudeDelta - last.span.latitudeDelta)
+            
+            if latChange < regionChangeThreshold && 
+               lonChange < regionChangeThreshold && 
+               spanChange < regionChangeThreshold * 10 {
+                return // Changement trop petit, ignorer
+            }
+        }
         
         // Annuler la mise à jour précédente
         regionUpdateTask?.cancel()
         
-        // Debounce de 150ms pour éviter les calculs excessifs pendant le scroll
+        // Debounce de 100ms (réduit de 150ms) avec early-exit ci-dessus
         regionUpdateTask = Task {
-            try? await Task.sleep(nanoseconds: 150_000_000)
+            try? await Task.sleep(nanoseconds: 100_000_000)
             guard !Task.isCancelled else { return }
             
+            lastProcessedRegion = region
             updateFilteredVehicles()
             updateVisibleStops()
             updateClustersIfNeeded()
@@ -474,18 +492,36 @@ final class LiveVehiclesViewModel: ObservableObject {
     func loadTransitStops() async {
         guard !isLoadingStops else { return }
         
-        isLoadingStops = true
-        defer { isLoadingStops = false }
+        await MainActor.run {
+            isLoadingStops = true
+        }
+        defer {
+            Task { @MainActor in
+                isLoadingStops = false
+            }
+        }
         
         do {
-            let stops = try await TransitStopService.shared.fetchAllStops()
-            transitStops = stops
+            // Charger les arrêts avec timeout
+            let stops = try await Task.withTimeout(seconds: NetworkConfiguration.heavyTimeout) {
+                try await TransitStopService.shared.fetchAllStops()
+            }
             
-            // Fusionner les arrêts à moins de 30m
-            mergedStops = StopMergingEngine.mergeNearbyStops(stops)
-            print("✅ ViewModel: \(stops.count) arrêts → \(mergedStops.count) arrêts fusionnés")
+            // ⚠️ CRITIQUE: Fusionner les arrêts HORS du MainActor (traitement lourd)
+            let merged = await Task.detached(priority: .userInitiated) {
+                StopMergingEngine.mergeNearbyStops(stops)
+            }.value
             
-            updateVisibleStops()
+            print("✅ ViewModel: \(stops.count) arrêts → \(merged.count) arrêts fusionnés")
+            
+            // Mettre à jour sur le MainActor
+            await MainActor.run {
+                transitStops = stops
+                mergedStops = merged
+                updateVisibleStops()
+            }
+        } catch is TaskTimeoutError {
+            print("⏱️ Timeout arrêts (\(NetworkConfiguration.heavyTimeout)s)")
         } catch {
             print("⚠️ Erreur arrêts (non-bloquante): \(error.localizedDescription)")
         }
@@ -510,12 +546,16 @@ final class LiveVehiclesViewModel: ObservableObject {
         }
         
         do {
-            let passages = try await TransitStopService.shared.fetchPassagesForStop(stopId: stopId)
+            let passages = try await Task.withTimeout(seconds: NetworkConfiguration.fastTimeout) {
+                try await TransitStopService.shared.fetchPassagesForStop(stopId: stopId)
+            }
             if transitStops.indices.contains(index) {
                 transitStops[index].passages = passages
                 transitStops[index].passagesLoaded = true
             }
             print("✅ ViewModel: \(passages.count) passages chargés pour arrêt \(stopId)")
+        } catch is TaskTimeoutError {
+            print("⏱️ Timeout passages arrêt \(stopId) (\(NetworkConfiguration.fastTimeout)s)")
         } catch {
             print("⚠️ Erreur passages arrêt \(stopId) (non-bloquante): \(error.localizedDescription)")
         }

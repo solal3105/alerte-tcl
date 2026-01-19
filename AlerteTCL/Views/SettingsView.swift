@@ -1,44 +1,70 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @State private var showWidgetHelp = false
+    @State private var showSavedStops = false
+    
     var body: some View {
         NavigationView {
             List {
                 Section {
-                    VStack(alignment: .leading, spacing: 12) {
+                    Button {
+                        showWidgetHelp = true
+                    } label: {
                         HStack {
-                            Image(systemName: "square.on.square.dashed")
+                            Image(systemName: "questionmark.circle.fill")
                                 .font(.system(size: 20))
                                 .foregroundColor(.blue)
                                 .frame(width: 32)
                             
-                            Text("Configuration des widgets")
-                                .font(.headline)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Comment configurer le widget")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Text("Guide étape par étape")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
-                        
-                        Text("Pour configurer vos widgets :")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("Consultez un arrêt ou un parking", systemImage: "1.circle.fill")
-                                .font(.caption)
-                            Label("Ajoutez le widget à l'écran d'accueil", systemImage: "2.circle.fill")
-                                .font(.caption)
-                            Label("Appuyez longuement sur le widget", systemImage: "3.circle.fill")
-                                .font(.caption)
-                            Label("Sélectionnez \"Modifier le widget\"", systemImage: "4.circle.fill")
-                                .font(.caption)
-                            Label("Choisissez votre arrêt ou parking", systemImage: "5.circle.fill")
-                                .font(.caption)
-                        }
-                        .foregroundColor(.secondary)
                     }
-                    .padding(.vertical, 8)
+                    .buttonStyle(.plain)
+                    
+                    Button {
+                        showSavedStops = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "tram.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(.purple)
+                                .frame(width: 32)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Mes arrêts widget")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Text("Gérer les arrêts sauvegardés")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
                 } header: {
-                    Text("Widgets")
+                    Text("Widget Prochains Passages")
                 } footer: {
-                    Text("Les arrêts et parkings que vous consultez apparaissent automatiquement dans la configuration du widget.")
+                    Text("Ajoutez des arrêts depuis la fiche d'un arrêt sur la carte, puis configurez le widget sur votre écran d'accueil.")
                         .font(.caption)
                 }
                 
@@ -66,6 +92,12 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Paramètres")
+            .sheet(isPresented: $showWidgetHelp) {
+                WidgetHelpView()
+            }
+            .sheet(isPresented: $showSavedStops) {
+                SavedWidgetStopsView()
+            }
         }
     }
 }

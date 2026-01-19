@@ -5,29 +5,31 @@ struct DataSourceErrorsSheet: View {
     @ObservedObject var alertViewModel: AlertViewModel
     @Binding var isPresented: Bool
     
-    @State private var retryingSources: Set<DataSource> = []
+    @State private var isRetrying = false
     
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    ForEach(viewModel.failedDataSources, id: \.source) { item in
-                        DataSourceErrorRow(
-                            source: item.source,
-                            error: item.error,
-                            isRetrying: retryingSources.contains(item.source)
+                    if let error = alertViewModel.error {
+                        ErrorRow(
+                            title: "Alertes TCL",
+                            icon: "exclamationmark.triangle.fill",
+                            error: error,
+                            isRetrying: isRetrying
                         ) {
-                            retrySource(item.source)
+                            retryAlerts()
                         }
                     }
                     
-                    if let alertError = alertViewModel.alertsError {
-                        DataSourceErrorRow(
-                            source: .alerts,
-                            error: alertError,
-                            isRetrying: retryingSources.contains(.alerts)
+                    if let error = viewModel.error {
+                        ErrorRow(
+                            title: "Véhicules en temps réel",
+                            icon: "bus.fill",
+                            error: error,
+                            isRetrying: isRetrying
                         ) {
-                            retrySource(.alerts)
+                            retryVehicles()
                         }
                     }
                 } header: {
@@ -46,14 +48,14 @@ struct DataSourceErrorsSheet: View {
                             Image(systemName: "arrow.clockwise")
                             Text("Réessayer toutes les sources")
                             
-                            if !retryingSources.isEmpty {
+                            if isRetrying {
                                 Spacer()
                                 ProgressView()
                                     .scaleEffect(0.8)
                             }
                         }
                     }
-                    .disabled(!retryingSources.isEmpty)
+                    .disabled(isRetrying)
                 }
             }
             .navigationTitle("Erreurs de chargement")
@@ -68,71 +70,62 @@ struct DataSourceErrorsSheet: View {
         }
     }
     
-    private func retrySource(_ source: DataSource) {
-        guard !retryingSources.contains(source) else {
-            print("🔄 Source \(source.displayName) déjà en cours de retry")
-            return
-        }
+    private func retryAlerts() {
+        guard !isRetrying else { return }
+        isRetrying = true
         
-        retryingSources.insert(source)
-        print("🔄 Début retry: \(source.displayName)")
-        
-        Task.detached(priority: .userInitiated) {
-            let startTime = Date()
-            
-            if source == .alerts {
-                await alertViewModel.loadAlerts()
-            } else {
-                await viewModel.retryDataSource(source)
-            }
-            
-            let duration = Date().timeIntervalSince(startTime)
-            
+        Task(priority: .userInitiated) {
+            await alertViewModel.loadAlerts()
             await MainActor.run {
-                retryingSources.remove(source)
-                
-                // Vérifier si le retry a réussi
-                let hasError = source == .alerts 
-                    ? alertViewModel.alertsError != nil 
-                    : viewModel.dataSourceErrors[source] != nil
-                
-                if hasError {
-                    print("❌ Retry échoué: \(source.displayName) (durée: \(String(format: "%.1f", duration))s)")
-                } else {
-                    print("✅ Retry réussi: \(source.displayName) (durée: \(String(format: "%.1f", duration))s)")
-                }
+                isRetrying = false
+            }
+        }
+    }
+    
+    private func retryVehicles() {
+        guard !isRetrying else { return }
+        isRetrying = true
+        
+        Task(priority: .userInitiated) {
+            await viewModel.loadVehicles()
+            await MainActor.run {
+                isRetrying = false
             }
         }
     }
     
     private func retryAll() {
-        print("🔄 Début retry de toutes les sources en erreur")
+        guard !isRetrying else { return }
+        isRetrying = true
         
-        for item in viewModel.failedDataSources {
-            retrySource(item.source)
-        }
-        
-        if alertViewModel.alertsError != nil {
-            retrySource(.alerts)
+        Task(priority: .userInitiated) {
+            async let alertsTask: () = alertViewModel.loadAlerts()
+            async let vehiclesTask: () = viewModel.loadVehicles()
+            _ = await (alertsTask, vehiclesTask)
+            
+            await MainActor.run {
+                isRetrying = false
+            }
         }
     }
 }
 
-struct DataSourceErrorRow: View {
-    let source: DataSource
+struct ErrorRow: View {
+    let title: String
+    let icon: String
     let error: String
     let isRetrying: Bool
     let onRetry: () -> Void
     
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: source.icon)
+            Image(systemName: icon)
                 .font(.system(size: 20))
                 .foregroundStyle(.orange)
                 .frame(width: 32)
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(source.displayName)
+                Text(title)
                     .font(.system(size: 15, weight: .medium))
                 
                 Text(simplifiedError)
@@ -162,7 +155,7 @@ struct DataSourceErrorRow: View {
     }
     
     private var simplifiedError: String {
-        if error.contains("timeout") || error.contains("timed out") {
+        if error.contains("Timeout") || error.contains("timeout") || error.contains("timed out") {
             return "Timeout - serveur lent ou indisponible"
         } else if error.contains("connection") || error.contains("network") {
             return "Problème de connexion réseau"

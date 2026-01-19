@@ -16,9 +16,21 @@ struct TransitStop: Identifiable, Hashable {
     var isLoadingPassages: Bool = false
     var passagesLoaded: Bool = false
     
-    var lines: [String] {
-        // Parse desserte to extract line names
-        desserte.split(separator: ",").compactMap { part in
+    /// Lignes pré-parsées (cached pour performance)
+    private let _lines: [String]
+    
+    var lines: [String] { _lines }
+    
+    init(id: Int, nom: String, commune: String, adresse: String?, coordinate: CLLocationCoordinate2D, desserte: String, pmr: Bool) {
+        self.id = id
+        self.nom = nom
+        self.commune = commune
+        self.adresse = adresse
+        self.coordinate = coordinate
+        self.desserte = desserte
+        self.pmr = pmr
+        // Parse desserte une seule fois à l'init
+        self._lines = desserte.split(separator: ",").compactMap { part in
             let linePart = part.split(separator: ":")
             return linePart.first.map { String($0) }
         }.unique()
@@ -323,12 +335,21 @@ struct MergedStop: Identifiable, Hashable {
     let stops: [TransitStop]
     let directions: [String] // Directions uniques des arrêts fusionnés
     
-    var allLines: [String] {
-        stops.flatMap { $0.lines }.unique()
-    }
+    /// Lignes pré-calculées (cached)
+    let allLines: [String]
     
-    var pmr: Bool {
-        stops.contains { $0.pmr }
+    /// PMR pré-calculé (cached)
+    let pmr: Bool
+    
+    init(id: String, nom: String, coordinate: CLLocationCoordinate2D, stops: [TransitStop], directions: [String]) {
+        self.id = id
+        self.nom = nom
+        self.coordinate = coordinate
+        self.stops = stops
+        self.directions = directions
+        // Pré-calculer à l'init pour éviter recalculs
+        self.allLines = stops.flatMap { $0.lines }.unique()
+        self.pmr = stops.contains { $0.pmr }
     }
     
     func hash(into hasher: inout Hasher) {
@@ -346,74 +367,182 @@ struct StopMergingEngine {
     /// Distance maximale en mètres pour fusionner des arrêts
     static let mergeDistanceMeters: Double = 30.0
     
+    /// Seuil de distance au carré (évite sqrt coûteux)
+    private static let mergeDistanceSquared: Double = mergeDistanceMeters * mergeDistanceMeters
+    
+    /// Taille de cellule de grille en degrés (~50m à Lyon)
+    private static let gridCellSize: Double = 0.0005
+    
+    /// Conversion degrés → mètres approximative à Lyon (latitude ~45.76°)
+    /// 1° latitude ≈ 111,320m, 1° longitude ≈ 78,710m à cette latitude
+    private static let metersPerDegreeLat: Double = 111_320.0
+    private static let metersPerDegreeLon: Double = 78_710.0
+    
     /// Fusionne les arrêts qui sont à moins de 30m ET ont EXACTEMENT les mêmes lignes
+    /// Optimisé O(n) avec spatial hashing + Haversine approximatif + Union-Find par rang
     static func mergeNearbyStops(_ stops: [TransitStop]) -> [MergedStop] {
         guard !stops.isEmpty else { return [] }
         
-        var remainingStops = stops
-        var mergedStops: [MergedStop] = []
+        // 1. Pré-calculer les Sets de lignes pour TOUS les arrêts (évite recalculs)
+        let stopLinesSets: [Int: Set<String>] = Dictionary(
+            uniqueKeysWithValues: stops.map { ($0.id, Set($0.lines)) }
+        )
         
-        while !remainingStops.isEmpty {
-            let baseStop = remainingStops.removeFirst()
-            var group = [baseStop]
+        // 2. Créer une grille spatiale pour O(1) lookup
+        var grid: [GridKey: [TransitStop]] = [:]
+        grid.reserveCapacity(stops.count / 2) // Pré-allouer
+        
+        for stop in stops {
+            let key = GridKey(coordinate: stop.coordinate, cellSize: gridCellSize)
+            grid[key, default: []].append(stop)
+        }
+        
+        // 3. Union-Find avec compression de chemin ET union par rang
+        var parent: [Int: Int] = [:]
+        var rank: [Int: Int] = [:]
+        parent.reserveCapacity(stops.count)
+        rank.reserveCapacity(stops.count)
+        
+        @inline(__always)
+        func find(_ id: Int) -> Int {
+            if parent[id] == nil {
+                parent[id] = id
+                rank[id] = 0
+            }
+            // Compression de chemin itérative (plus rapide que récursif)
+            var root = id
+            while parent[root] != root {
+                root = parent[root]!
+            }
+            // Compresser le chemin
+            var current = id
+            while parent[current] != root {
+                let next = parent[current]!
+                parent[current] = root
+                current = next
+            }
+            return root
+        }
+        
+        @inline(__always)
+        func union(_ a: Int, _ b: Int) {
+            let rootA = find(a)
+            let rootB = find(b)
+            guard rootA != rootB else { return }
+            
+            // Union par rang
+            let rankA = rank[rootA] ?? 0
+            let rankB = rank[rootB] ?? 0
+            if rankA < rankB {
+                parent[rootA] = rootB
+            } else if rankA > rankB {
+                parent[rootB] = rootA
+            } else {
+                parent[rootB] = rootA
+                rank[rootA] = rankA + 1
+            }
+        }
+        
+        // 4. Pour chaque arrêt, vérifier seulement les cellules voisines (9 cellules max)
+        for stop in stops {
+            let baseKey = GridKey(coordinate: stop.coordinate, cellSize: gridCellSize)
+            guard let baseLines = stopLinesSets[stop.id] else { continue }
+            
+            // Vérifier les 9 cellules voisines (incluant la cellule actuelle)
+            for dx in -1...1 {
+                for dy in -1...1 {
+                    let neighborKey = GridKey(x: baseKey.x + dx, y: baseKey.y + dy)
+                    guard let neighbors = grid[neighborKey] else { continue }
+                    
+                    for neighbor in neighbors {
+                        guard stop.id < neighbor.id else { continue } // Évite comparaisons doubles
+                        guard let neighborLines = stopLinesSets[neighbor.id] else { continue }
+                        
+                        // Vérifier d'abord les lignes (moins coûteux que distance)
+                        guard baseLines == neighborLines else { continue }
+                        
+                        // Distance approximative rapide (sans CLLocation ni sqrt)
+                        let distSq = distanceSquaredMeters(from: stop.coordinate, to: neighbor.coordinate)
+                        if distSq <= mergeDistanceSquared {
+                            union(stop.id, neighbor.id)
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 5. Grouper les arrêts par leur root parent
+        var groups: [Int: [TransitStop]] = [:]
+        groups.reserveCapacity(stops.count / 2)
+        for stop in stops {
+            let root = find(stop.id)
+            groups[root, default: []].append(stop)
+        }
+        
+        // 6. Créer les MergedStop en parallèle pour les gros groupes
+        let groupsArray = Array(groups.values)
+        
+        return groupsArray.map { group in
+            // Extraire directions avec Set pour dédupliquer automatiquement
             var directions: Set<String> = []
-            
-            // Lignes du baseStop (triées pour comparaison)
-            let baseLines = Set(baseStop.lines)
-            
-            // Extraire les directions du baseStop depuis desserte
-            extractDirections(from: baseStop.desserte).forEach { directions.insert($0) }
-            
-            // Trouver tous les arrêts proches AVEC LES MÊMES LIGNES
-            var i = 0
-            while i < remainingStops.count {
-                let candidate = remainingStops[i]
-                let distance = distanceInMeters(from: baseStop.coordinate, to: candidate.coordinate)
-                let candidateLines = Set(candidate.lines)
-                
-                // Fusionner seulement si < 30m ET EXACTEMENT les mêmes lignes
-                if distance <= mergeDistanceMeters && baseLines == candidateLines {
-                    group.append(candidate)
-                    extractDirections(from: candidate.desserte).forEach { directions.insert($0) }
-                    remainingStops.remove(at: i)
-                } else {
-                    i += 1
+            directions.reserveCapacity(group.count * 2)
+            for stop in group {
+                for dir in extractDirections(from: stop.desserte) {
+                    directions.insert(dir)
                 }
             }
             
-            // Calculer le centre du groupe
-            let centerLat = group.map { $0.coordinate.latitude }.reduce(0, +) / Double(group.count)
-            let centerLon = group.map { $0.coordinate.longitude }.reduce(0, +) / Double(group.count)
+            // Calculer le centre avec une seule passe
+            var sumLat = 0.0, sumLon = 0.0
+            for stop in group {
+                sumLat += stop.coordinate.latitude
+                sumLon += stop.coordinate.longitude
+            }
+            let count = Double(group.count)
             
-            let merged = MergedStop(
+            return MergedStop(
                 id: group.map { String($0.id) }.sorted().joined(separator: "-"),
-                nom: baseStop.nom,
-                coordinate: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon),
+                nom: group[0].nom,
+                coordinate: CLLocationCoordinate2D(latitude: sumLat / count, longitude: sumLon / count),
                 stops: group,
-                directions: Array(directions).sorted()
+                directions: directions.sorted()
             )
-            
-            mergedStops.append(merged)
         }
-        
-        return mergedStops
     }
     
     /// Extrait les directions depuis le champ desserte (ex: "C20:A,C20E:R" -> ["A", "R"])
+    @inline(__always)
     private static func extractDirections(from desserte: String) -> [String] {
         desserte.split(separator: ",").compactMap { part in
             let components = part.split(separator: ":")
-            if components.count >= 2 {
-                return String(components[1])
-            }
-            return nil
-        }.unique()
+            return components.count >= 2 ? String(components[1]) : nil
+        }
     }
     
-    /// Calcule la distance en mètres entre deux coordonnées
-    private static func distanceInMeters(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) -> Double {
-        let fromLocation = CLLocation(latitude: from.latitude, longitude: from.longitude)
-        let toLocation = CLLocation(latitude: to.latitude, longitude: to.longitude)
-        return fromLocation.distance(from: toLocation)
+    /// Distance au carré en mètres (approximation plate, parfait pour <100m)
+    /// Évite: 1) Création de CLLocation, 2) Calcul sqrt, 3) Trigonométrie complexe
+    @inline(__always)
+    private static func distanceSquaredMeters(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) -> Double {
+        let dLat = (to.latitude - from.latitude) * metersPerDegreeLat
+        let dLon = (to.longitude - from.longitude) * metersPerDegreeLon
+        return dLat * dLat + dLon * dLon
+    }
+    
+    /// Clé de grille pour spatial hashing
+    private struct GridKey: Hashable {
+        let x: Int
+        let y: Int
+        
+        @inline(__always)
+        init(coordinate: CLLocationCoordinate2D, cellSize: Double) {
+            self.x = Int(coordinate.latitude / cellSize)
+            self.y = Int(coordinate.longitude / cellSize)
+        }
+        
+        @inline(__always)
+        init(x: Int, y: Int) {
+            self.x = x
+            self.y = y
+        }
     }
 }

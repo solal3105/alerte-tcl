@@ -33,6 +33,11 @@
 		4FCD05DF2F1704F700390BE1 /* TransitStopService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */; };
 		4FCD05E12F17051200390BE1 /* TransitStop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05E02F17051200390BE1 /* TransitStop.swift */; };
 		4FCD05E32F17056D00390BE1 /* TransitStopViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */; };
+		4FD305012F1E5FC300EAFA92 /* TaskTimeout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD305002F1E5FC300EAFA92 /* TaskTimeout.swift */; };
+		4FD305032F1E60AE00EAFA92 /* DataSourceStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD305022F1E60AE00EAFA92 /* DataSourceStatus.swift */; };
+		4FD305052F1E60C600EAFA92 /* DataSourceErrorsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD305042F1E60C600EAFA92 /* DataSourceErrorsSheet.swift */; };
+		4FD3050B2F1E686900EAFA92 /* WidgetStopStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD3050A2F1E686900EAFA92 /* WidgetStopStorage.swift */; };
+		4FD3050D2F1E68CB00EAFA92 /* WidgetStopSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD3050C2F1E68CB00EAFA92 /* WidgetStopSelectionView.swift */; };
 		AAA00001 /* AlerteTCLApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00011 /* AlerteTCLApp.swift */; };
 		AAA00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00012 /* ContentView.swift */; };
 		AAA00003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AAA00013 /* Assets.xcassets */; };
@@ -125,6 +130,11 @@
 		4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopService.swift; sourceTree = "<group>"; };
 		4FCD05E02F17051200390BE1 /* TransitStop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStop.swift; sourceTree = "<group>"; };
 		4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopViews.swift; sourceTree = "<group>"; };
+		4FD305002F1E5FC300EAFA92 /* TaskTimeout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskTimeout.swift; sourceTree = "<group>"; };
+		4FD305022F1E60AE00EAFA92 /* DataSourceStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataSourceStatus.swift; sourceTree = "<group>"; };
+		4FD305042F1E60C600EAFA92 /* DataSourceErrorsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataSourceErrorsSheet.swift; sourceTree = "<group>"; };
+		4FD3050A2F1E686900EAFA92 /* WidgetStopStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStopStorage.swift; sourceTree = "<group>"; };
+		4FD3050C2F1E68CB00EAFA92 /* WidgetStopSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStopSelectionView.swift; sourceTree = "<group>"; };
 		AAA00010 /* AlerteTCL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AlerteTCL.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAA00011 /* AlerteTCLApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlerteTCLApp.swift; sourceTree = "<group>"; };
 		AAA00012 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -189,6 +199,7 @@
 		4F095CB12F16EA78001D059A /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				4FD305002F1E5FC300EAFA92 /* TaskTimeout.swift */,
 				4F095CB02F16EA78001D059A /* ViewportFilter.swift */,
 			);
 			path = Utilities;
@@ -215,6 +226,7 @@
 		AAA00033 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				4FD305022F1E60AE00EAFA92 /* DataSourceStatus.swift */,
 				4FCD05E02F17051200390BE1 /* TransitStop.swift */,
 				4F38BD272F15B0AC00E05786 /* Travaux.swift */,
 				4F095CAE2F16E92F001D059A /* UnifiedCluster.swift */,
@@ -233,6 +245,7 @@
 		AAA00034 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				4FD3050A2F1E686900EAFA92 /* WidgetStopStorage.swift */,
 				4F39DE022F1BABC200F24E3D /* NetworkConfiguration.swift */,
 				4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */,
 				4F38BD292F15B0BB00E05786 /* TravauxService.swift */,
@@ -264,6 +277,8 @@
 		AAA00036 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				4FD3050C2F1E68CB00EAFA92 /* WidgetStopSelectionView.swift */,
+				4FD305042F1E60C600EAFA92 /* DataSourceErrorsSheet.swift */,
 				4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */,
 				4F38BD2F2F15B17000E05786 /* TravauxMapView.swift */,
 				4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */,
@@ -433,12 +448,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4FD3050B2F1E686900EAFA92 /* WidgetStopStorage.swift in Sources */,
 				AAA00001 /* AlerteTCLApp.swift in Sources */,
 				AAA00002 /* ContentView.swift in Sources */,
 				AAA00004 /* Alert.swift in Sources */,
 				4F38BD302F15B17000E05786 /* TravauxMapView.swift in Sources */,
 				AAA00005 /* TransportLine.swift in Sources */,
 				AAA00006 /* TCLAPIService.swift in Sources */,
+				4FD305032F1E60AE00EAFA92 /* DataSourceStatus.swift in Sources */,
 				AAA00007 /* NotificationService.swift in Sources */,
 				4F9DFFBB2F146D4B00E01BFB /* SettingsView.swift in Sources */,
 				AAA00008 /* SubscriptionService.swift in Sources */,
@@ -468,13 +485,16 @@
 				4FCD05E32F17056D00390BE1 /* TransitStopViews.swift in Sources */,
 				AAA00023 /* StatCard.swift in Sources */,
 				4F38BD242F159CBE00E05786 /* MetroLineService.swift in Sources */,
+				4FD3050D2F1E68CB00EAFA92 /* WidgetStopSelectionView.swift in Sources */,
 				AAA00024 /* Vehicle.swift in Sources */,
 				AAA00026 /* SIRILiteService.swift in Sources */,
 				AAA00028 /* LiveVehiclesViewModel.swift in Sources */,
+				4FD305052F1E60C600EAFA92 /* DataSourceErrorsSheet.swift in Sources */,
 				AAA0002A /* LiveMapView.swift in Sources */,
 				AAA0002C /* AnimatedVehicle.swift in Sources */,
 				AAA0002E /* LocationService.swift in Sources */,
 				AAA00039 /* LocationPermissionView.swift in Sources */,
+				4FD305012F1E5FC300EAFA92 /* TaskTimeout.swift in Sources */,
 				4F38BD222F1591C900E05786 /* BusLineService.swift in Sources */,
 				4F9DFFA32F1457F900E01BFB /* ParkingViewModel.swift in Sources */,
 			);

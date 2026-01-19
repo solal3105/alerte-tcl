@@ -587,12 +587,13 @@ struct LiveMapView: View {
     }
     
     private var hasDataSourceErrors: Bool {
-        viewModel.hasDataSourceErrors || alertViewModel.alertsError != nil
+        viewModel.error != nil || alertViewModel.error != nil
     }
     
     private var totalDataSourceErrors: Int {
-        var count = viewModel.dataSourceErrors.count
-        if alertViewModel.alertsError != nil { count += 1 }
+        var count = 0
+        if viewModel.error != nil { count += 1 }
+        if alertViewModel.error != nil { count += 1 }
         return count
     }
     
