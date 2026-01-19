@@ -19,7 +19,7 @@ struct NewAlertsView: View {
                 }
                 .padding(.bottom, 100)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(.ultraThinMaterial)
             .refreshable {
                 await viewModel.loadAlerts()
             }
@@ -100,8 +100,9 @@ struct NewAlertsView: View {
                         }
                     }
                 }
-                .background(.regularMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 20))
+                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
                 .padding(.horizontal, 16)
             }
         }
@@ -165,8 +166,9 @@ struct NewAlertsView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         .padding(.horizontal, 16)
     }
     
@@ -371,7 +373,7 @@ struct LineDetailSheet: View {
                 }
                 .padding(.vertical, 20)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(.ultraThinMaterial)
             .navigationTitle("Ligne \(line.displayName)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -419,8 +421,9 @@ struct LineDetailSheet: View {
             Spacer()
         }
         .padding(20)
-        .background(.regularMaterial)
+        .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         .padding(.horizontal, 16)
     }
     
@@ -508,8 +511,9 @@ struct LineDetailSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         .padding(.horizontal, 16)
     }
     
@@ -656,7 +660,7 @@ struct SubscriptionOptionsSheet: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 20)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(.ultraThinMaterial)
             .navigationTitle("Options de notification")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -707,8 +711,9 @@ private struct NotificationTypeRow: View {
                     .foregroundStyle(isSelected ? severityColor : .secondary)
             }
             .padding(14)
-            .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         }
         .buttonStyle(.plain)
     }

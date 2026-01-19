@@ -43,6 +43,7 @@ struct ContentView: View {
             .tag(2)
         }
         .tint(.primary)
+        .tabViewStyle(.automatic)
         .onChange(of: selectedTab) { _, newTab in
             loadedTabs.insert(newTab)
         }

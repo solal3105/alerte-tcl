@@ -30,9 +30,10 @@ struct LinesListView: View {
                                 }
                             }
                         }
-                        .padding(12)
-                        .background(Color(.systemGray6))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.horizontal, 12)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
                         .padding(.horizontal, 16)
                         
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -106,7 +107,7 @@ struct LinesListView: View {
                 }
                 .padding(.vertical, 20)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(.ultraThinMaterial)
         }
         .confirmationDialog(
             subscriptionDialogTitle,
@@ -218,9 +219,9 @@ struct LineCard: View {
             .padding(14)
             .frame(height: 100)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 4)
         }
         .buttonStyle(.plain)
     }
@@ -274,9 +275,19 @@ struct FilterChip: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(isSelected ? color.opacity(0.15) : Color(.systemGray6))
+            .background(
+                Group {
+                    if isSelected {
+                        color.opacity(0.2)
+                    } else {
+                        Color(.systemGray6)
+                    }
+                }
+            )
+            .backgroundStyle(.ultraThinMaterial)
             .foregroundStyle(isSelected ? color : .secondary)
             .clipShape(Capsule())
+            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
             .overlay {
                 Capsule()
                     .strokeBorder(isSelected ? color.opacity(0.3) : Color.clear, lineWidth: 1)
@@ -303,9 +314,19 @@ struct ModeFilterPill: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(isSelected ? Color.primary : Color(.systemGray6))
+            .background(
+                Group {
+                    if isSelected {
+                        Color.primary
+                    } else {
+                        Color(.systemGray6)
+                    }
+                }
+            )
+            .backgroundStyle(.ultraThinMaterial)
             .foregroundStyle(isSelected ? Color(.systemBackground) : .primary)
             .clipShape(Capsule())
+            .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
         }
         .buttonStyle(.plain)
     }

@@ -134,7 +134,7 @@ struct ParkingProperties: Codable {
     }
 }
 
-struct Parking: Identifiable, Hashable {
+struct Parking: Identifiable, Hashable, Sendable {
     let id: String
     let gid: Int
     let nom: String

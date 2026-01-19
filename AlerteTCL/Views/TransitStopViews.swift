@@ -178,7 +178,7 @@ struct TransitStopDetailSheet: View {
                 }
                 .padding(20)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(.ultraThinMaterial)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -254,8 +254,9 @@ struct TransitStopDetailSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(24)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
     }
     
     private var passagesSection: some View {
@@ -271,8 +272,9 @@ struct TransitStopDetailSheet: View {
             }
         }
         .padding(20)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
     
     private var loadingState: some View {
@@ -286,8 +288,9 @@ struct TransitStopDetailSheet: View {
         }
         .padding(32)
         .frame(maxWidth: .infinity)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
     
     private var emptyState: some View {
@@ -307,8 +310,9 @@ struct TransitStopDetailSheet: View {
         }
         .padding(32)
         .frame(maxWidth: .infinity)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
 }
 
@@ -383,8 +387,13 @@ struct LinePassagesCard: View {
             }
         }
         .padding(16)
-        .background(bgColor.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(bgColor.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: bgColor.opacity(0.1), radius: 6, x: 0, y: 2)
     }
 }
 
@@ -408,12 +417,9 @@ struct PassageChip: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(.systemGray4), lineWidth: 1)
-        )
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
 }
 
@@ -471,7 +477,7 @@ struct MergedStopDetailSheet: View {
                 }
                 .padding(20)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(.ultraThinMaterial)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -590,8 +596,9 @@ struct MergedStopDetailSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(24)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
     }
     
     private var passagesSection: some View {
@@ -607,8 +614,9 @@ struct MergedStopDetailSheet: View {
             }
         }
         .padding(20)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
     
     private var loadingState: some View {
@@ -622,8 +630,9 @@ struct MergedStopDetailSheet: View {
         }
         .padding(32)
         .frame(maxWidth: .infinity)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
     
     private var emptyState: some View {
@@ -643,8 +652,9 @@ struct MergedStopDetailSheet: View {
         }
         .padding(32)
         .frame(maxWidth: .infinity)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
 }
 

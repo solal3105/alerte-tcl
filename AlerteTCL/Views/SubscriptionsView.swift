@@ -59,7 +59,7 @@ struct SubscriptionsView: View {
                         }
                         .padding(16)
                     }
-                    .background(Color(.systemGroupedBackground))
+                    .background(.ultraThinMaterial)
                 }
             }
         }
@@ -177,7 +177,7 @@ struct SubscriptionCard: View {
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.secondarySystemGroupedBackground))
+                .background(.thinMaterial)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(sortedAlerts) { alert in
@@ -189,11 +189,11 @@ struct SubscriptionCard: View {
                         }
                     }
                 }
-                .background(Color(.secondarySystemGroupedBackground))
+                .background(.thinMaterial)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
         .sheet(isPresented: $showPreferences) {
             NotificationPreferencesSheet(
                 line: line,
@@ -527,12 +527,13 @@ struct CompactAlertCard: View {
             }
         }
         .padding(12)
-        .background(severityColor.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay {
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(severityColor.opacity(0.2), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(severityColor.opacity(0.3), lineWidth: 1)
         }
+        .shadow(color: severityColor.opacity(0.1), radius: 6, x: 0, y: 2)
         .contentShape(Rectangle())
         .onTapGesture {
             withAnimation(.spring(response: 0.3)) {

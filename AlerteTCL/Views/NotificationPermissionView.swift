@@ -14,6 +14,7 @@ struct NotificationPermissionView: View {
                     Circle()
                         .fill(.blue.gradient)
                         .frame(width: 120, height: 120)
+                        .shadow(color: .blue.opacity(0.3), radius: 16, x: 0, y: 8)
                     
                     Image(systemName: "bell.badge.fill")
                         .font(.system(size: 50))
@@ -82,6 +83,7 @@ struct NotificationPermissionView: View {
                 .padding(.horizontal, 32)
                 .padding(.bottom, 32)
             }
+            .background(.ultraThinMaterial)
             .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -97,8 +99,13 @@ struct FeatureRow: View {
         HStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(color.opacity(0.15))
+                    .fill(.ultraThinMaterial)
                     .frame(width: 44, height: 44)
+                    .overlay(
+                        Circle()
+                            .strokeBorder(color.opacity(0.3), lineWidth: 1)
+                    )
+                    .shadow(color: color.opacity(0.15), radius: 4, x: 0, y: 2)
                 
                 Image(systemName: icon)
                     .font(.system(size: 18))

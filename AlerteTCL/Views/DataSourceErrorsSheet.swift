@@ -58,6 +58,8 @@ struct DataSourceErrorsSheet: View {
                     .disabled(isRetrying)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(.ultraThinMaterial)
             .navigationTitle("Erreurs de chargement")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

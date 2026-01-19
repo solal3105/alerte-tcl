@@ -24,8 +24,13 @@ struct StatCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
-        .background(color.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(color.opacity(0.2), lineWidth: 1)
+        }
+        .shadow(color: color.opacity(0.15), radius: 8, x: 0, y: 4)
     }
 }
 

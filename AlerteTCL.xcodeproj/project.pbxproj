@@ -30,6 +30,8 @@
 		4F9DFFC92F146EFE00E01BFB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC82F146EFE00E01BFB /* SwiftUI.framework */; };
 		4F9DFFDA2F146F0100E01BFB /* AlerteTCLWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4F9DFFEB2F147FA400E01BFB /* RecentItemsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */; };
+		4FCB1FC62F1EC6D90031B71E /* SpatialTileCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCB1FC52F1EC6D90031B71E /* SpatialTileCache.swift */; };
+		4FCB1FC82F1EC8B60031B71E /* PerformanceOptimizations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCB1FC72F1EC8B60031B71E /* PerformanceOptimizations.swift */; };
 		4FCD05DF2F1704F700390BE1 /* TransitStopService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */; };
 		4FCD05E12F17051200390BE1 /* TransitStop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05E02F17051200390BE1 /* TransitStop.swift */; };
 		4FCD05E32F17056D00390BE1 /* TransitStopViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */; };
@@ -127,6 +129,8 @@
 		4F9DFFE02F14700200E01BFB /* AlerteTCL.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AlerteTCL.entitlements; sourceTree = "<group>"; };
 		4F9DFFE12F14705300E01BFB /* AlerteTCLWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AlerteTCLWidgetExtension.entitlements; sourceTree = "<group>"; };
 		4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentItemsService.swift; sourceTree = "<group>"; };
+		4FCB1FC52F1EC6D90031B71E /* SpatialTileCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpatialTileCache.swift; sourceTree = "<group>"; };
+		4FCB1FC72F1EC8B60031B71E /* PerformanceOptimizations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceOptimizations.swift; sourceTree = "<group>"; };
 		4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopService.swift; sourceTree = "<group>"; };
 		4FCD05E02F17051200390BE1 /* TransitStop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStop.swift; sourceTree = "<group>"; };
 		4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopViews.swift; sourceTree = "<group>"; };
@@ -199,6 +203,8 @@
 		4F095CB12F16EA78001D059A /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				4FCB1FC72F1EC8B60031B71E /* PerformanceOptimizations.swift */,
+				4FCB1FC52F1EC6D90031B71E /* SpatialTileCache.swift */,
 				4FD305002F1E5FC300EAFA92 /* TaskTimeout.swift */,
 				4F095CB02F16EA78001D059A /* ViewportFilter.swift */,
 			);
@@ -460,6 +466,7 @@
 				4F9DFFBB2F146D4B00E01BFB /* SettingsView.swift in Sources */,
 				AAA00008 /* SubscriptionService.swift in Sources */,
 				4F9DFFEB2F147FA400E01BFB /* RecentItemsService.swift in Sources */,
+				4FCB1FC82F1EC8B60031B71E /* PerformanceOptimizations.swift in Sources */,
 				4F095CB22F16EA78001D059A /* ViewportFilter.swift in Sources */,
 				4F38BD202F1591C000E05786 /* BusLine.swift in Sources */,
 				4F38BD282F15B0AC00E05786 /* Travaux.swift in Sources */,
@@ -475,6 +482,7 @@
 				AAA0000A /* AlertsView.swift in Sources */,
 				AAA0000B /* LinesListView.swift in Sources */,
 				4F9DFFA72F14667B00E01BFB /* Stop.swift in Sources */,
+				4FCB1FC62F1EC6D90031B71E /* SpatialTileCache.swift in Sources */,
 				AAA0000C /* SubscriptionsView.swift in Sources */,
 				4F39DE032F1BABC200F24E3D /* NetworkConfiguration.swift in Sources */,
 				AAA0000D /* LineRow.swift in Sources */,

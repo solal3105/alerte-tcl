@@ -15,12 +15,16 @@ final class ParkingViewModel: ObservableObject {
     @Published var currentZoomLevel: Double = 0.15
     @Published var visibleRegion: MKCoordinateRegion?
     
-    // État de chargement progressif (non-bloquant)
+    // État de chargement spatial (non-bloquant)
     @Published var loadingMessage: String = ""
     @Published var loadingProgress: Double = 0.0
     @Published var isLoadingInBackground = false
     @Published var loadedCount: Int = 0
     @Published var totalToLoad: Int = 0
+    
+    // Debounce pour éviter trop de requêtes lors du pan/zoom
+    private var regionUpdateTask: Task<Void, Never>?
+    private let regionUpdateDebounce: UInt64 = 300_000_000 // 300ms
     
     @Published var selectedParkingType: ParkingType = .car {
         didSet {
@@ -184,8 +188,32 @@ final class ParkingViewModel: ObservableObject {
     }
     
     func updateVisibleRegion(_ region: MKCoordinateRegion) {
+        let previousRegion = visibleRegion
         visibleRegion = region
         updateClustersIfNeeded()
+        
+        // Pour vélos/2-roues: charger les données spatiales avec debounce
+        if selectedParkingType == .bike || selectedParkingType == .motorized2Wheel {
+            // Vérifier si la région a significativement changé
+            let significantChange = previousRegion == nil || 
+                abs(region.center.latitude - (previousRegion?.center.latitude ?? 0)) > 0.005 ||
+                abs(region.center.longitude - (previousRegion?.center.longitude ?? 0)) > 0.005
+            
+            if significantChange {
+                scheduleRegionLoad(region)
+            }
+        }
+    }
+    
+    /// Planifie un chargement de données avec debounce
+    private func scheduleRegionLoad(_ region: MKCoordinateRegion) {
+        regionUpdateTask?.cancel()
+        regionUpdateTask = Task { [weak self] in
+            // Attendre le debounce
+            try? await Task.sleep(nanoseconds: self?.regionUpdateDebounce ?? 300_000_000)
+            guard !Task.isCancelled else { return }
+            await self?.loadParkingsInRegion(region)
+        }
     }
     
     func loadParkings() async {
@@ -228,73 +256,45 @@ final class ParkingViewModel: ObservableObject {
         }
     }
     
-    /// Chargement progressif pour vélos et 2-roues (affichage au fur et à mesure)
-    func loadParkingsProgressively() async {
-        // Vérifier si déjà en cache
-        if let cached = parkingsCache[selectedParkingType], !cached.isEmpty {
-            parkings = cached
-            updateClustersIfNeeded(force: true)
-            print("✨ ParkingViewModel: Utilisation du cache pour \(selectedParkingType.rawValue)")
-            return
-        }
-        
+    /// Chargement spatial pour vélos et 2-roues (charge uniquement la zone visible)
+    func loadParkingsInRegion(_ region: MKCoordinateRegion) async {
         guard !isLoadingInBackground else { return }
         
         isLoadingInBackground = true
-        defer {
-            isLoadingInBackground = false
-            loadingProgress = 0.0
-        }
-        
-        loadingMessage = "Chargement des \(selectedParkingType == .bike ? "parkings vélos" : "parkings 2-roues")..."
-        loadingProgress = 0.0
-        loadedCount = 0
+        let typeLabel = selectedParkingType == .bike ? "vélos" : "2-roues"
+        loadingMessage = "Chargement \(typeLabel)..."
+        loadingProgress = 0.3
         error = nil
         
-        print("🔄 ParkingViewModel: Début du chargement progressif (\(selectedParkingType.rawValue))...")
+        defer {
+            isLoadingInBackground = false
+        }
         
         do {
-            // Charger les données
-            loadingProgress = 0.2
-            loadingMessage = "Récupération des données..."
+            let fetchedParkings = try await ParkingService.shared.fetchParkingsInRegion(
+                type: selectedParkingType,
+                region: region
+            )
             
-            let fetchedParkings = try await ParkingService.shared.fetchParkings(type: selectedParkingType)
-            totalToLoad = fetchedParkings.count
+            // Fusionner avec les parkings existants (garder les nouveaux + ceux déjà chargés)
+            var mergedParkings = parkings
+            let existingIds = Set(parkings.map { $0.id })
             
-            loadingProgress = 0.5
-            loadingMessage = "Traitement de \(fetchedParkings.count) emplacements..."
-            
-            // Afficher progressivement par lots de 100
-            let batchSize = 100
-            var loadedParkings: [Parking] = []
-            
-            for (index, parking) in fetchedParkings.enumerated() {
-                loadedParkings.append(parking)
-                loadedCount = index + 1
-                
-                // Mettre à jour l'affichage tous les batchSize parkings
-                if loadedParkings.count % batchSize == 0 || index == fetchedParkings.count - 1 {
-                    parkings = loadedParkings.sorted { $0.nom < $1.nom }
-                    loadingProgress = 0.5 + (0.4 * Double(index + 1) / Double(fetchedParkings.count))
-                    loadingMessage = "\(loadedCount)/\(totalToLoad) chargés"
-                    
-                    // Mise à jour des clusters à chaque lot
-                    updateClustersIfNeeded(force: true)
-                    
-                    // Petit délai pour permettre le rendu UI
-                    try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
+            for parking in fetchedParkings {
+                if !existingIds.contains(parking.id) {
+                    mergedParkings.append(parking)
                 }
             }
             
-            // Finalisation
-            loadingProgress = 1.0
-            loadingMessage = "Terminé !"
+            parkings = mergedParkings.sorted { $0.nom < $1.nom }
+            loadedCount = parkings.count
+            totalToLoad = loadedCount
             lastUpdate = Date()
             
-            // Mettre en cache
-            parkingsCache[selectedParkingType] = parkings
+            loadingProgress = 1.0
+            loadingMessage = "\(fetchedParkings.count) \(typeLabel) chargés"
             
-            // Marquer comme chargé
+            // Marquer comme chargé (au moins partiellement)
             switch selectedParkingType {
             case .bike:
                 bikeParkingsLoaded = true
@@ -304,17 +304,28 @@ final class ParkingViewModel: ObservableObject {
                 break
             }
             
-            print("✅ ParkingViewModel: \(parkings.count) parkings \(selectedParkingType.rawValue) chargés progressivement")
+            updateClustersIfNeeded(force: true)
+            
+            print("✅ ParkingViewModel: \(fetchedParkings.count) parkings \(selectedParkingType.rawValue) chargés (total: \(parkings.count))")
             
             // Effacer le message après un court délai
-            try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5s
+            try? await Task.sleep(nanoseconds: 800_000_000) // 0.8s
             loadingMessage = ""
+            loadingProgress = 0.0
             
         } catch {
-            print("⚠️ Erreur chargement progressif (non-bloquante): \(error.localizedDescription)")
+            print("⚠️ Erreur chargement spatial: \(error.localizedDescription)")
             self.error = error.localizedDescription
             loadingMessage = ""
+            loadingProgress = 0.0
         }
+    }
+    
+    /// Chargement initial pour vélos/2-roues basé sur la région courante
+    func loadParkingsProgressively() async {
+        // Utiliser la région visible ou la région par défaut
+        let region = visibleRegion ?? mapRegion
+        await loadParkingsInRegion(region)
     }
     
     func startAutoRefresh() {
@@ -373,13 +384,12 @@ final class ParkingViewModel: ObservableObject {
         // Charger les données en arrière-plan sans bloquer l'affichage
         Task(priority: .userInitiated) { [weak self] in
             guard let self = self else { return }
-            // Utiliser le chargement progressif pour vélos et 2-roues
-            if self.selectedParkingType == .bike || self.selectedParkingType == .motorized2Wheel {
-                await self.loadParkingsProgressively()
-            } else {
+            // Pour voitures: charger tout (peu de données, temps réel)
+            // Pour vélos/2-roues: attendre la première mise à jour de région
+            if self.selectedParkingType == .car {
                 await self.loadParkings()
             }
-            // Le refresh auto ne démarre que pour les parkings voiture
+            // Note: vélos/2-roues seront chargés automatiquement via updateVisibleRegion
             self.startAutoRefresh()
         }
     }
@@ -387,5 +397,7 @@ final class ParkingViewModel: ObservableObject {
     func onDisappear() {
         isViewActive = false
         stopAutoRefresh()
+        regionUpdateTask?.cancel()
+        regionUpdateTask = nil
     }
 }

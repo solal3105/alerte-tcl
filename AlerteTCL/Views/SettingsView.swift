@@ -5,7 +5,7 @@ struct SettingsView: View {
     @State private var showSavedStops = false
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 Section {
                     Button {
@@ -92,6 +92,8 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Paramètres")
+            .scrollContentBackground(.hidden)
+            .background(.ultraThinMaterial)
             .sheet(isPresented: $showWidgetHelp) {
                 WidgetHelpView()
             }

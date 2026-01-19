@@ -13,6 +13,7 @@ struct LocationPermissionView: View {
                     Circle()
                         .fill(.blue.gradient)
                         .frame(width: 120, height: 120)
+                        .shadow(color: .blue.opacity(0.3), radius: 16, x: 0, y: 8)
                     
                     Image(systemName: "location.fill")
                         .font(.system(size: 50))
@@ -78,6 +79,7 @@ struct LocationPermissionView: View {
                 .padding(.horizontal, 32)
                 .padding(.bottom, 32)
             }
+            .background(.ultraThinMaterial)
             .navigationBarTitleDisplayMode(.inline)
         }
     }

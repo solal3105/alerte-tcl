@@ -286,9 +286,9 @@ struct LiveMapView: View {
                 .multilineTextAlignment(.center)
         }
         .padding(24)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
-        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 3)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 6)
         .padding(20)
     }
     
@@ -394,9 +394,9 @@ struct LiveMapView: View {
                 alertLinesPreview
             }
             .padding(14)
-            .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 2)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 4)
         }
         .buttonStyle(.plain)
     }
@@ -527,11 +527,12 @@ struct LiveMapView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(.ultraThinMaterial)
+                    .background(.thinMaterial)
                     .clipShape(Capsule())
+                    .shadow(color: .orange.opacity(0.2), radius: 4, x: 0, y: 2)
                     .overlay(
                         Capsule()
-                            .strokeBorder(Color.orange.opacity(0.5), lineWidth: 1)
+                            .strokeBorder(Color.orange.opacity(0.4), lineWidth: 1)
                     )
                 }
                 .buttonStyle(.plain)
@@ -575,9 +576,9 @@ struct LiveMapView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
-                .background(.regularMaterial)
+                .background(.ultraThinMaterial)
                 .clipShape(RoundedRectangle(cornerRadius: 24))
-                .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 3)
+                .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
             }
             .buttonStyle(.plain)
             .disabled(viewModel.isLoading)

@@ -80,7 +80,7 @@ struct AddToWidgetSheet: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity)
-        .background(.regularMaterial)
+        .background(.ultraThinMaterial)
     }
     
     private var addButton: some View {
@@ -96,7 +96,8 @@ struct AddToWidgetSheet: View {
             .clipShape(RoundedRectangle(cornerRadius: 16))
         }
         .padding(20)
-        .background(.ultraThinMaterial)
+        .background(.thinMaterial)
+        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: -4)
     }
     
     private var confirmationOverlay: some View {
@@ -122,8 +123,9 @@ struct AddToWidgetSheet: View {
                 }
             }
             .padding(24)
-            .background(.regularMaterial)
+            .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 24))
+            .shadow(color: .black.opacity(0.2), radius: 20, x: 0, y: 10)
             .padding(32)
         }
         .transition(.opacity)
@@ -178,7 +180,9 @@ struct LineDirectionRow: View {
                 }
             }
             .padding(16)
-            .background(RoundedRectangle(cornerRadius: 14).fill(isSelected ? bgColor.opacity(0.1) : Color(.secondarySystemGroupedBackground)))
+            .background(RoundedRectangle(cornerRadius: 14).fill(isSelected ? bgColor.opacity(0.15) : .clear))
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(isSelected ? bgColor : Color.clear, lineWidth: 2))
         }
         .buttonStyle(.plain)
@@ -210,7 +214,7 @@ struct WidgetHelpView: View {
                 }
                 .padding(.vertical, 20)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(.ultraThinMaterial)
             .navigationTitle("Configurer le widget")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -283,8 +287,9 @@ struct StepCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
     }
 }
 

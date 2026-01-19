@@ -102,9 +102,9 @@ struct ParkingMapView: View {
             }
         }
         .padding(4)
-        .background(.regularMaterial)
+        .background(.ultraThinMaterial)
         .clipShape(Capsule())
-        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 2)
+        .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 4)
         .padding(.horizontal, 16)
         .padding(.top, 60)
     }
@@ -187,9 +187,9 @@ struct ParkingMapView: View {
                         .buttonStyle(.borderedProminent)
                     }
                     .padding(24)
-                    .background(.regularMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                    .shadow(radius: 10)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 24))
+                    .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 6)
                     .padding(20)
                 }
             }
@@ -230,9 +230,9 @@ struct ParkingMapView: View {
             .buttonStyle(.plain)
         }
         .padding(24)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
-        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 3)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 6)
         .padding(20)
     }
     
@@ -379,9 +379,9 @@ struct ParkingMapView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 2)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
     }
@@ -412,9 +412,9 @@ struct ParkingMapView: View {
             Spacer()
         }
         .padding(16)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 4)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 4)
         .padding(.horizontal, 16)
         .padding(.top, 60)
     }
@@ -457,9 +457,9 @@ struct ParkingMapView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(.regularMaterial)
+            .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 3)
+            .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
         }
         .buttonStyle(.plain)
         .disabled(viewModel.isLoading)
@@ -637,7 +637,7 @@ struct ParkingDetailSheet: View {
                 }
                 .padding(20)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(.ultraThinMaterial)
             .navigationTitle(parking.nom)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -697,8 +697,9 @@ struct ParkingDetailSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(24)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
     }
     
     private var mainInfoCard: some View {
@@ -718,8 +719,9 @@ struct ParkingDetailSheet: View {
             }
         }
         .padding(20)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
     
     private var hasTarifs: Bool {
@@ -796,8 +798,9 @@ struct ParkingDetailSheet: View {
             }
         }
         .padding(20)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
     
     private var hasServices: Bool {
@@ -835,8 +838,9 @@ struct ParkingDetailSheet: View {
             }
         }
         .padding(20)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
     
     private var navigationButton: some View {
@@ -893,8 +897,9 @@ struct ParkingDetailSheet: View {
             }
         }
         .padding(20)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
     
     private var availabilityColor: Color {
