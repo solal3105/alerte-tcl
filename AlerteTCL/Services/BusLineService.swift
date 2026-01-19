@@ -53,10 +53,9 @@ actor BusLineService {
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.sharedTimeout)
         
         // Ajouter l'authentification Basic Auth
-        if let username = Bundle.main.object(forInfoDictionaryKey: "GrandLyonUsername") as? String,
-           let password = Bundle.main.object(forInfoDictionaryKey: "GrandLyonPassword") as? String {
-            let credentials = "\(username):\(password)"
-            if let credentialsData = credentials.data(using: .utf8) {
+        if let creds = SecretsManager.grandLyonCredentials {
+            let credString = "\(creds.username):\(creds.password)"
+            if let credentialsData = credString.data(using: .utf8) {
                 let base64Credentials = credentialsData.base64EncodedString()
                 request.setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
             }

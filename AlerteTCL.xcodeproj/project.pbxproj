@@ -32,6 +32,7 @@
 		4F9DFFEB2F147FA400E01BFB /* RecentItemsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */; };
 		4FCB1FC62F1EC6D90031B71E /* SpatialTileCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCB1FC52F1EC6D90031B71E /* SpatialTileCache.swift */; };
 		4FCB1FC82F1EC8B60031B71E /* PerformanceOptimizations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCB1FC72F1EC8B60031B71E /* PerformanceOptimizations.swift */; };
+		4FCB1FCA2F1ECA340031B71E /* SecretsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCB1FC92F1ECA340031B71E /* SecretsManager.swift */; };
 		4FCD05DF2F1704F700390BE1 /* TransitStopService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */; };
 		4FCD05E12F17051200390BE1 /* TransitStop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05E02F17051200390BE1 /* TransitStop.swift */; };
 		4FCD05E32F17056D00390BE1 /* TransitStopViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */; };
@@ -131,6 +132,7 @@
 		4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentItemsService.swift; sourceTree = "<group>"; };
 		4FCB1FC52F1EC6D90031B71E /* SpatialTileCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpatialTileCache.swift; sourceTree = "<group>"; };
 		4FCB1FC72F1EC8B60031B71E /* PerformanceOptimizations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceOptimizations.swift; sourceTree = "<group>"; };
+		4FCB1FC92F1ECA340031B71E /* SecretsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretsManager.swift; sourceTree = "<group>"; };
 		4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopService.swift; sourceTree = "<group>"; };
 		4FCD05E02F17051200390BE1 /* TransitStop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStop.swift; sourceTree = "<group>"; };
 		4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopViews.swift; sourceTree = "<group>"; };
@@ -251,6 +253,7 @@
 		AAA00034 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				4FCB1FC92F1ECA340031B71E /* SecretsManager.swift */,
 				4FD3050A2F1E686900EAFA92 /* WidgetStopStorage.swift */,
 				4F39DE022F1BABC200F24E3D /* NetworkConfiguration.swift */,
 				4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */,
@@ -457,6 +460,7 @@
 				4FD3050B2F1E686900EAFA92 /* WidgetStopStorage.swift in Sources */,
 				AAA00001 /* AlerteTCLApp.swift in Sources */,
 				AAA00002 /* ContentView.swift in Sources */,
+				4FCB1FCA2F1ECA340031B71E /* SecretsManager.swift in Sources */,
 				AAA00004 /* Alert.swift in Sources */,
 				4F38BD302F15B17000E05786 /* TravauxMapView.swift in Sources */,
 				AAA00005 /* TransportLine.swift in Sources */,

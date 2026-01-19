@@ -6,14 +6,13 @@ actor SIRILiteService {
     private let baseURL = "https://data.grandlyon.com"
     private let vehicleMonitoringEndpoint = "/siri-lite/2.0/vehicle-monitoring.json"
     
-    private var username: String {
-        ProcessInfo.processInfo.environment["GRANDLYON_USERNAME"] ?? 
-        Bundle.main.object(forInfoDictionaryKey: "GrandLyonUsername") as? String ?? ""
-    }
-    
-    private var password: String {
-        ProcessInfo.processInfo.environment["GRANDLYON_PASSWORD"] ?? 
-        Bundle.main.object(forInfoDictionaryKey: "GrandLyonPassword") as? String ?? ""
+    private var credentials: (username: String, password: String)? {
+        // Priorité: variables d'environnement (debug) > Keychain (production)
+        if let envUser = ProcessInfo.processInfo.environment["GRANDLYON_USERNAME"],
+           let envPass = ProcessInfo.processInfo.environment["GRANDLYON_PASSWORD"] {
+            return (envUser, envPass)
+        }
+        return SecretsManager.grandLyonCredentials
     }
     
     private init() {}
@@ -27,9 +26,9 @@ actor SIRILiteService {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         print("🚀 SIRI: Début requête (timeout: \(NetworkConfiguration.fastTimeout)s)")
         
-        if !username.isEmpty && !password.isEmpty {
-            let credentials = "\(username):\(password)"
-            if let credentialsData = credentials.data(using: .utf8) {
+        if let creds = credentials {
+            let credString = "\(creds.username):\(creds.password)"
+            if let credentialsData = credString.data(using: .utf8) {
                 let base64Credentials = credentialsData.base64EncodedString()
                 request.setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
             }

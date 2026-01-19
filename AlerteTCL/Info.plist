@@ -16,9 +16,9 @@
 		</dict>
 	</array>
 	<key>GrandLyonPassword</key>
-	<string>Gsol@lis3105</string>
+	<string></string>
 	<key>GrandLyonUsername</key>
-	<string>solal.gendrin@gmail.com</string>
+	<string></string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

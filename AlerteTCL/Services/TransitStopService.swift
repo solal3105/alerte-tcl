@@ -12,12 +12,8 @@ actor TransitStopService {
     private var lastStopsFetch: Date?
     private let stopsCacheExpiration: TimeInterval = 300 // 5 minutes
     
-    private var username: String {
-        Bundle.main.object(forInfoDictionaryKey: "GrandLyonUsername") as? String ?? ""
-    }
-    
-    private var password: String {
-        Bundle.main.object(forInfoDictionaryKey: "GrandLyonPassword") as? String ?? ""
+    private var credentials: (username: String, password: String)? {
+        SecretsManager.grandLyonCredentials
     }
     
     private init() {}
@@ -55,9 +51,9 @@ actor TransitStopService {
         print("🚀 Arrêts: Début requête (timeout: \(NetworkConfiguration.heavyTimeout)s)")
         
         // Add Basic Auth
-        if !username.isEmpty && !password.isEmpty {
-            let credentials = "\(username):\(password)"
-            if let credentialsData = credentials.data(using: .utf8) {
+        if let creds = credentials {
+            let credString = "\(creds.username):\(creds.password)"
+            if let credentialsData = credString.data(using: .utf8) {
                 let base64Credentials = credentialsData.base64EncodedString()
                 request.setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
             }
@@ -123,9 +119,9 @@ actor TransitStopService {
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.heavyTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         
-        if !username.isEmpty && !password.isEmpty {
-            let credentials = "\(username):\(password)"
-            if let credentialsData = credentials.data(using: .utf8) {
+        if let creds = credentials {
+            let credString = "\(creds.username):\(creds.password)"
+            if let credentialsData = credString.data(using: .utf8) {
                 let base64Credentials = credentialsData.base64EncodedString()
                 request.setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
             }

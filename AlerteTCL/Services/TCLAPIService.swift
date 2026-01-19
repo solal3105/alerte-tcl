@@ -5,12 +5,8 @@ actor TCLAPIService {
     
     private let alertsEndpoint = "https://download.data.grandlyon.com/ws/rdata/tcl_sytral.tclalertetrafic_2/all.json"
     
-    private var username: String {
-        Bundle.main.object(forInfoDictionaryKey: "GrandLyonUsername") as? String ?? ""
-    }
-    
-    private var password: String {
-        Bundle.main.object(forInfoDictionaryKey: "GrandLyonPassword") as? String ?? ""
+    private var credentials: (username: String, password: String)? {
+        SecretsManager.grandLyonCredentials
     }
     
     private init() {}
@@ -29,15 +25,12 @@ actor TCLAPIService {
         print("🚀 Alertes: Début requête (timeout: \(NetworkConfiguration.fastTimeout)s)")
         
         // Ajouter l'authentification Basic Auth
-        if !username.isEmpty && !password.isEmpty {
-            let credentials = "\(username):\(password)"
-            if let credentialsData = credentials.data(using: .utf8) {
+        if let creds = credentials {
+            let credString = "\(creds.username):\(creds.password)"
+            if let credentialsData = credString.data(using: .utf8) {
                 let base64Credentials = credentialsData.base64EncodedString()
                 request.setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
-                print("🔑 TCLAPIService: Authentification configurée")
             }
-        } else {
-            print("⚠️ TCLAPIService: Pas d'identifiants configurés")
         }
         
         let (data, response) = try await NetworkConfiguration.fast.data(for: request)
