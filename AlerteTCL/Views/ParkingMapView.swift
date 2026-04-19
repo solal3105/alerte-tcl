@@ -128,7 +128,9 @@ struct ParkingMapView: View {
                     .tag(parking.id)
                 }
                 
-                UserAnnotation()
+                if locationService.currentLocation != nil {
+                    UserAnnotation()
+                }
             }
             .mapStyle(.standard(pointsOfInterest: .excludingAll))
             .mapControlVisibility(.hidden)

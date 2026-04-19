@@ -101,7 +101,9 @@ struct TravauxMapView: View {
                     .tag(travaux.id)
                 }
                 
-                UserAnnotation()
+                if locationService.currentLocation != nil {
+                    UserAnnotation()
+                }
             }
             .mapStyle(.standard(pointsOfInterest: .excludingAll))
             .mapControlVisibility(.visible)

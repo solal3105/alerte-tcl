@@ -128,7 +128,7 @@ final class AlertViewModel: ObservableObject {
     
     var alertCountByLine: [String: Int] {
         var counts: [String: Int] = [:]
-        for alert in alerts {
+        for alert in alerts where alert.severity != .info {
             counts[alert.ligneCom, default: 0] += 1
             if !alert.ligneCli.isEmpty && alert.ligneCli != alert.ligneCom {
                 counts[alert.ligneCli, default: 0] += 1
@@ -192,6 +192,10 @@ final class AlertViewModel: ObservableObject {
     
     private func extractLinesFromAlerts(_ alerts: [TCLAlert]) {
         var existingIds = Set(allLines.map { $0.id })
+        var existingCliKeys = Set(allLines.compactMap { line -> String? in
+            guard !line.ligneCli.isEmpty else { return nil }
+            return "\(line.mode.rawValue)-\(line.ligneCli)"
+        })
         
         for alert in alerts {
             let line = TransportLine(
@@ -200,9 +204,15 @@ final class AlertViewModel: ObservableObject {
                 mode: alert.mode
             )
             
-            if !existingIds.contains(line.id) {
+            let cliKey = line.ligneCli.isEmpty ? nil : "\(line.mode.rawValue)-\(line.ligneCli)"
+            let alreadyExists = existingIds.contains(line.id) || (cliKey != nil && existingCliKeys.contains(cliKey!))
+            
+            if !alreadyExists {
                 allLines.append(line)
                 existingIds.insert(line.id)
+                if let cliKey = cliKey {
+                    existingCliKeys.insert(cliKey)
+                }
             }
         }
         
