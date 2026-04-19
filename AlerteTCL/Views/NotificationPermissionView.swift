@@ -2,12 +2,10 @@ import SwiftUI
 
 struct NotificationPermissionView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var isRequesting = false
     
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 32) {
-                Spacer()
+        VStack(spacing: 32) {
+            Spacer()
                 
                 // Icon
                 ZStack {
@@ -49,43 +47,27 @@ struct NotificationPermissionView: View {
                 // Action buttons
                 VStack(spacing: 12) {
                     Button {
-                        isRequesting = true
                         Task {
                             _ = await NotificationService.shared.requestPermission()
-                            try? await Task.sleep(nanoseconds: 500_000_000)
                             dismiss()
                         }
                     } label: {
-                        HStack {
-                            if isRequesting {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Text("Activer les notifications")
-                                    .fontWeight(.semibold)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(.blue.gradient)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        Text("Activer les notifications")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
                     }
-                    .disabled(isRequesting)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                     
-                    Button {
+                    Button("Plus tard", role: .cancel) {
                         dismiss()
-                    } label: {
-                        Text("Plus tard")
-                            .foregroundStyle(.secondary)
                     }
+                    .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 32)
                 .padding(.bottom, 32)
-            }
-            .background(.ultraThinMaterial)
-            .navigationBarTitleDisplayMode(.inline)
         }
+        .presentationDragIndicator(.visible)
     }
 }
 

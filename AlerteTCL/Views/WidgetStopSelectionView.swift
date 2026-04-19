@@ -19,6 +19,7 @@ struct AddToWidgetSheet: View {
     @ObservedObject private var widgetStorage = WidgetStopStorage.shared
     @State private var selectedLineDirection: (line: String, direction: String)?
     @State private var showConfirmation = false
+    @State private var feedbackTrigger = false
     
     var body: some View {
         NavigationStack {
@@ -58,6 +59,7 @@ struct AddToWidgetSheet: View {
             .overlay {
                 if showConfirmation { confirmationOverlay }
             }
+            .sensoryFeedback(.success, trigger: feedbackTrigger)
         }
     }
     
@@ -65,22 +67,21 @@ struct AddToWidgetSheet: View {
         VStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(LinearGradient(colors: [.blue, .purple], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(.blue.gradient)
                     .frame(width: 70, height: 70)
                 Image(systemName: "plus.rectangle.on.rectangle")
                     .font(.system(size: 28, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
             }
             
             VStack(spacing: 8) {
                 Text(stopName).font(.title3).fontWeight(.bold)
                 Text("Choisissez la ligne et la direction à afficher dans votre widget")
-                    .font(.subheadline).foregroundColor(.secondary).multilineTextAlignment(.center)
+                    .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
         }
         .padding(24)
         .frame(maxWidth: .infinity)
-        .background(.ultraThinMaterial)
     }
     
     private var addButton: some View {
@@ -89,15 +90,11 @@ struct AddToWidgetSheet: View {
                 Image(systemName: "plus.circle.fill").font(.system(size: 20))
                 Text("Ajouter au widget").fontWeight(.semibold)
             }
-            .foregroundColor(.white)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(LinearGradient(colors: [.blue, .purple], startPoint: .leading, endPoint: .trailing))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
         .padding(20)
-        .background(.thinMaterial)
-        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: -4)
     }
     
     private var confirmationOverlay: some View {
@@ -117,13 +114,13 @@ struct AddToWidgetSheet: View {
                 }
                 
                 Button { dismiss() } label: {
-                    Text("Compris").fontWeight(.semibold).foregroundColor(.white)
-                        .frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .background(.blue).clipShape(RoundedRectangle(cornerRadius: 12))
+                    Text("Compris").fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.borderedProminent)
             }
             .padding(24)
-            .background(.ultraThinMaterial)
+            .background(Color(.systemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 24))
             .shadow(color: .black.opacity(0.2), radius: 20, x: 0, y: 10)
             .padding(32)
@@ -136,7 +133,7 @@ struct AddToWidgetSheet: View {
         let selection = WidgetStopSelection(stopId: stopId, stopName: stopName, line: selected.line, direction: selected.direction)
         widgetStorage.addSelection(selection)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { showConfirmation = true }
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        feedbackTrigger.toggle()
     }
 }
 
@@ -162,7 +159,7 @@ struct LineDirectionRow: View {
                     .background(bgColor).clipShape(Capsule())
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Direction").font(.caption2).foregroundColor(.secondary)
+                    Text("Direction").font(.caption2).foregroundStyle(.secondary)
                     Text(direction).font(.subheadline).fontWeight(.medium).lineLimit(1)
                 }
                 
@@ -170,18 +167,17 @@ struct LineDirectionRow: View {
                 
                 if isAlreadySaved {
                     HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
-                        Text("Ajouté").font(.caption).foregroundColor(.green)
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                        Text("Ajouté").font(.caption).foregroundStyle(.green)
                     }
                 } else if isSelected {
-                    Image(systemName: "checkmark.circle.fill").font(.system(size: 24)).foregroundColor(.blue)
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 24)).foregroundStyle(.blue)
                 } else {
                     Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2).frame(width: 24, height: 24)
                 }
             }
             .padding(16)
-            .background(RoundedRectangle(cornerRadius: 14).fill(isSelected ? bgColor.opacity(0.15) : .clear))
-            .background(.ultraThinMaterial)
+            .background(RoundedRectangle(cornerRadius: 14).fill(isSelected ? bgColor.opacity(0.15) : Color(.systemBackground)))
             .clipShape(RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(isSelected ? bgColor : Color.clear, lineWidth: 2))
         }
@@ -214,7 +210,7 @@ struct WidgetHelpView: View {
                 }
                 .padding(.vertical, 20)
             }
-            .background(.ultraThinMaterial)
+            .background(.background)
             .navigationTitle("Configurer le widget")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

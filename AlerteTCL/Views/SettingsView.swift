@@ -14,7 +14,7 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "questionmark.circle.fill")
                                 .font(.system(size: 20))
-                                .foregroundColor(.blue)
+                                .foregroundStyle(.blue)
                                 .frame(width: 32)
                             
                             VStack(alignment: .leading, spacing: 2) {
@@ -23,14 +23,14 @@ struct SettingsView: View {
                                     .fontWeight(.medium)
                                 Text("Guide étape par étape")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                             }
                             
                             Spacer()
                             
                             Image(systemName: "chevron.right")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
                     .buttonStyle(.plain)
@@ -41,7 +41,7 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "tram.fill")
                                 .font(.system(size: 20))
-                                .foregroundColor(.purple)
+                                .foregroundStyle(.purple)
                                 .frame(width: 32)
                             
                             VStack(alignment: .leading, spacing: 2) {
@@ -50,14 +50,14 @@ struct SettingsView: View {
                                     .fontWeight(.medium)
                                 Text("Gérer les arrêts sauvegardés")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                             }
                             
                             Spacer()
                             
                             Image(systemName: "chevron.right")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
                     .buttonStyle(.plain)
@@ -73,7 +73,7 @@ struct SettingsView: View {
                         Text("Version")
                         Spacer()
                         Text("1.0")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     
                     Link(destination: URL(string: "https://data.grandlyon.com")!) {
@@ -81,10 +81,10 @@ struct SettingsView: View {
                             Text("Données")
                             Spacer()
                             Text("Grand Lyon")
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                             Image(systemName: "arrow.up.right")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 } header: {
@@ -92,8 +92,6 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Paramètres")
-            .scrollContentBackground(.hidden)
-            .background(.ultraThinMaterial)
             .sheet(isPresented: $showWidgetHelp) {
                 WidgetHelpView()
             }

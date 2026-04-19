@@ -64,6 +64,8 @@
 		AAA0002C /* AnimatedVehicle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002D /* AnimatedVehicle.swift */; };
 		AAA0002E /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002F /* LocationService.swift */; };
 		AAA00039 /* LocationPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00031 /* LocationPermissionView.swift */; };
+		ADE67FC62F9419ED0003ADB9 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADE67FC52F9419ED0003ADB9 /* Secrets.swift */; };
+		ADE67FCB2F941A6D0003ADB9 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADE67FCA2F941A6D0003ADB9 /* Secrets.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -166,6 +168,8 @@
 		AAA0002D /* AnimatedVehicle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedVehicle.swift; sourceTree = "<group>"; };
 		AAA0002F /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		AAA00031 /* LocationPermissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPermissionView.swift; sourceTree = "<group>"; };
+		ADE67FC52F9419ED0003ADB9 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
+		ADE67FCA2F941A6D0003ADB9 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -317,6 +321,7 @@
 		AAA00038 /* AlerteTCL */ = {
 			isa = PBXGroup;
 			children = (
+				ADE67FCA2F941A6D0003ADB9 /* Secrets.swift */,
 				4F095CB12F16EA78001D059A /* Utilities */,
 				4F9DFFE02F14700200E01BFB /* AlerteTCL.entitlements */,
 				4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */,
@@ -334,6 +339,7 @@
 		AAA0003A = {
 			isa = PBXGroup;
 			children = (
+				ADE67FC52F9419ED0003ADB9 /* Secrets.swift */,
 				4F9DFFE12F14705300E01BFB /* AlerteTCLWidgetExtension.entitlements */,
 				AAA00038 /* AlerteTCL */,
 				4F9DFFCA2F146EFE00E01BFB /* AlerteTCLWidget */,
@@ -450,6 +456,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ADE67FC62F9419ED0003ADB9 /* Secrets.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -488,6 +495,7 @@
 				4F9DFFA72F14667B00E01BFB /* Stop.swift in Sources */,
 				4FCB1FC62F1EC6D90031B71E /* SpatialTileCache.swift in Sources */,
 				AAA0000C /* SubscriptionsView.swift in Sources */,
+				ADE67FCB2F941A6D0003ADB9 /* Secrets.swift in Sources */,
 				4F39DE032F1BABC200F24E3D /* NetworkConfiguration.swift in Sources */,
 				AAA0000D /* LineRow.swift in Sources */,
 				4F9DFF9A2F14577200E01BFB /* ParkingMapView.swift in Sources */,

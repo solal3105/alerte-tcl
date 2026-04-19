@@ -3,11 +3,9 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var viewModel: AlertViewModel
     @State private var selectedTab = 0
-    @State private var loadedTabs: Set<Int> = [0]
     @Binding var selectedParkingId: String?
     
     var body: some View {
-        // UI directe sans splash - les données se chargent en arrière-plan
         TabView(selection: $selectedTab) {
             LiveMapView()
                 .tabItem {
@@ -16,40 +14,22 @@ struct ContentView: View {
                 .tag(0)
                 .environmentObject(viewModel)
             
-            Group {
-                if loadedTabs.contains(1) {
-                    TravauxMapView()
-                } else {
-                    Color.clear
-                        .onAppear { loadedTabs.insert(1) }
+            TravauxMapView()
+                .tabItem {
+                    Label("Travaux", systemImage: "hammer.fill")
                 }
-            }
-            .tabItem {
-                Label("Travaux", systemImage: "hammer.fill")
-            }
-            .tag(1)
+                .tag(1)
             
-            Group {
-                if loadedTabs.contains(2) {
-                    ParkingMapView(selectedParkingId: $selectedParkingId)
-                } else {
-                    Color.clear
-                        .onAppear { loadedTabs.insert(2) }
+            ParkingMapView(selectedParkingId: $selectedParkingId)
+                .tabItem {
+                    Label("Parkings", systemImage: "car.fill")
                 }
-            }
-            .tabItem {
-                Label("Parkings", systemImage: "car.fill")
-            }
-            .tag(2)
+                .tag(2)
         }
         .tint(.primary)
         .tabViewStyle(.automatic)
-        .onChange(of: selectedTab) { _, newTab in
-            loadedTabs.insert(newTab)
-        }
         .onChange(of: selectedParkingId) { _, newParkingId in
             if newParkingId != nil {
-                loadedTabs.insert(2)
                 selectedTab = 2
             }
         }

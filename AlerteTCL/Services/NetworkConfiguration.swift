@@ -11,7 +11,8 @@ import Foundation
 enum NetworkConfiguration {
     // MARK: - Timeout values (en secondes)
     /// Timeout rapide pour véhicules/alertes (données légères, critiques)
-    static let fastTimeout: TimeInterval = 8
+    /// Note: 12s au lieu de 8s pour absorber le cold start réseau (DNS + TLS handshake)
+    static let fastTimeout: TimeInterval = 12
     
     /// Timeout standard pour lignes/parkings
     static let sharedTimeout: TimeInterval = 12
@@ -37,7 +38,7 @@ enum NetworkConfiguration {
         )
         
         // Connexion
-        config.waitsForConnectivity = false
+        config.waitsForConnectivity = true
         config.httpMaximumConnectionsPerHost = 4
         
         // Compression automatique (gzip/deflate)

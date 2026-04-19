@@ -3,7 +3,7 @@ import SwiftUI
 struct DataSourceErrorsSheet: View {
     @ObservedObject var viewModel: LiveVehiclesViewModel
     @ObservedObject var alertViewModel: AlertViewModel
-    @Binding var isPresented: Bool
+    @Environment(\.dismiss) private var dismiss
     
     @State private var isRetrying = false
     
@@ -58,14 +58,12 @@ struct DataSourceErrorsSheet: View {
                     .disabled(isRetrying)
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(.ultraThinMaterial)
             .navigationTitle("Erreurs de chargement")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Fermer") {
-                        isPresented = false
+                        dismiss()
                     }
                 }
             }
@@ -174,7 +172,6 @@ struct ErrorRow: View {
 #Preview {
     DataSourceErrorsSheet(
         viewModel: LiveVehiclesViewModel(),
-        alertViewModel: AlertViewModel(),
-        isPresented: .constant(true)
+        alertViewModel: AlertViewModel()
     )
 }

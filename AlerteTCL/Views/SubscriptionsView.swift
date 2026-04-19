@@ -37,29 +37,26 @@ struct SubscriptionsView: View {
     }
     
     var body: some View {
-        ZStack {
-            Group {
-                if viewModel.subscribedLines.isEmpty {
-                    emptyView
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 16) {
-                            ForEach(sortedSubscribedLines) { line in
-                                SubscriptionCard(
-                                    line: line,
-                                    alerts: viewModel.alerts(for: line),
-                                    subscriptionService: viewModel.subscriptionService,
-                                    onUnsubscribe: {
-                                        withAnimation {
-                                            viewModel.toggleSubscription(for: line)
-                                        }
+        Group {
+            if viewModel.subscribedLines.isEmpty {
+                emptyView
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 16) {
+                        ForEach(sortedSubscribedLines) { line in
+                            SubscriptionCard(
+                                line: line,
+                                alerts: viewModel.alerts(for: line),
+                                subscriptionService: viewModel.subscriptionService,
+                                onUnsubscribe: {
+                                    withAnimation {
+                                        viewModel.toggleSubscription(for: line)
                                     }
-                                )
-                            }
+                                }
+                            )
                         }
-                        .padding(16)
                     }
-                    .background(.ultraThinMaterial)
+                    .padding(16)
                 }
             }
         }
@@ -95,12 +92,12 @@ struct SubscriptionCard: View {
     
     private var cardColor: Color {
         guard let severity = highestSeverity else {
-            return Color(red: 0.2, green: 0.8, blue: 0.4)
+            return .green
         }
         switch severity {
-        case .major: return Color(red: 0.95, green: 0.26, blue: 0.21)
-        case .disruption: return Color(red: 1.0, green: 0.45, blue: 0.0)
-        case .info: return Color(red: 0.0, green: 0.48, blue: 1.0)
+        case .major: return .red
+        case .disruption: return .orange
+        case .info: return .blue
         }
     }
     

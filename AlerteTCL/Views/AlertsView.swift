@@ -8,55 +8,32 @@ struct NewAlertsView: View {
     @State private var searchText = ""
     
     var body: some View {
-        ZStack {
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Section Mes Lignes
-                    myLinesSection
-                    
-                    // Section Toutes les lignes
-                    allLinesSection
-                }
-                .padding(.bottom, 100)
+        ScrollView {
+            VStack(spacing: 0) {
+                // Section Mes Lignes
+                myLinesSection
+                
+                // Section Toutes les lignes
+                allLinesSection
             }
-            .background(.ultraThinMaterial)
-            .refreshable {
-                await viewModel.loadAlerts()
-            }
-            .overlay {
-                if viewModel.isLoading {
-                    ProgressView()
-                        .scaleEffect(1.2)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(.ultraThinMaterial)
-                }
-            }
-            .sheet(item: $selectedLine) { line in
-                LineDetailSheet(line: line, viewModel: viewModel)
-            }
-            .sheet(isPresented: $showSubscribeSheet) {
-                SubscribeLineSheet(viewModel: viewModel)
-            }
-            
-            // Bouton refresh flottant
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Button {
-                        Task { await viewModel.loadAlerts() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 22, weight: .semibold))
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.blue)
+            .padding(.bottom, 20)
+        }
+        .refreshable {
+            await viewModel.loadAlerts()
+        }
+        .overlay {
+            if viewModel.isLoading {
+                ProgressView()
                     .controlSize(.large)
-                    .disabled(viewModel.isLoading)
-                    .padding(.trailing, 24)
-                    .padding(.bottom, 24)
-                }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.ultraThinMaterial)
             }
+        }
+        .sheet(item: $selectedLine) { line in
+            LineDetailSheet(line: line, viewModel: viewModel)
+        }
+        .sheet(isPresented: $showSubscribeSheet) {
+            SubscribeLineSheet(viewModel: viewModel)
         }
     }
     
@@ -100,8 +77,8 @@ struct NewAlertsView: View {
                         }
                     }
                 }
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 20))
+                .background(.background)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
                 .padding(.horizontal, 16)
             }
@@ -157,17 +134,14 @@ struct NewAlertsView: View {
                 }
                 .font(.subheadline)
                 .fontWeight(.semibold)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(Color.blue)
-                .clipShape(Capsule())
             }
+            .buttonStyle(.borderedProminent)
+            .clipShape(Capsule())
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .background(.background)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         .padding(.horizontal, 16)
     }
@@ -373,7 +347,6 @@ struct LineDetailSheet: View {
                 }
                 .padding(.vertical, 20)
             }
-            .background(.ultraThinMaterial)
             .navigationTitle("Ligne \(line.displayName)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -421,8 +394,8 @@ struct LineDetailSheet: View {
             Spacer()
         }
         .padding(20)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .background(.background)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         .padding(.horizontal, 16)
     }
@@ -442,40 +415,36 @@ struct LineDetailSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 
                 HStack(spacing: 12) {
-                    Button {
-                        showSubscriptionOptions = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "slider.horizontal.3")
-                            Text("Options")
-                        }
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.blue)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.blue.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                Button {
+                    showSubscriptionOptions = true
+                } label: {
+                    HStack {
+                        Image(systemName: "slider.horizontal.3")
+                        Text("Options")
                     }
-                    
-                    Button {
-                        withAnimation {
-                            viewModel.toggleSubscription(for: line)
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "bell.slash")
-                            Text("Se désabonner")
-                        }
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.red)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.red.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.bordered)
+                .tint(.blue)
+                
+                Button {
+                    withAnimation {
+                        viewModel.toggleSubscription(for: line)
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "bell.slash")
+                        Text("Se désabonner")
+                    }
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.red)
+            }
             } else {
                 Button {
                     showSubscriptionOptions = true
@@ -485,12 +454,10 @@ struct LineDetailSheet: View {
                         Text("S'abonner à cette ligne")
                     }
                     .font(.headline)
-                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Color.blue)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
             }
         }
         .padding(.horizontal, 16)
@@ -511,8 +478,8 @@ struct LineDetailSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .background(.background)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         .padding(.horizontal, 16)
     }
@@ -651,16 +618,14 @@ struct SubscriptionOptionsSheet: View {
                 } label: {
                     Text(selectedTypes.isEmpty ? "Se désabonner" : "Enregistrer")
                         .font(.headline)
-                        .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(selectedTypes.isEmpty ? Color.red : Color.blue)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(selectedTypes.isEmpty ? .red : .blue)
+                .controlSize(.large)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 20)
             }
-            .background(.ultraThinMaterial)
             .navigationTitle("Options de notification")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -711,9 +676,7 @@ private struct NotificationTypeRow: View {
                     .foregroundStyle(isSelected ? severityColor : .secondary)
             }
             .padding(14)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

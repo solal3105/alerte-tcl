@@ -5,6 +5,7 @@ struct LiveMapView: View {
     @StateObject private var viewModel = LiveVehiclesViewModel()
     @EnvironmentObject var alertViewModel: AlertViewModel
     @ObservedObject private var locationService = LocationService.shared
+    @Environment(\.scenePhase) private var scenePhase
     
     @State private var selectedVehicle: Vehicle?
     @State private var selectedStop: TransitStop?
@@ -90,8 +91,7 @@ struct LiveMapView: View {
         .sheet(isPresented: $showDataSourceErrors) {
             DataSourceErrorsSheet(
                 viewModel: viewModel,
-                alertViewModel: alertViewModel,
-                isPresented: $showDataSourceErrors
+                alertViewModel: alertViewModel
             )
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
@@ -120,14 +120,17 @@ struct LiveMapView: View {
         .onDisappear {
             viewModel.stopAutoRefresh()
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
-            viewModel.stopAutoRefresh()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-            // Reprendre le chargement et l'auto-refresh
-            Task { @MainActor in
-                await loadSafely("Véhicules (reprise)") { await self.viewModel.loadVehicles() }
-                self.viewModel.startAutoRefresh()
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .background, .inactive:
+                viewModel.stopAutoRefresh()
+            case .active:
+                Task { @MainActor in
+                    await loadSafely("Véhicules (reprise)") { await self.viewModel.loadVehicles() }
+                    self.viewModel.startAutoRefresh()
+                }
+            @unknown default:
+                break
             }
         }
         .onChange(of: locationService.currentLocation) { oldValue, newValue in
@@ -147,19 +150,20 @@ struct LiveMapView: View {
     // MARK: - Background Data Loading
     
     private func startBackgroundLoading() {
-        // ⚠️ NE PAS démarrer l'auto-refresh immédiatement - évite la contention MainActor
-        // Charger les données d'abord, puis démarrer l'auto-refresh
+        // Charger les données de manière échelonnée pour éviter la contention réseau au cold start
         
         Task { @MainActor in
-            // 1. Charger les véhicules en premier (priorité haute)
+            // 1. Charger les véhicules en premier (priorité haute, inclut retry automatique)
             await loadSafely("Véhicules") { await self.viewModel.loadVehicles() }
             
-            // 2. Démarrer l'auto-refresh APRÈS le premier chargement réussi
+            // 2. Charger les alertes juste après (priorité haute, inclut retry automatique)
+            await loadSafely("Alertes") { await self.alertViewModel.loadAlerts() }
+            
+            // 3. Démarrer l'auto-refresh APRÈS les chargements critiques
             self.viewModel.startAutoRefresh()
             
-            // 3. Charger les autres données avec léger décalage pour éviter contention réseau
-            // Attendre un peu que le réseau soit "chaud"
-            try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
+            // 4. Charger les données secondaires avec décalage (réseau déjà "chaud")
+            try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
             
             // Lancer en parallèle mais dans des Tasks séparées
             async let busTask: () = loadInBackground("Lignes bus") { 
@@ -171,12 +175,9 @@ struct LiveMapView: View {
             async let stopsTask: () = loadInBackground("Arrêts") { 
                 await self.viewModel.loadTransitStops() 
             }
-            async let alertsTask: () = loadInBackground("Alertes") { 
-                await self.alertViewModel.loadAlerts() 
-            }
             
             // Attendre que tout soit terminé (mais chacun gère ses erreurs)
-            _ = await (busTask, transitTask, stopsTask, alertsTask)
+            _ = await (busTask, transitTask, stopsTask)
         }
     }
     

@@ -10,60 +10,35 @@ struct LinesListView: View {
     }
     
     var body: some View {
-        ZStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    VStack(spacing: 12) {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundStyle(.secondary)
-                            
-                            TextField("Rechercher une ligne", text: $viewModel.searchText)
-                                .textFieldStyle(.plain)
-                            
-                            if !viewModel.searchText.isEmpty {
-                                Button {
-                                    viewModel.searchText = ""
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.secondary)
-                                }
+        ScrollView {
+            VStack(spacing: 16) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ModeFilterPill(
+                            title: "Tous",
+                            icon: "list.bullet",
+                            isSelected: viewModel.selectedMode == nil
+                        ) {
+                            withAnimation(.spring(response: 0.3)) {
+                                viewModel.selectedMode = nil
                             }
                         }
-                        .padding(.horizontal, 12)
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-                        .padding(.horizontal, 16)
                         
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ModeFilterPill(
-                                    title: "Tous",
-                                    icon: "list.bullet",
-                                    isSelected: viewModel.selectedMode == nil
-                                ) {
-                                    withAnimation(.spring(response: 0.3)) {
-                                        viewModel.selectedMode = nil
-                                    }
-                                }
-                                
-                                ForEach(TransportMode.allCases) { mode in
-                                    ModeFilterPill(
-                                        title: mode.rawValue,
-                                        icon: mode.icon,
-                                        isSelected: viewModel.selectedMode == mode
-                                    ) {
-                                        withAnimation(.spring(response: 0.3)) {
-                                            viewModel.selectedMode = mode
-                                        }
-                                    }
+                        ForEach(TransportMode.allCases) { mode in
+                            ModeFilterPill(
+                                title: mode.rawValue,
+                                icon: mode.icon,
+                                isSelected: viewModel.selectedMode == mode
+                            ) {
+                                withAnimation(.spring(response: 0.3)) {
+                                    viewModel.selectedMode = mode
                                 }
                             }
-                            .padding(.horizontal, 16)
                         }
                     }
-                    .padding(.top, 8)
+                    .padding(.horizontal, 16)
+                }
+                .padding(.top, 8)
                     
                     LazyVStack(spacing: 24) {
                         ForEach(sortedModes, id: \.self) { mode in
@@ -103,12 +78,11 @@ struct LinesListView: View {
                             }
                         }
                     }
-                    }
                 }
                 .padding(.vertical, 20)
             }
-            .background(.ultraThinMaterial)
         }
+        .searchable(text: $viewModel.searchText, prompt: "Rechercher une ligne")
         .confirmationDialog(
             subscriptionDialogTitle,
             isPresented: Binding(
@@ -219,7 +193,7 @@ struct LineCard: View {
             .padding(14)
             .frame(height: 100)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.ultraThinMaterial)
+            .background(Color(.systemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 4)
         }
@@ -284,7 +258,6 @@ struct FilterChip: View {
                     }
                 }
             )
-            .backgroundStyle(.ultraThinMaterial)
             .foregroundStyle(isSelected ? color : .secondary)
             .clipShape(Capsule())
             .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
@@ -323,7 +296,6 @@ struct ModeFilterPill: View {
                     }
                 }
             )
-            .backgroundStyle(.ultraThinMaterial)
             .foregroundStyle(isSelected ? Color(.systemBackground) : .primary)
             .clipShape(Capsule())
             .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)

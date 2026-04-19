@@ -2,12 +2,10 @@ import SwiftUI
 
 struct LocationPermissionView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var isRequesting = false
     
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 32) {
-                Spacer()
+        VStack(spacing: 32) {
+            Spacer()
                 
                 ZStack {
                     Circle()
@@ -45,43 +43,25 @@ struct LocationPermissionView: View {
                 
                 VStack(spacing: 12) {
                     Button {
-                        isRequesting = true
-                        Task {
-                            LocationService.shared.requestPermission()
-                            try? await Task.sleep(nanoseconds: 500_000_000)
-                            dismiss()
-                        }
-                    } label: {
-                        HStack {
-                            if isRequesting {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Text("Activer la localisation")
-                                    .fontWeight(.semibold)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(.blue.gradient)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                    }
-                    .disabled(isRequesting)
-                    
-                    Button {
+                        LocationService.shared.requestPermission()
                         dismiss()
                     } label: {
-                        Text("Plus tard")
-                            .foregroundStyle(.secondary)
+                        Text("Activer la localisation")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    
+                    Button("Plus tard", role: .cancel) {
+                        dismiss()
+                    }
+                    .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 32)
                 .padding(.bottom, 32)
-            }
-            .background(.ultraThinMaterial)
-            .navigationBarTitleDisplayMode(.inline)
         }
+        .presentationDragIndicator(.visible)
     }
 }
 

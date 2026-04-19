@@ -50,7 +50,17 @@ enum SecretsManager {
     // MARK: - Migration
     
     private static func migrateFromInfoPlist() -> (username: String, password: String)? {
-        // Lire depuis Info.plist (legacy)
+        // Priorité 1: Secrets.swift (fichier gitignored avec les credentials de dev)
+        let secretsUsername = Secrets.grandLyonUsername
+        let secretsPassword = Secrets.grandLyonPassword
+        if !secretsUsername.isEmpty, !secretsPassword.isEmpty {
+            if saveGrandLyonCredentials(username: secretsUsername, password: secretsPassword) {
+                print("✅ SecretsManager: Identifiants migrés depuis Secrets.swift vers Keychain")
+            }
+            return (secretsUsername, secretsPassword)
+        }
+        
+        // Priorité 2: Info.plist (legacy)
         guard let infoPlist = Bundle.main.infoDictionary,
               let username = infoPlist["GrandLyonUsername"] as? String,
               let password = infoPlist["GrandLyonPassword"] as? String,
@@ -60,7 +70,7 @@ enum SecretsManager {
         
         // Migrer vers Keychain
         if saveGrandLyonCredentials(username: username, password: password) {
-            print("✅ SecretsManager: Identifiants migrés vers Keychain")
+            print("✅ SecretsManager: Identifiants migrés depuis Info.plist vers Keychain")
         }
         
         return (username, password)
