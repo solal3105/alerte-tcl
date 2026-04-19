@@ -133,6 +133,22 @@ struct TCLAlert: Codable, Identifiable, Hashable {
         }
         return true
     }
+    
+    /// L'alerte a déjà commencé (debut <= maintenant ou pas de date de début)
+    var hasStarted: Bool {
+        guard let debut = debut else { return true }
+        return debut <= Date()
+    }
+    
+    /// Perturbation en cours (active ET déjà commencée)
+    var isOngoing: Bool {
+        isActive && hasStarted
+    }
+    
+    /// Perturbation à venir (active mais pas encore commencée)
+    var isUpcoming: Bool {
+        isActive && !hasStarted
+    }
 }
 
 enum AlertSeverity: String, CaseIterable, Identifiable {

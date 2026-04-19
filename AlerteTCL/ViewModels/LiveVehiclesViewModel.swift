@@ -19,12 +19,10 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published var showBusLines = true
     @Published var showTransitLines = true
     @Published var mapRegion: MKCoordinateRegion
-    @Published var isAutoRefreshEnabled = true
     @Published var currentZoomLevel: Double = 0.15
-    @Published var refreshProgress: Double = 0.0
     @Published var visibleRegion: MKCoordinateRegion?
-    @Published var secondsUntilNextRefresh: Int = 15
     @Published var isInitialLoadComplete = false
+    @Published var isLive = false
     
     // Transit Stops
     @Published var transitStops: [TransitStop] = []
@@ -36,10 +34,11 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published private(set) var filteredVehicles: [Vehicle] = []
     @Published private(set) var visibleMergedStops: [MergedStop] = []
     
-    private var refreshTask: Task<Void, Never>?
-    private var progressTask: Task<Void, Never>?
+    private var streamTask: Task<Void, Never>?
     private var regionUpdateTask: Task<Void, Never>?
-    private let refreshInterval: TimeInterval = 15
+    private var consecutiveErrors = 0
+    private let baseInterval: TimeInterval = 10
+    private let maxInterval: TimeInterval = 30
     private var cancellables = Set<AnyCancellable>()
     private var isFirstLoad = true
     
@@ -362,51 +361,63 @@ final class LiveVehiclesViewModel: ObservableObject {
     }
     
     
-    func startAutoRefresh() {
-        stopAutoRefresh()
+    // MARK: - Live Data Stream
+    
+    private var adaptiveInterval: TimeInterval {
+        guard consecutiveErrors > 0 else { return baseInterval }
+        return min(baseInterval * pow(1.5, Double(consecutiveErrors)), maxInterval)
+    }
+    
+    func startLiveStream() {
+        stopLiveStream()
+        isLive = true
+        consecutiveErrors = 0
         
-        refreshTask = Task { [weak self] in
+        streamTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                guard self.isAutoRefreshEnabled else { return }
-                await self.loadVehicles()
-                try? await Task.sleep(nanoseconds: UInt64(self.refreshInterval * 1_000_000_000))
-            }
-        }
-        
-        progressTask = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self else { return }
-                guard self.isAutoRefreshEnabled else { return }
-                let startTime = Date()
-                while !Task.isCancelled {
-                    guard self.isAutoRefreshEnabled else { return }
-                    let elapsed = Date().timeIntervalSince(startTime)
-                    let progress = min(elapsed / self.refreshInterval, 1.0)
-                    let remaining = max(0, self.refreshInterval - elapsed)
-                    
-                    self.refreshProgress = progress
-                    self.secondsUntilNextRefresh = Int(ceil(remaining))
-                    
-                    if elapsed >= self.refreshInterval {
-                        break
-                    }
-                    
-                    // ⚠️ Mise à jour toutes les 500ms au lieu de 100ms pour réduire la charge MainActor
-                    try? await Task.sleep(nanoseconds: 500_000_000)
-                }
+                
+                let fetchStart = Date()
+                await self.fetchVehiclesQuietly()
+                let fetchDuration = Date().timeIntervalSince(fetchStart)
+                
+                // Pipeline: subtract fetch time from interval so total cycle = adaptiveInterval
+                let wait = max(self.adaptiveInterval - fetchDuration, 2.0)
+                try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
             }
         }
     }
     
-    func stopAutoRefresh() {
-        refreshTask?.cancel()
-        refreshTask = nil
-        progressTask?.cancel()
-        progressTask = nil
+    func stopLiveStream() {
+        streamTask?.cancel()
+        streamTask = nil
+        isLive = false
         
         for (_, animated) in animatedVehicles {
             animated.stopAnimation()
+        }
+    }
+    
+    private func fetchVehiclesQuietly() async {
+        do {
+            let fetched = try await SIRILiteService.shared.fetchVehiclePositions()
+            updateAnimatedVehicles(with: fetched)
+            vehicles = fetched
+            lastUpdate = Date()
+            error = nil
+            consecutiveErrors = 0
+            
+            updateFilteredVehicles()
+            updateClustersIfNeeded(force: shouldShowClusters)
+        } catch {
+            consecutiveErrors += 1
+            // Only surface error after 3 consecutive failures (transient tolerance)
+            if consecutiveErrors >= 3 {
+                self.error = (error as? SIRIError)?.errorDescription ?? error.localizedDescription
+            }
+            #if DEBUG
+            print("⚠️ Stream fetch error (\(consecutiveErrors)): \(error.localizedDescription)")
+            #endif
         }
     }
     
@@ -585,6 +596,6 @@ final class LiveVehiclesViewModel: ObservableObject {
     }
     
     deinit {
-        refreshTask?.cancel()
+        streamTask?.cancel()
     }
 }

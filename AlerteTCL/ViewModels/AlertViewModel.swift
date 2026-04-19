@@ -79,8 +79,8 @@ final class AlertViewModel: ObservableObject {
     }
 
     var linesInError: [LineAlertSummary] {
-        // Ne prendre que les alertes actives avec une vraie perturbation (pas juste info)
-        let activeAlerts = alerts.filter { $0.isActive && $0.severity != .info }
+        // Ne prendre que les perturbations en cours (pas info, pas à venir)
+        let activeAlerts = alerts.filter { $0.isOngoing && $0.severity != .info }
         let grouped = Dictionary(grouping: activeAlerts) { alert in
             alert.ligneCli.isEmpty ? alert.ligneCom : alert.ligneCli
         }
@@ -128,7 +128,7 @@ final class AlertViewModel: ObservableObject {
     
     var alertCountByLine: [String: Int] {
         var counts: [String: Int] = [:]
-        for alert in alerts where alert.severity != .info {
+        for alert in alerts where alert.severity != .info && alert.isOngoing {
             counts[alert.ligneCom, default: 0] += 1
             if !alert.ligneCli.isEmpty && alert.ligneCli != alert.ligneCom {
                 counts[alert.ligneCli, default: 0] += 1
@@ -143,6 +143,16 @@ final class AlertViewModel: ObservableObject {
     
     func alerts(for line: TransportLine) -> [TCLAlert] {
         alerts.filter { $0.ligneCom == line.ligneCom || $0.ligneCli == line.ligneCli }
+    }
+    
+    /// Alertes en cours (déjà commencées) pour une ligne
+    func ongoingAlerts(for line: TransportLine) -> [TCLAlert] {
+        alerts(for: line).filter { $0.isOngoing && $0.severity != .info }
+    }
+    
+    /// Alertes à venir (pas encore commencées) pour une ligne
+    func upcomingAlerts(for line: TransportLine) -> [TCLAlert] {
+        alerts(for: line).filter { $0.isUpcoming && $0.severity != .info }
     }
     
     /// Nombre max de retries automatiques pour le chargement initial

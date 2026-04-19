@@ -118,16 +118,16 @@ struct LiveMapView: View {
             startBackgroundLoading()
         }
         .onDisappear {
-            viewModel.stopAutoRefresh()
+            viewModel.stopLiveStream()
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .background, .inactive:
-                viewModel.stopAutoRefresh()
+                viewModel.stopLiveStream()
             case .active:
                 Task { @MainActor in
                     await loadSafely("Véhicules (reprise)") { await self.viewModel.loadVehicles() }
-                    self.viewModel.startAutoRefresh()
+                    self.viewModel.startLiveStream()
                 }
             @unknown default:
                 break
@@ -159,8 +159,8 @@ struct LiveMapView: View {
             // 2. Charger les alertes juste après (priorité haute, inclut retry automatique)
             await loadSafely("Alertes") { await self.alertViewModel.loadAlerts() }
             
-            // 3. Démarrer l'auto-refresh APRÈS les chargements critiques
-            self.viewModel.startAutoRefresh()
+            // 3. Démarrer le live stream APRÈS les chargements critiques
+            self.viewModel.startLiveStream()
             
             // 4. Charger les données secondaires avec décalage (réseau déjà "chaud")
             try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
@@ -209,7 +209,9 @@ struct LiveMapView: View {
     private var mapContent: some View {
         MapReader { proxy in
             Map(position: $mapCameraPosition, interactionModes: .all) {
-                UserAnnotation()
+                if locationService.currentLocation != nil {
+                    UserAnnotation()
+                }
                 
                 // Afficher les lignes de bus
                 if viewModel.showBusLines {
@@ -306,8 +308,8 @@ struct LiveMapView: View {
                 .allowsHitTesting(false)
             
             HStack(alignment: .bottom) {
-                // Card refresh en bas à gauche
-                refreshCard
+                // Live indicator en bas à gauche
+                liveIndicator
                 
                 Spacer()
                     .allowsHitTesting(false)
@@ -510,7 +512,7 @@ struct LiveMapView: View {
         }
     }
     
-    private var refreshCard: some View {
+    private var liveIndicator: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Warning indicator si erreurs de données
             if hasDataSourceErrors {
@@ -539,47 +541,33 @@ struct LiveMapView: View {
                 .buttonStyle(.plain)
             }
             
-            // Refresh button
+            // Live badge — tap to force refresh
             Button {
                 Task { await viewModel.loadVehicles() }
             } label: {
-                HStack(spacing: 10) {
-                    ZStack {
-                        Circle()
-                            .stroke(Color.blue.opacity(0.2), lineWidth: 2.5)
-                            .frame(width: 36, height: 36)
-                        
-                        Circle()
-                            .trim(from: 0, to: viewModel.refreshProgress)
-                            .stroke(
-                                Color.blue,
-                                style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
-                            )
-                            .frame(width: 36, height: 36)
-                            .rotationEffect(.degrees(-90))
-                            .animation(.linear(duration: 0.1), value: viewModel.refreshProgress)
-                        
-                        if viewModel.isLoading {
-                            ProgressView()
-                                .scaleEffect(0.6)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.blue)
-                        }
-                    }
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(viewModel.error != nil ? .orange : .green)
+                        .frame(width: 8, height: 8)
                     
-                    if !viewModel.isLoading {
-                        Text("dans \(viewModel.secondsUntilNextRefresh)s")
-                            .font(.system(size: 15, weight: .medium))
+                    Text(viewModel.isLive ? "LIVE" : "PAUSE")
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                        .foregroundStyle(viewModel.isLive ? (viewModel.error != nil ? .orange : .green) : .secondary)
+                    
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .scaleEffect(0.5)
+                    } else if let update = viewModel.lastUpdate {
+                        Text(update, style: .relative)
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.secondary)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
                 .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 24))
-                .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
+                .clipShape(Capsule())
+                .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
             }
             .buttonStyle(.plain)
             .disabled(viewModel.isLoading)

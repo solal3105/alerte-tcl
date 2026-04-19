@@ -69,7 +69,7 @@ struct NewAlertsView: View {
                     ForEach(sortedSubscribedLines) { line in
                         SubscribedLineCard(
                             line: line,
-                            alerts: viewModel.alerts(for: line),
+                            alerts: viewModel.ongoingAlerts(for: line),
                             highestSeverity: highestSeverity(for: line)
                         )
                         .onTapGesture {
@@ -103,7 +103,7 @@ struct NewAlertsView: View {
     }
     
     private func highestSeverity(for line: TransportLine) -> AlertSeverity? {
-        let lineAlerts = viewModel.alerts(for: line)
+        let lineAlerts = viewModel.ongoingAlerts(for: line)
         return lineAlerts.map { $0.severity }.min { $0.sortOrder < $1.sortOrder }
     }
     
@@ -321,7 +321,13 @@ struct LineDetailSheet: View {
     @State private var showSubscriptionOptions = false
     
     private var lineAlerts: [TCLAlert] {
-        viewModel.alerts(for: line).sorted { $0.severity.sortOrder < $1.severity.sortOrder }
+        viewModel.ongoingAlerts(for: line).sorted { $0.severity.sortOrder < $1.severity.sortOrder }
+    }
+    
+    private var upcomingAlerts: [TCLAlert] {
+        viewModel.upcomingAlerts(for: line).sorted { a, b in
+            (a.debut ?? .distantFuture) < (b.debut ?? .distantFuture)
+        }
     }
     
     private var isSubscribed: Bool {
@@ -339,10 +345,15 @@ struct LineDetailSheet: View {
                     subscribeSection
                     
                     // Alerts
-                    if lineAlerts.isEmpty {
+                    if lineAlerts.isEmpty && upcomingAlerts.isEmpty {
                         noAlertsView
                     } else {
-                        alertsSection
+                        if !lineAlerts.isEmpty {
+                            alertsSection
+                        }
+                        if !upcomingAlerts.isEmpty {
+                            upcomingAlertsSection
+                        }
                     }
                 }
                 .padding(.vertical, 20)
@@ -376,7 +387,7 @@ struct LineDetailSheet: View {
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(.green)
-                        Text("Aucune perturbation")
+                        Text("Aucune perturbation en cours")
                             .foregroundStyle(.secondary)
                     }
                     .font(.subheadline)
@@ -384,7 +395,7 @@ struct LineDetailSheet: View {
                     HStack(spacing: 4) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
-                        Text("\(lineAlerts.count) alerte\(lineAlerts.count > 1 ? "s" : "")")
+                        Text("\(lineAlerts.count) perturbation\(lineAlerts.count > 1 ? "s" : "") en cours")
                             .foregroundStyle(.secondary)
                     }
                     .font(.subheadline)
@@ -498,27 +509,47 @@ struct LineDetailSheet: View {
             .padding(.horizontal, 16)
         }
     }
+    
+    private var upcomingAlertsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "calendar.badge.clock")
+                    .foregroundStyle(.secondary)
+                Text("Perturbations à venir")
+                    .font(.headline)
+            }
+            .padding(.horizontal, 16)
+            
+            LazyVStack(spacing: 12) {
+                ForEach(upcomingAlerts) { alert in
+                    AlertDetailCard(alert: alert, isUpcoming: true)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
 }
 
 // MARK: - Alert Detail Card
 private struct AlertDetailCard: View {
     let alert: TCLAlert
+    var isUpcoming: Bool = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Image(systemName: alert.severity.icon)
-                    .foregroundStyle(severityColor)
+                Image(systemName: isUpcoming ? "calendar.badge.clock" : alert.severity.icon)
+                    .foregroundStyle(isUpcoming ? .secondary : severityColor)
                 
-                Text(alert.severity.rawValue)
+                Text(isUpcoming ? "À venir" : alert.severity.rawValue)
                     .font(.subheadline)
                     .fontWeight(.semibold)
-                    .foregroundStyle(severityColor)
+                    .foregroundStyle(isUpcoming ? .secondary : severityColor)
                 
                 Spacer()
                 
                 if let debut = alert.debut {
-                    Text(debut.formatted(date: .abbreviated, time: .shortened))
+                    Text(isUpcoming ? "Dès le \(debut.formatted(date: .abbreviated, time: .omitted))" : debut.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -536,11 +567,11 @@ private struct AlertDetailCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(severityColor.opacity(0.1))
+        .background(isUpcoming ? Color.secondary.opacity(0.08) : severityColor.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay {
             RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(severityColor.opacity(0.3), lineWidth: 1)
+                .strokeBorder(isUpcoming ? Color.secondary.opacity(0.2) : severityColor.opacity(0.3), lineWidth: 1)
         }
     }
     
