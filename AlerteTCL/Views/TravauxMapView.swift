@@ -7,8 +7,13 @@ struct TravauxMapView: View {
     @ObservedObject private var locationService = LocationService.shared
     @State private var selectedTravaux: Travaux?
     @State private var showFilters = false
-    @State private var mapCameraPosition: MapCameraPosition = .automatic
-    @State private var currentSpan: MKCoordinateSpan = MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
+    @State private var mapCameraPosition: MapCameraPosition = .region(
+        MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
+            span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
+        )
+    )
+    @State private var currentSpan: MKCoordinateSpan = MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
     @State private var currentCenter: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659)
     @State private var hasSetInitialLocation = false
     
@@ -33,19 +38,6 @@ struct TravauxMapView: View {
                 .presentationDragIndicator(.visible)
         }
         .onAppear {
-            locationService.requestPermission()
-            locationService.startUpdatingLocation()
-            
-            if let userLocation = locationService.currentLocation {
-                mapCameraPosition = .region(
-                    MKCoordinateRegion(
-                        center: userLocation.coordinate,
-                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                    )
-                )
-                hasSetInitialLocation = true
-            }
-            
             // Charger les travaux en arrière-plan
             Task { @MainActor in
                 await self.viewModel.loadTravaux()
@@ -53,19 +45,10 @@ struct TravauxMapView: View {
             
             viewModel.onAppear()
         }
-        .onChange(of: locationService.currentLocation) { oldValue, newValue in
-            if !hasSetInitialLocation, let newLocation = newValue {
-                withAnimation(.easeInOut(duration: 0.8)) {
-                    mapCameraPosition = .region(
-                        MKCoordinateRegion(
-                            center: newLocation.coordinate,
-                            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                        )
-                    )
-                }
-                hasSetInitialLocation = true
-            }
-        }
+        .withInitialLocation(
+            mapCameraPosition: $mapCameraPosition,
+            hasSetInitialLocation: $hasSetInitialLocation
+        )
         .onDisappear {
             viewModel.onDisappear()
         }

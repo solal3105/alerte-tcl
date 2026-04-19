@@ -49,15 +49,7 @@ actor TransitStopService {
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.heavyTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         print("🚀 Arrêts: Début requête (timeout: \(NetworkConfiguration.heavyTimeout)s)")
-        
-        // Add Basic Auth
-        if let creds = credentials {
-            let credString = "\(creds.username):\(creds.password)"
-            if let credentialsData = credString.data(using: .utf8) {
-                let base64Credentials = credentialsData.base64EncodedString()
-                request.setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
-            }
-        }
+        request.setBasicAuth(credentials)
         
         let (data, response) = try await NetworkConfiguration.heavy.data(for: request)
         
@@ -118,14 +110,7 @@ actor TransitStopService {
         
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.heavyTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        
-        if let creds = credentials {
-            let credString = "\(creds.username):\(creds.password)"
-            if let credentialsData = credString.data(using: .utf8) {
-                let base64Credentials = credentialsData.base64EncodedString()
-                request.setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
-            }
-        }
+        request.setBasicAuth(credentials)
         
         let (data, response) = try await NetworkConfiguration.heavy.data(for: request)
         

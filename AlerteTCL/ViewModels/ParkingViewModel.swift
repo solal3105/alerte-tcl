@@ -29,28 +29,48 @@ final class ParkingViewModel: ObservableObject {
     @Published var selectedParkingType: ParkingType = .car {
         didSet {
             if oldValue != selectedParkingType {
-                // Invalider le cache de clustering pour forcer le recalcul
+                // 1. Vider immédiatement l'affichage pour feedback instantané
+                parkings = []
                 invalidateClusterCache()
-                // Pour les vélos/2-roues, charger seulement si pas déjà en cache
-                if selectedParkingType == .bike && !bikeParkingsLoaded {
-                    Task {
-                        await loadParkingsProgressively()
+                error = nil
+                
+                // 2. Annuler tout chargement en cours
+                currentLoadTask?.cancel()
+                regionUpdateTask?.cancel()
+                
+                // 3. Gérer l'auto-refresh (seulement voitures)
+                stopAutoRefresh()
+                if selectedParkingType == .car {
+                    startAutoRefresh()
+                }
+                
+                // 4. Charger les nouvelles données (cache-first, viewport-first)
+                currentLoadTask = Task { [weak self] in
+                    guard let self, !Task.isCancelled else { return }
+                    
+                    // Si on a un cache, l'afficher immédiatement
+                    if let cached = self.parkingsCache[self.selectedParkingType], !cached.isEmpty {
+                        self.parkings = cached
+                        self.updateClustersIfNeeded(force: true)
+                        
+                        // Puis rafraîchir en arrière-plan pour voitures (temps réel)
+                        if self.selectedParkingType == .car {
+                            await self.loadParkings()
+                        }
+                    } else {
+                        // Pas de cache : viewport-first pour vélos/2-roues, tout pour voitures
+                        if self.selectedParkingType == .car {
+                            await self.loadParkings()
+                        } else {
+                            await self.loadParkingsProgressively()
+                        }
                     }
-                } else if selectedParkingType == .motorized2Wheel && !moto2WheelParkingsLoaded {
-                    Task {
-                        await loadParkingsProgressively()
-                    }
-                } else if selectedParkingType == .car {
-                    Task {
-                        await loadParkings()
-                    }
-                } else {
-                    // Déjà chargés, juste mettre à jour les clusters
-                    updateClustersIfNeeded(force: true)
                 }
             }
         }
     }
+    
+    private var currentLoadTask: Task<Void, Never>?
     
     private var bikeParkingsLoaded = false
     private var moto2WheelParkingsLoaded = false
@@ -218,6 +238,7 @@ final class ParkingViewModel: ObservableObject {
     
     func loadParkings() async {
         guard !isLoading else { return }
+        guard !Task.isCancelled else { return }
         
         print("🔄 ParkingViewModel: Début du chargement (\(selectedParkingType.rawValue))...")
         isLoading = true
@@ -258,7 +279,7 @@ final class ParkingViewModel: ObservableObject {
     
     /// Chargement spatial pour vélos et 2-roues (charge uniquement la zone visible)
     func loadParkingsInRegion(_ region: MKCoordinateRegion) async {
-        guard !isLoadingInBackground else { return }
+        guard !isLoadingInBackground, !Task.isCancelled else { return }
         
         isLoadingInBackground = true
         let typeLabel = selectedParkingType == .bike ? "vélos" : "2-roues"
@@ -276,6 +297,9 @@ final class ParkingViewModel: ObservableObject {
                 region: region
             )
             
+            // Si la tâche a été annulée pendant le fetch (changement d'onglet), ignorer
+            guard !Task.isCancelled else { return }
+            
             // Fusionner avec les parkings existants (garder les nouveaux + ceux déjà chargés)
             var mergedParkings = parkings
             let existingIds = Set(parkings.map { $0.id })
@@ -287,6 +311,7 @@ final class ParkingViewModel: ObservableObject {
             }
             
             parkings = mergedParkings.sorted { $0.nom < $1.nom }
+            parkingsCache[selectedParkingType] = parkings
             loadedCount = parkings.count
             totalToLoad = loadedCount
             lastUpdate = Date()
@@ -381,15 +406,23 @@ final class ParkingViewModel: ObservableObject {
     
     func onAppear() {
         isViewActive = true
-        // Charger les données en arrière-plan sans bloquer l'affichage
-        Task(priority: .userInitiated) { [weak self] in
-            guard let self = self else { return }
-            // Pour voitures: charger tout (peu de données, temps réel)
-            // Pour vélos/2-roues: attendre la première mise à jour de région
+        currentLoadTask?.cancel()
+        currentLoadTask = Task(priority: .userInitiated) { [weak self] in
+            guard let self = self, !Task.isCancelled else { return }
+            
+            // Restaurer depuis le cache immédiatement si disponible
+            if let cached = self.parkingsCache[self.selectedParkingType], !cached.isEmpty, self.parkings.isEmpty {
+                self.parkings = cached
+                self.updateClustersIfNeeded(force: true)
+            }
+            
+            // Pour voitures: toujours charger (temps réel)
+            // Pour vélos/2-roues: charger via updateVisibleRegion
             if self.selectedParkingType == .car {
                 await self.loadParkings()
+            } else if self.parkings.isEmpty {
+                await self.loadParkingsProgressively()
             }
-            // Note: vélos/2-roues seront chargés automatiquement via updateVisibleRegion
             self.startAutoRefresh()
         }
     }
@@ -397,6 +430,8 @@ final class ParkingViewModel: ObservableObject {
     func onDisappear() {
         isViewActive = false
         stopAutoRefresh()
+        currentLoadTask?.cancel()
+        currentLoadTask = nil
         regionUpdateTask?.cancel()
         regionUpdateTask = nil
     }

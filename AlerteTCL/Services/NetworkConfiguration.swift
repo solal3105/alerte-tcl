@@ -91,3 +91,22 @@ enum NetworkConfiguration {
         return request
     }
 }
+
+// MARK: - URLRequest Basic Auth
+
+extension URLRequest {
+    /// Ajoute l'authentification Basic Auth à la requête
+    mutating func setBasicAuth(username: String, password: String) {
+        let credString = "\(username):\(password)"
+        if let credentialsData = credString.data(using: .utf8) {
+            let base64Credentials = credentialsData.base64EncodedString()
+            setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
+        }
+    }
+    
+    /// Ajoute l'authentification Basic Auth depuis un tuple credentials
+    mutating func setBasicAuth(_ credentials: (username: String, password: String)?) {
+        guard let creds = credentials else { return }
+        setBasicAuth(username: creds.username, password: creds.password)
+    }
+}

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4FAUDIT012F1A000000000001 /* InitialLocationModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FAUDIT002F1A000000000001 /* InitialLocationModifier.swift */; };
 		4F095CAF2F16E92F001D059A /* UnifiedCluster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F095CAE2F16E92F001D059A /* UnifiedCluster.swift */; };
 		4F095CB22F16EA78001D059A /* ViewportFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F095CB02F16EA78001D059A /* ViewportFilter.swift */; };
 		4F38BD202F1591C000E05786 /* BusLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD1F2F1591C000E05786 /* BusLine.swift */; };
@@ -124,7 +125,7 @@
 		4F9DFF9F2F1457EE00E01BFB /* ParkingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingService.swift; sourceTree = "<group>"; };
 		4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingViewModel.swift; sourceTree = "<group>"; };
 		4F9DFFA62F14667B00E01BFB /* Stop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stop.swift; sourceTree = "<group>"; };
-		4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = tcl_stops.json; sourceTree = "<group>"; };
+		4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = tcl_stops.json; path = Resources/tcl_stops.json; sourceTree = "<group>"; };
 		4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AlerteTCLWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -168,8 +169,8 @@
 		AAA0002D /* AnimatedVehicle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedVehicle.swift; sourceTree = "<group>"; };
 		AAA0002F /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		AAA00031 /* LocationPermissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPermissionView.swift; sourceTree = "<group>"; };
-		ADE67FC52F9419ED0003ADB9 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
-		ADE67FCA2F941A6D0003ADB9 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
+		ADE67FC52F9419ED0003ADB9 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Secrets.swift; path = AlerteTCL/Services/Secrets.swift; sourceTree = "<group>"; };
+		ADE67FCA2F941A6D0003ADB9 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Secrets.swift; path = Services/Secrets.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -308,12 +309,14 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		4FAUDIT002F1A000000000001 /* InitialLocationModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InitialLocationModifier.swift; sourceTree = "<group>"; };
 		AAA00037 /* Components */ = {
 			isa = PBXGroup;
 			children = (
 				AAA0001D /* LineRow.swift */,
 				AAA0001E /* AlertCard.swift */,
 				AAA00021 /* StatCard.swift */,
+				4FAUDIT002F1A000000000001 /* InitialLocationModifier.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -500,6 +503,7 @@
 				AAA0000D /* LineRow.swift in Sources */,
 				4F9DFF9A2F14577200E01BFB /* ParkingMapView.swift in Sources */,
 				AAA0000E /* AlertCard.swift in Sources */,
+				4FAUDIT012F1A000000000001 /* InitialLocationModifier.swift in Sources */,
 				AAA0000F /* NotificationPermissionView.swift in Sources */,
 				4F38BD2A2F15B0BB00E05786 /* TravauxService.swift in Sources */,
 				4FCD05E32F17056D00390BE1 /* TransitStopViews.swift in Sources */,

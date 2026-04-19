@@ -26,13 +26,7 @@ actor SIRILiteService {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         print("🚀 SIRI: Début requête (timeout: \(NetworkConfiguration.fastTimeout)s)")
         
-        if let creds = credentials {
-            let credString = "\(creds.username):\(creds.password)"
-            if let credentialsData = credString.data(using: .utf8) {
-                let base64Credentials = credentialsData.base64EncodedString()
-                request.setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
-            }
-        }
+        request.setBasicAuth(credentials)
         
         let (data, response) = try await NetworkConfiguration.fast.data(for: request)
         

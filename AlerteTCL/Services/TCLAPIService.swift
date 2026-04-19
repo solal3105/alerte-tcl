@@ -24,14 +24,8 @@ actor TCLAPIService {
         request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
         print("🚀 Alertes: Début requête (timeout: \(NetworkConfiguration.fastTimeout)s)")
         
-        // Ajouter l'authentification Basic Auth
-        if let creds = credentials {
-            let credString = "\(creds.username):\(creds.password)"
-            if let credentialsData = credString.data(using: .utf8) {
-                let base64Credentials = credentialsData.base64EncodedString()
-                request.setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
-            }
-        }
+        // Authentification Basic Auth
+        request.setBasicAuth(credentials)
         
         let (data, response) = try await NetworkConfiguration.fast.data(for: request)
         

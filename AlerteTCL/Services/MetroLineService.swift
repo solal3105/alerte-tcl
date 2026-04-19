@@ -83,14 +83,7 @@ actor TransitLineService {
         
         var request = NetworkConfiguration.request(url: finalURL, timeout: NetworkConfiguration.sharedTimeout)
         
-        // Ajouter l'authentification Basic Auth
-        if let creds = SecretsManager.grandLyonCredentials {
-            let credString = "\(creds.username):\(creds.password)"
-            if let credentialsData = credString.data(using: .utf8) {
-                let base64Credentials = credentialsData.base64EncodedString()
-                request.setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
-            }
-        }
+        request.setBasicAuth(SecretsManager.grandLyonCredentials)
         
         let (data, response) = try await NetworkConfiguration.shared.data(for: request)
         
