@@ -13,8 +13,18 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
     @Published var lastUpdate: Date?
-    @Published var selectedVehicleType: VehicleType?
-    @Published var selectedLine: String?
+    @Published var selectedVehicleType: VehicleType? {
+        didSet {
+            updateFilteredVehicles()
+            updateClustersIfNeeded()
+        }
+    }
+    @Published var selectedLine: String? {
+        didSet {
+            updateFilteredVehicles()
+            updateClustersIfNeeded()
+        }
+    }
     @Published var selectedLines: Set<String> = []
     @Published var showBusLines = true
     @Published var showTransitLines = true
@@ -24,17 +34,21 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published var isInitialLoadComplete = false
     @Published var isLive = false
     
+    /// Horloge d'animation partagée, mise à jour ~15 fps.
+    /// La vue lit cette valeur pour calculer les positions interpolées.
+    @Published private(set) var animationTime: CFTimeInterval = CACurrentMediaTime()
+    
     // Transit Stops
     @Published var transitStops: [TransitStop] = []
     @Published var mergedStops: [MergedStop] = [] // Arrêts fusionnés (< 30m)
     @Published var isLoadingStops = false
-    @Published var showTransitStops = true
     
     // Cached computed properties for performance
     @Published private(set) var filteredVehicles: [Vehicle] = []
     @Published private(set) var visibleMergedStops: [MergedStop] = []
     
     private var streamTask: Task<Void, Never>?
+    private var animationTask: Task<Void, Never>?
     private var regionUpdateTask: Task<Void, Never>?
     private var consecutiveErrors = 0
     private let baseInterval: TimeInterval = 10
@@ -107,8 +121,8 @@ final class LiveVehiclesViewModel: ObservableObject {
     private var lastClusteringVehicleCount: Int = 0
     
     /// Seuil de zoom pour activer le clustering (très dézoomé seulement)
-    /// 0.04 = vue très large, clustering activé seulement à ce niveau (divisé par 2 pour apparaître plus tard au dézoom)
-    private let vehicleClusteringZoomThreshold: Double = 0.04
+    /// 0.08 = vue très large, clustering activé seulement quand on voit presque toute la métropole
+    private let vehicleClusteringZoomThreshold: Double = 0.08
     
     var shouldShowClusters: Bool {
         currentZoomLevel >= vehicleClusteringZoomThreshold
@@ -282,7 +296,7 @@ final class LiveVehiclesViewModel: ObservableObject {
                 
                 updateAnimatedVehicles(with: fetchedVehicles)
                 
-                vehicles = fetchedVehicles
+                vehicles = mergeWithGracePeriodVehicles(fetchedVehicles)
                 lastUpdate = Date()
                 error = nil
                 isInitialLoadComplete = true
@@ -316,48 +330,44 @@ final class LiveVehiclesViewModel: ObservableObject {
     }
     
     private func updateAnimatedVehicles(with newVehicles: [Vehicle]) {
-        var updatedVehicles: [String: AnimatedVehicle] = [:]
+        let now = CACurrentMediaTime()
+        var updated: [String: AnimatedVehicle] = [:]
+        updated.reserveCapacity(newVehicles.count)
         
         for vehicle in newVehicles {
-            if let existingAnimated = animatedVehicles[vehicle.id] {
-                // ✅ Mettre à jour la cible sans recréer l'objet
-                let previousVehicle = vehicles.first { $0.id == vehicle.id }
-                existingAnimated.updateTarget(
-                    newVehicle: vehicle,
-                    previousCoordinate: previousVehicle?.coordinate,
-                    previousBearing: previousVehicle?.bearing
-                )
-                existingAnimated.lastSeenAt = Date()
-                existingAnimated.isActive = true
-                updatedVehicles[vehicle.id] = existingAnimated
+            if let existing = animatedVehicles[vehicle.id] {
+                existing.updateTarget(vehicle: vehicle, duration: baseInterval, currentTime: now)
+                existing.lastSeenAt = Date()
+                existing.isActive = true
+                updated[vehicle.id] = existing
             } else {
-                // ✅ Créer un nouveau véhicule animé seulement s'il n'existe pas
-                let animated = AnimatedVehicle(vehicle: vehicle)
-                updatedVehicles[vehicle.id] = animated
+                updated[vehicle.id] = AnimatedVehicle(vehicle: vehicle)
             }
         }
         
-        // ✅ Garder les véhicules qui ont disparu temporairement (période de grâce anti-clignotement)
-        for (id, animated) in animatedVehicles {
-            if updatedVehicles[id] == nil {
-                // Véhicule absent de la réponse API
-                if !animated.shouldBeRemoved {
-                    // Encore dans la période de grâce - le garder visible mais arrêter l'animation
-                    animated.isActive = false
-                    animated.stopAnimation() // Libérer les ressources CADisplayLink
-                    updatedVehicles[id] = animated
-                } else {
-                    // Période de grâce expirée - supprimer définitivement
-                    animated.stopAnimation()
-                }
+        // Période de grâce pour les véhicules temporairement absents
+        for (id, animated) in animatedVehicles where updated[id] == nil {
+            if !animated.shouldBeRemoved {
+                animated.isActive = false
+                updated[id] = animated
             }
         }
         
-        animatedVehicles = updatedVehicles
+        animatedVehicles = updated
         
         if isFirstLoad {
             isFirstLoad = false
         }
+    }
+    
+    /// Fusionne les véhicules fraîchement récupérés avec ceux en période de grâce
+    /// pour éviter le clignotement des véhicules au terminus.
+    private func mergeWithGracePeriodVehicles(_ fetched: [Vehicle]) -> [Vehicle] {
+        let fetchedIds = Set(fetched.map { $0.id })
+        let graceVehicles = animatedVehicles.values
+            .filter { !$0.isActive && !fetchedIds.contains($0.id) }
+            .map { $0.lastVehicle }
+        return fetched + graceVehicles
     }
     
     
@@ -373,6 +383,16 @@ final class LiveVehiclesViewModel: ObservableObject {
         isLive = true
         consecutiveErrors = 0
         
+        // Driver d'animation partagé ~15 fps
+        animationTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                self.animationTime = CACurrentMediaTime()
+                try? await Task.sleep(nanoseconds: 66_666_666) // ~15 fps
+            }
+        }
+        
+        // Boucle de fetch
         streamTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
@@ -391,18 +411,16 @@ final class LiveVehiclesViewModel: ObservableObject {
     func stopLiveStream() {
         streamTask?.cancel()
         streamTask = nil
+        animationTask?.cancel()
+        animationTask = nil
         isLive = false
-        
-        for (_, animated) in animatedVehicles {
-            animated.stopAnimation()
-        }
     }
     
     private func fetchVehiclesQuietly() async {
         do {
             let fetched = try await SIRILiteService.shared.fetchVehiclePositions()
             updateAnimatedVehicles(with: fetched)
-            vehicles = fetched
+            vehicles = mergeWithGracePeriodVehicles(fetched)
             lastUpdate = Date()
             error = nil
             consecutiveErrors = 0
@@ -503,7 +521,7 @@ final class LiveVehiclesViewModel: ObservableObject {
     private let stopsZoomThreshold: Double = ClusteringEngine.clusteringZoomThreshold
     
     var shouldShowStops: Bool {
-        showTransitStops && currentZoomLevel <= stopsZoomThreshold
+        currentZoomLevel <= stopsZoomThreshold
     }
     
     private func updateVisibleStops() {

@@ -15,10 +15,6 @@
 			</array>
 		</dict>
 	</array>
-	<key>GrandLyonPassword</key>
-	<string></string>
-	<key>GrandLyonUsername</key>
-	<string></string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

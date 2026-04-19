@@ -15,6 +15,7 @@ struct LiveMapView: View {
     @State private var showLoadingError = false
     @State private var showDataSourceErrors = false
     @State private var hasStartedLoading = false
+    @State private var hasSetInitialLocation = false
     
     @State private var currentRegion: MKCoordinateRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
@@ -101,7 +102,7 @@ struct LiveMapView: View {
             locationService.requestPermission()
             locationService.startUpdatingLocation()
             
-            if let userLocation = locationService.currentLocation, !isSimulator {
+            if !hasSetInitialLocation, let userLocation = locationService.currentLocation, !isSimulator {
                 withAnimation(.easeInOut(duration: 0.8)) {
                     mapCameraPosition = .region(
                         MKCoordinateRegion(
@@ -110,6 +111,7 @@ struct LiveMapView: View {
                         )
                     )
                 }
+                hasSetInitialLocation = true
             }
             
             // Charger les données en arrière-plan APRÈS affichage de la Map
@@ -125,16 +127,13 @@ struct LiveMapView: View {
             case .background, .inactive:
                 viewModel.stopLiveStream()
             case .active:
-                Task { @MainActor in
-                    await loadSafely("Véhicules (reprise)") { await self.viewModel.loadVehicles() }
-                    self.viewModel.startLiveStream()
-                }
+                viewModel.startLiveStream()
             @unknown default:
                 break
             }
         }
         .onChange(of: locationService.currentLocation) { oldValue, newValue in
-            if oldValue == nil, let newLocation = newValue, !isSimulator {
+            if !hasSetInitialLocation, oldValue == nil, let newLocation = newValue, !isSimulator {
                 withAnimation(.easeInOut(duration: 0.8)) {
                     mapCameraPosition = .region(
                         MKCoordinateRegion(
@@ -143,6 +142,7 @@ struct LiveMapView: View {
                         )
                     )
                 }
+                hasSetInitialLocation = true
             }
         }
     }
@@ -239,8 +239,8 @@ struct LiveMapView: View {
                 // Afficher les véhicules non clusterisés
                 ForEach(viewModel.displayVehicles, id: \.id) { vehicle in
                     let animated = viewModel.animatedVehicles[vehicle.id]
-                    let coordinate = animated?.animatedCoordinate ?? vehicle.coordinate
-                    let bearing = animated?.animatedBearing ?? vehicle.bearing
+                    let coordinate = animated?.coordinateAt(viewModel.animationTime) ?? vehicle.coordinate
+                    let bearing = animated?.bearingAt(viewModel.animationTime) ?? vehicle.bearing
                     
                     Annotation(vehicle.lineName, coordinate: coordinate) {
                         VehicleMarker(vehicle: vehicle, bearing: bearing, currentZoomLevel: viewModel.currentZoomLevel)
@@ -297,12 +297,10 @@ struct LiveMapView: View {
     
     private var overlayControls: some View {
         VStack {
-            // Carte d'alertes en haut (visible s'il y a des alertes)
-            if !alertViewModel.linesInError.isEmpty {
-                alertsSummaryCard
-                    .padding(.top, 60)
-                    .padding(.horizontal, 16)
-            }
+            // Bandeau trafic en haut
+            trafficBanner
+                .padding(.top, 8)
+                .padding(.horizontal, 16)
             
             Spacer()
                 .allowsHitTesting(false)
@@ -316,19 +314,6 @@ struct LiveMapView: View {
                 
                 // Boutons en bas à droite (stack vertical)
                 VStack(spacing: 12) {
-                    // Bouton toggle arrêts
-                    Button {
-                        withAnimation(.spring(response: 0.3)) {
-                            viewModel.showTransitStops.toggle()
-                        }
-                    } label: {
-                        Image(systemName: viewModel.showTransitStops ? "mappin.circle.fill" : "mappin.circle")
-                            .font(.system(size: 22, weight: .semibold))
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(viewModel.showTransitStops ? .purple : .gray)
-                    .controlSize(.large)
-                    
                     // Bouton filtres
                     Button {
                         showFilters = true
@@ -369,147 +354,104 @@ struct LiveMapView: View {
         }
     }
     
-    // MARK: - Alerts Summary Card
+    // MARK: - Traffic Banner
     
-    private var alertsSummaryCard: some View {
-        Button {
-            showAlerts = true
-        } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                // Header
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(.orange)
+    private var trafficBanner: some View {
+        let hasSubscriptions = !alertViewModel.subscribedLines.isEmpty
+        let subscribedDisrupted = subscribedLinesDisrupted
+        let majorAlerts = alertViewModel.linesInError.filter { $0.highestSeverity == .major }
+        
+        let state: TrafficState = {
+            if hasSubscriptions {
+                if subscribedDisrupted.isEmpty {
+                    return .subscribedAllClear
+                } else {
+                    let worst = subscribedDisrupted.map(\.highestSeverity).min { $0.sortOrder < $1.sortOrder } ?? .disruption
+                    return .subscribedDisrupted(lines: subscribedDisrupted, severity: worst)
+                }
+            } else {
+                if majorAlerts.isEmpty {
+                    return .noMajorDisruption
+                } else {
+                    return .majorDisruptions(lines: majorAlerts)
+                }
+            }
+        }()
+        
+        return Button { showAlerts = true } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 12) {
+                    // Icône dans un cercle teinté
+                    Image(systemName: state.icon)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(state.color)
+                        .frame(width: 32, height: 32)
+                        .background(state.color.opacity(0.12))
+                        .clipShape(Circle())
                     
-                    Text("\(alertViewModel.linesInError.count) ligne\(alertViewModel.linesInError.count > 1 ? "s" : "") perturbée\(alertViewModel.linesInError.count > 1 ? "s" : "")")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.primary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(state.title)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        
+                        if let subtitle = state.subtitle {
+                            Text(subtitle)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     
                     Spacer()
                     
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                 }
                 
-                // Lignes affectées (priorité aux abonnées)
-                alertLinesPreview
+                // Badges de lignes sur une deuxième ligne
+                if let badges = state.lineBadges, !badges.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(badges, id: \.id) { summary in
+                                lineBadge(name: summary.displayName, severity: summary.highestSeverity)
+                            }
+                        }
+                    }
+                    .allowsHitTesting(false)
+                }
             }
             .padding(14)
             .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 18))
-            .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 4)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 4)
         }
         .buttonStyle(.plain)
     }
     
-    private var alertLinesPreview: some View {
-        let subscribedLinesInError = alertViewModel.linesInError.filter { summary in
+    private var subscribedLinesDisrupted: [AlertViewModel.LineAlertSummary] {
+        alertViewModel.linesInError.filter { summary in
             alertViewModel.subscribedLines.contains { $0.ligneCom == summary.id || $0.ligneCli == summary.id }
         }
-        let otherLinesInError = alertViewModel.linesInError.filter { summary in
-            !subscribedLinesInError.contains { $0.id == summary.id }
-        }
-        
-        // Prioriser les lignes abonnées, puis les autres
-        let sortedLines = subscribedLinesInError + otherLinesInError
-        let displayLines = Array(sortedLines.prefix(6))
-        
-        return HStack(spacing: 8) {
-            ForEach(displayLines, id: \.id) { summary in
-                alertLineBadge(summary: summary, isSubscribed: subscribedLinesInError.contains { $0.id == summary.id })
-            }
-            
-            if sortedLines.count > 6 {
-                Text("+\(sortedLines.count - 6)")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-            
-            Spacer()
-        }
     }
     
-    private func alertLineBadge(summary: AlertViewModel.LineAlertSummary, isSubscribed: Bool) -> some View {
-        let bgColor = LineColorHelper.backgroundColor(for: summary.displayName)
-        let textColor = LineColorHelper.textColor(for: summary.displayName)
-        let needsBorder = LineColorHelper.needsBorder(for: summary.displayName)
-        
-        return ZStack {
-            RoundedRectangle(cornerRadius: 6)
-                .fill(bgColor)
-                .frame(width: 32, height: 24)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color(.systemGray3), lineWidth: needsBorder ? 1 : 0)
-                )
-            
-            Text(summary.displayName)
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(textColor)
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
-        }
-        .overlay(alignment: .topTrailing) {
-            if isSubscribed {
-                Circle()
-                    .fill(.blue)
-                    .frame(width: 10, height: 10)
-                    .overlay {
-                        Image(systemName: "bell.fill")
-                            .font(.system(size: 6, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-                    .offset(x: 4, y: -4)
-            }
-        }
-        .overlay(alignment: .bottomTrailing) {
+    private func lineBadge(name: String, severity: AlertSeverity) -> some View {
+        HStack(spacing: 4) {
             Circle()
-                .fill(severityColor(summary.highestSeverity))
-                .frame(width: 8, height: 8)
-                .offset(x: 2, y: 2)
+                .fill(severity == .major ? .red : .orange)
+                .frame(width: 6, height: 6)
+            
+            Text(name)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(LineColorHelper.textColor(for: name))
         }
-    }
-    
-    private func severityColor(_ severity: AlertSeverity) -> Color {
-        switch severity {
-        case .major: return .red
-        case .disruption: return .orange
-        case .info: return .blue
-        }
-    }
-    
-    private func lineColor(for line: TransportLine) -> Color {
-        switch line.mode {
-        case .metro:
-            switch line.ligneCli {
-            case "A": return Color(red: 0.95, green: 0.26, blue: 0.21)
-            case "B": return Color(red: 0.0, green: 0.45, blue: 0.81)
-            case "C": return Color(red: 1.0, green: 0.6, blue: 0.0)
-            case "D": return Color(red: 0.0, green: 0.59, blue: 0.53)
-            default: return .gray
-            }
-        case .tramway:
-            switch line.ligneCli {
-            case "T1": return Color(red: 0.95, green: 0.26, blue: 0.21)
-            case "T2": return Color(red: 0.95, green: 0.26, blue: 0.21)
-            case "T3": return Color(red: 1.0, green: 0.6, blue: 0.0)
-            case "T4": return Color(red: 0.61, green: 0.15, blue: 0.69)
-            case "T5": return Color(red: 0.0, green: 0.59, blue: 0.53)
-            case "T6": return Color(red: 0.95, green: 0.26, blue: 0.21)
-            case "T7": return Color(red: 0.0, green: 0.45, blue: 0.81)
-            default: return .red
-            }
-        case .busC:
-            return Color(red: 1.0, green: 0.6, blue: 0.0)
-        case .bus:
-            return Color(red: 0.0, green: 0.45, blue: 0.81)
-        case .funiculaire:
-            return Color(red: 0.0, green: 0.59, blue: 0.53)
-        case .navette:
-            return .purple
-        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(LineColorHelper.backgroundColor(for: name))
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(LineColorHelper.needsBorder(for: name) ? Color(.systemGray4) : .clear, lineWidth: 0.5)
+        )
     }
     
     private var liveIndicator: some View {
@@ -1044,6 +986,74 @@ struct FilterSheet: View {
         case .bus: return .purple
         case .trolley: return .green
         case .funicular: return .teal
+        }
+    }
+}
+
+// MARK: - Traffic State
+
+private enum TrafficState {
+    case noMajorDisruption
+    case subscribedAllClear
+    case subscribedDisrupted(lines: [AlertViewModel.LineAlertSummary], severity: AlertSeverity)
+    case majorDisruptions(lines: [AlertViewModel.LineAlertSummary])
+    
+    var icon: String {
+        switch self {
+        case .noMajorDisruption, .subscribedAllClear:
+            return "checkmark.circle.fill"
+        case .subscribedDisrupted(_, let severity):
+            return severity == .major ? "xmark.octagon.fill" : "exclamationmark.triangle.fill"
+        case .majorDisruptions:
+            return "xmark.octagon.fill"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .noMajorDisruption, .subscribedAllClear:
+            return .green
+        case .subscribedDisrupted(_, let severity):
+            return severity == .major ? .red : .orange
+        case .majorDisruptions:
+            return .red
+        }
+    }
+    
+    var title: String {
+        switch self {
+        case .noMajorDisruption:
+            return "Aucune perturbation majeure"
+        case .subscribedAllClear:
+            return "Vos lignes circulent normalement"
+        case .subscribedDisrupted(let lines, _):
+            let count = lines.count
+            return "\(count) de vos ligne\(count > 1 ? "s" : "") perturbée\(count > 1 ? "s" : "")"
+        case .majorDisruptions(let lines):
+            let count = lines.count
+            return "\(count) perturbation\(count > 1 ? "s" : "") majeure\(count > 1 ? "s" : "")"
+        }
+    }
+    
+    var subtitle: String? {
+        switch self {
+        case .noMajorDisruption:
+            return "Réseau TCL"
+        case .subscribedAllClear:
+            return nil
+        case .subscribedDisrupted, .majorDisruptions:
+            return nil
+        }
+    }
+    
+    var lineBadges: [AlertViewModel.LineAlertSummary]? {
+        switch self {
+        case .noMajorDisruption, .subscribedAllClear:
+            return nil
+        case .subscribedDisrupted(let lines, _):
+            return lines
+        case .majorDisruptions(let lines):
+            return lines
         }
     }
 }

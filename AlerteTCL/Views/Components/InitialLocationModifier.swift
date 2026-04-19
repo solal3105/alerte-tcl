@@ -15,7 +15,7 @@ struct InitialLocationModifier: ViewModifier {
                 locationService.requestPermission()
                 locationService.startUpdatingLocation()
                 
-                if let userLocation = locationService.currentLocation {
+                if !hasSetInitialLocation, let userLocation = locationService.currentLocation {
                     mapCameraPosition = .region(
                         MKCoordinateRegion(
                             center: userLocation.coordinate,

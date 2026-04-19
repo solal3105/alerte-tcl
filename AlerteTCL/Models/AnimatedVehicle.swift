@@ -1,171 +1,123 @@
 import Foundation
 import CoreLocation
-import SwiftUI
-import Combine
+import UIKit
 
-/// Gère l'animation fluide d'un véhicule entre deux positions GPS
-/// Optimisé pour les données SIRI qui arrivent toutes les 15 secondes
-/// Note: animatedCoordinate et animatedBearing ne sont PAS @Published pour éviter
-/// de déclencher des re-renders 60 fois/seconde. La Map lit directement ces propriétés.
+/// Données d'interpolation pour un véhicule sur la carte.
+/// Aucune ressource lourde (pas de CADisplayLink, pas de Timer).
+/// L'interpolation est calculée à la demande via `coordinateAt(_:)` / `bearingAt(_:)`,
+/// appelées par la vue à chaque frame du driver d'animation partagé (~15 fps).
 @MainActor
-class AnimatedVehicle: Identifiable {
+final class AnimatedVehicle: Identifiable {
     let id: String
-    var animatedCoordinate: CLLocationCoordinate2D
-    var animatedBearing: Double
-    
+
     private var sourceCoordinate: CLLocationCoordinate2D
     private var targetCoordinate: CLLocationCoordinate2D
     private var sourceBearing: Double
     private var targetBearing: Double
-    
-    private var displayLink: CADisplayLink?
-    private var animationStartTime: CFTimeInterval = 0
-    private let animationDuration: TimeInterval = 15.0 // Durée SIRI entre deux updates
-    
-    private var isAnimating = false
-    
-    /// Date de la dernière mise à jour depuis l'API
+    private var startTime: CFTimeInterval = 0
+    private var duration: TimeInterval = 10.0
+
+    /// Dernier objet Vehicle reçu de l'API (permet de réinjecter les véhicules en période de grâce).
+    private(set) var lastVehicle: Vehicle
+
     var lastSeenAt: Date = Date()
-    
-    /// Indique si le véhicule est toujours présent dans les données API
     var isActive: Bool = true
-    
-    /// Durée de grâce avant suppression (2 cycles de refresh = 30s)
+
+    /// Suppression après 3 cycles sans données (30 s à 10 s/cycle)
     static let gracePeriod: TimeInterval = 30.0
-    
-    /// Vérifie si le véhicule doit être supprimé (pas vu depuis trop longtemps)
+
     var shouldBeRemoved: Bool {
         !isActive && Date().timeIntervalSince(lastSeenAt) > Self.gracePeriod
     }
-    
+
+    // MARK: - Init
+
     init(vehicle: Vehicle) {
         self.id = vehicle.id
+        self.lastVehicle = vehicle
         self.sourceCoordinate = vehicle.coordinate
         self.targetCoordinate = vehicle.coordinate
-        self.animatedCoordinate = vehicle.coordinate
         self.sourceBearing = vehicle.bearing
         self.targetBearing = vehicle.bearing
-        self.animatedBearing = vehicle.bearing
     }
-    
-    /// Met à jour la cible d'animation sans recréer l'objet
-    func updateTarget(newVehicle: Vehicle, previousCoordinate: CLLocationCoordinate2D?, previousBearing: Double?) {
-        // Vérifier que les coordonnées sont valides
-        guard newVehicle.coordinate.latitude != 0,
-              newVehicle.coordinate.longitude != 0,
-              newVehicle.coordinate.latitude.isFinite,
-              newVehicle.coordinate.longitude.isFinite else {
+
+    // MARK: - Update
+
+    /// Enregistre une nouvelle position cible avec handoff fluide depuis la position interpolée actuelle.
+    func updateTarget(vehicle: Vehicle, duration: TimeInterval, currentTime: CFTimeInterval) {
+        guard vehicle.coordinate.latitude != 0,
+              vehicle.coordinate.longitude != 0,
+              vehicle.coordinate.latitude.isFinite,
+              vehicle.coordinate.longitude.isFinite else { return }
+
+        let dist = fastDistance(from: targetCoordinate, to: vehicle.coordinate)
+
+        lastVehicle = vehicle
+
+        // Saut > 500 m → téléportation (erreur GPS probable)
+        if dist > 500 {
+            sourceCoordinate = vehicle.coordinate
+            targetCoordinate = vehicle.coordinate
+            sourceBearing = vehicle.bearing
+            targetBearing = vehicle.bearing
+            startTime = 0
             return
         }
-        
-        // Calculer la distance du mouvement
-        let distance = calculateDistance(from: targetCoordinate, to: newVehicle.coordinate)
-        
-        // Si le mouvement est trop grand (>500m), c'est probablement une erreur GPS
-        if distance > 0.5 {
-            // Téléporter directement sans animation
-            self.sourceCoordinate = newVehicle.coordinate
-            self.targetCoordinate = newVehicle.coordinate
-            self.animatedCoordinate = newVehicle.coordinate
-            self.sourceBearing = newVehicle.bearing
-            self.targetBearing = newVehicle.bearing
-            self.animatedBearing = newVehicle.bearing
-            stopAnimation()
-            return
-        }
-        
-        // Si le mouvement est trop petit (<1m), ignorer
-        if distance < 0.000001 {
-            return
-        }
-        
-        // Utiliser la position actuelle animée comme source
-        self.sourceCoordinate = self.animatedCoordinate
-        self.sourceBearing = self.animatedBearing
-        
-        // Nouvelle cible
-        self.targetCoordinate = newVehicle.coordinate
-        self.targetBearing = newVehicle.bearing
-        
-        // Redémarrer l'animation
-        startAnimation()
-    }
-    
-    private func startAnimation() {
-        stopAnimation()
-        
-        // Respecter la préférence de réduction d'animations
+
+        // Bruit < 1 m → ignorer
+        if dist < 1 { return }
+
         if UIAccessibility.isReduceMotionEnabled {
-            // Mode réduit : téléportation directe
-            animatedCoordinate = targetCoordinate
-            animatedBearing = targetBearing
+            sourceCoordinate = vehicle.coordinate
+            targetCoordinate = vehicle.coordinate
+            sourceBearing = vehicle.bearing
+            targetBearing = vehicle.bearing
+            startTime = 0
             return
         }
-        
-        isAnimating = true
-        animationStartTime = CACurrentMediaTime()
-        
-        // Utiliser CADisplayLink pour une animation 60 FPS synchronisée avec l'écran
-        let displayLink = CADisplayLink(target: self, selector: #selector(updateAnimation))
-        displayLink.add(to: .main, forMode: .common)
-        self.displayLink = displayLink
+
+        // Handoff fluide : partir de la position interpolée actuelle
+        sourceCoordinate = coordinateAt(currentTime)
+        sourceBearing = bearingAt(currentTime)
+        targetCoordinate = vehicle.coordinate
+        targetBearing = vehicle.bearing
+        startTime = currentTime
+        self.duration = duration
     }
-    
-    func stopAnimation() {
-        isAnimating = false
-        displayLink?.invalidate()
-        displayLink = nil
+
+    // MARK: - Interpolation (pure computation, aucun side-effect)
+
+    func coordinateAt(_ time: CFTimeInterval) -> CLLocationCoordinate2D {
+        let t = easedProgress(at: time)
+        return CLLocationCoordinate2D(
+            latitude:  sourceCoordinate.latitude  + (targetCoordinate.latitude  - sourceCoordinate.latitude)  * t,
+            longitude: sourceCoordinate.longitude + (targetCoordinate.longitude - sourceCoordinate.longitude) * t
+        )
     }
-    
-    @objc private func updateAnimation() {
-        guard isAnimating else { return }
-        
-        let currentTime = CACurrentMediaTime()
-        let elapsed = currentTime - animationStartTime
-        let progress = min(elapsed / animationDuration, 1.0)
-        
-        // Arrêter l'animation quand terminée AVANT de calculer les coordonnées
-        if progress >= 1.0 {
-            animatedCoordinate = targetCoordinate
-            animatedBearing = targetBearing
-            stopAnimation()
-            return
-        }
-        
-        // Fonction d'easing pour un mouvement naturel
-        let easedProgress = easeInOutQuad(progress)
-        
-        // Interpolation de la position
-        let newLat = sourceCoordinate.latitude + (targetCoordinate.latitude - sourceCoordinate.latitude) * easedProgress
-        let newLon = sourceCoordinate.longitude + (targetCoordinate.longitude - sourceCoordinate.longitude) * easedProgress
-        
-        animatedCoordinate = CLLocationCoordinate2D(latitude: newLat, longitude: newLon)
-        
-        // Interpolation du bearing (gestion du wrap 0-360)
-        var bearingDiff = targetBearing - sourceBearing
-        if bearingDiff > 180 { bearingDiff -= 360 }
-        if bearingDiff < -180 { bearingDiff += 360 }
-        animatedBearing = sourceBearing + bearingDiff * easedProgress
+
+    func bearingAt(_ time: CFTimeInterval) -> Double {
+        let t = easedProgress(at: time)
+        var diff = targetBearing - sourceBearing
+        if diff > 180  { diff -= 360 }
+        if diff < -180 { diff += 360 }
+        return sourceBearing + diff * t
     }
-    
-    private func easeInOutQuad(_ t: Double) -> Double {
-        if t < 0.5 {
-            return 2 * t * t
-        } else {
-            return 1 - pow(-2 * t + 2, 2) / 2
-        }
+
+    // MARK: - Private
+
+    private func easedProgress(at time: CFTimeInterval) -> Double {
+        guard duration > 0, startTime > 0 else { return 1.0 }
+        let raw = min(max((time - startTime) / duration, 0), 1)
+        // easeOutQuad : décélération douce, parfait pour un handoff continu
+        return 1 - (1 - raw) * (1 - raw)
     }
-    
-    private func calculateDistance(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) -> Double {
-        let location1 = CLLocation(latitude: from.latitude, longitude: from.longitude)
-        let location2 = CLLocation(latitude: to.latitude, longitude: to.longitude)
-        return location2.distance(from: location1) / 1000.0 // en km
-    }
-    
-    deinit {
-        // Nettoyer manuellement le displayLink sans capturer self
-        displayLink?.invalidate()
-        displayLink = nil
+
+    /// Distance approximative en mètres (Haversine simplifié, précis < 1 km).
+    @inline(__always)
+    private func fastDistance(from a: CLLocationCoordinate2D, to b: CLLocationCoordinate2D) -> Double {
+        let dlat = (b.latitude  - a.latitude)  * 111_320
+        let dlon = (b.longitude - a.longitude) * 111_320 * cos(a.latitude * .pi / 180)
+        return (dlat * dlat + dlon * dlon).squareRoot()
     }
 }
 
