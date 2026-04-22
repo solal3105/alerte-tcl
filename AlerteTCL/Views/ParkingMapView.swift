@@ -265,8 +265,9 @@ struct ParkingMapView: View {
                 }
                 
                 // Ouvrir la fiche du parking après un court délai
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    selectedParking = parking
+                Task {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    await MainActor.run { selectedParking = parking }
                 }
             }
         }

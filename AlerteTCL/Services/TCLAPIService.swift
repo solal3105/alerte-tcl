@@ -13,16 +13,16 @@ actor TCLAPIService {
     
     func fetchAlerts() async throws -> [TCLAlert] {
         guard let url = URL(string: alertsEndpoint) else {
-            print("❌ TCLAPIService: URL invalide")
+            AppLogger.debug("❌ TCLAPIService: URL invalide")
             throw APIError.invalidURL
         }
         
-        print("🌐 TCLAPIService: Chargement des alertes depuis \(alertsEndpoint)")
+        AppLogger.debug("🌐 TCLAPIService: Chargement des alertes depuis \(alertsEndpoint)")
         
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.fastTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
-        print("🚀 Alertes: Début requête (timeout: \(NetworkConfiguration.fastTimeout)s)")
+        AppLogger.debug("🚀 Alertes: Début requête (timeout: \(NetworkConfiguration.fastTimeout)s)")
         
         // Authentification Basic Auth
         request.setBasicAuth(credentials)
@@ -30,33 +30,33 @@ actor TCLAPIService {
         let (data, response) = try await NetworkConfiguration.fast.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
-            print("❌ TCLAPIService: Réponse invalide")
+            AppLogger.debug("❌ TCLAPIService: Réponse invalide")
             throw APIError.invalidResponse
         }
         
-        print("📡 TCLAPIService: Status code: \(httpResponse.statusCode)")
+        AppLogger.debug("📡 TCLAPIService: Status code: \(httpResponse.statusCode)")
         
         guard httpResponse.statusCode == 200 else {
             if httpResponse.statusCode == 401 {
-                print("❌ TCLAPIService: Authentification échouée")
+                AppLogger.debug("❌ TCLAPIService: Authentification échouée")
                 throw APIError.unauthorized
             }
-            print("❌ TCLAPIService: Erreur HTTP \(httpResponse.statusCode)")
+            AppLogger.debug("❌ TCLAPIService: Erreur HTTP \(httpResponse.statusCode)")
             throw APIError.serverError(httpResponse.statusCode)
         }
         
         do {
             let decoder = JSONDecoder()
             let apiResponse = try decoder.decode(APIResponse.self, from: data)
-            print("✅ TCLAPIService: \(apiResponse.values.count) alertes chargées")
+            AppLogger.debug("✅ TCLAPIService: \(apiResponse.values.count) alertes chargées")
             
             // Filtrer les alertes actives
             let activeAlerts = apiResponse.values.filter { $0.isActive }
-            print("📊 TCLAPIService: \(activeAlerts.count) alertes actives")
+            AppLogger.debug("📊 TCLAPIService: \(activeAlerts.count) alertes actives")
             
             return activeAlerts
         } catch {
-            print("❌ TCLAPIService: Erreur de décodage: \(error)")
+            AppLogger.debug("❌ TCLAPIService: Erreur de décodage: \(error)")
             throw APIError.decodingError(error)
         }
     }

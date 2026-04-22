@@ -23,8 +23,8 @@ final class AnimatedVehicle: Identifiable {
     var lastSeenAt: Date = Date()
     var isActive: Bool = true
 
-    /// Suppression après 3 cycles sans données (30 s à 10 s/cycle)
-    static let gracePeriod: TimeInterval = 30.0
+    /// Suppression après 3 cycles sans données (API publie toutes les 30 s → 90 s de grâce).
+    static let gracePeriod: TimeInterval = 90.0
 
     var shouldBeRemoved: Bool {
         !isActive && Date().timeIntervalSince(lastSeenAt) > Self.gracePeriod
@@ -44,7 +44,8 @@ final class AnimatedVehicle: Identifiable {
     // MARK: - Update
 
     /// Enregistre une nouvelle position cible avec handoff fluide depuis la position interpolée actuelle.
-    func updateTarget(vehicle: Vehicle, duration: TimeInterval, currentTime: CFTimeInterval) {
+    /// `reduceMotion` doit être lu UNE fois par cycle de fetch par l'appelant (évite N lookups cross-process).
+    func updateTarget(vehicle: Vehicle, duration: TimeInterval, currentTime: CFTimeInterval, reduceMotion: Bool) {
         guard vehicle.coordinate.latitude != 0,
               vehicle.coordinate.longitude != 0,
               vehicle.coordinate.latitude.isFinite,
@@ -67,7 +68,7 @@ final class AnimatedVehicle: Identifiable {
         // Bruit < 1 m → ignorer
         if dist < 1 { return }
 
-        if UIAccessibility.isReduceMotionEnabled {
+        if reduceMotion {
             sourceCoordinate = vehicle.coordinate
             targetCoordinate = vehicle.coordinate
             sourceBearing = vehicle.bearing

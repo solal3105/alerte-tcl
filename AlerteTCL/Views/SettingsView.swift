@@ -76,12 +76,22 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     
-                    Link(destination: URL(string: "https://data.grandlyon.com")!) {
+                    Link(destination: URL.trusted("https://data.grandlyon.com")) {
                         HStack {
                             Text("Données")
                             Spacer()
                             Text("Grand Lyon")
                                 .foregroundStyle(.secondary)
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    Link(destination: URL.trusted("https://solalgendrin.github.io/alerte-tcl/privacy")) {
+                        HStack {
+                            Text("Politique de confidentialité")
+                            Spacer()
                             Image(systemName: "arrow.up.right")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)

@@ -153,11 +153,11 @@ final class ParkingViewModel: ObservableObject {
             cachedUnclusteredParkings = parkingsToCluster
             lastClusteringZoom = currentZoomLevel
             lastClusteringParkingCount = parkingsToCluster.count
-            print("🚲 Pas de clustering pour \(selectedParkingType.rawValue): \(parkingsToCluster.count) parkings affichés")
+            AppLogger.debug("🚲 Pas de clustering pour \(selectedParkingType.rawValue): \(parkingsToCluster.count) parkings affichés")
             return
         }
         
-        print("🔄 Clustering: \(parkingsToCluster.count) parkings, zoom: \(currentZoomLevel)")
+        AppLogger.debug("🔄 Clustering: \(parkingsToCluster.count) parkings, zoom: \(currentZoomLevel)")
         
         let result = ClusteringEngine.createClusters(from: parkingsToCluster, zoomLevel: currentZoomLevel, config: clusteringConfig)
         cachedClusters = result.clusters
@@ -165,7 +165,7 @@ final class ParkingViewModel: ObservableObject {
         lastClusteringZoom = currentZoomLevel
         lastClusteringParkingCount = parkingsToCluster.count
         
-        print("📊 Clusters: \(cachedClusters.count), Unclustered: \(cachedUnclusteredParkings.count)")
+        AppLogger.debug("📊 Clusters: \(cachedClusters.count), Unclustered: \(cachedUnclusteredParkings.count)")
     }
     
     private func invalidateClusterCache() {
@@ -240,7 +240,7 @@ final class ParkingViewModel: ObservableObject {
         guard !isLoading else { return }
         guard !Task.isCancelled else { return }
         
-        print("🔄 ParkingViewModel: Début du chargement (\(selectedParkingType.rawValue))...")
+        AppLogger.debug("🔄 ParkingViewModel: Début du chargement (\(selectedParkingType.rawValue))...")
         isLoading = true
         error = nil
         defer { isLoading = false }
@@ -267,12 +267,12 @@ final class ParkingViewModel: ObservableObject {
             // Forcer la mise à jour des clusters
             updateClustersIfNeeded(force: true)
             
-            print("✅ ParkingViewModel: \(parkings.count) parkings \(selectedParkingType.rawValue) chargés avec succès")
-            print("📊 ParkingViewModel: Total places: \(totalPlacesDisponibles)/\(totalCapacite)")
-            print("🅿️ ParkingViewModel: Parkings ouverts: \(parkingsOuverts)")
+            AppLogger.debug("✅ ParkingViewModel: \(parkings.count) parkings \(selectedParkingType.rawValue) chargés avec succès")
+            AppLogger.debug("📊 ParkingViewModel: Total places: \(totalPlacesDisponibles)/\(totalCapacite)")
+            AppLogger.debug("🅿️ ParkingViewModel: Parkings ouverts: \(parkingsOuverts)")
             
         } catch {
-            print("⚠️ Erreur parkings (non-bloquante): \(error.localizedDescription)")
+            AppLogger.debug("⚠️ Erreur parkings (non-bloquante): \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
     }
@@ -331,7 +331,7 @@ final class ParkingViewModel: ObservableObject {
             
             updateClustersIfNeeded(force: true)
             
-            print("✅ ParkingViewModel: \(fetchedParkings.count) parkings \(selectedParkingType.rawValue) chargés (total: \(parkings.count))")
+            AppLogger.debug("✅ ParkingViewModel: \(fetchedParkings.count) parkings \(selectedParkingType.rawValue) chargés (total: \(parkings.count))")
             
             // Effacer le message après un court délai
             try? await Task.sleep(nanoseconds: 800_000_000) // 0.8s
@@ -339,7 +339,7 @@ final class ParkingViewModel: ObservableObject {
             loadingProgress = 0.0
             
         } catch {
-            print("⚠️ Erreur chargement spatial: \(error.localizedDescription)")
+            AppLogger.debug("⚠️ Erreur chargement spatial: \(error.localizedDescription)")
             self.error = error.localizedDescription
             loadingMessage = ""
             loadingProgress = 0.0
@@ -358,7 +358,7 @@ final class ParkingViewModel: ObservableObject {
         
         // Ne refresh que les parkings voiture (données temps réel)
         guard selectedParkingType == .car else {
-            print("⏸️ ParkingViewModel: Pas de refresh auto pour \(selectedParkingType.rawValue) (données statiques)")
+            AppLogger.debug("⏸️ ParkingViewModel: Pas de refresh auto pour \(selectedParkingType.rawValue) (données statiques)")
             return
         }
         

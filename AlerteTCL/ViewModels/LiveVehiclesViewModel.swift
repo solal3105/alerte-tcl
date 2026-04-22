@@ -7,7 +7,11 @@ import MapKit
 @MainActor
 final class LiveVehiclesViewModel: ObservableObject {
     @Published var vehicles: [Vehicle] = []
-    @Published var animatedVehicles: [String: AnimatedVehicle] = [:]
+    /// Non-@Published: mis à jour à chaque fetch (30 s) mais relu à chaque tick
+    /// de l'`AnimationClock` (~15 fps) depuis `LiveMapView.mapContent`, donc
+    /// pas besoin de déclencher `objectWillChange` pour faire rafraîchir la vue.
+    /// Eviter de publier ce dict (~1000 entrées) économise des invalidations SwiftUI.
+    var animatedVehicles: [String: AnimatedVehicle] = [:]
     @Published var busLines: [BusLine] = []
     @Published var transitLines: [TransitLine] = []
     @Published var isLoading = false
@@ -34,10 +38,6 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published var isInitialLoadComplete = false
     @Published var isLive = false
     
-    /// Horloge d'animation partagée, mise à jour ~15 fps.
-    /// La vue lit cette valeur pour calculer les positions interpolées.
-    @Published private(set) var animationTime: CFTimeInterval = CACurrentMediaTime()
-    
     // Transit Stops
     @Published var transitStops: [TransitStop] = []
     @Published var mergedStops: [MergedStop] = [] // Arrêts fusionnés (< 30m)
@@ -48,11 +48,13 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published private(set) var visibleMergedStops: [MergedStop] = []
     
     private var streamTask: Task<Void, Never>?
-    private var animationTask: Task<Void, Never>?
     private var regionUpdateTask: Task<Void, Never>?
     private var consecutiveErrors = 0
-    private let baseInterval: TimeInterval = 10
-    private let maxInterval: TimeInterval = 30
+    /// L'API SIRI Lite TCL ne publie de nouvelles positions que toutes les 30 s.
+    /// Fetcher plus souvent renvoie les mêmes données → CPU/réseau/batterie gaspillés.
+    /// L'interpolation côté client fait le liant entre deux fetchs.
+    private let baseInterval: TimeInterval = 30
+    private let maxInterval: TimeInterval = 60
     private var cancellables = Set<AnyCancellable>()
     private var isFirstLoad = true
     
@@ -178,10 +180,6 @@ final class LiveVehiclesViewModel: ObservableObject {
         return unclusteredVehicles
     }
     
-    var vehiclesByType: [VehicleType: [Vehicle]] {
-        Dictionary(grouping: filteredVehicles) { $0.vehicleType }
-    }
-    
     var availableLines: [String] {
         if vehicles.count != lastVehicleCount {
             cachedAvailableLines = computeAvailableLines()
@@ -237,38 +235,23 @@ final class LiveVehiclesViewModel: ObservableObject {
         vehicles.first { $0.lineName == line }?.vehicleType
     }
     
-    var vehicleTypeStats: [(type: VehicleType, count: Int)] {
-        VehicleType.allCases
-            .map { type in (type: type, count: vehicles.filter { $0.vehicleType == type }.count) }
-            .filter { $0.count > 0 }
-            .sorted { $0.type.sortOrder < $1.type.sortOrder }
-    }
-    
     func loadBusLines() async {
         do {
             busLines = try await BusLineService.shared.fetchBusLines()
-            #if DEBUG
-            print("✅ ViewModel: \(busLines.count) lignes C chargées")
-            print("✅ ViewModel: showBusLines = \(showBusLines)")
-            #endif
+            AppLogger.debug("✅ ViewModel: \(busLines.count) lignes C chargées")
+            AppLogger.debug("✅ ViewModel: showBusLines = \(showBusLines)")
         } catch {
-            #if DEBUG
-            print("❌ Erreur chargement lignes de bus: \(error)")
-            #endif
+            AppLogger.debug("❌ Erreur chargement lignes de bus: \(error)")
         }
     }
     
     func loadTransitLines() async {
         do {
             transitLines = try await TransitLineService.shared.fetchTransitLines()
-            #if DEBUG
-            print("✅ ViewModel: \(transitLines.count) lignes de transport chargées")
-            print("✅ ViewModel: showTransitLines = \(showTransitLines)")
-            #endif
+            AppLogger.debug("✅ ViewModel: \(transitLines.count) lignes de transport chargées")
+            AppLogger.debug("✅ ViewModel: showTransitLines = \(showTransitLines)")
         } catch {
-            #if DEBUG
-            print("❌ Erreur chargement lignes de transport: \(error)")
-            #endif
+            AppLogger.debug("❌ Erreur chargement lignes de transport: \(error)")
         }
     }
     
@@ -308,15 +291,15 @@ final class LiveVehiclesViewModel: ObservableObject {
                 return
             } catch let siriError as SIRIError {
                 lastError = siriError
-                print("⚠️ Erreur SIRI tentative \(attempt)/\(attempts): \(siriError.errorDescription ?? "inconnue")")
+                AppLogger.debug("⚠️ Erreur SIRI tentative \(attempt)/\(attempts): \(siriError.errorDescription ?? "inconnue")")
             } catch {
                 lastError = error
-                print("⚠️ Erreur véhicules tentative \(attempt)/\(attempts): \(error.localizedDescription)")
+                AppLogger.debug("⚠️ Erreur véhicules tentative \(attempt)/\(attempts): \(error.localizedDescription)")
             }
             
             // Retry avec délai seulement si ce n'est pas la dernière tentative
             if attempt < attempts {
-                print("🔄 Retry véhicules dans 2s...")
+                AppLogger.debug("🔄 Retry véhicules dans 2s...")
                 try? await Task.sleep(nanoseconds: Self.retryDelay)
             }
         }
@@ -331,12 +314,14 @@ final class LiveVehiclesViewModel: ObservableObject {
     
     private func updateAnimatedVehicles(with newVehicles: [Vehicle]) {
         let now = CACurrentMediaTime()
+        // Lu une fois par cycle (évite N appels cross-process à UIAccessibility).
+        let reduceMotion = UIAccessibility.isReduceMotionEnabled
         var updated: [String: AnimatedVehicle] = [:]
         updated.reserveCapacity(newVehicles.count)
         
         for vehicle in newVehicles {
             if let existing = animatedVehicles[vehicle.id] {
-                existing.updateTarget(vehicle: vehicle, duration: baseInterval, currentTime: now)
+                existing.updateTarget(vehicle: vehicle, duration: baseInterval, currentTime: now, reduceMotion: reduceMotion)
                 existing.lastSeenAt = Date()
                 existing.isActive = true
                 updated[vehicle.id] = existing
@@ -379,18 +364,11 @@ final class LiveVehiclesViewModel: ObservableObject {
     }
     
     func startLiveStream() {
-        stopLiveStream()
+        // Si le stream tourne déjà, ne pas le redémarrer inutilement
+        // (évite le freeze de l'animationTask lors de transitions .inactive → .active)
+        guard !isLive else { return }
         isLive = true
         consecutiveErrors = 0
-        
-        // Driver d'animation partagé ~15 fps
-        animationTask = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self else { return }
-                self.animationTime = CACurrentMediaTime()
-                try? await Task.sleep(nanoseconds: 66_666_666) // ~15 fps
-            }
-        }
         
         // Boucle de fetch
         streamTask = Task { [weak self] in
@@ -411,8 +389,6 @@ final class LiveVehiclesViewModel: ObservableObject {
     func stopLiveStream() {
         streamTask?.cancel()
         streamTask = nil
-        animationTask?.cancel()
-        animationTask = nil
         isLive = false
     }
     
@@ -433,9 +409,7 @@ final class LiveVehiclesViewModel: ObservableObject {
             if consecutiveErrors >= 3 {
                 self.error = (error as? SIRIError)?.errorDescription ?? error.localizedDescription
             }
-            #if DEBUG
-            print("⚠️ Stream fetch error (\(consecutiveErrors)): \(error.localizedDescription)")
-            #endif
+            AppLogger.debug("⚠️ Stream fetch error (\(consecutiveErrors)): \(error.localizedDescription)")
         }
     }
     
@@ -564,7 +538,7 @@ final class LiveVehiclesViewModel: ObservableObject {
                 StopMergingEngine.mergeNearbyStops(stops)
             }.value
             
-            print("✅ ViewModel: \(stops.count) arrêts → \(merged.count) arrêts fusionnés")
+            AppLogger.debug("✅ ViewModel: \(stops.count) arrêts → \(merged.count) arrêts fusionnés")
             
             // Mettre à jour sur le MainActor
             await MainActor.run {
@@ -573,20 +547,20 @@ final class LiveVehiclesViewModel: ObservableObject {
                 updateVisibleStops()
             }
         } catch is TaskTimeoutError {
-            print("⏱️ Timeout arrêts (\(NetworkConfiguration.heavyTimeout)s)")
+            AppLogger.debug("⏱️ Timeout arrêts (\(NetworkConfiguration.heavyTimeout)s)")
         } catch {
-            print("⚠️ Erreur arrêts (non-bloquante): \(error.localizedDescription)")
+            AppLogger.debug("⚠️ Erreur arrêts (non-bloquante): \(error.localizedDescription)")
         }
     }
     
     func loadAllPassagesForStop(stopId: Int) async {
         guard let index = transitStops.firstIndex(where: { $0.id == stopId }) else {
-            print("⚠️ ViewModel: Arrêt \(stopId) non trouvé")
+            AppLogger.debug("⚠️ ViewModel: Arrêt \(stopId) non trouvé")
             return
         }
         
         guard !transitStops[index].isLoadingPassages else {
-            print("⏳ ViewModel: Chargement déjà en cours pour arrêt \(stopId)")
+            AppLogger.debug("⏳ ViewModel: Chargement déjà en cours pour arrêt \(stopId)")
             return
         }
         
@@ -605,11 +579,11 @@ final class LiveVehiclesViewModel: ObservableObject {
                 transitStops[index].passages = passages
                 transitStops[index].passagesLoaded = true
             }
-            print("✅ ViewModel: \(passages.count) passages chargés pour arrêt \(stopId)")
+            AppLogger.debug("✅ ViewModel: \(passages.count) passages chargés pour arrêt \(stopId)")
         } catch is TaskTimeoutError {
-            print("⏱️ Timeout passages arrêt \(stopId) (\(NetworkConfiguration.fastTimeout)s)")
+            AppLogger.debug("⏱️ Timeout passages arrêt \(stopId) (\(NetworkConfiguration.fastTimeout)s)")
         } catch {
-            print("⚠️ Erreur passages arrêt \(stopId) (non-bloquante): \(error.localizedDescription)")
+            AppLogger.debug("⚠️ Erreur passages arrêt \(stopId) (non-bloquante): \(error.localizedDescription)")
         }
     }
     

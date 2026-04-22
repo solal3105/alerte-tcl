@@ -10,6 +10,7 @@ struct LineSubscription: Codable {
     }
 }
 
+@MainActor
 final class SubscriptionService: ObservableObject {
     static let shared = SubscriptionService()
     

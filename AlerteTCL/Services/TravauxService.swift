@@ -18,7 +18,7 @@ actor TravauxService {
         if !forceRefresh, let cached = cache {
             let age = Date().timeIntervalSince(cached.timestamp)
             if age < cacheValidity {
-                print("✨ TravauxService: Cache hit (âge: \(Int(age))s)")
+                AppLogger.debug("✨ TravauxService: Cache hit (âge: \(Int(age))s)")
                 return cached.travaux
             }
         }
@@ -27,11 +27,11 @@ actor TravauxService {
         let urlString = "\(baseURL)?f=application/json&limit=500"
         
         guard let url = URL(string: urlString) else {
-            print("❌ TravauxService: URL invalide")
+            AppLogger.debug("❌ TravauxService: URL invalide")
             throw TravauxServiceError.invalidURL
         }
         
-        print("🌐 TravauxService: Chargement...")
+        AppLogger.debug("🌐 TravauxService: Chargement...")
         
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.sharedTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -45,7 +45,7 @@ actor TravauxService {
         }
         
         guard httpResponse.statusCode == 200 else {
-            print("❌ TravauxService: HTTP \(httpResponse.statusCode)")
+            AppLogger.debug("❌ TravauxService: HTTP \(httpResponse.statusCode)")
             throw TravauxServiceError.httpError(httpResponse.statusCode)
         }
         
@@ -60,7 +60,7 @@ actor TravauxService {
         // Mettre en cache
         cache = (travaux: activeTravaux, timestamp: Date())
         
-        print("✅ TravauxService: \(activeTravaux.count) chantiers actifs")
+        AppLogger.debug("✅ TravauxService: \(activeTravaux.count) chantiers actifs")
         
         return activeTravaux
     }
@@ -91,7 +91,7 @@ actor TravauxService {
         let travaux = travauxResponse.features.map { Travaux(from: $0) }
         let activeTravaux = travaux.filter { $0.isActive }
         
-        print("🚧 TravauxService: \(activeTravaux.count) chantiers dans la région")
+        AppLogger.debug("🚧 TravauxService: \(activeTravaux.count) chantiers dans la région")
         
         return activeTravaux
     }

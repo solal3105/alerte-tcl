@@ -132,8 +132,8 @@ struct TransitStopGeometry: Codable {
     let type: String
     let coordinates: [Double]
     
-    var coordinate: CLLocationCoordinate2D {
-        CLLocationCoordinate2D(latitude: coordinates[1], longitude: coordinates[0])
+    var coordinate: CLLocationCoordinate2D? {
+        CLLocationCoordinate2D.fromGeoJSON(coordinates)
     }
 }
 

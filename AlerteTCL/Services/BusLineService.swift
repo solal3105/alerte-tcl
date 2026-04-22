@@ -25,15 +25,11 @@ actor BusLineService {
         if let cached = cachedBusLines,
            let timestamp = cacheTimestamp,
            Date().timeIntervalSince(timestamp) < cacheValidityDuration {
-            #if DEBUG
-            print("✅ Utilisation du cache pour les lignes de bus")
-            #endif
+            AppLogger.debug("✅ Utilisation du cache pour les lignes de bus")
             return cached
         }
         
-        #if DEBUG
-        print("🔄 Chargement des lignes de bus depuis l'API...")
-        #endif
+        AppLogger.debug("🔄 Chargement des lignes de bus depuis l'API...")
         
         guard var components = URLComponents(string: baseURL) else {
             throw ServiceError.invalidURL
@@ -61,9 +57,7 @@ actor BusLineService {
                 throw ServiceError.invalidResponse
             }
             
-            #if DEBUG
-            print("📡 Réponse API lignes de bus: \(httpResponse.statusCode)")
-            #endif
+            AppLogger.debug("📡 Réponse API lignes de bus: \(httpResponse.statusCode)")
             
             guard httpResponse.statusCode == 200 else {
                 throw ServiceError.invalidResponse
@@ -76,21 +70,15 @@ actor BusLineService {
             cachedBusLines = busLines
             cacheTimestamp = Date()
             
-            #if DEBUG
-            print("✅ \(busLines.count) lignes de bus chargées et mises en cache")
-            #endif
+            AppLogger.debug("✅ \(busLines.count) lignes de bus chargées et mises en cache")
             
             return busLines
             
         } catch let error as DecodingError {
-            #if DEBUG
-            print("❌ Erreur de décodage: \(error)")
-            #endif
+            AppLogger.debug("❌ Erreur de décodage: \(error)")
             throw ServiceError.decodingError
         } catch {
-            #if DEBUG
-            print("❌ Erreur réseau: \(error)")
-            #endif
+            AppLogger.debug("❌ Erreur réseau: \(error)")
             throw ServiceError.networkError(error)
         }
     }
@@ -115,10 +103,8 @@ actor BusLineService {
             )
         }
         
-        #if DEBUG
-        print("📊 Lignes C chargées: \(busLines.count)")
-        print("📊 Exemples: \(busLines.prefix(5).map { $0.name }.joined(separator: ", "))")
-        #endif
+        AppLogger.debug("📊 Lignes C chargées: \(busLines.count)")
+        AppLogger.debug("📊 Exemples: \(busLines.prefix(5).map { $0.name }.joined(separator: ", "))")
         
         return busLines
     }

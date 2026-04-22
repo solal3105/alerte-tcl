@@ -182,16 +182,16 @@ final class AlertViewModel: ObservableObject {
                 // Traiter les nouvelles alertes pour les notifications
                 NotificationService.shared.processNewAlerts(fetchedAlerts, subscriptionService: subscriptionService)
                 
-                print("✅ AlertViewModel: \(fetchedAlerts.count) alertes chargées depuis l'API")
+                AppLogger.debug("✅ AlertViewModel: \(fetchedAlerts.count) alertes chargées depuis l'API")
                 return
             } catch {
                 lastError = error
-                print("⚠️ Erreur alertes tentative \(attempt)/\(attempts): \(error.localizedDescription)")
+                AppLogger.debug("⚠️ Erreur alertes tentative \(attempt)/\(attempts): \(error.localizedDescription)")
             }
             
             // Retry avec délai seulement si ce n'est pas la dernière tentative
             if attempt < attempts {
-                print("🔄 Retry alertes dans 2s...")
+                AppLogger.debug("🔄 Retry alertes dans 2s...")
                 try? await Task.sleep(nanoseconds: Self.retryDelay)
             }
         }
@@ -215,7 +215,8 @@ final class AlertViewModel: ObservableObject {
             )
             
             let cliKey = line.ligneCli.isEmpty ? nil : "\(line.mode.rawValue)-\(line.ligneCli)"
-            let alreadyExists = existingIds.contains(line.id) || (cliKey != nil && existingCliKeys.contains(cliKey!))
+            let alreadyExists = existingIds.contains(line.id)
+                || (cliKey.map(existingCliKeys.contains) ?? false)
             
             if !alreadyExists {
                 allLines.append(line)

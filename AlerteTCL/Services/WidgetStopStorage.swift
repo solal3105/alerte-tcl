@@ -31,6 +31,7 @@ struct WidgetStopSelection: Codable, Identifiable, Equatable {
 
 // MARK: - Widget Stop Storage Service
 
+@MainActor
 class WidgetStopStorage: ObservableObject {
     static let shared = WidgetStopStorage()
     

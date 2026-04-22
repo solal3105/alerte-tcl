@@ -23,7 +23,7 @@ actor GTFSStopsService {
         allStops = stops
         isLoaded = true
         
-        print("✅ GTFS: \(allStops.count) arrêts chargés")
+        AppLogger.debug("✅ GTFS: \(allStops.count) arrêts chargés")
     }
     
     func getStopsInRegion(_ region: MKCoordinateRegion) async throws -> [GTFSStop] {

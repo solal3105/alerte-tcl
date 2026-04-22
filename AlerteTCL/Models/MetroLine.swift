@@ -11,14 +11,11 @@ struct TransitLine: Identifiable, Codable {
     let familyTransport: String
     
     var clLocationCoordinates: [CLLocationCoordinate2D] {
-        let converted = coordinates.compactMap { coords -> CLLocationCoordinate2D? in
-            guard coords.count >= 2 else { return nil }
-            return CLLocationCoordinate2D(latitude: coords[1], longitude: coords[0])
-        }
+        let converted = coordinates.compactMap(CLLocationCoordinate2D.fromGeoJSON)
         
         #if DEBUG
         if converted.isEmpty && !coordinates.isEmpty {
-            print("⚠️ Ligne \(name): \(coordinates.count) coords mais 0 converties!")
+            AppLogger.debug("⚠️ Ligne \(name): \(coordinates.count) coords mais 0 converties!")
         }
         #endif
         

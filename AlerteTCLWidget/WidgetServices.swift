@@ -8,96 +8,141 @@
 import Foundation
 import SwiftUI
 
+// MARK: - Shared formatters (expensive to create — kept as static)
+
+private enum WidgetFormatters {
+    static let apiDate: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "Europe/Paris")
+        return f
+    }()
+
+    static let displayTime: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+}
+
+// MARK: - Shared App Group cache for last successful passages
+
+private enum WidgetCache {
+    private static let appGroup = "group.com.solal.alertetcl"
+    private static var defaults: UserDefaults? { UserDefaults(suiteName: appGroup) }
+
+    private struct CachedPassages: Codable {
+        let passages: [WidgetPassage]
+        let fetchedAt: Date
+    }
+
+    private static func key(stopId: Int, line: String, direction: String) -> String {
+        "widget.passages.\(stopId).\(line.uppercased()).\(direction.lowercased())"
+    }
+
+    static func store(_ passages: [WidgetPassage], stopId: Int, line: String, direction: String) {
+        guard let defaults else { return }
+        let payload = CachedPassages(passages: passages, fetchedAt: Date())
+        if let data = try? JSONEncoder().encode(payload) {
+            defaults.set(data, forKey: key(stopId: stopId, line: line, direction: direction))
+        }
+    }
+
+    /// Returns cached passages when no older than `maxAge` seconds.
+    static func load(stopId: Int, line: String, direction: String, maxAge: TimeInterval = 15 * 60) -> [WidgetPassage]? {
+        guard let defaults,
+              let data = defaults.data(forKey: key(stopId: stopId, line: line, direction: direction)),
+              let cached = try? JSONDecoder().decode(CachedPassages.self, from: data) else { return nil }
+        guard Date().timeIntervalSince(cached.fetchedAt) <= maxAge else { return nil }
+        return cached.passages
+    }
+}
+
 // MARK: - Passage Service for Widget
 
 struct WidgetPassageService {
     private static let passagesEndpoint = "https://download.data.grandlyon.com/ws/rdata/tcl_sytral.tclpassagearret/all.json"
-    
-    private static var username: String {
-        Bundle.main.object(forInfoDictionaryKey: "GrandLyonUsername") as? String ?? ""
-    }
-    
-    private static var password: String {
-        Bundle.main.object(forInfoDictionaryKey: "GrandLyonPassword") as? String ?? ""
-    }
-    
+
+    /// Fetches real-time passages. Falls back to last successful cached response on failure.
     static func fetchPassages(stopId: Int, line: String, direction: String) async throws -> [WidgetPassage] {
+        do {
+            let fresh = try await performNetworkFetch(stopId: stopId, line: line, direction: direction)
+            WidgetCache.store(fresh, stopId: stopId, line: line, direction: direction)
+            return fresh
+        } catch {
+            if let cached = WidgetCache.load(stopId: stopId, line: line, direction: direction) {
+                AppLogger.debug("⚠️ Widget: réseau KO, fallback cache (\(cached.count) passages)")
+                return cached
+            }
+            throw error
+        }
+    }
+
+    private static func performNetworkFetch(stopId: Int, line: String, direction: String) async throws -> [WidgetPassage] {
         let urlString = "\(passagesEndpoint)?field=id&value=\(stopId)&compact=false"
-        
+
         guard let url = URL(string: urlString) else {
             throw WidgetError.invalidURL
         }
-        
+
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 20
-        
-        // Add Basic Auth
-        if !username.isEmpty && !password.isEmpty {
-            let credentials = "\(username):\(password)"
-            if let credentialsData = credentials.data(using: .utf8) {
-                let base64Credentials = credentialsData.base64EncodedString()
-                request.setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
-            }
+        request.timeoutInterval = 10
+
+        guard let credentials = WidgetKeychainCredentials.current else {
+            throw WidgetError.missingCredentials
         }
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        // Check HTTP response
-        guard let httpResponse = response as? HTTPURLResponse else {
+        let raw = "\(credentials.username):\(credentials.password)"
+        if let encoded = raw.data(using: .utf8)?.base64EncodedString() {
+            request.setValue("Basic \(encoded)", forHTTPHeaderField: "Authorization")
+        }
+
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 15
+        config.waitsForConnectivity = false
+        config.urlCache = nil
+        let session = URLSession(configuration: config)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
             throw WidgetError.invalidResponse
         }
-        
-        guard httpResponse.statusCode == 200 else {
-            throw WidgetError.invalidResponse
-        }
-        
-        let decoder = JSONDecoder()
-        let passagesResponse = try decoder.decode(WidgetPassagesResponse.self, from: data)
-        
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        dateFormatter.locale = Locale(identifier: "fr_FR")
-        
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "HH:mm"
-        
+
+        let passagesResponse = try JSONDecoder().decode(WidgetPassagesResponse.self, from: data)
+
         let now = Date()
-        
-        // Normaliser la ligne et direction pour la comparaison
         let normalizedLine = line.uppercased().trimmingCharacters(in: .whitespaces)
         let normalizedDirection = direction.lowercased().trimmingCharacters(in: .whitespaces)
         let directionPrefix = String(normalizedDirection.prefix(8))
-        
-        // Filtrer par ligne et direction, puis par passages futurs
-        let filteredPassages = passagesResponse.values.filter { value in
+
+        let filtered = passagesResponse.values.filter { value in
             let valueLine = value.ligne.uppercased().trimmingCharacters(in: .whitespaces)
             let valueDirection = value.direction.lowercased().trimmingCharacters(in: .whitespaces)
-            
             let matchesLine = valueLine == normalizedLine
             let matchesDirection = valueDirection.contains(directionPrefix) || normalizedDirection.contains(String(valueDirection.prefix(8)))
-            
-            if let passageDate = dateFormatter.date(from: value.heurepassage) {
+            if let passageDate = WidgetFormatters.apiDate.date(from: value.heurepassage) {
                 return matchesLine && matchesDirection && passageDate >= now
             }
             return matchesLine && matchesDirection
         }
-        
-        // Trier par heure et convertir
-        let sortedPassages = filteredPassages.sorted { p1, p2 in
-            let date1 = dateFormatter.date(from: p1.heurepassage) ?? Date.distantFuture
-            let date2 = dateFormatter.date(from: p2.heurepassage) ?? Date.distantFuture
-            return date1 < date2
+
+        let sorted = filtered.sorted { lhs, rhs in
+            let d1 = WidgetFormatters.apiDate.date(from: lhs.heurepassage) ?? .distantFuture
+            let d2 = WidgetFormatters.apiDate.date(from: rhs.heurepassage) ?? .distantFuture
+            return d1 < d2
         }
-        
-        return sortedPassages.prefix(6).map { value in
+
+        return sorted.prefix(6).map { value in
             let time: String
-            if let passageDate = dateFormatter.date(from: value.heurepassage) {
-                time = timeFormatter.string(from: passageDate)
+            if let passageDate = WidgetFormatters.apiDate.date(from: value.heurepassage) {
+                time = WidgetFormatters.displayTime.string(from: passageDate)
             } else {
                 time = "--:--"
             }
-            
             return WidgetPassage(
                 delay: value.delaipassage,
                 time: time,
@@ -127,7 +172,7 @@ struct WidgetPassageValue: Codable {
 struct WidgetLineColorHelper {
     static func backgroundColor(for ligne: String) -> Color {
         let upper = ligne.uppercased()
-        
+
         if upper == "MA" || upper == "A" {
             return Color(red: 238/255, green: 56/255, blue: 152/255)
         } else if upper == "MB" || upper == "B" {
@@ -151,10 +196,10 @@ struct WidgetLineColorHelper {
         }
         return .blue
     }
-    
+
     static func textColor(for ligne: String) -> Color {
         let upper = ligne.uppercased()
-        
+
         if upper.hasPrefix("JD") {
             return Color(red: 235/255, green: 202/255, blue: 47/255)
         } else if upper.hasPrefix("C") && upper.count <= 4 {
@@ -180,27 +225,31 @@ struct WidgetParkingService {
             let parkings = try await fetchParkings()
             return parkings.first(where: { $0.id == parkingId })
         } catch {
-            print("❌ Widget: Erreur récupération parking: \(error)")
+            AppLogger.debug("❌ Widget: Erreur récupération parking: \(error)")
             return nil
         }
     }
-    
+
     private static func fetchParkings() async throws -> [WidgetParking] {
         let urlString = "https://data.grandlyon.com/geoserver/ogc/features/v1/collections/metropole-de-lyon:parkings-de-la-metropole-de-lyon-disponibilites-temps-reel-v2/items?f=application/json&sortby=gid"
-        
+
         guard let url = URL(string: urlString) else {
             throw WidgetError.invalidURL
         }
-        
+
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 10
-        
-        let (data, _) = try await URLSession.shared.data(for: request)
-        
-        let decoder = JSONDecoder()
-        let response = try decoder.decode(WidgetParkingResponse.self, from: data)
-        
+
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 15
+        config.waitsForConnectivity = false
+        config.urlCache = nil
+        let session = URLSession(configuration: config)
+        let (data, _) = try await session.data(for: request)
+
+        let response = try JSONDecoder().decode(WidgetParkingResponse.self, from: data)
         return response.features.map { WidgetParking(from: $0) }
     }
 }
@@ -212,7 +261,7 @@ struct WidgetParking {
     let nom: String
     let placesDisponibles: Int
     let capaciteTotale: Int
-    
+
     init(from feature: WidgetParkingFeature) {
         self.id = feature.properties.id
         self.nom = feature.properties.nom
@@ -234,7 +283,7 @@ struct WidgetParkingProperties: Codable {
     let nom: String
     let placesDisponibles: Int?
     let nbPlaces: Int?
-    
+
     enum CodingKeys: String, CodingKey {
         case id
         case nom
@@ -246,4 +295,5 @@ struct WidgetParkingProperties: Codable {
 enum WidgetError: Error {
     case invalidURL
     case invalidResponse
+    case missingCredentials
 }

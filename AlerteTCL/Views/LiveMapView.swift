@@ -3,6 +3,10 @@ import MapKit
 
 struct LiveMapView: View {
     @StateObject private var viewModel = LiveVehiclesViewModel()
+    /// Horloge d'animation isolée du ViewModel principal.
+    /// Ses ticks ~15 fps n'invalident que les sous-vues qui la lisent (les marqueurs
+    /// de véhicules), pas le reste de la carte (polylines, clusters, arrêts, bandeaux).
+    @StateObject private var animationClock = AnimationClock()
     @EnvironmentObject var alertViewModel: AlertViewModel
     @ObservedObject private var locationService = LocationService.shared
     @Environment(\.scenePhase) private var scenePhase
@@ -115,19 +119,43 @@ struct LiveMapView: View {
             }
             
             // Charger les données en arrière-plan APRÈS affichage de la Map
-            guard !hasStartedLoading else { return }
+            guard !hasStartedLoading else {
+                // Retour sur l'onglet carte : le stream a été stoppé par onDisappear,
+                // le redémarrer si nécessaire
+                if !viewModel.isLive {
+                    viewModel.startLiveStream()
+                }
+                if !animationClock.isRunning {
+                    animationClock.start()
+                }
+                return
+            }
             hasStartedLoading = true
             startBackgroundLoading()
+            animationClock.start()
         }
         .onDisappear {
             viewModel.stopLiveStream()
+            animationClock.stop()
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
-            case .background, .inactive:
+            case .background:
+                // App en arrière-plan : arrêter pour économiser batterie/réseau
                 viewModel.stopLiveStream()
+                animationClock.stop()
+            case .inactive:
+                // Interruption brève (Centre de contrôle, notification, appel entrant…)
+                // Ne pas couper le stream — il reprendra automatiquement sans freeze
+                break
             case .active:
-                viewModel.startLiveStream()
+                // Retour au premier plan : redémarrer seulement si arrêté
+                if !viewModel.isLive {
+                    viewModel.startLiveStream()
+                }
+                if !animationClock.isRunning {
+                    animationClock.start()
+                }
             @unknown default:
                 break
             }
@@ -185,10 +213,10 @@ struct LiveMapView: View {
     @MainActor
     private func loadInBackground(_ name: String, action: () async -> Void) async {
         let start = Date()
-        print("📡 [\(name)] Début chargement...")
+        AppLogger.debug("📡 [\(name)] Début chargement...")
         await action()
         let duration = Date().timeIntervalSince(start)
-        print("📡 [\(name)] Terminé en \(String(format: "%.1f", duration))s")
+        AppLogger.debug("📡 [\(name)] Terminé en \(String(format: "%.1f", duration))s")
     }
     
     /// Charge des données de manière isolée - une erreur n'affecte JAMAIS les autres chargements
@@ -198,9 +226,9 @@ struct LiveMapView: View {
             try Task.checkCancellation()
             await action()
         } catch is CancellationError {
-            print("⏹️ Chargement \(name) annulé")
+            AppLogger.debug("⏹️ Chargement \(name) annulé")
         } catch {
-            print("⚠️ Erreur \(name) (non-bloquante): \(error.localizedDescription)")
+            AppLogger.debug("⚠️ Erreur \(name) (non-bloquante): \(error.localizedDescription)")
         }
     }
     
@@ -239,8 +267,8 @@ struct LiveMapView: View {
                 // Afficher les véhicules non clusterisés
                 ForEach(viewModel.displayVehicles, id: \.id) { vehicle in
                     let animated = viewModel.animatedVehicles[vehicle.id]
-                    let coordinate = animated?.coordinateAt(viewModel.animationTime) ?? vehicle.coordinate
-                    let bearing = animated?.bearingAt(viewModel.animationTime) ?? vehicle.bearing
+                    let coordinate = animated?.coordinateAt(animationClock.time) ?? vehicle.coordinate
+                    let bearing = animated?.bearingAt(animationClock.time) ?? vehicle.bearing
                     
                     Annotation(vehicle.lineName, coordinate: coordinate) {
                         VehicleMarker(vehicle: vehicle, bearing: bearing, currentZoomLevel: viewModel.currentZoomLevel)

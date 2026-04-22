@@ -25,14 +25,14 @@ actor ParkingService {
     func fetchParkings(type: ParkingType = .car, forceRefresh: Bool = false) async throws -> [Parking] {
         // Pour vélos/2-roues, utiliser le chargement spatial
         if type == .bike || type == .motorized2Wheel {
-            print("⚠️ ParkingService: fetchParkings() appelé pour \(type.rawValue) - utiliser fetchParkingsInRegion() pour de meilleures performances")
+            AppLogger.debug("⚠️ ParkingService: fetchParkings() appelé pour \(type.rawValue) - utiliser fetchParkingsInRegion() pour de meilleures performances")
         }
         
         // Vérifier le cache simple
         if !forceRefresh, let cached = simpleCache[type] {
             let age = Date().timeIntervalSince(cached.timestamp)
             if age < simpleCacheValidity {
-                print("✨ ParkingService: Cache hit pour \(type.rawValue) (âge: \(Int(age))s)")
+                AppLogger.debug("✨ ParkingService: Cache hit pour \(type.rawValue) (âge: \(Int(age))s)")
                 return cached.parkings
             }
         }
@@ -61,12 +61,13 @@ actor ParkingService {
         let (cachedItems, missingTiles) = await tileCache.getItemsForRegion(region)
         
         if missingTiles.isEmpty {
-            print("✨ ParkingService: 100% cache hit pour \(type.rawValue) - \(cachedItems.count) items")
-            print("📊 \(await tileCache.stats)")
+            AppLogger.debug("✨ ParkingService: 100% cache hit pour \(type.rawValue) - \(cachedItems.count) items")
+            let stats = await tileCache.stats
+            AppLogger.debug("📊 \(stats)")
             return cachedItems
         }
         
-        print("🔄 ParkingService: \(missingTiles.count) tuiles à charger pour \(type.rawValue)")
+        AppLogger.debug("🔄 ParkingService: \(missingTiles.count) tuiles à charger pour \(type.rawValue)")
         
         // Générer le bbox pour les tuiles manquantes
         let bbox = BBoxHelper.bboxString(for: missingTiles, tileSizeDegrees: 0.01)
@@ -103,8 +104,9 @@ actor ParkingService {
             }
         }
         
-        print("✅ ParkingService: \(allItems.count) parkings \(type.rawValue) (\(cachedItems.count) cached + \(newParkings.count) new)")
-        print("📊 \(await tileCache.stats)")
+        AppLogger.debug("✅ ParkingService: \(allItems.count) parkings \(type.rawValue) (\(cachedItems.count) cached + \(newParkings.count) new)")
+        let finalStats = await tileCache.stats
+        AppLogger.debug("📊 \(finalStats)")
         
         return allItems
     }
@@ -130,11 +132,11 @@ actor ParkingService {
         urlString += "&sortby=gid"
         
         guard let url = URL(string: urlString) else {
-            print("❌ ParkingService: URL invalide")
+            AppLogger.debug("❌ ParkingService: URL invalide")
             throw ParkingServiceError.invalidURL
         }
         
-        print("🌐 ParkingService: \(type.rawValue) URL: \(url.absoluteString.prefix(120))...")
+        AppLogger.debug("🌐 ParkingService: \(type.rawValue) URL: \(url.absoluteString.prefix(120))...")
         
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.sharedTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -149,13 +151,13 @@ actor ParkingService {
         }
         
         guard httpResponse.statusCode == 200 else {
-            print("❌ ParkingService: HTTP \(httpResponse.statusCode)")
+            AppLogger.debug("❌ ParkingService: HTTP \(httpResponse.statusCode)")
             throw ParkingServiceError.httpError(httpResponse.statusCode)
         }
         
         // Log taille des données pour monitoring
         let dataSize = ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .memory)
-        print("📦 ParkingService: \(dataSize) reçus")
+        AppLogger.debug("📦 ParkingService: \(dataSize) reçus")
         
         return try decodeParkings(from: data, type: type)
     }
@@ -176,11 +178,11 @@ actor ParkingService {
         
         do {
             let parkingResponse = try decoder.decode(ParkingResponse.self, from: data)
-            let parkings = parkingResponse.features.map { Parking(from: $0, type: type) }
-            print("✅ ParkingService: \(parkings.count) parkings \(type.rawValue) décodés")
+            let parkings = parkingResponse.features.compactMap { Parking(from: $0, type: type) }
+            AppLogger.debug("✅ ParkingService: \(parkings.count) parkings \(type.rawValue) décodés")
             return parkings
         } catch let decodingError as DecodingError {
-            print("❌ ParkingService: Erreur décodage: \(decodingError.localizedDescription)")
+            AppLogger.debug("❌ ParkingService: Erreur décodage: \(decodingError.localizedDescription)")
             throw ParkingServiceError.decodingError(decodingError)
         }
     }
@@ -192,7 +194,7 @@ actor ParkingService {
         simpleCache.removeAll()
         await bikeTileCache.clear()
         await motoTileCache.clear()
-        print("🧹 ParkingService: Tous les caches vidés")
+        AppLogger.debug("🧹 ParkingService: Tous les caches vidés")
     }
     
     /// Statistiques des caches

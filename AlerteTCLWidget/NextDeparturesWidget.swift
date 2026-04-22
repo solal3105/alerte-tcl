@@ -33,10 +33,36 @@ struct NextDeparturesProvider: AppIntentTimelineProvider {
     }
 
     func timeline(for configuration: NextDeparturesConfigurationIntent, in context: Context) async -> Timeline<NextDeparturesEntry> {
-        let entry = await fetchData(for: configuration)
-        // Rafraîchir toutes les 2 minutes pour les passages en temps réel
-        let nextUpdate = Date().addingTimeInterval(120)
-        return Timeline(entries: [entry], policy: .after(nextUpdate))
+        let base = await fetchData(for: configuration)
+        // Generate entries every minute for the next 8 minutes so countdowns stay
+        // accurate even if the widget isn't refreshed from the network.
+        let calendar = Calendar.current
+        let now = Date()
+        var entries: [NextDeparturesEntry] = []
+        for minuteOffset in 0..<8 {
+            guard let entryDate = calendar.date(byAdding: .minute, value: minuteOffset, to: now) else { continue }
+            let decayed = base.passages.compactMap { passage -> WidgetPassage? in
+                guard let minutes = passage.delayMinutes else { return passage }
+                let remaining = minutes - minuteOffset
+                guard remaining >= 0 else { return nil }
+                return WidgetPassage(
+                    delay: remaining == 0 ? "À l'approche" : "\(remaining) min",
+                    time: passage.time,
+                    isRealTime: passage.isRealTime
+                )
+            }
+            entries.append(NextDeparturesEntry(
+                date: entryDate,
+                configuration: base.configuration,
+                stopName: base.stopName,
+                lineName: base.lineName,
+                direction: base.direction,
+                passages: decayed,
+                error: decayed.isEmpty && base.error == nil ? .noPassages : base.error
+            ))
+        }
+        let nextUpdate = now.addingTimeInterval(8 * 60)
+        return Timeline(entries: entries, policy: .after(nextUpdate))
     }
     
     private func fetchData(for configuration: NextDeparturesConfigurationIntent) async -> NextDeparturesEntry {
@@ -100,18 +126,22 @@ struct NextDeparturesEntry: TimelineEntry {
     let error: WidgetPassageError?
 }
 
-struct WidgetPassage: Identifiable {
-    let id = UUID()
+struct WidgetPassage: Identifiable, Codable {
+    var id: String { "\(time)-\(delay)" }
     let delay: String
     let time: String
     let isRealTime: Bool
-    
+
     var delayMinutes: Int? {
         let cleaned = delay.lowercased()
             .replacingOccurrences(of: " min", with: "")
             .replacingOccurrences(of: "min", with: "")
             .trimmingCharacters(in: .whitespaces)
         return Int(cleaned)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case delay, time, isRealTime
     }
 }
 

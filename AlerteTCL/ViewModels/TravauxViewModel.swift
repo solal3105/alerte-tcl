@@ -173,7 +173,7 @@ final class TravauxViewModel: ObservableObject {
         if let lastUpdate = lastUpdate {
             let timeSinceLastUpdate = Date().timeIntervalSince(lastUpdate)
             if timeSinceLastUpdate < cacheExpirationInterval && !travaux.isEmpty {
-                print("✅ TravauxViewModel: Utilisation du cache (mis à jour il y a \(Int(timeSinceLastUpdate / 3600))h)")
+                AppLogger.debug("✅ TravauxViewModel: Utilisation du cache (mis à jour il y a \(Int(timeSinceLastUpdate / 3600))h)")
                 return
             }
         }
@@ -191,10 +191,10 @@ final class TravauxViewModel: ObservableObject {
             // Forcer la mise à jour des clusters
             updateClustersIfNeeded()
             
-            print("✅ TravauxViewModel: \(travaux.count) travaux chargés et mis en cache pour 24h")
+            AppLogger.debug("✅ TravauxViewModel: \(travaux.count) travaux chargés et mis en cache pour 24h")
         } catch {
             self.error = error.localizedDescription
-            print("⚠️ Erreur travaux (non-bloquante): \(error.localizedDescription)")
+            AppLogger.debug("⚠️ Erreur travaux (non-bloquante): \(error.localizedDescription)")
         }
     }
     
@@ -204,7 +204,7 @@ final class TravauxViewModel: ObservableObject {
         stopAutoRefresh()
         
         // Pas de refresh auto pour les travaux - cache de 24h
-        print("ℹ️ TravauxViewModel: Pas de refresh auto (cache journalier)")
+        AppLogger.debug("ℹ️ TravauxViewModel: Pas de refresh auto (cache journalier)")
         
         // Countdown timer pour afficher le temps restant avant expiration du cache
         countdownTask = Task {

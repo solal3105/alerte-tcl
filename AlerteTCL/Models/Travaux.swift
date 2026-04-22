@@ -538,13 +538,10 @@ extension Travaux {
             for ring in polygon {
                 var coords: [CLLocationCoordinate2D] = []
                 for point in ring {
-                    if point.count >= 2 {
-                        let lon = point[0]
-                        let lat = point[1]
-                        coords.append(CLLocationCoordinate2D(latitude: lat, longitude: lon))
-                        allLats.append(lat)
-                        allLons.append(lon)
-                    }
+                    guard let coordinate = CLLocationCoordinate2D.fromGeoJSON(point) else { continue }
+                    coords.append(coordinate)
+                    allLats.append(coordinate.latitude)
+                    allLons.append(coordinate.longitude)
                 }
                 if !coords.isEmpty {
                     allCoordinates.append(coords)

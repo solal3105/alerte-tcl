@@ -14,7 +14,7 @@ actor StopTimesService {
             let vehicles = try await SIRILiteService.shared.fetchVehiclePositions()
             return extractPassages(for: stopRef, from: vehicles, lineFilter: lineFilter)
         } catch {
-            print("❌ Erreur récupération passages: \(error)")
+            AppLogger.debug("❌ Erreur récupération passages: \(error)")
             return []
         }
     }
@@ -115,7 +115,7 @@ actor StopTimesService {
                 )
             }
         } catch {
-            print("❌ Erreur récupération arrêts: \(error)")
+            AppLogger.debug("❌ Erreur récupération arrêts: \(error)")
             return []
         }
     }

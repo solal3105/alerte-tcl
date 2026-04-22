@@ -215,7 +215,7 @@ actor SpatialTileCache<T: Identifiable & Sendable> {
         }
         
         if !expiredKeys.isEmpty {
-            print("🧹 SpatialTileCache: \(expiredKeys.count) tuiles expirées supprimées")
+            AppLogger.debug("🧹 SpatialTileCache: \(expiredKeys.count) tuiles expirées supprimées")
         }
     }
     

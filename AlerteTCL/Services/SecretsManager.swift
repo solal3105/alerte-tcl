@@ -2,128 +2,50 @@
 //  SecretsManager.swift
 //  AlerteTCL
 //
-//  Gestionnaire sécurisé des secrets et identifiants API
-//  Utilise le Keychain pour stocker les données sensibles
+//  Ordre de priorité des credentials Grand Lyon :
+//  1. Secrets.swift (constantes compile-time, fichier gitignored — source principale)
+//  2. Variables d'environnement Xcode (override debug via scheme)
+//  3. Keychain (stockage persistant sur l'appareil)
 //
 
 import Foundation
-import Security
 
 enum SecretsManager {
-    
-    // MARK: - Keychain Keys
-    
-    private static let service = "com.solal.AlerteTCL"
-    private static let usernameKey = "grandlyon_username"
-    private static let passwordKey = "grandlyon_password"
-    
-    // MARK: - Public API
-    
-    /// Récupère les identifiants Grand Lyon
+
+    /// Returns credentials typed as a tuple to match existing call sites.
     static var grandLyonCredentials: (username: String, password: String)? {
-        guard let username = getString(forKey: usernameKey),
-              let password = getString(forKey: passwordKey) else {
-            // Migration depuis Info.plist si présent (première exécution)
-            return migrateFromInfoPlist()
+        // 1. Constantes compile-time depuis Secrets.swift (gitignored)
+        let compiledUser = Secrets.grandLyonUsername
+        let compiledPass = Secrets.grandLyonPassword
+        if !compiledUser.isEmpty,
+           !compiledUser.hasPrefix("METTRE_"),
+           !compiledPass.isEmpty,
+           !compiledPass.hasPrefix("METTRE_") {
+            return (compiledUser, compiledPass)
         }
-        return (username, password)
+
+        // 2. Variables d'environnement (override debug via scheme Xcode)
+        let env = ProcessInfo.processInfo.environment
+        if let u = env["GRANDLYON_USERNAME"], let p = env["GRANDLYON_PASSWORD"],
+           !u.isEmpty, !p.isEmpty {
+            return (u, p)
+        }
+
+        // 3. Keychain
+        return KeychainCredentials.current.map { ($0.username, $0.password) }
     }
-    
-    /// Sauvegarde les identifiants Grand Lyon
-    static func saveGrandLyonCredentials(username: String, password: String) -> Bool {
-        let usernameSuccess = setString(username, forKey: usernameKey)
-        let passwordSuccess = setString(password, forKey: passwordKey)
-        return usernameSuccess && passwordSuccess
-    }
-    
-    /// Supprime les identifiants Grand Lyon
-    static func deleteGrandLyonCredentials() {
-        deleteItem(forKey: usernameKey)
-        deleteItem(forKey: passwordKey)
-    }
-    
-    /// Vérifie si les identifiants sont configurés
+
     static var hasCredentials: Bool {
         grandLyonCredentials != nil
     }
-    
-    // MARK: - Migration
-    
-    private static func migrateFromInfoPlist() -> (username: String, password: String)? {
-        // Priorité 1: Secrets.swift (fichier gitignored avec les credentials de dev)
-        let secretsUsername = Secrets.grandLyonUsername
-        let secretsPassword = Secrets.grandLyonPassword
-        if !secretsUsername.isEmpty, !secretsPassword.isEmpty {
-            if saveGrandLyonCredentials(username: secretsUsername, password: secretsPassword) {
-                print("✅ SecretsManager: Identifiants migrés depuis Secrets.swift vers Keychain")
-            }
-            return (secretsUsername, secretsPassword)
-        }
-        
-        // Priorité 2: Info.plist (legacy)
-        guard let infoPlist = Bundle.main.infoDictionary,
-              let username = infoPlist["GrandLyonUsername"] as? String,
-              let password = infoPlist["GrandLyonPassword"] as? String,
-              !username.isEmpty, !password.isEmpty else {
-            return nil
-        }
-        
-        // Migrer vers Keychain
-        if saveGrandLyonCredentials(username: username, password: password) {
-            print("✅ SecretsManager: Identifiants migrés depuis Info.plist vers Keychain")
-        }
-        
-        return (username, password)
+
+    @discardableResult
+    static func saveGrandLyonCredentials(username: String, password: String) -> Bool {
+        KeychainCredentials.save(.init(username: username, password: password))
     }
-    
-    // MARK: - Keychain Helpers
-    
-    private static func setString(_ value: String, forKey key: String) -> Bool {
-        guard let data = value.data(using: .utf8) else { return false }
-        
-        // Supprimer l'ancienne valeur si existante
-        deleteItem(forKey: key)
-        
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
-        ]
-        
-        let status = SecItemAdd(query as CFDictionary, nil)
-        return status == errSecSuccess
-    }
-    
-    private static func getString(forKey key: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        
-        guard status == errSecSuccess,
-              let data = result as? Data,
-              let string = String(data: data, encoding: .utf8) else {
-            return nil
-        }
-        
-        return string
-    }
-    
-    private static func deleteItem(forKey key: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key
-        ]
-        
-        SecItemDelete(query as CFDictionary)
+
+    static func deleteGrandLyonCredentials() {
+        KeychainCredentials.clear()
     }
 }
+

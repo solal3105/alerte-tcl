@@ -40,8 +40,8 @@ struct ParkingGeometry: Codable {
     let type: String
     let coordinates: [Double]
     
-    var coordinate: CLLocationCoordinate2D {
-        CLLocationCoordinate2D(latitude: coordinates[1], longitude: coordinates[0])
+    var coordinate: CLLocationCoordinate2D? {
+        CLLocationCoordinate2D.fromGeoJSON(coordinates)
     }
 }
 
@@ -195,7 +195,8 @@ struct Parking: Identifiable, Hashable, Sendable {
         hasher.combine(id)
     }
     
-    init(from feature: ParkingFeature, type: ParkingType = .car) {
+    init?(from feature: ParkingFeature, type: ParkingType = .car) {
+        guard let coordinate = feature.geometry.coordinate else { return nil }
         self.id = feature.properties.id ?? "\(feature.properties.gid)"
         self.gid = feature.properties.gid
         self.nom = feature.properties.nom
@@ -225,7 +226,7 @@ struct Parking: Identifiable, Hashable, Sendable {
             self.etat = .ouvert
         }
         
-        self.coordinate = feature.geometry.coordinate
+        self.coordinate = coordinate
         
         if let lastUpdateStr = feature.properties.lastUpdate {
             let formatter = ISO8601DateFormatter()

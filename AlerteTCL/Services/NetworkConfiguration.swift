@@ -25,17 +25,15 @@ enum NetworkConfiguration {
     /// Configuration de base optimisée partagée par toutes les sessions
     private static func baseConfig(timeout: TimeInterval, cacheMemoryMB: Int = 10, cacheDiskMB: Int = 30) -> URLSessionConfiguration {
         let config = URLSessionConfiguration.default
-        
+
         // Timeouts
         config.timeoutIntervalForRequest = timeout
         config.timeoutIntervalForResource = timeout + 10
-        
-        // Cache
+
+        // Cache: explicitly disabled — nous demandons toujours du temps réel.
+        // Allouer un URLCache non utilisé gaspille RAM + disque.
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        config.urlCache = URLCache(
-            memoryCapacity: cacheMemoryMB * 1024 * 1024,
-            diskCapacity: cacheDiskMB * 1024 * 1024
-        )
+        config.urlCache = nil
         
         // Connexion
         config.waitsForConnectivity = true

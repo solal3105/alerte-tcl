@@ -28,14 +28,20 @@ struct AlerteTCLApp: App {
                 .environmentObject(viewModel)
                 .onAppear {
                     if !hasShownLocationPrompt {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                            showLocationPrompt = true
-                            hasShownLocationPrompt = true
+                        Task {
+                            try? await Task.sleep(for: .seconds(1))
+                            await MainActor.run {
+                                showLocationPrompt = true
+                                hasShownLocationPrompt = true
+                            }
                         }
                     } else if !hasShownNotificationPrompt {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                            showNotificationPrompt = true
-                            hasShownNotificationPrompt = true
+                        Task {
+                            try? await Task.sleep(for: .seconds(1))
+                            await MainActor.run {
+                                showNotificationPrompt = true
+                                hasShownNotificationPrompt = true
+                            }
                         }
                     }
                 }
@@ -46,9 +52,12 @@ struct AlerteTCLApp: App {
                     LocationPermissionView()
                         .onDisappear {
                             if !hasShownNotificationPrompt {
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                    showNotificationPrompt = true
-                                    hasShownNotificationPrompt = true
+                                Task {
+                                    try? await Task.sleep(for: .milliseconds(500))
+                                    await MainActor.run {
+                                        showNotificationPrompt = true
+                                        hasShownNotificationPrompt = true
+                                    }
                                 }
                             }
                         }
@@ -58,16 +67,21 @@ struct AlerteTCLApp: App {
                 }
         }
     }
-    
+
+    private static let parkingIdRegex = /^[A-Za-z0-9_-]{1,64}$/
+
     private func handleDeepLink(_ url: URL) {
         guard url.scheme == "alertetcl" else { return }
-        
+
         let pathComponents = url.pathComponents
-        
-        if pathComponents.count >= 2 && pathComponents[1] == "parking" {
-            if pathComponents.count >= 3 {
-                selectedParkingId = pathComponents[2]
+
+        if pathComponents.count >= 3, pathComponents[1] == "parking" {
+            let id = pathComponents[2]
+            guard (try? Self.parkingIdRegex.wholeMatch(in: id)) != nil else {
+                AppLogger.error("Deep link parking id rejeté: \(id)", category: .app)
+                return
             }
+            selectedParkingId = id
         }
     }
     

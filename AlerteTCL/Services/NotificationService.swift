@@ -23,23 +23,21 @@ final class NotificationService: NSObject, ObservableObject {
     func requestPermission() async -> Bool {
         do {
             let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge, .provisional])
-            await MainActor.run {
-                self.isAuthorized = granted
-            }
-            print("✅ Notifications: Permission \(granted ? "accordée" : "refusée")")
+            await MainActor.run { self.isAuthorized = granted }
+            AppLogger.debug("✅ Notifications: Permission \(granted ? "accordée" : "refusée")")
             return granted
         } catch {
-            print("❌ Notifications: Erreur permission - \(error)")
+            AppLogger.error("Notifications: Erreur permission - \(error)", category: .notifications)
             return false
         }
     }
-    
+
     func checkAuthorizationStatus() {
-        center.getNotificationSettings { settings in
-            DispatchQueue.main.async {
-                self.isAuthorized = settings.authorizationStatus == .authorized ||
-                                    settings.authorizationStatus == .provisional
-            }
+        Task {
+            let settings = await center.notificationSettings()
+            let authorized = settings.authorizationStatus == .authorized
+                || settings.authorizationStatus == .provisional
+            await MainActor.run { self.isAuthorized = authorized }
         }
     }
     
@@ -48,13 +46,13 @@ final class NotificationService: NSObject, ObservableObject {
     func scheduleAlertNotification(for alert: TCLAlert, preferences: Set<AlertSeverity>? = nil) {
         // Vérifier si on a déjà notifié cette alerte
         guard !hasNotified(alert) else {
-            print("ℹ️ Notifications: Alerte \(alert.id) déjà notifiée")
+            AppLogger.debug("ℹ️ Notifications: Alerte \(alert.id) déjà notifiée")
             return
         }
         
         // Vérifier si le type de sévérité est dans les préférences
         if let prefs = preferences, !prefs.contains(alert.severity) {
-            print("ℹ️ Notifications: Alerte \(alert.id) filtrée par préférences")
+            AppLogger.debug("ℹ️ Notifications: Alerte \(alert.id) filtrée par préférences")
             return
         }
         
@@ -93,21 +91,22 @@ final class NotificationService: NSObject, ObservableObject {
         
         center.add(request) { [weak self] error in
             if let error = error {
-                print("❌ Notifications: Erreur planification - \(error)")
+                AppLogger.debug("❌ Notifications: Erreur planification - \(error)")
             } else {
                 self?.markAsNotified(alert)
                 // Met à jour le badge après ajout
                 self?.updateBadgeCount()
-                print("✅ Notifications: Alerte \(alert.ligneCli) planifiée")
+                AppLogger.debug("✅ Notifications: Alerte \(alert.ligneCli) planifiée")
             }
         }
     }
     
+    @MainActor
     func processNewAlerts(_ alerts: [TCLAlert], subscriptionService: SubscriptionService) {
         let subscribedLines = subscriptionService.subscribedLineIds
         
         guard !subscribedLines.isEmpty else {
-            print("ℹ️ Notifications: Aucune ligne abonnée")
+            AppLogger.debug("ℹ️ Notifications: Aucune ligne abonnée")
             return
         }
         
@@ -115,7 +114,7 @@ final class NotificationService: NSObject, ObservableObject {
             subscribedLines.contains(alert.ligneCom) || subscribedLines.contains(alert.ligneCli)
         }
         
-        print("📬 Notifications: \(relevantAlerts.count) alertes pour les lignes abonnées")
+        AppLogger.debug("📬 Notifications: \(relevantAlerts.count) alertes pour les lignes abonnées")
         
         for alert in relevantAlerts {
             // Récupérer les préférences de notification pour cette ligne
@@ -161,23 +160,26 @@ final class NotificationService: NSObject, ObservableObject {
     // MARK: - Badge Management
     
     func updateBadgeCount() {
-        center.getPendingNotificationRequests { [weak self] requests in
+        Task { [weak self] in
+            guard let self else { return }
+            let requests = await self.center.pendingNotificationRequests()
             let count = requests.filter { $0.content.userInfo["type"] as? String == "tcl_alert" }.count
-            DispatchQueue.main.async {
-                self?.pendingNotificationsCount = count
-            }
-            self?.center.setBadgeCount(count) { error in
-                if let error = error {
-                    print("❌ Notifications: Erreur mise à jour badge - \(error)")
-                }
+            await MainActor.run { self.pendingNotificationsCount = count }
+            do {
+                try await self.center.setBadgeCount(count)
+            } catch {
+                AppLogger.error("Notifications: Erreur mise à jour badge - \(error)", category: .notifications)
             }
         }
     }
-    
+
     func clearBadge() {
-        center.setBadgeCount(0) { error in
-            if let error = error {
-                print("❌ Notifications: Erreur réinitialisation badge - \(error)")
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.center.setBadgeCount(0)
+            } catch {
+                AppLogger.error("Notifications: Erreur réinitialisation badge - \(error)", category: .notifications)
             }
         }
     }
@@ -220,7 +222,7 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         let userInfo = response.notification.request.content.userInfo
         
         if let alertId = userInfo["alertId"] as? String {
-            print("📱 Notifications: Utilisateur a tapé sur l'alerte \(alertId)")
+            AppLogger.debug("📱 Notifications: Utilisateur a tapé sur l'alerte \(alertId)")
             // On pourrait poster une notification pour ouvrir les détails de l'alerte
             NotificationCenter.default.post(
                 name: NSNotification.Name("OpenAlertDetail"),

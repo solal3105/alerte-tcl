@@ -6,5 +6,9 @@
 	<array>
 		<string>group.com.solal.alertetcl</string>
 	</array>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)group.com.solal.alertetcl</string>
+	</array>
 </dict>
 </plist>

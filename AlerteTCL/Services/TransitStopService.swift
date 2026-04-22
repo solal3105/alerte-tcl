@@ -25,7 +25,7 @@ actor TransitStopService {
         if let lastFetch = lastStopsFetch,
            Date().timeIntervalSince(lastFetch) < stopsCacheExpiration,
            !cachedStops.isEmpty {
-            print("📍 TransitStopService: Utilisation du cache (\(cachedStops.count) arrêts)")
+            AppLogger.debug("📍 TransitStopService: Utilisation du cache (\(cachedStops.count) arrêts)")
             return Array(cachedStops.values)
         }
         
@@ -44,11 +44,11 @@ actor TransitStopService {
             throw APIError.invalidURL
         }
         
-        print("🌐 TransitStopService: Chargement des arrêts...")
+        AppLogger.debug("🌐 TransitStopService: Chargement des arrêts...")
         
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.heavyTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        print("🚀 Arrêts: Début requête (timeout: \(NetworkConfiguration.heavyTimeout)s)")
+        AppLogger.debug("🚀 Arrêts: Début requête (timeout: \(NetworkConfiguration.heavyTimeout)s)")
         request.setBasicAuth(credentials)
         
         let (data, response) = try await NetworkConfiguration.heavy.data(for: request)
@@ -62,12 +62,13 @@ actor TransitStopService {
         
         var stops: [TransitStop] = []
         for feature in stopsResponse.features {
+            guard let coordinate = feature.geometry.coordinate else { continue }
             let stop = TransitStop(
                 id: feature.properties.id,
                 nom: feature.properties.nom,
                 commune: feature.properties.commune ?? "",
                 adresse: feature.properties.adresse,
-                coordinate: feature.geometry.coordinate,
+                coordinate: coordinate,
                 desserte: feature.properties.desserte ?? "",
                 pmr: feature.properties.pmr ?? false
             )
@@ -76,7 +77,7 @@ actor TransitStopService {
         }
         
         lastStopsFetch = Date()
-        print("✅ TransitStopService: \(stops.count) arrêts chargés")
+        AppLogger.debug("✅ TransitStopService: \(stops.count) arrêts chargés")
         
         return stops
     }
@@ -85,7 +86,7 @@ actor TransitStopService {
     
     func fetchAllStops(in region: MKCoordinateRegion? = nil) async throws -> [TransitStop] {
         let stops = try await fetchStops(in: region)
-        print("📊 TransitStopService: \(stops.count) arrêts chargés")
+        AppLogger.debug("📊 TransitStopService: \(stops.count) arrêts chargés")
         return stops
     }
     
@@ -99,7 +100,7 @@ actor TransitStopService {
     }()
     
     func fetchPassagesForStop(stopId: Int) async throws -> [Passage] {
-        print("🚌 TransitStopService: Chargement passages pour arrêt \(stopId)...")
+        AppLogger.debug("🚌 TransitStopService: Chargement passages pour arrêt \(stopId)...")
         
         // Utiliser le filtrage direct de l'API pour récupérer UNIQUEMENT les passages de cet arrêt
         // Cette approche est ultra-optimisée car l'API filtre côté serveur
@@ -139,7 +140,7 @@ actor TransitStopService {
         
         // Compter les lignes uniques
         let uniqueLines = Set(passages.map { $0.ligne })
-        print("✅ TransitStopService: \(passages.count) passages chargés pour arrêt \(stopId) (\(uniqueLines.count) lignes: \(uniqueLines.sorted().joined(separator: ", ")))")
+        AppLogger.debug("✅ TransitStopService: \(passages.count) passages chargés pour arrêt \(stopId) (\(uniqueLines.count) lignes: \(uniqueLines.sorted().joined(separator: ", ")))")
         
         return passages
     }

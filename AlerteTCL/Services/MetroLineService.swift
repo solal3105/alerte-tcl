@@ -26,15 +26,11 @@ actor TransitLineService {
         if let cached = cachedTransitLines,
            let timestamp = cacheTimestamp,
            Date().timeIntervalSince(timestamp) < cacheValidityDuration {
-            #if DEBUG
-            print("✅ Utilisation du cache pour les lignes de transport")
-            #endif
+            AppLogger.debug("✅ Utilisation du cache pour les lignes de transport")
             return cached
         }
         
-        #if DEBUG
-        print("🔄 Chargement des lignes de transport depuis l'API...")
-        #endif
+        AppLogger.debug("🔄 Chargement des lignes de transport depuis l'API...")
         
         // Charger métro/funiculaire et tramways en parallèle
         async let metroFuniLines = fetchLinesFromAPI(url: metroFuniURL, type: "métro/funiculaire")
@@ -48,21 +44,15 @@ actor TransitLineService {
             cachedTransitLines = allLines
             cacheTimestamp = Date()
             
-            #if DEBUG
-            print("✅ \(allLines.count) lignes de transport chargées (\(metroFuni.count) métro/funi + \(tram.count) tram)")
-            #endif
+            AppLogger.debug("✅ \(allLines.count) lignes de transport chargées (\(metroFuni.count) métro/funi + \(tram.count) tram)")
             
             return allLines
             
         } catch let error as DecodingError {
-            #if DEBUG
-            print("❌ Erreur de décodage: \(error)")
-            #endif
+            AppLogger.debug("❌ Erreur de décodage: \(error)")
             throw ServiceError.decodingError
         } catch {
-            #if DEBUG
-            print("❌ Erreur réseau: \(error)")
-            #endif
+            AppLogger.debug("❌ Erreur réseau: \(error)")
             throw ServiceError.networkError(error)
         }
     }
@@ -91,9 +81,7 @@ actor TransitLineService {
             throw ServiceError.invalidResponse
         }
         
-        #if DEBUG
-        print("📡 Réponse API lignes \(type): \(httpResponse.statusCode)")
-        #endif
+        AppLogger.debug("📡 Réponse API lignes \(type): \(httpResponse.statusCode)")
         
         guard httpResponse.statusCode == 200 else {
             throw ServiceError.invalidResponse
@@ -125,9 +113,7 @@ actor TransitLineService {
             )
         }
         
-        #if DEBUG
-        print("📊 Lignes \(type): \(transitLines.count) (\(transitLines.map { $0.name }.joined(separator: ", ")))")
-        #endif
+        AppLogger.debug("📊 Lignes \(type): \(transitLines.count) (\(transitLines.map { $0.name }.joined(separator: ", ")))")
         
         return transitLines
     }

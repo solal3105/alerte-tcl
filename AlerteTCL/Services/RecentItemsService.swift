@@ -8,6 +8,7 @@
 
 import Foundation
 
+@MainActor
 class RecentItemsService {
     static let shared = RecentItemsService()
     

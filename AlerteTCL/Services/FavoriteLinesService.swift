@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 
+@MainActor
 public final class FavoriteLinesService: ObservableObject {
     public static let shared = FavoriteLinesService()
     

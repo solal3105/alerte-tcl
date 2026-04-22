@@ -3,6 +3,40 @@ import Foundation
 actor SIRILiteService {
     static let shared = SIRILiteService()
     
+    // MARK: - Cached parsers (hot path: ~1000 véhicules par cycle)
+    // Allouer NSRegularExpression / ISO8601DateFormatter / JSONDecoder par itération
+    // coûte des milliers d'allocations inutiles par fetch. On les cache en static let.
+    
+    private static let jsonDecoder: JSONDecoder = JSONDecoder()
+    
+    // Regex patterns (pré-compilés une fois)
+    private static let lineNameRegex: NSRegularExpression =
+        (try? NSRegularExpression(pattern: "::([^:]+):SYTRAL", options: [])) ?? NSRegularExpression()
+    private static let metroRegex: NSRegularExpression =
+        (try? NSRegularExpression(pattern: "^M[A-D]$", options: [])) ?? NSRegularExpression()
+    private static let tramRegex: NSRegularExpression =
+        (try? NSRegularExpression(pattern: "^T\\d+$", options: [])) ?? NSRegularExpression()
+    private static let trolleyRegex: NSRegularExpression =
+        (try? NSRegularExpression(pattern: "^TB\\d+$", options: [])) ?? NSRegularExpression()
+    private static let funicularRegex: NSRegularExpression =
+        (try? NSRegularExpression(pattern: "^F\\d*$", options: [])) ?? NSRegularExpression()
+    private static let destinationRegex: NSRegularExpression =
+        (try? NSRegularExpression(pattern: "::([^:]+):", options: [])) ?? NSRegularExpression()
+    private static let delayRegex: NSRegularExpression =
+        (try? NSRegularExpression(pattern: "PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?", options: [])) ?? NSRegularExpression()
+    
+    // ISO8601 formatters (2 variantes: avec et sans fractional seconds)
+    private static let iso8601FractionalFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+    
     private let baseURL = "https://data.grandlyon.com"
     private let vehicleMonitoringEndpoint = "/siri-lite/2.0/vehicle-monitoring.json"
     
@@ -24,7 +58,7 @@ actor SIRILiteService {
         
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.fastTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        print("🚀 SIRI: Début requête (timeout: \(NetworkConfiguration.fastTimeout)s)")
+        AppLogger.debug("🚀 SIRI: Début requête (timeout: \(NetworkConfiguration.fastTimeout)s)")
         
         request.setBasicAuth(credentials)
         
@@ -50,22 +84,22 @@ actor SIRILiteService {
         }
         
         do {
-            let siriResponse = try JSONDecoder().decode(SIRIResponse.self, from: data)
+            let siriResponse = try Self.jsonDecoder.decode(SIRIResponse.self, from: data)
             let vehicles = parseVehicleData(siriResponse)
             
             #if DEBUG
-            print("📍 SIRI API: \(vehicles.count) véhicules reçus")
+            AppLogger.debug("📍 SIRI API: \(vehicles.count) véhicules reçus")
             if vehicles.isEmpty {
-                print("⚠️ Aucun véhicule en circulation actuellement")
+                AppLogger.debug("⚠️ Aucun véhicule en circulation actuellement")
             }
             #endif
             
             return vehicles
         } catch {
             #if DEBUG
-            print("❌ Erreur de décodage SIRI: \(error)")
+            AppLogger.debug("❌ Erreur de décodage SIRI: \(error)")
             if let dataString = String(data: data, encoding: .utf8) {
-                print("Données reçues: \(dataString.prefix(500))")
+                AppLogger.debug("Données reçues: \(dataString.prefix(500))")
             }
             #endif
             throw SIRIError.decodingError(error)
@@ -81,7 +115,8 @@ actor SIRILiteService {
             guard let journey = activity.MonitoredVehicleJourney,
                   let location = journey.VehicleLocation,
                   let latitude = location.Latitude,
-                  let longitude = location.Longitude else {
+                  let longitude = location.Longitude,
+                  let vehicleId = activity.VehicleMonitoringRef?.value, !vehicleId.isEmpty else {
                 return nil
             }
             
@@ -96,7 +131,7 @@ actor SIRILiteService {
             let onwardStops = parseOnwardCalls(journey.OnwardCalls)
             
             return Vehicle(
-                id: activity.VehicleMonitoringRef?.value ?? UUID().uuidString,
+                id: vehicleId,
                 latitude: latitude,
                 longitude: longitude,
                 bearing: journey.Bearing ?? 0,
@@ -157,8 +192,10 @@ actor SIRILiteService {
     private func extractLineName(from lineRef: String) -> String {
         guard !lineRef.isEmpty else { return "?" }
         
-        if let match = lineRef.range(of: "::([^:]+):SYTRAL", options: .regularExpression) {
-            let extracted = String(lineRef[match])
+        let nsRef = lineRef as NSString
+        let fullRange = NSRange(location: 0, length: nsRef.length)
+        if let match = Self.lineNameRegex.firstMatch(in: lineRef, options: [], range: fullRange) {
+            let extracted = nsRef.substring(with: match.range)
             let cleaned = extracted.replacingOccurrences(of: "::", with: "")
                 .replacingOccurrences(of: ":SYTRAL", with: "")
             return cleaned
@@ -168,28 +205,20 @@ actor SIRILiteService {
         return components.last.map(String.init) ?? lineRef
     }
     
+    @inline(__always)
+    private static func regexMatches(_ regex: NSRegularExpression, _ s: String) -> Bool {
+        let ns = s as NSString
+        return regex.firstMatch(in: s, options: [], range: NSRange(location: 0, length: ns.length)) != nil
+    }
+    
     private func detectVehicleType(lineRef: String, vehicleRef: String?) -> VehicleType {
         let lineName = extractLineName(from: lineRef).uppercased()
         
-        if lineName.range(of: "^M[A-D]$", options: .regularExpression) != nil {
-            return .metro
-        }
-        
-        if lineName.range(of: "^T\\d+$", options: .regularExpression) != nil {
-            return .tram
-        }
-        
-        if lineName == "RHONEXPRESS" || lineName == "RX" {
-            return .tram
-        }
-        
-        if lineName.range(of: "^TB\\d+$", options: .regularExpression) != nil {
-            return .trolley
-        }
-        
-        if lineName.range(of: "^F\\d*$", options: .regularExpression) != nil {
-            return .funicular
-        }
+        if Self.regexMatches(Self.metroRegex, lineName) { return .metro }
+        if Self.regexMatches(Self.tramRegex, lineName) { return .tram }
+        if lineName == "RHONEXPRESS" || lineName == "RX" { return .tram }
+        if Self.regexMatches(Self.trolleyRegex, lineName) { return .trolley }
+        if Self.regexMatches(Self.funicularRegex, lineName) { return .funicular }
         
         return .bus
     }
@@ -197,8 +226,10 @@ actor SIRILiteService {
     private func extractDestination(from destinationRef: String?) -> String {
         guard let ref = destinationRef, !ref.isEmpty else { return "" }
         
-        if let match = ref.range(of: "::([^:]+):", options: .regularExpression) {
-            let extracted = String(ref[match])
+        let nsRef = ref as NSString
+        let fullRange = NSRange(location: 0, length: nsRef.length)
+        if let match = Self.destinationRegex.firstMatch(in: ref, options: [], range: fullRange) {
+            let extracted = nsRef.substring(with: match.range)
             return extracted.replacingOccurrences(of: "::", with: "")
                 .replacingOccurrences(of: ":", with: "")
         }
@@ -210,17 +241,18 @@ actor SIRILiteService {
         guard let delay = delay, !delay.isEmpty else { return 0 }
         
         let isNegative = delay.hasPrefix("-")
-        let cleanDelay = delay.replacingOccurrences(of: "-", with: "")
+        let cleanDelay = isNegative ? String(delay.dropFirst()) : delay
+        let nsClean = cleanDelay as NSString
         
-        let pattern = "PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?"
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []),
-              let match = regex.firstMatch(in: cleanDelay, options: [], range: NSRange(cleanDelay.startIndex..., in: cleanDelay)) else {
+        guard let match = Self.delayRegex.firstMatch(in: cleanDelay, options: [], range: NSRange(location: 0, length: nsClean.length)) else {
             return 0
         }
         
+        @inline(__always)
         func extractGroup(_ index: Int) -> Int {
-            guard let range = Range(match.range(at: index), in: cleanDelay) else { return 0 }
-            return Int(cleanDelay[range]) ?? 0
+            let range = match.range(at: index)
+            guard range.location != NSNotFound else { return 0 }
+            return Int(nsClean.substring(with: range)) ?? 0
         }
         
         let hours = extractGroup(1)
@@ -234,15 +266,10 @@ actor SIRILiteService {
     private func parseISO8601Date(_ dateString: String?) -> Date? {
         guard let dateString = dateString else { return nil }
         
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
-        if let date = formatter.date(from: dateString) {
+        if let date = Self.iso8601FractionalFormatter.date(from: dateString) {
             return date
         }
-        
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: dateString)
+        return Self.iso8601Formatter.date(from: dateString)
     }
 }
 
