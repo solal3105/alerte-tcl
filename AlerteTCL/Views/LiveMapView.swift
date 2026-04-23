@@ -280,11 +280,12 @@ struct LiveMapView: View {
     // MARK: - Traffic Banner
 
     private var trafficBanner: some View {
-        TrafficBannerView(
+        let networkMajorCount = alertViewModel.alerts.filter { $0.isOngoing && $0.severity == .major }.count
+        return TrafficBannerView(
             subscribedLines: alertViewModel.subscribedLines,
             linesInError: alertViewModel.linesInError,
-            networkAlertCount: alertViewModel.alerts.filter { $0.isOngoing && $0.severity != .info }.count,
-            networkHasMajor: alertViewModel.alerts.contains { $0.isOngoing && $0.severity == .major },
+            networkAlertCount: networkMajorCount,
+            networkHasMajor: networkMajorCount > 0,
             lastUpdate: alertViewModel.lastUpdate,
             onTap: { showAlerts = true }
         )
