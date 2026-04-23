@@ -177,6 +177,7 @@ struct ParkingMapView: View {
                 Task { await viewModel.loadParkings() }
             }
             .buttonStyle(.borderedProminent)
+            .tint(.blue)
         }
         .padding(24)
         .background(.ultraThinMaterial)

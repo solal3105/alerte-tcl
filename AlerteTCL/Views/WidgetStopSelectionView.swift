@@ -93,6 +93,7 @@ struct AddToWidgetSheet: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
+        .tint(.blue)
         .controlSize(.large)
         .padding(20)
     }
@@ -118,6 +119,7 @@ struct AddToWidgetSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(.blue)
             }
             .padding(24)
             .background(Color(.systemBackground))
