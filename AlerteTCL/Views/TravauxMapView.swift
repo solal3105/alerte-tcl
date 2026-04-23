@@ -14,7 +14,6 @@ struct TravauxMapView: View {
         )
     )
     @State private var currentSpan: MKCoordinateSpan = MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
-    @State private var currentCenter: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659)
     @State private var hasSetInitialLocation = false
     
     // Afficher les polygones à partir d'un zoom moyen
@@ -110,15 +109,10 @@ struct TravauxMapView: View {
             .ignoresSafeArea(edges: .top)
             .onMapCameraChange { context in
                 currentSpan = context.region.span
-                currentCenter = context.region.center
                 viewModel.updateZoomLevel(context.region.span)
                 viewModel.updateVisibleRegion(context.region)
             }
             .overlay {
-                if viewModel.shouldShowTooManyMarkersWarning {
-                    tooManyMarkersWarning
-                }
-                
                 if viewModel.isLoading && viewModel.travaux.isEmpty {
                     loadingOverlay
                 }
@@ -128,37 +122,6 @@ struct TravauxMapView: View {
                 }
             }
         }
-    }
-    
-    private func polygonColor(for travaux: Travaux) -> Color {
-        switch travaux.importance {
-        case .tresPerturbant: return .red
-        case .perturbant: return .orange
-        case .peuPerturbant: return .yellow
-        case .inconnu: return .gray
-        }
-    }
-    
-    
-    private var tooManyMarkersWarning: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 48))
-                .foregroundStyle(.orange)
-            
-            Text("Trop de résultats")
-                .font(.headline)
-            
-            Text("Zoomez sur la carte pour afficher les travaux")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(24)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 24))
-        .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 6)
-        .padding(20)
     }
     
     private var loadingOverlay: some View {
@@ -250,93 +213,6 @@ struct TravauxMapView: View {
         }
     }
     
-    private var statsCard: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(viewModel.travaux.count)")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(.orange)
-                Text("chantiers actifs")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Divider()
-                .frame(height: 40)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(viewModel.travauxTresPerturbants)")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(.red)
-                Text("très perturbants")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Spacer()
-        }
-        .padding(16)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 4)
-        .padding(.horizontal, 16)
-        .padding(.top, 60)
-    }
-    
-    private var refreshCard: some View {
-        Button {
-            Task { await viewModel.loadTravaux() }
-        } label: {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .stroke(Color.orange.opacity(0.2), lineWidth: 2.5)
-                        .frame(width: 36, height: 36)
-                    
-                    Circle()
-                        .trim(from: 0, to: viewModel.refreshProgress)
-                        .stroke(
-                            Color.orange,
-                            style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
-                        )
-                        .frame(width: 36, height: 36)
-                        .rotationEffect(.degrees(-90))
-                        .animation(.linear(duration: 0.1), value: viewModel.refreshProgress)
-                    
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.orange)
-                    }
-                }
-                
-                if !viewModel.isLoading {
-                    Text("dans \(formatRefreshTime(viewModel.secondsUntilNextRefresh))")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
-        }
-        .buttonStyle(.plain)
-        .disabled(viewModel.isLoading)
-        .padding(.leading, 24)
-        .padding(.bottom, 24)
-    }
-    
-    private func formatRefreshTime(_ seconds: Int) -> String {
-        if seconds >= 60 {
-            return "\(seconds / 60)m"
-        }
-        return "\(seconds)s"
-    }
 }
 
 // MARK: - Travaux Marker

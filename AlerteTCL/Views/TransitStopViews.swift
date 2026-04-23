@@ -64,63 +64,6 @@ struct MergedStopMarker: View {
     }
 }
 
-// MARK: - Transit Stop Marker (legacy, kept for compatibility)
-
-struct TransitStopMarker: View {
-    let stop: TransitStop
-    let currentZoomLevel: Double
-    
-    private var shouldShowTooltip: Bool {
-        currentZoomLevel < 0.005
-    }
-    
-    var body: some View {
-        VStack(spacing: 2) {
-            if shouldShowTooltip && !stop.lines.isEmpty {
-                HStack(spacing: 4) {
-                    ForEach(stop.lines.prefix(3), id: \.self) { line in
-                        let bgColor = LineColorHelper.backgroundColor(for: line)
-                        let textColor = LineColorHelper.textColor(for: line)
-                        let needsBorder = LineColorHelper.needsBorder(for: line)
-                        
-                        Text(line)
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(textColor)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(bgColor)
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule()
-                                    .stroke(Color(.systemGray3), lineWidth: needsBorder ? 0.5 : 0)
-                            )
-                    }
-                    if stop.lines.count > 3 {
-                        Text("+\(stop.lines.count - 3)")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(.ultraThinMaterial)
-                .clipShape(Capsule())
-                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
-            }
-            
-            Circle()
-                .fill(.white)
-                .frame(width: 8, height: 8)
-                .overlay(
-                    Circle()
-                        .fill(Color.purple)
-                        .frame(width: 5, height: 5)
-                )
-                .shadow(color: .black.opacity(0.2), radius: 1.5, x: 0, y: 0.5)
-        }
-    }
-}
-
 // MARK: - Transit Stop Detail Sheet
 
 struct TransitStopDetailSheet: View {

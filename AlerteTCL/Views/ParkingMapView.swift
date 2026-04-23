@@ -84,7 +84,7 @@ struct ParkingMapView: View {
         .clipShape(Capsule())
         .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 4)
         .padding(.horizontal, 16)
-        .padding(.top, 60)
+        .padding(.top, 8)
     }
     
     private func parkingTypeColor(_ type: ParkingType) -> Color {
@@ -141,11 +141,6 @@ struct ParkingMapView: View {
                 viewModel.updateVisibleRegion(context.region)
             }
             .overlay {
-                // Warning pour trop de markers
-                if viewModel.shouldShowTooManyMarkersWarning {
-                    tooManyMarkersWarning
-                }
-                
                 // Overlay pour les erreurs uniquement
                 if let error = viewModel.error {
                     VStack(spacing: 16) {
@@ -172,69 +167,6 @@ struct ParkingMapView: View {
                     .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 6)
                     .padding(20)
                 }
-            }
-        }
-    }
-    
-    private var tooManyMarkersWarning: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 48))
-                .foregroundStyle(.orange)
-            
-            Text("Trop de résultats")
-                .font(.headline)
-            
-            Text("Zoomez sur la carte pour afficher les parkings")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            
-            // Bouton pour zoomer automatiquement
-            Button {
-                zoomToCurrentLocation()
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "location.magnifyingglass")
-                        .font(.system(size: 16, weight: .semibold))
-                    Text("Zoomer ici")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Color.blue)
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(24)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 24))
-        .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 6)
-        .padding(20)
-    }
-    
-    private func zoomToCurrentLocation() {
-        if let userLocation = locationService.currentLocation {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                mapCameraPosition = .region(
-                    MKCoordinateRegion(
-                        center: userLocation.coordinate,
-                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                    )
-                )
-            }
-        } else {
-            // Si pas de localisation, zoomer sur Lyon centre
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                mapCameraPosition = .region(
-                    MKCoordinateRegion(
-                        center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
-                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                    )
-                )
             }
         }
     }
@@ -277,12 +209,6 @@ struct ParkingMapView: View {
         VStack {
             Spacer()
             
-            // Indicateur de chargement progressif (non-bloquant) en bas
-            if viewModel.isLoadingInBackground && !viewModel.loadingMessage.isEmpty {
-                progressiveLoadingCard
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-            
             HStack(alignment: .bottom) {
                 // Card refresh en bas à gauche (uniquement pour voitures - données temps réel)
                 if viewModel.selectedParkingType == .car {
@@ -318,86 +244,6 @@ struct ParkingMapView: View {
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.isLoadingInBackground)
-    }
-    
-    /// Card de chargement progressif non-bloquant
-    private var progressiveLoadingCard: some View {
-        HStack(spacing: 12) {
-            // Icône animée
-            ZStack {
-                Circle()
-                    .stroke(parkingTypeColor(viewModel.selectedParkingType).opacity(0.2), lineWidth: 3)
-                    .frame(width: 32, height: 32)
-                
-                Circle()
-                    .trim(from: 0, to: viewModel.loadingProgress)
-                    .stroke(
-                        parkingTypeColor(viewModel.selectedParkingType),
-                        style: StrokeStyle(lineWidth: 3, lineCap: .round)
-                    )
-                    .frame(width: 32, height: 32)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 0.2), value: viewModel.loadingProgress)
-                
-                Image(systemName: viewModel.selectedParkingType.icon)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(parkingTypeColor(viewModel.selectedParkingType))
-            }
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(viewModel.loadingMessage)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.primary)
-                
-                if viewModel.loadedCount > 0 && viewModel.totalToLoad > 0 {
-                    Text("\(viewModel.parkings.count) affichés sur la carte")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
-        .padding(.horizontal, 16)
-        .padding(.bottom, 8)
-    }
-    
-    private var statsCard: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(viewModel.parkingsAvecPlaces)")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(.green)
-                Text("parkings disponibles")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Divider()
-                .frame(height: 40)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(viewModel.totalPlacesDisponibles)")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(.blue)
-                Text("places libres")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Spacer()
-        }
-        .padding(16)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 4)
-        .padding(.horizontal, 16)
-        .padding(.top, 60)
     }
     
     private var refreshCard: some View {

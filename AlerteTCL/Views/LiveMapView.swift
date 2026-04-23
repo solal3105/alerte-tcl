@@ -3,28 +3,19 @@ import MapKit
 
 struct LiveMapView: View {
     @StateObject private var viewModel = LiveVehiclesViewModel()
-    /// Horloge d'animation isolée du ViewModel principal.
-    /// Ses ticks ~15 fps n'invalident que les sous-vues qui la lisent (les marqueurs
-    /// de véhicules), pas le reste de la carte (polylines, clusters, arrêts, bandeaux).
-    @StateObject private var animationClock = AnimationClock()
     @EnvironmentObject var alertViewModel: AlertViewModel
     @ObservedObject private var locationService = LocationService.shared
     @Environment(\.scenePhase) private var scenePhase
     
     @State private var selectedVehicle: Vehicle?
-    @State private var selectedStop: TransitStop?
     @State private var selectedMergedStop: MergedStop?
     @State private var showFilters = false
     @State private var showAlerts = false
-    @State private var showLoadingError = false
     @State private var showDataSourceErrors = false
     @State private var hasStartedLoading = false
     @State private var hasSetInitialLocation = false
+    @State private var showRefreshInfo = false
     
-    @State private var currentRegion: MKCoordinateRegion = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
-        span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
-    )
     @State private var mapCameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
@@ -42,29 +33,19 @@ struct LiveMapView: View {
     
     var body: some View {
         ZStack {
-            mapContent
-            
-            // Warning si trop de markers (centré, sans bloquer les touches)
-            if viewModel.shouldShowTooManyMarkersWarning {
-                VStack {
-                    Spacer()
-                    tooManyMarkersWarning
-                        .allowsHitTesting(false)
-                    Spacer()
-                }
-                .allowsHitTesting(false)
-            }
+            LiveMapContent(
+                viewModel: viewModel,
+                locationService: locationService,
+                mapCameraPosition: $mapCameraPosition,
+                selectedVehicle: $selectedVehicle,
+                selectedMergedStop: $selectedMergedStop
+            )
             
             overlayControls
         }
         .sheet(item: $selectedVehicle) { vehicle in
             VehicleDetailSheet(vehicle: vehicle)
                 .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-        }
-        .sheet(item: $selectedStop) { stop in
-            TransitStopDetailSheet(stop: stop, viewModel: viewModel)
-                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .sheet(item: $selectedMergedStop) { mergedStop in
@@ -120,41 +101,26 @@ struct LiveMapView: View {
             
             // Charger les données en arrière-plan APRÈS affichage de la Map
             guard !hasStartedLoading else {
-                // Retour sur l'onglet carte : le stream a été stoppé par onDisappear,
-                // le redémarrer si nécessaire
                 if !viewModel.isLive {
                     viewModel.startLiveStream()
-                }
-                if !animationClock.isRunning {
-                    animationClock.start()
                 }
                 return
             }
             hasStartedLoading = true
             startBackgroundLoading()
-            animationClock.start()
         }
         .onDisappear {
             viewModel.stopLiveStream()
-            animationClock.stop()
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .background:
-                // App en arrière-plan : arrêter pour économiser batterie/réseau
                 viewModel.stopLiveStream()
-                animationClock.stop()
             case .inactive:
-                // Interruption brève (Centre de contrôle, notification, appel entrant…)
-                // Ne pas couper le stream — il reprendra automatiquement sans freeze
                 break
             case .active:
-                // Retour au premier plan : redémarrer seulement si arrêté
                 if !viewModel.isLive {
                     viewModel.startLiveStream()
-                }
-                if !animationClock.isRunning {
-                    animationClock.start()
                 }
             @unknown default:
                 break
@@ -232,97 +198,6 @@ struct LiveMapView: View {
         }
     }
     
-    // MARK: - Map Content
-    
-    private var mapContent: some View {
-        MapReader { proxy in
-            Map(position: $mapCameraPosition, interactionModes: .all) {
-                if locationService.currentLocation != nil {
-                    UserAnnotation()
-                }
-                
-                // Afficher les lignes de bus
-                if viewModel.showBusLines {
-                    ForEach(viewModel.busLines) { line in
-                        MapPolyline(coordinates: line.clLocationCoordinates)
-                            .stroke(line.lineColor, lineWidth: line.lineWidth)
-                    }
-                }
-                
-                // Afficher les lignes de métro/funiculaire/tramway
-                if viewModel.showTransitLines {
-                    ForEach(viewModel.transitLines) { line in
-                        MapPolyline(coordinates: line.clLocationCoordinates)
-                            .stroke(line.lineColor, lineWidth: line.lineWidth)
-                    }
-                }
-                
-                // Afficher les clusters
-                ForEach(viewModel.displayClusters, id: \.id) { cluster in
-                    Annotation("", coordinate: cluster.coordinate) {
-                        TransportClusterMarker(cluster: cluster)
-                    }
-                }
-                
-                // Afficher les véhicules non clusterisés
-                ForEach(viewModel.displayVehicles, id: \.id) { vehicle in
-                    let animated = viewModel.animatedVehicles[vehicle.id]
-                    let coordinate = animated?.coordinateAt(animationClock.time) ?? vehicle.coordinate
-                    let bearing = animated?.bearingAt(animationClock.time) ?? vehicle.bearing
-                    
-                    Annotation(vehicle.lineName, coordinate: coordinate) {
-                        VehicleMarker(vehicle: vehicle, bearing: bearing, currentZoomLevel: viewModel.currentZoomLevel)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(vehicle.accessibilityDescription)
-                            .accessibilityHint("Double-cliquer pour voir les détails du véhicule")
-                            .onTapGesture {
-                                selectedVehicle = vehicle
-                            }
-                    }
-                }
-                
-                // Afficher les arrêts fusionnés (au zoom fort uniquement)
-                ForEach(viewModel.visibleMergedStops, id: \.id) { mergedStop in
-                    Annotation(mergedStop.nom, coordinate: mergedStop.coordinate) {
-                        MergedStopMarker(mergedStop: mergedStop, currentZoomLevel: viewModel.currentZoomLevel)
-                            .onTapGesture {
-                                selectedMergedStop = mergedStop
-                            }
-                    }
-                    .annotationTitles(.hidden)
-                }
-            }
-            .mapStyle(.standard(pointsOfInterest: .excludingAll))
-            .ignoresSafeArea(edges: .top)
-            .onMapCameraChange { context in
-                viewModel.updateZoomLevel(context.region.span)
-                viewModel.updateVisibleRegion(context.region)
-                currentRegion = context.region
-            }
-        }
-    }
-    
-    private var tooManyMarkersWarning: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 48))
-                .foregroundStyle(.orange)
-            
-            Text("Trop de résultats")
-                .font(.headline)
-            
-            Text("Zoomez sur la carte pour afficher les véhicules")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(24)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 24))
-        .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 6)
-        .padding(20)
-    }
-    
     private var overlayControls: some View {
         VStack {
             // Bandeau trafic en haut
@@ -341,17 +216,20 @@ struct LiveMapView: View {
                     .allowsHitTesting(false)
                 
                 // Boutons en bas à droite (stack vertical)
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     // Bouton filtres
                     Button {
                         showFilters = true
                     } label: {
                         Image(systemName: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(hasActiveFilters ? .blue : .primary)
+                            .frame(width: 50, height: 50)
+                            .background(.regularMaterial)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(hasActiveFilters ? .blue : .gray)
-                    .controlSize(.large)
+                    .buttonStyle(.plain)
                     
                     // Bouton localisation
                     Button {
@@ -370,11 +248,14 @@ struct LiveMapView: View {
                         }
                     } label: {
                         Image(systemName: "location.fill")
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(.blue)
+                            .frame(width: 50, height: 50)
+                            .background(.regularMaterial)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.blue)
-                    .controlSize(.large)
+                    .buttonStyle(.plain)
                 }
                 .padding(.trailing, 24)
                 .padding(.bottom, 24)
@@ -511,9 +392,11 @@ struct LiveMapView: View {
                 .buttonStyle(.plain)
             }
             
-            // Live badge — tap to force refresh
+            // Live badge — tap pour info
             Button {
-                Task { await viewModel.loadVehicles() }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    showRefreshInfo.toggle()
+                }
             } label: {
                 HStack(spacing: 8) {
                     Circle()
@@ -527,10 +410,14 @@ struct LiveMapView: View {
                     if viewModel.isLoading {
                         ProgressView()
                             .scaleEffect(0.5)
-                    } else if let update = viewModel.lastUpdate {
-                        Text(update, style: .relative)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
+                    } else if let lastUpdate = viewModel.lastUpdate {
+                        TimelineView(.periodic(from: .now, by: 1)) { _ in
+                            let secs = max(0, 30 - Int(Date().timeIntervalSince(lastUpdate)))
+                            Text("\(secs)s")
+                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .contentTransition(.numericText(countsDown: true))
+                        }
                     }
                 }
                 .padding(.horizontal, 14)
@@ -540,7 +427,24 @@ struct LiveMapView: View {
                 .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
             }
             .buttonStyle(.plain)
-            .disabled(viewModel.isLoading)
+            .popover(isPresented: $showRefreshInfo, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.green)
+                        Text("Données en temps réel")
+                            .font(.headline)
+                    }
+                    Text("L'API TCL publie les positions des véhicules toutes les **30 secondes**. Pas la peine de rafraîchir manuellement — la mise à jour arrive d'elle-même ! 🚌")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(20)
+                .frame(maxWidth: 300)
+                .presentationCompactAdaptation(.popover)
+            }
         }
         .padding(.leading, 24)
         .padding(.bottom, 24)
@@ -1082,6 +986,97 @@ private enum TrafficState {
             return lines
         case .majorDisruptions(let lines):
             return lines
+        }
+    }
+}
+
+// MARK: - LiveMapContent
+// Vue enfant isolée qui possède AnimationClock.
+// Seule cette vue re-rend à 15 fps — LiveMapView (overlays, sheets, bandeau) reste stable.
+
+private struct LiveMapContent: View {
+    @ObservedObject var viewModel: LiveVehiclesViewModel
+    @ObservedObject var locationService: LocationService
+    @Binding var mapCameraPosition: MapCameraPosition
+    @Binding var selectedVehicle: Vehicle?
+    @Binding var selectedMergedStop: MergedStop?
+
+    @StateObject private var animationClock = AnimationClock()
+    @Environment(\.scenePhase) private var scenePhase
+
+    var body: some View {
+        Map(position: $mapCameraPosition, interactionModes: .all) {
+            if locationService.currentLocation != nil {
+                UserAnnotation()
+            }
+
+            if viewModel.showBusLines {
+                ForEach(viewModel.busLines) { line in
+                    MapPolyline(coordinates: line.clLocationCoordinates)
+                        .stroke(line.lineColor, lineWidth: line.lineWidth)
+                }
+            }
+
+            if viewModel.showTransitLines {
+                ForEach(viewModel.transitLines) { line in
+                    MapPolyline(coordinates: line.clLocationCoordinates)
+                        .stroke(line.lineColor, lineWidth: line.lineWidth)
+                }
+            }
+
+            ForEach(viewModel.displayClusters, id: \.id) { cluster in
+                Annotation("", coordinate: cluster.coordinate) {
+                    TransportClusterMarker(cluster: cluster)
+                }
+            }
+
+            ForEach(viewModel.displayVehicles, id: \.id) { vehicle in
+                let animated = viewModel.animatedVehicles[vehicle.id]
+                let coordinate = animated?.coordinateAt(animationClock.time) ?? vehicle.coordinate
+                let bearing = animated?.bearingAt(animationClock.time) ?? vehicle.bearing
+
+                Annotation(vehicle.lineName, coordinate: coordinate) {
+                    VehicleMarker(vehicle: vehicle, bearing: bearing, currentZoomLevel: viewModel.currentZoomLevel)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(vehicle.accessibilityDescription)
+                        .accessibilityHint("Double-cliquer pour voir les détails du véhicule")
+                        .onTapGesture {
+                            selectedVehicle = vehicle
+                        }
+                }
+            }
+
+            ForEach(viewModel.visibleMergedStops, id: \.id) { mergedStop in
+                Annotation(mergedStop.nom, coordinate: mergedStop.coordinate) {
+                    MergedStopMarker(mergedStop: mergedStop, currentZoomLevel: viewModel.currentZoomLevel)
+                        .onTapGesture {
+                            selectedMergedStop = mergedStop
+                        }
+                }
+                .annotationTitles(.hidden)
+            }
+        }
+        .mapStyle(.standard(pointsOfInterest: .excludingAll))
+        .ignoresSafeArea(edges: .top)
+        .onMapCameraChange { context in
+            viewModel.updateZoomLevel(context.region.span)
+            viewModel.updateVisibleRegion(context.region)
+        }
+        .onAppear {
+            animationClock.start()
+        }
+        .onDisappear {
+            animationClock.stop()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .background:
+                animationClock.stop()
+            case .active:
+                if !animationClock.isRunning { animationClock.start() }
+            default:
+                break
+            }
         }
     }
 }

@@ -22,7 +22,10 @@ final class TravauxViewModel: ObservableObject {
     private var countdownTask: Task<Void, Never>?
     private let refreshInterval: TimeInterval = 300 // 5 minutes (non utilisé - cache journalier)
     private let cacheExpirationInterval: TimeInterval = 86400 // 24 heures
-    private let clusteringConfig = ClusteringEngine.Configuration.default
+    private let clusteringConfig = ClusteringEngine.Configuration.dense
+    /// Seuil de zoom au-delà duquel le clustering travaux s'active.
+    /// Valeur plus haute = clusters apparaissent seulement très dézoomé.
+    private let travauxClusteringZoomThreshold: Double = 0.10
     
     // MARK: - Computed Properties
     
@@ -78,9 +81,8 @@ final class TravauxViewModel: ObservableObject {
     private var lastClusteringTravauxCount: Int = 0
     
     var shouldShowClusters: Bool {
-        // Utiliser le seuil unifié de ClusteringEngine (0.01 = niveau localisation utilisateur)
-        // ET minimum 20 markers requis pour former des clusters
-        ClusteringEngine.shouldCluster(zoomLevel: currentZoomLevel, config: clusteringConfig) && visibleTravaux.count >= 20
+        // Cluster uniquement quand très dézoomé (> 0.10) ET minimum 20 markers
+        currentZoomLevel >= travauxClusteringZoomThreshold && visibleTravaux.count >= 20
     }
     
     private func updateClustersIfNeeded() {
