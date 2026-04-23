@@ -356,7 +356,24 @@ final class LiveVehiclesViewModel: ObservableObject {
         let graceVehicles = animatedVehicles.values
             .filter { !$0.isActive && !fetchedIds.contains($0.id) }
             .map { $0.lastVehicle }
+            // Ne pas ajouter un ghost si un véhicule du même trip (même ligne,
+            // même type, < 100 m) est déjà présent dans fetched — c'est le même
+            // bus physique qui a changé d'identifiant de trip au terminus.
+            .filter { ghost in
+                !fetched.contains { newV in
+                    newV.lineName == ghost.lineName &&
+                    newV.vehicleType == ghost.vehicleType &&
+                    fastDistance2D(ghost.coordinate, newV.coordinate) < 100
+                }
+            }
         return fetched + graceVehicles
+    }
+
+    @inline(__always)
+    private func fastDistance2D(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> Double {
+        let dlat = (b.latitude  - a.latitude)  * 111_320
+        let dlon = (b.longitude - a.longitude) * 111_320 * cos(a.latitude * .pi / 180)
+        return (dlat * dlat + dlon * dlon).squareRoot()
     }
     
     

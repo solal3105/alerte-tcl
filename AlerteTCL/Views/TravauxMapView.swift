@@ -15,7 +15,8 @@ struct TravauxMapView: View {
     )
     @State private var currentSpan: MKCoordinateSpan = MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
     @State private var hasSetInitialLocation = false
-    
+    @State private var isSatellite = false
+
     // Afficher les polygones à partir d'un zoom moyen
     private var shouldShowPolygons: Bool {
         currentSpan.latitudeDelta < 0.03 // Zoom moyen (< 3km)
@@ -104,8 +105,8 @@ struct TravauxMapView: View {
                     UserAnnotation()
                 }
             }
-            .mapStyle(.standard(pointsOfInterest: .excludingAll))
-            .mapControlVisibility(.visible)
+            .mapStyle(isSatellite ? .imagery(elevation: .realistic) : .standard(pointsOfInterest: .excludingAll))
+            .mapControlVisibility(.hidden)
             .ignoresSafeArea(edges: .top)
             .onMapCameraChange { context in
                 currentSpan = context.region.span
@@ -172,18 +173,35 @@ struct TravauxMapView: View {
                 Spacer()
                 
                 // Boutons à droite
-                VStack(spacing: 12) {
-                    // Bouton filtres (harmonisé avec Transport)
+                VStack(spacing: 10) {
+                    // Bouton satellite
+                    Button {
+                        withAnimation { isSatellite.toggle() }
+                    } label: {
+                        Image(systemName: isSatellite ? "globe.europe.africa.fill" : "globe.europe.africa")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(isSatellite ? .orange : .primary)
+                            .frame(width: 50, height: 50)
+                            .background(.regularMaterial)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
+                    }
+                    .buttonStyle(.plain)
+
+                    // Bouton filtres
                     Button {
                         showFilters = true
                     } label: {
                         Image(systemName: viewModel.hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(viewModel.hasActiveFilters ? .orange : .primary)
+                            .frame(width: 50, height: 50)
+                            .background(.regularMaterial)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(viewModel.hasActiveFilters ? .orange : .gray)
-                    .controlSize(.large)
-                    
+                    .buttonStyle(.plain)
+
                     // Bouton localisation
                     Button {
                         if let userLocation = locationService.currentLocation {
@@ -201,11 +219,14 @@ struct TravauxMapView: View {
                         }
                     } label: {
                         Image(systemName: "location.fill")
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(.blue)
+                            .frame(width: 50, height: 50)
+                            .background(.regularMaterial)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.blue)
-                    .controlSize(.large)
+                    .buttonStyle(.plain)
                 }
                 .padding(.trailing, 24)
                 .padding(.bottom, 24)

@@ -22,6 +22,7 @@ struct LiveMapView: View {
             span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
         )
     )
+    @State private var isSatellite = false
     
     private var isSimulator: Bool {
         #if targetEnvironment(simulator)
@@ -38,7 +39,8 @@ struct LiveMapView: View {
                 locationService: locationService,
                 mapCameraPosition: $mapCameraPosition,
                 selectedVehicle: $selectedVehicle,
-                selectedMergedStop: $selectedMergedStop
+                selectedMergedStop: $selectedMergedStop,
+                isSatellite: $isSatellite
             )
             
             overlayControls
@@ -215,6 +217,20 @@ struct LiveMapView: View {
                 
                 // Boutons en bas à droite (stack vertical)
                 VStack(spacing: 10) {
+                    // Bouton satellite
+                    Button {
+                        withAnimation { isSatellite.toggle() }
+                    } label: {
+                        Image(systemName: isSatellite ? "globe.europe.africa.fill" : "globe.europe.africa")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(isSatellite ? .orange : .primary)
+                            .frame(width: 50, height: 50)
+                            .background(.regularMaterial)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
+                    }
+                    .buttonStyle(.plain)
+
                     // Bouton filtres
                     Button {
                         showFilters = true
@@ -426,21 +442,84 @@ struct LiveMapView: View {
             }
             .buttonStyle(.plain)
             .popover(isPresented: $showRefreshInfo, arrowEdge: .bottom) {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.green)
-                        Text("Données en temps réel")
-                            .font(.headline)
+                VStack(spacing: 0) {
+                    // Header
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.green.opacity(0.15))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "antenna.radiowaves.left.and.right")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(.green)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Temps réel")
+                                .font(.system(size: 15, weight: .semibold))
+                            Text("Positions TCL en direct")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
                     }
-                    Text("L'API TCL publie les positions des véhicules toutes les **30 secondes**. Pas la peine de rafraîchir manuellement — la mise à jour arrive d'elle-même ! 🚌")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 12)
+
+                    Divider()
+                        .padding(.horizontal, 16)
+
+                    // Stats
+                    HStack(spacing: 0) {
+                        VStack(spacing: 3) {
+                            Text("30s")
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .foregroundStyle(.green)
+                            Text("intervalle")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+
+                        Divider().frame(height: 36)
+
+                        VStack(spacing: 3) {
+                            if let lastUpdate = viewModel.lastUpdate {
+                                Text(lastUpdate, style: .relative)
+                                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(.primary)
+                                    .minimumScaleFactor(0.7)
+                            } else {
+                                Text("—")
+                                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text("dernière maj")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+
+                    Divider()
+                        .padding(.horizontal, 16)
+
+                    // No-refresh notice
+                    HStack(spacing: 10) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.system(size: 15))
+                        Text("Inutile de rafraîchir manuellement")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.primary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                 }
-                .padding(20)
-                .frame(maxWidth: 300)
+                .frame(width: 260)
                 .presentationCompactAdaptation(.popover)
             }
         }
@@ -998,6 +1077,7 @@ private struct LiveMapContent: View {
     @Binding var mapCameraPosition: MapCameraPosition
     @Binding var selectedVehicle: Vehicle?
     @Binding var selectedMergedStop: MergedStop?
+    @Binding var isSatellite: Bool
 
     @StateObject private var animationClock = AnimationClock()
     @Environment(\.scenePhase) private var scenePhase
@@ -1054,7 +1134,7 @@ private struct LiveMapContent: View {
                 .annotationTitles(.hidden)
             }
         }
-        .mapStyle(.standard(pointsOfInterest: .excludingAll))
+        .mapStyle(isSatellite ? .imagery(elevation: .realistic) : .standard(pointsOfInterest: .excludingAll))
         .ignoresSafeArea(edges: .top)
         .onMapCameraChange { context in
             viewModel.updateZoomLevel(context.region.span)

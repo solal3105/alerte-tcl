@@ -14,6 +14,8 @@ struct ParkingMapView: View {
     )
     @State private var currentSpan: MKCoordinateSpan = MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
     @State private var hasSetInitialLocation = false
+    @State private var showRefreshInfo = false
+    @State private var isSatellite = false
     @Binding var selectedParkingId: String?
     
     var body: some View {
@@ -132,7 +134,7 @@ struct ParkingMapView: View {
                     UserAnnotation()
                 }
             }
-            .mapStyle(.standard(pointsOfInterest: .excludingAll))
+            .mapStyle(isSatellite ? .imagery(elevation: .realistic) : .standard(pointsOfInterest: .excludingAll))
             .mapControlVisibility(.hidden)
             .ignoresSafeArea(edges: .top)
             .onMapCameraChange { context in
@@ -217,28 +219,48 @@ struct ParkingMapView: View {
                 
                 Spacer()
                 
-                // Bouton localisation en bas à droite
-                Button {
-                    if let userLocation = locationService.currentLocation {
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                            mapCameraPosition = .region(
-                                MKCoordinateRegion(
-                                    center: userLocation.coordinate,
-                                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                                )
-                            )
-                        }
-                    } else {
-                        locationService.requestPermission()
-                        locationService.startUpdatingLocation()
+                // Boutons à droite
+                VStack(spacing: 10) {
+                    // Bouton satellite
+                    Button {
+                        withAnimation { isSatellite.toggle() }
+                    } label: {
+                        Image(systemName: isSatellite ? "globe.europe.africa.fill" : "globe.europe.africa")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(isSatellite ? .orange : .primary)
+                            .frame(width: 50, height: 50)
+                            .background(.regularMaterial)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
-                } label: {
-                    Image(systemName: "location.fill")
-                        .font(.system(size: 22, weight: .semibold))
+                    .buttonStyle(.plain)
+
+                    // Bouton localisation
+                    Button {
+                        if let userLocation = locationService.currentLocation {
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                                mapCameraPosition = .region(
+                                    MKCoordinateRegion(
+                                        center: userLocation.coordinate,
+                                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                                    )
+                                )
+                            }
+                        } else {
+                            locationService.requestPermission()
+                            locationService.startUpdatingLocation()
+                        }
+                    } label: {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundStyle(.blue)
+                            .frame(width: 50, height: 50)
+                            .background(.regularMaterial)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.blue)
-                .controlSize(.large)
                 .padding(.trailing, 24)
                 .padding(.bottom, 24)
             }
@@ -248,50 +270,121 @@ struct ParkingMapView: View {
     
     private var refreshCard: some View {
         Button {
-            Task { await viewModel.loadParkings() }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                showRefreshInfo.toggle()
+            }
         } label: {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .stroke(Color.blue.opacity(0.2), lineWidth: 2.5)
-                        .frame(width: 36, height: 36)
-                    
-                    Circle()
-                        .trim(from: 0, to: viewModel.refreshProgress)
-                        .stroke(
-                            Color.blue,
-                            style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
-                        )
-                        .frame(width: 36, height: 36)
-                        .rotationEffect(.degrees(-90))
-                        .animation(.linear(duration: 0.1), value: viewModel.refreshProgress)
-                    
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.blue)
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(viewModel.error != nil ? Color.orange : Color.blue)
+                    .frame(width: 8, height: 8)
+
+                Text("LIVE")
+                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+                    .foregroundStyle(viewModel.error != nil ? .orange : .blue)
+
+                if viewModel.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                } else {
+                    TimelineView(.periodic(from: .now, by: 1)) { _ in
+                        Text("\(viewModel.secondsUntilNextRefresh)s")
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .contentTransition(.numericText(countsDown: true))
                     }
                 }
-                
-                if !viewModel.isLoading {
-                    Text("dans \(viewModel.secondsUntilNextRefresh)s")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
             .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
+            .clipShape(Capsule())
+            .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
         }
         .buttonStyle(.plain)
-        .disabled(viewModel.isLoading)
         .padding(.leading, 24)
         .padding(.bottom, 24)
+        .popover(isPresented: $showRefreshInfo, arrowEdge: .bottom) {
+            VStack(spacing: 0) {
+                // Header
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.15))
+                            .frame(width: 44, height: 44)
+                        Image(systemName: "parkingsign.circle.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.blue)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Temps réel")
+                            .font(.system(size: 15, weight: .semibold))
+                        Text("Disponibilités en direct")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+
+                Divider()
+                    .padding(.horizontal, 16)
+
+                // Stats
+                HStack(spacing: 0) {
+                    VStack(spacing: 3) {
+                        Text("60s")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(.blue)
+                        Text("intervalle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    Divider().frame(height: 36)
+
+                    VStack(spacing: 3) {
+                        if let lastUpdate = viewModel.lastUpdate {
+                            Text(lastUpdate, style: .relative)
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.primary)
+                                .minimumScaleFactor(0.7)
+                        } else {
+                            Text("—")
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                        Text("dernière maj")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+
+                Divider()
+                    .padding(.horizontal, 16)
+
+                // No-refresh notice
+                HStack(spacing: 10) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.blue)
+                        .font(.system(size: 15))
+                    Text("Inutile de rafraîchir manuellement")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.primary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
+            .frame(width: 260)
+            .presentationCompactAdaptation(.popover)
+        }
     }
 }
 
