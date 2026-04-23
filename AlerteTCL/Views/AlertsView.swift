@@ -5,28 +5,60 @@ struct NewAlertsView: View {
     @EnvironmentObject var viewModel: AlertViewModel
     @State private var selectedLine: TransportLine?
     @State private var showSubscribeSheet = false
-    @State private var searchText = ""
-    
+    @State private var selectedModeFilter: TransportMode? = nil
+
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                // Section Mes Lignes
+                // Global status banner
+                if !viewModel.subscribedLines.isEmpty {
+                    statusSummaryBanner
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 myLinesSection
-                
-                // Section Toutes les lignes
-                allLinesSection
+                    .padding(.top, 24)
+
+                // Divider
+                Rectangle()
+                    .fill(Color(.separator).opacity(0.5))
+                    .frame(height: 0.5)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 32)
+
+                allLinesSectionHeader
+                    .padding(.top, 24)
+
+                modeFilterTabs
+                    .padding(.top, 14)
+
+                linesGrid
+                    .padding(.top, 14)
+                    .padding(.bottom, 40)
             }
-            .padding(.bottom, 20)
         }
         .refreshable {
             await viewModel.loadAlerts()
         }
         .overlay {
             if viewModel.isLoading {
-                ProgressView()
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ZStack {
+                    Color.black.opacity(0.25)
+                        .ignoresSafeArea()
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .controlSize(.large)
+                            .tint(.white)
+                        Text("Mise à jour…")
+                            .font(.subheadline)
+                            .foregroundStyle(.white)
+                    }
+                    .padding(24)
                     .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
             }
         }
         .sheet(item: $selectedLine) { line in
@@ -37,277 +69,448 @@ struct NewAlertsView: View {
         }
     }
     
+    // MARK: - Status Summary Banner
+
+    private var statusSummaryBanner: some View {
+        let totalAlerts = viewModel.subscribedLines.reduce(0) {
+            $0 + viewModel.ongoingAlerts(for: $1).count
+        }
+        let hasMajor = viewModel.subscribedLines.contains {
+            viewModel.ongoingAlerts(for: $0).contains { $0.severity == .major }
+        }
+        let bannerColor: Color = hasMajor ? .red : (totalAlerts > 0 ? .orange : .green)
+
+        return HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(bannerColor)
+                    .frame(width: 38, height: 38)
+                Image(
+                    systemName: hasMajor
+                        ? "exclamationmark.triangle.fill"
+                        : (totalAlerts > 0 ? "bell.badge.fill" : "checkmark")
+                )
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(.white)
+                .symbolEffect(.pulse, isActive: hasMajor)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                if totalAlerts == 0 {
+                    Text("Toutes vos lignes sont normales")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                } else {
+                    Text(
+                        "\(totalAlerts) perturbation\(totalAlerts > 1 ? "s" : "") sur vos lignes"
+                    )
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                }
+                if let last = viewModel.lastUpdate {
+                    Text("Mis à jour \(last, style: .relative)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(14)
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(bannerColor.opacity(0.1))
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(bannerColor.opacity(0.25), lineWidth: 1)
+        }
+    }
+
     // MARK: - My Lines Section
+
     private var myLinesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Mes lignes")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Mes lignes")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    if !viewModel.subscribedLines.isEmpty {
+                        Text(
+                            "\(viewModel.subscribedLines.count) abonnement\(viewModel.subscribedLines.count > 1 ? "s" : "")"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+
                 Spacer()
-                
+
                 Button {
                     showSubscribeSheet = true
                 } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus.circle.fill")
-                        Text("S'abonner")
-                    }
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.blue)
+                    Image(systemName: "plus")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 30, height: 30)
+                        .background(.blue)
+                        .clipShape(Circle())
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 24)
-            
+
             if viewModel.subscribedLines.isEmpty {
                 emptySubscriptionsView
             } else {
-                LazyVStack(spacing: 0) {
+                TabView {
                     ForEach(sortedSubscribedLines) { line in
-                        SubscribedLineCard(
+                        LineStatusCard(
                             line: line,
                             alerts: viewModel.ongoingAlerts(for: line),
                             highestSeverity: highestSeverity(for: line)
                         )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 4)
                         .onTapGesture {
                             selectedLine = line
                         }
                     }
                 }
-                .background(.background)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
-                .padding(.horizontal, 16)
+                .tabViewStyle(.page(indexDisplayMode: .automatic))
+                .frame(height: 152)
             }
         }
     }
     
     private var sortedSubscribedLines: [TransportLine] {
-        viewModel.subscribedLines.sorted { line1, line2 in
-            let severity1 = highestSeverity(for: line1)?.sortOrder ?? 999
-            let severity2 = highestSeverity(for: line2)?.sortOrder ?? 999
-            
-            if severity1 != severity2 {
-                return severity1 < severity2
+        viewModel.subscribedLines.sorted { l1, l2 in
+            let s1 = highestSeverity(for: l1)?.sortOrder ?? 999
+            let s2 = highestSeverity(for: l2)?.sortOrder ?? 999
+            if s1 != s2 { return s1 < s2 }
+            if l1.mode.sortOrder != l2.mode.sortOrder {
+                return l1.mode.sortOrder < l2.mode.sortOrder
             }
-            
-            if line1.mode.sortOrder != line2.mode.sortOrder {
-                return line1.mode.sortOrder < line2.mode.sortOrder
-            }
-            
-            return line1.displayName.localizedStandardCompare(line2.displayName) == .orderedAscending
+            return l1.displayName.localizedStandardCompare(l2.displayName) == .orderedAscending
         }
     }
-    
+
     private func highestSeverity(for line: TransportLine) -> AlertSeverity? {
-        let lineAlerts = viewModel.ongoingAlerts(for: line)
-        return lineAlerts.map { $0.severity }.min { $0.sortOrder < $1.sortOrder }
+        viewModel.ongoingAlerts(for: line)
+            .map { $0.severity }
+            .min { $0.sortOrder < $1.sortOrder }
     }
     
     private var emptySubscriptionsView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "bell.slash")
-                .font(.system(size: 40))
-                .foregroundStyle(.secondary)
-            
-            VStack(spacing: 4) {
-                Text("Aucune ligne suivie")
-                    .font(.headline)
-                Text("Abonnez-vous à des lignes pour recevoir leurs alertes")
+        Button {
+            showSubscribeSheet = true
+        } label: {
+            VStack(spacing: 18) {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.1))
+                        .frame(width: 72, height: 72)
+                    Image(systemName: "bell.badge")
+                        .font(.system(size: 30))
+                        .foregroundStyle(.blue)
+                }
+
+                VStack(spacing: 6) {
+                    Text("Suivez vos lignes")
+                        .font(.headline)
+                    Text(
+                        "Recevez des alertes en temps réel pour les lignes qui vous importent"
+                    )
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-            }
-            .accessibilityElement()
-            .accessibilityLabel("Aucune ligne suivie. Abonnez-vous à des lignes pour recevoir leurs alertes.")
-            .accessibilityHint("Double-cliquer pour s'abonner à des lignes")
-            
-            Button {
-                showSubscribeSheet = true
-            } label: {
-                HStack {
+                }
+
+                HStack(spacing: 6) {
                     Image(systemName: "plus.circle.fill")
-                    Text("M'abonner à une ligne")
+                    Text("S'abonner à une ligne")
                 }
                 .font(.subheadline)
                 .fontWeight(.semibold)
+                .foregroundStyle(.blue)
             }
-            .buttonStyle(.borderedProminent)
-            .clipShape(Capsule())
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 40)
+            .padding(.horizontal, 24)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
-        .background(.background)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
+        .buttonStyle(.plain)
         .padding(.horizontal, 16)
     }
     
     // MARK: - All Lines Section
-    private var allLinesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+
+    private var allLinesSectionHeader: some View {
+        HStack {
             Text("Toutes les lignes")
                 .font(.title2)
                 .fontWeight(.bold)
-                .padding(.horizontal, 16)
-                .padding(.top, 24)
-            
-            ForEach(sortedModes, id: \.self) { mode in
-                let modeLines = viewModel.allLines.filter { $0.mode == mode }
-                    .sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
-                
-                if !modeLines.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 6) {
-                            Image(systemName: mode.icon)
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(mode.color)
-                            
-                            Text(mode.rawValue)
-                                .font(.subheadline)
-                                .fontWeight(.bold)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 16)
-                        
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                ForEach(modeLines) { line in
-                                    CompactLineChip(
-                                        line: line,
-                                        alertCount: viewModel.alertCount(for: line),
-                                        isSubscribed: viewModel.isSubscribed(to: line)
-                                    )
-                                    .onTapGesture {
-                                        selectedLine = line
-                                    }
-                                }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var modeFilterTabs: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ModeFilterChip(
+                    label: "Tout",
+                    icon: "square.grid.2x2.fill",
+                    color: .secondary,
+                    isSelected: selectedModeFilter == nil
+                ) {
+                    withAnimation(.spring(response: 0.3)) {
+                        selectedModeFilter = nil
+                    }
+                }
+                ForEach(
+                    TransportMode.allCases.sorted { $0.sortOrder < $1.sortOrder },
+                    id: \.self
+                ) { mode in
+                    if viewModel.allLines.contains(where: { $0.mode == mode }) {
+                        ModeFilterChip(
+                            label: mode.rawValue,
+                            icon: mode.icon,
+                            color: mode.color,
+                            isSelected: selectedModeFilter == mode
+                        ) {
+                            withAnimation(.spring(response: 0.3)) {
+                                selectedModeFilter = mode
                             }
-                            .padding(.horizontal, 16)
                         }
                     }
-                    .padding(.vertical, 8)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private var filteredLinesForGrid: [TransportLine] {
+        let base: [TransportLine]
+        if let mode = selectedModeFilter {
+            base = viewModel.allLines.filter { $0.mode == mode }
+        } else {
+            base = viewModel.allLines
+        }
+        return base.sorted {
+            if $0.mode.sortOrder != $1.mode.sortOrder {
+                return $0.mode.sortOrder < $1.mode.sortOrder
+            }
+            return $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
+        }
+    }
+
+    private var linesGrid: some View {
+        LazyVGrid(
+            columns: [
+                GridItem(.flexible(), spacing: 10),
+                GridItem(.flexible(), spacing: 10),
+                GridItem(.flexible(), spacing: 10),
+            ],
+            spacing: 10
+        ) {
+            ForEach(filteredLinesForGrid) { line in
+                LineGridCell(
+                    line: line,
+                    alertCount: viewModel.alertCount(for: line),
+                    isSubscribed: viewModel.isSubscribed(to: line)
+                )
+                .onTapGesture {
+                    selectedLine = line
                 }
             }
         }
-    }
-    
-    private var sortedModes: [TransportMode] {
-        TransportMode.allCases.sorted { $0.sortOrder < $1.sortOrder }
+        .padding(.horizontal, 16)
+        .animation(.spring(response: 0.4), value: selectedModeFilter)
     }
 }
 
-// MARK: - Subscribed Line Card
-private struct SubscribedLineCard: View {
+// MARK: - Mode Filter Chip
+
+private struct ModeFilterChip: View {
+    let label: String
+    let icon: String
+    let color: Color
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(isSelected ? Color(.systemBackground) : color)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background {
+                Capsule()
+                    .fill(isSelected ? color : color.opacity(0.12))
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Line Status Card (subscribed lines carousel)
+
+private struct LineStatusCard: View {
     let line: TransportLine
     let alerts: [TCLAlert]
     let highestSeverity: AlertSeverity?
-    
-    var body: some View {
-        HStack(spacing: 14) {
-            // Badge ligne
-            AlertLineBadgeView(line: line, size: 52)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(line.mode.rawValue)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                    
-                    Text("•")
-                        .foregroundStyle(.secondary)
-                    
-                    Text("Ligne \(line.displayName)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                
-                if let severity = highestSeverity {
-                    HStack(spacing: 4) {
-                        Image(systemName: severity.icon)
-                            .font(.caption)
-                        Text("\(alerts.count) alerte\(alerts.count > 1 ? "s" : "")")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                    }
-                    .foregroundStyle(severityColor(severity))
-                } else {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.caption)
-                        Text("Aucune perturbation")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                    }
-                    .foregroundStyle(.green)
-                }
-            }
-            
-            Spacer()
-            
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .padding(14)
-        .background(statusBackground)
-        .contentShape(Rectangle())
-    }
-    
-    private var statusBackground: some View {
-        Group {
-            if let severity = highestSeverity {
-                severityColor(severity).opacity(0.08)
-            } else {
-                Color.green.opacity(0.05)
-            }
-        }
-    }
-    
-    private func severityColor(_ severity: AlertSeverity) -> Color {
-        switch severity {
+
+    @State private var isPulsing = false
+
+    private var isMajor: Bool { highestSeverity == .major }
+
+    private var statusColor: Color {
+        guard let sev = highestSeverity else { return .green }
+        switch sev {
         case .major: return .red
         case .disruption: return .orange
         case .info: return .blue
         }
     }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(statusColor)
+                .frame(width: 5)
+
+            HStack(spacing: 16) {
+                AlertLineBadgeView(line: line, size: 62)
+                    .shadow(color: line.mode.color.opacity(0.35), radius: 10, x: 0, y: 4)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(line.mode.rawValue)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(line.mode.color)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(line.mode.color.opacity(0.12))
+                        .clipShape(Capsule())
+
+                    Text("Ligne \(line.displayName)")
+                        .font(.title3)
+                        .fontWeight(.bold)
+
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 7, height: 7)
+                            .scaleEffect(isPulsing && isMajor ? 1.5 : 1.0)
+                            .animation(
+                                isMajor
+                                    ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true)
+                                    : .default,
+                                value: isPulsing
+                            )
+
+                        if alerts.isEmpty {
+                            Text("Service normal")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(
+                                "\(alerts.count) perturbation\(alerts.count > 1 ? "s" : "")"
+                            )
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(statusColor)
+                        }
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                if !alerts.isEmpty {
+                    VStack(spacing: 2) {
+                        Text("\(alerts.count)")
+                            .font(.system(size: 30, weight: .black, design: .rounded))
+                            .foregroundStyle(statusColor)
+                        Text(alerts.count > 1 ? "alertes" : "alerte")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(statusColor.opacity(0.65))
+                    }
+                } else {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.green)
+                }
+            }
+            .padding(16)
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(.background)
+                .shadow(color: statusColor.opacity(0.18), radius: 18, x: 0, y: 6)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(statusColor.opacity(0.18), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .onAppear {
+            if isMajor { isPulsing = true }
+        }
+    }
 }
 
-// MARK: - Compact Line Chip
-private struct CompactLineChip: View {
+// MARK: - Line Grid Cell (3-column grid)
+
+private struct LineGridCell: View {
     let line: TransportLine
     let alertCount: Int
     let isSubscribed: Bool
-    
+
     var body: some View {
-        VStack(spacing: 6) {
-            ZStack {
-                AlertLineBadgeView(line: line, size: 56)
-                
-                if alertCount > 0 {
-                    Circle()
-                        .fill(.orange)
-                        .frame(width: 18, height: 18)
-                        .overlay {
-                            Text("\(alertCount)")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white)
-                        }
-                        .offset(x: 22, y: -22)
-                }
-                
-                if isSubscribed {
-                    Image(systemName: "bell.fill")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(4)
-                        .background(.blue)
-                        .clipShape(Circle())
-                        .offset(x: 22, y: 22)
-                }
+        ZStack(alignment: .topTrailing) {
+            VStack(spacing: 8) {
+                AlertLineBadgeView(line: line, size: 50)
+                Text(line.displayName)
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(line.mode.color.opacity(0.08))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(
+                        line.mode.color.opacity(isSubscribed ? 0.45 : 0.15),
+                        lineWidth: isSubscribed ? 1.5 : 0.5
+                    )
+            }
+
+            if alertCount > 0 {
+                Text("\(alertCount)")
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundStyle(.white)
+                    .frame(minWidth: 18, minHeight: 18)
+                    .padding(.horizontal, 4)
+                    .background(.red)
+                    .clipShape(Capsule())
+                    .offset(x: 4, y: -4)
+            } else if isSubscribed {
+                Image(systemName: "bell.fill")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(4)
+                    .background(.blue)
+                    .clipShape(Circle())
+                    .offset(x: 4, y: -4)
             }
         }
     }
@@ -337,29 +540,27 @@ struct LineDetailSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
-                    // Header
-                    lineHeader
-                    
-                    // Subscribe button
-                    subscribeSection
-                    
-                    // Alerts
-                    if lineAlerts.isEmpty && upcomingAlerts.isEmpty {
-                        noAlertsView
-                    } else {
-                        if !lineAlerts.isEmpty {
-                            alertsSection
-                        }
-                        if !upcomingAlerts.isEmpty {
-                            upcomingAlertsSection
+                VStack(spacing: 0) {
+                    heroHeader
+
+                    VStack(spacing: 20) {
+                        subscribeSection
+                            .padding(.horizontal, 16)
+
+                        if lineAlerts.isEmpty && upcomingAlerts.isEmpty {
+                            noAlertsView
+                        } else {
+                            if !lineAlerts.isEmpty { alertsSection }
+                            if !upcomingAlerts.isEmpty { upcomingAlertsSection }
                         }
                     }
+                    .padding(.top, 20)
+                    .padding(.bottom, 48)
                 }
-                .padding(.vertical, 20)
             }
             .navigationTitle("Ligne \(line.displayName)")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Fermer") {
@@ -374,88 +575,127 @@ struct LineDetailSheet: View {
         }
         .interactiveDismissDisabled(false)
     }
-    
-    private var lineHeader: some View {
-        HStack(spacing: 16) {
-            AlertLineBadgeView(line: line, size: 72)
-            
-            VStack(alignment: .leading, spacing: 6) {
-                Text(line.mode.rawValue)
-                    .font(.headline)
-                
-                if lineAlerts.isEmpty {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                        Text("Aucune perturbation en cours")
-                            .foregroundStyle(.secondary)
+
+    // MARK: - Hero Header
+
+    private var heroHeader: some View {
+        ZStack(alignment: .bottomLeading) {
+            LinearGradient(
+                colors: [
+                    line.mode.color.opacity(0.85),
+                    line.mode.color.opacity(0.45),
+                    line.mode.color.opacity(0.15),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .frame(height: 180)
+            .overlay {
+                GeometryReader { geo in
+                    ZStack {
+                        Circle()
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            .frame(width: 160, height: 160)
+                            .offset(x: geo.size.width - 60, y: -40)
+                        Circle()
+                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                            .frame(width: 250, height: 250)
+                            .offset(x: geo.size.width - 80, y: -100)
                     }
-                    .font(.subheadline)
-                } else {
-                    HStack(spacing: 4) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                        Text("\(lineAlerts.count) perturbation\(lineAlerts.count > 1 ? "s" : "") en cours")
-                            .foregroundStyle(.secondary)
-                    }
-                    .font(.subheadline)
                 }
             }
-            
-            Spacer()
+
+            HStack(spacing: 18) {
+                AlertLineBadgeView(line: line, size: 76)
+                    .shadow(color: .black.opacity(0.22), radius: 12, x: 0, y: 6)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(line.mode.rawValue)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white.opacity(0.8))
+
+                    Text("Ligne \(line.displayName)")
+                        .font(.title2)
+                        .fontWeight(.black)
+                        .foregroundStyle(.white)
+
+                    heroStatusPill
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
         }
-        .padding(20)
-        .background(.background)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
-        .padding(.horizontal, 16)
+    }
+
+    private var heroStatusPill: some View {
+        let isClear = lineAlerts.isEmpty
+        return HStack(spacing: 5) {
+            Image(
+                systemName: isClear
+                    ? "checkmark.circle.fill"
+                    : "exclamationmark.triangle.fill"
+            )
+            .font(.caption)
+            Text(
+                isClear
+                    ? "Service normal"
+                    : "\(lineAlerts.count) perturbation\(lineAlerts.count > 1 ? "s" : "")"
+            )
+            .font(.caption)
+            .fontWeight(.semibold)
+        }
+        .foregroundStyle(isClear ? .green : .orange)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(.black.opacity(0.22))
+        .clipShape(Capsule())
     }
     
     private var subscribeSection: some View {
-        VStack(spacing: 12) {
+        Group {
             if isSubscribed {
-                HStack {
-                    Image(systemName: "bell.fill")
-                        .foregroundStyle(.blue)
-                    Text("Vous suivez cette ligne")
-                        .fontWeight(.medium)
+                HStack(spacing: 10) {
+                    HStack(spacing: 7) {
+                        Image(systemName: "bell.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(.blue)
+                        Text("Abonné")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(Color.blue.opacity(0.1))
+                    .clipShape(Capsule())
+
                     Spacer()
-                }
-                .padding(16)
-                .background(Color.blue.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                
-                HStack(spacing: 12) {
-                Button {
-                    showSubscriptionOptions = true
-                } label: {
-                    HStack {
-                        Image(systemName: "slider.horizontal.3")
-                        Text("Options")
+
+                    Button {
+                        showSubscriptionOptions = true
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "slider.horizontal.3")
+                            Text("Options")
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
                     }
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(.blue)
-                
-                Button {
-                    withAnimation {
-                        viewModel.toggleSubscription(for: line)
-                    }
-                } label: {
-                    HStack {
+                    .buttonStyle(.bordered)
+                    .tint(.blue)
+                    .controlSize(.small)
+
+                    Button {
+                        withAnimation { viewModel.toggleSubscription(for: line) }
+                    } label: {
                         Image(systemName: "bell.slash")
-                        Text("Se désabonner")
                     }
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                    .controlSize(.small)
                 }
-                .buttonStyle(.bordered)
-                .tint(.red)
-            }
             } else {
                 Button {
                     showSubscriptionOptions = true
@@ -471,37 +711,36 @@ struct LineDetailSheet: View {
                 .controlSize(.large)
             }
         }
-        .padding(.horizontal, 16)
     }
     
     private var noAlertsView: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 48))
+                .font(.system(size: 52))
                 .foregroundStyle(.green)
-            
-            Text("Aucune perturbation")
-                .font(.headline)
-            
-            Text("Cette ligne fonctionne normalement")
+                .symbolEffect(.pulse)
+
+            Text("Service normal")
+                .font(.title3)
+                .fontWeight(.bold)
+
+            Text("Aucune perturbation en cours sur cette ligne")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
-        .background(.background)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
-        .padding(.horizontal, 16)
+        .padding(.vertical, 52)
     }
-    
+
     private var alertsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Alertes en cours")
+        VStack(alignment: .leading, spacing: 10) {
+            Label("En cours", systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
+                .foregroundStyle(.orange)
                 .padding(.horizontal, 16)
-            
-            LazyVStack(spacing: 12) {
+
+            VStack(spacing: 8) {
                 ForEach(lineAlerts) { alert in
                     AlertDetailCard(alert: alert)
                 }
@@ -509,18 +748,15 @@ struct LineDetailSheet: View {
             .padding(.horizontal, 16)
         }
     }
-    
+
     private var upcomingAlertsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
-                Image(systemName: "calendar.badge.clock")
-                    .foregroundStyle(.secondary)
-                Text("Perturbations à venir")
-                    .font(.headline)
-            }
-            .padding(.horizontal, 16)
-            
-            LazyVStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("À venir", systemImage: "calendar.badge.clock")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 16)
+
+            VStack(spacing: 8) {
                 ForEach(upcomingAlerts) { alert in
                     AlertDetailCard(alert: alert, isUpcoming: true)
                 }
@@ -534,53 +770,115 @@ struct LineDetailSheet: View {
 private struct AlertDetailCard: View {
     let alert: TCLAlert
     var isUpcoming: Bool = false
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: isUpcoming ? "calendar.badge.clock" : alert.severity.icon)
-                    .foregroundStyle(isUpcoming ? .secondary : severityColor)
-                
-                Text(isUpcoming ? "À venir" : alert.severity.rawValue)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(isUpcoming ? .secondary : severityColor)
-                
-                Spacer()
-                
-                if let debut = alert.debut {
-                    Text(isUpcoming ? "Dès le \(debut.formatted(date: .abbreviated, time: .omitted))" : debut.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            
-            Text(alert.titre)
-                .font(.body)
-                .fontWeight(.medium)
-            
-            if !alert.message.isEmpty {
-                Text(alert.message)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isUpcoming ? Color.secondary.opacity(0.08) : severityColor.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(isUpcoming ? Color.secondary.opacity(0.2) : severityColor.opacity(0.3), lineWidth: 1)
-        }
-    }
-    
-    private var severityColor: Color {
+    @State private var isExpanded = false
+
+    private var accentColor: Color {
+        if isUpcoming { return .secondary }
         switch alert.severity {
         case .major: return .red
         case .disruption: return .orange
         case .info: return .blue
         }
+    }
+
+    var body: some View {
+        Button {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                isExpanded.toggle()
+            }
+        } label: {
+            HStack(spacing: 0) {
+                // Left accent bar
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(accentColor)
+                    .frame(width: 4)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 6) {
+                        Image(
+                            systemName: isUpcoming
+                                ? "calendar.badge.clock"
+                                : alert.severity.icon
+                        )
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(accentColor)
+
+                        Text(isUpcoming ? "À venir" : alert.severity.rawValue)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(accentColor)
+
+                        if !alert.cause.isEmpty {
+                            Text("·")
+                                .foregroundStyle(.quaternary)
+                            Text(alert.cause)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        if let debut = alert.debut {
+                            Text(smartDateLabel(debut))
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+
+                    Text(alert.titre)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if isExpanded {
+                        if !alert.message.isEmpty {
+                            Text(alert.message)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+                        if let fin = alert.fin {
+                            Label(
+                                "Jusqu'au \(fin.formatted(date: .abbreviated, time: .shortened))",
+                                systemImage: "clock"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+                    }
+
+                    HStack {
+                        Spacer()
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption2)
+                            .foregroundStyle(.quaternary)
+                    }
+                }
+                .padding(14)
+            }
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(accentColor.opacity(isExpanded ? 0.07 : 0.04))
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(accentColor.opacity(0.22), lineWidth: 0.5)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func smartDateLabel(_ date: Date) -> String {
+        let diff = Date().timeIntervalSince(date)
+        if diff < 3600 { return "Il y a \(Int(diff / 60)) min" }
+        if diff < 86400 { return date.formatted(date: .omitted, time: .shortened) }
+        return date.formatted(date: .abbreviated, time: .omitted)
     }
 }
 
