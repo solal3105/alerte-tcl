@@ -143,34 +143,57 @@ struct ParkingMapView: View {
                 viewModel.updateVisibleRegion(context.region)
             }
             .overlay {
-                // Overlay pour les erreurs uniquement
                 if let error = viewModel.error {
-                    VStack(spacing: 16) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 48))
-                            .foregroundStyle(.orange)
-                        
-                        Text("Erreur de chargement")
-                            .font(.headline)
-                        
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                        
-                        Button("Réessayer") {
-                            Task { await viewModel.loadParkings() }
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    .padding(24)
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 24))
-                    .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 6)
-                    .padding(20)
+                    parkingErrorOverlay(error)
                 }
             }
         }
+    }
+    
+    private func parkingErrorOverlay(_ error: String) -> some View {
+        let hour = Calendar.current.component(.hour, from: Date())
+        let isNight = hour >= 22 || hour < 6
+        let icon = isNight ? "moon.zzz.fill" : "cloud.slash.fill"
+        let iconColor: Color = isNight ? .indigo : .orange
+        let title = isNight ? "Les serveurs se reposent" : "Données temporairement indisponibles"
+        let subtitle = isNight
+            ? "Grand Lyon coupe ses serveurs la nuit. Revenez après 6h !"
+            : friendlyServerMessage(for: error)
+        return VStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 48))
+                .foregroundStyle(iconColor)
+            
+            Text(title)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+            
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            
+            Button("Réessayer") {
+                Task { await viewModel.loadParkings() }
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(24)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 6)
+        .padding(20)
+    }
+    
+    private func friendlyServerMessage(for error: String) -> String {
+        if error.contains("504") || error.contains("Timeout") || error.contains("timeout") || error.contains("timed out") {
+            return "Le serveur Grand Lyon prend son temps... Réessayez dans quelques instants."
+        } else if error.contains("500") || error.contains("502") || error.contains("503") {
+            return "Le serveur Grand Lyon est en maintenance. Revenez bientôt !"
+        } else if error.contains("connection") || error.contains("network") || error.contains("Network") {
+            return "Vérifiez votre connexion internet."
+        }
+        return "Une erreur inattendue s'est produite. Réessayez dans quelques instants."
     }
     
     private func openParkingById(_ parkingId: String) {

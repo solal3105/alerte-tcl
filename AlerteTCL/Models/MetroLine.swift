@@ -40,9 +40,12 @@ struct TransitLine: Identifiable, Codable {
         // Funiculaires
         case "F1", "F2":
             return Color(hex: "8BC752") // Vert clair
-        // Tramways (toutes les lignes T)
+        // Tramways T1–T7
         case "T1", "T2", "T3", "T4", "T5", "T6", "T7":
             return Color(hex: "8C368C") // Violet/Mauve
+        // Rhônexpress
+        case "RHONEXPRESS", "RX":
+            return Color(hex: "C92B21") // Rouge
         default:
             return Color.gray
         }

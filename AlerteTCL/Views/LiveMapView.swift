@@ -278,102 +278,15 @@ struct LiveMapView: View {
     }
     
     // MARK: - Traffic Banner
-    
+
     private var trafficBanner: some View {
-        let hasSubscriptions = !alertViewModel.subscribedLines.isEmpty
-        let subscribedDisrupted = subscribedLinesDisrupted
-        let majorAlerts = alertViewModel.linesInError.filter { $0.highestSeverity == .major }
-        
-        let state: TrafficState = {
-            if hasSubscriptions {
-                if subscribedDisrupted.isEmpty {
-                    return .subscribedAllClear
-                } else {
-                    let worst = subscribedDisrupted.map(\.highestSeverity).min { $0.sortOrder < $1.sortOrder } ?? .disruption
-                    return .subscribedDisrupted(lines: subscribedDisrupted, severity: worst)
-                }
-            } else {
-                if majorAlerts.isEmpty {
-                    return .noMajorDisruption
-                } else {
-                    return .majorDisruptions(lines: majorAlerts)
-                }
-            }
-        }()
-        
-        return Button { showAlerts = true } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 12) {
-                    // Icône dans un cercle teinté
-                    Image(systemName: state.icon)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(state.color)
-                        .frame(width: 32, height: 32)
-                        .background(state.color.opacity(0.12))
-                        .clipShape(Circle())
-                    
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(state.title)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.primary)
-                        
-                        if let subtitle = state.subtitle {
-                            Text(subtitle)
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                }
-                
-                // Badges de lignes sur une deuxième ligne
-                if let badges = state.lineBadges, !badges.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            ForEach(badges, id: \.id) { summary in
-                                lineBadge(name: summary.displayName, severity: summary.highestSeverity)
-                            }
-                        }
-                    }
-                    .allowsHitTesting(false)
-                }
-            }
-            .padding(14)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 4)
-        }
-        .buttonStyle(.plain)
-    }
-    
-    private var subscribedLinesDisrupted: [AlertViewModel.LineAlertSummary] {
-        alertViewModel.linesInError.filter { summary in
-            alertViewModel.subscribedLines.contains { $0.ligneCom == summary.id || $0.ligneCli == summary.id }
-        }
-    }
-    
-    private func lineBadge(name: String, severity: AlertSeverity) -> some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(severity == .major ? .red : .orange)
-                .frame(width: 6, height: 6)
-            
-            Text(name)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(LineColorHelper.textColor(for: name))
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(LineColorHelper.backgroundColor(for: name))
-        .clipShape(Capsule())
-        .overlay(
-            Capsule()
-                .strokeBorder(LineColorHelper.needsBorder(for: name) ? Color(.systemGray4) : .clear, lineWidth: 0.5)
+        TrafficBannerView(
+            subscribedLines: alertViewModel.subscribedLines,
+            linesInError: alertViewModel.linesInError,
+            networkAlertCount: alertViewModel.alerts.filter { $0.isOngoing && $0.severity != .info }.count,
+            networkHasMajor: alertViewModel.alerts.contains { $0.isOngoing && $0.severity == .major },
+            lastUpdate: alertViewModel.lastUpdate,
+            onTap: { showAlerts = true }
         )
     }
     
@@ -999,73 +912,259 @@ struct FilterSheet: View {
     }
 }
 
-// MARK: - Traffic State
+// MARK: - Traffic Banner View
 
-private enum TrafficState {
-    case noMajorDisruption
-    case subscribedAllClear
-    case subscribedDisrupted(lines: [AlertViewModel.LineAlertSummary], severity: AlertSeverity)
-    case majorDisruptions(lines: [AlertViewModel.LineAlertSummary])
-    
-    var icon: String {
-        switch self {
-        case .noMajorDisruption, .subscribedAllClear:
+private struct TrafficBannerView: View {
+    let subscribedLines: [TransportLine]
+    let linesInError: [AlertViewModel.LineAlertSummary]
+    let networkAlertCount: Int
+    let networkHasMajor: Bool
+    let lastUpdate: Date?
+    let onTap: () -> Void
+
+    // MARK: Derived
+
+    private var hasSubscriptions: Bool { !subscribedLines.isEmpty }
+
+    private var subscribedDisrupted: [AlertViewModel.LineAlertSummary] {
+        linesInError.filter { summary in
+            subscribedLines.contains { $0.ligneCom == summary.id || $0.ligneCli == summary.id }
+        }
+    }
+
+    private var networkIsNormal: Bool { networkAlertCount == 0 }
+
+    // MARK: State machine
+
+    private enum BannerState {
+        case noSubsNetworkNormal
+        case noSubsNetworkDisrupted
+        case myLinesOKNetworkOK
+        case myLinesOKNetworkDisrupted
+        case myLinesDisrupted(severity: AlertSeverity)
+    }
+
+    private var state: BannerState {
+        guard hasSubscriptions else {
+            return networkIsNormal ? .noSubsNetworkNormal : .noSubsNetworkDisrupted
+        }
+        if subscribedDisrupted.isEmpty {
+            return networkIsNormal ? .myLinesOKNetworkOK : .myLinesOKNetworkDisrupted
+        }
+        let worst = subscribedDisrupted
+            .map(\.highestSeverity)
+            .min { $0.sortOrder < $1.sortOrder } ?? .disruption
+        return .myLinesDisrupted(severity: worst)
+    }
+
+    private var accentColor: Color {
+        switch state {
+        case .noSubsNetworkNormal, .myLinesOKNetworkOK:   return .green
+        case .noSubsNetworkDisrupted:                     return networkHasMajor ? .red : .orange
+        case .myLinesOKNetworkDisrupted:                  return .green
+        case .myLinesDisrupted(let s):                    return s == .major ? .red : .orange
+        }
+    }
+
+    private var icon: String {
+        switch state {
+        case .noSubsNetworkNormal, .myLinesOKNetworkOK:
             return "checkmark.circle.fill"
-        case .subscribedDisrupted(_, let severity):
-            return severity == .major ? "xmark.octagon.fill" : "exclamationmark.triangle.fill"
-        case .majorDisruptions:
-            return "xmark.octagon.fill"
+        case .noSubsNetworkDisrupted:
+            return networkHasMajor ? "xmark.octagon.fill" : "exclamationmark.triangle.fill"
+        case .myLinesOKNetworkDisrupted:
+            return "checkmark.circle.fill"
+        case .myLinesDisrupted(let s):
+            return s == .major ? "xmark.octagon.fill" : "exclamationmark.triangle.fill"
         }
     }
-    
-    var color: Color {
-        switch self {
-        case .noMajorDisruption, .subscribedAllClear:
-            return .green
-        case .subscribedDisrupted(_, let severity):
-            return severity == .major ? .red : .orange
-        case .majorDisruptions:
-            return .red
-        }
-    }
-    
-    var title: String {
-        switch self {
-        case .noMajorDisruption:
-            return "Aucune perturbation majeure"
-        case .subscribedAllClear:
+
+    private var title: String {
+        switch state {
+        case .noSubsNetworkNormal:
+            return "Réseau TCL normal"
+        case .noSubsNetworkDisrupted:
+            return "\(networkAlertCount) perturbation\(networkAlertCount > 1 ? "s" : "") réseau"
+        case .myLinesOKNetworkOK:
             return "Vos lignes circulent normalement"
-        case .subscribedDisrupted(let lines, _):
-            let count = lines.count
-            return "\(count) de vos ligne\(count > 1 ? "s" : "") perturbée\(count > 1 ? "s" : "")"
-        case .majorDisruptions(let lines):
-            let count = lines.count
-            return "\(count) perturbation\(count > 1 ? "s" : "") majeure\(count > 1 ? "s" : "")"
+        case .myLinesOKNetworkDisrupted:
+            return "Vos lignes sont normales"
+        case .myLinesDisrupted(let s):
+            let n = subscribedDisrupted.count
+            return s == .major
+                ? "\(n) ligne\(n > 1 ? "s" : "") en alerte majeure"
+                : "\(n) de vos ligne\(n > 1 ? "s" : "") perturbée\(n > 1 ? "s" : "")"
         }
     }
-    
-    var subtitle: String? {
-        switch self {
-        case .noMajorDisruption:
-            return "Réseau TCL"
-        case .subscribedAllClear:
+
+    private var subtitle: String? {
+        switch state {
+        case .noSubsNetworkNormal:
+            return "Appuyez pour suivre vos lignes"
+        case .noSubsNetworkDisrupted:
+            return "Appuyez pour voir les détails"
+        case .myLinesOKNetworkOK:
             return nil
-        case .subscribedDisrupted, .majorDisruptions:
+        case .myLinesOKNetworkDisrupted:
+            return "\(networkAlertCount) perturbation\(networkAlertCount > 1 ? "s" : "") sur d'autres lignes"
+        case .myLinesDisrupted:
             return nil
         }
     }
-    
-    var lineBadges: [AlertViewModel.LineAlertSummary]? {
-        switch self {
-        case .noMajorDisruption, .subscribedAllClear:
-            return nil
-        case .subscribedDisrupted(let lines, _):
-            return lines
-        case .majorDisruptions(let lines):
-            return lines
+
+    private var isPulsing: Bool {
+        if case .myLinesDisrupted(let s) = state { return s == .major }
+        return false
+    }
+
+    // MARK: Body
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 0) {
+                // — Ligne principale
+                HStack(spacing: 11) {
+                    ZStack {
+                        Circle()
+                            .fill(accentColor.opacity(0.18))
+                            .frame(width: 36, height: 36)
+                        Image(systemName: icon)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(accentColor)
+                            .symbolEffect(.pulse, isActive: isPulsing)
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                        if let sub = subtitle {
+                            Text(sub)
+                                .font(.system(size: 11, weight: .regular))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+
+                    // Timestamp
+                    if let last = lastUpdate {
+                        Text(last, style: .relative)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+
+                // — Badges de lignes abonnées (toujours si on a des abonnements)
+                if hasSubscriptions {
+                    Rectangle()
+                        .fill(Color(.separator).opacity(0.35))
+                        .frame(height: 0.5)
+                        .padding(.horizontal, 14)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 7) {
+                            ForEach(subscribedLines) { line in
+                                let disruption = subscribedDisrupted.first {
+                                    $0.id == line.ligneCom || $0.id == line.ligneCli
+                                }
+                                SubscribedLinePill(line: line, disruption: disruption)
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                    }
+                    .allowsHitTesting(false)
+                }
+            }
+            .background {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(.regularMaterial)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [accentColor.opacity(0.09), Color.clear],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(accentColor.opacity(0.25), lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .shadow(color: accentColor.opacity(0.18), radius: 12, x: 0, y: 4)
         }
+        .buttonStyle(.plain)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: hasSubscriptions)
     }
 }
+
+// MARK: - Subscribed Line Pill
+
+private struct SubscribedLinePill: View {
+    let line: TransportLine
+    let disruption: AlertViewModel.LineAlertSummary?
+
+    @State private var isPulsing = false
+
+    private var dotColor: Color? {
+        guard let d = disruption else { return nil }
+        return d.highestSeverity == .major ? .red : .orange
+    }
+
+    private var lineName: String {
+        line.ligneCli.isEmpty ? line.ligneCom : line.ligneCli
+    }
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Text(lineName)
+                .font(.system(size: 12, weight: .black))
+                .foregroundStyle(LineColorHelper.textColor(for: lineName))
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(LineColorHelper.backgroundColor(for: lineName))
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().strokeBorder(
+                        LineColorHelper.needsBorder(for: lineName) ? Color(.systemGray4) : .clear,
+                        lineWidth: 0.5
+                    )
+                )
+
+            if let color = dotColor {
+                Circle()
+                    .fill(color)
+                    .frame(width: 9, height: 9)
+                    .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 1.5))
+                    .scaleEffect(isPulsing && color == .red ? 1.3 : 1.0)
+                    .animation(
+                        color == .red
+                            ? .easeInOut(duration: 0.7).repeatForever(autoreverses: true)
+                            : .default,
+                        value: isPulsing
+                    )
+                    .offset(x: 3, y: -3)
+            }
+        }
+        .onAppear { isPulsing = true }
+    }
+}
+
+// MARK: - Traffic State (kept for reference, no longer used)
 
 // MARK: - LiveMapContent
 // Vue enfant isolée qui possède AnimationClock.

@@ -643,24 +643,30 @@ struct ErrorStateView: View {
     }
     
     private var networkErrorView: some View {
-        VStack(spacing: 16) {
+        let hour = Calendar.current.component(.hour, from: Date())
+        let isNight = hour >= 22 || hour < 6
+        let icon = isNight ? "moon.zzz.fill" : "wifi.slash"
+        let color: Color = isNight ? .indigo : .red
+        let title = isNight ? "Dodo des serveurs" : "Données indisponibles"
+        let subtitle = isNight ? "Serveurs inactifs\nla nuit — après 6h ☀️" : "Serveur momentanément\nindisponible"
+        return VStack(spacing: 16) {
             Spacer()
             
             ZStack {
                 Circle()
-                    .fill(Color.red.opacity(0.15))
+                    .fill(color.opacity(0.15))
                     .frame(width: 70, height: 70)
                 
-                Image(systemName: "wifi.slash")
+                Image(systemName: icon)
                     .font(.system(size: 30))
-                    .foregroundColor(.red)
+                    .foregroundColor(color)
             }
             
             VStack(spacing: 4) {
-                Text("Erreur réseau")
+                Text(title)
                     .font(.system(size: 14, weight: .bold))
                 
-                Text("Vérifiez votre\nconnexion internet")
+                Text(subtitle)
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)

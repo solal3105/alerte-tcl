@@ -92,28 +92,28 @@ actor TransitLineService {
     }
     
     private func parseTransitLines(from response: TransitLineResponse, type: String) -> [TransitLine] {
-        let transitLines: [TransitLine] = response.features.compactMap { feature -> TransitLine? in
+        var transitLines: [TransitLine] = []
+        
+        for feature in response.features {
             guard let ligne = feature.properties.ligne,
                   let famille = feature.properties.famille_transport,
                   !feature.geometry.coordinates.isEmpty else {
-                return nil
+                continue
             }
             
-            // Extraire toutes les coordonnées de la MultiLineString
-            var allCoordinates: [[Double]] = []
-            for lineString in feature.geometry.coordinates {
-                allCoordinates.append(contentsOf: lineString)
+            // Créer un TransitLine par segment (évite les lignes parasites entre segments)
+            for (idx, lineString) in feature.geometry.coordinates.enumerated() {
+                guard !lineString.isEmpty else { continue }
+                transitLines.append(TransitLine(
+                    id: "\(feature.id)_\(idx)",
+                    name: ligne,
+                    coordinates: lineString,
+                    familyTransport: famille
+                ))
             }
-            
-            return TransitLine(
-                id: feature.id,
-                name: ligne,
-                coordinates: allCoordinates,
-                familyTransport: famille
-            )
         }
         
-        AppLogger.debug("📊 Lignes \(type): \(transitLines.count) (\(transitLines.map { $0.name }.joined(separator: ", ")))")
+        AppLogger.debug("📊 Lignes \(type): \(transitLines.count) segments (\(Set(transitLines.map { $0.name }).sorted().joined(separator: ", ")))")
         
         return transitLines
     }

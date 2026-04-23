@@ -50,13 +50,11 @@ struct NewAlertsView: View {
                     VStack(spacing: 12) {
                         ProgressView()
                             .controlSize(.large)
-                            .tint(.white)
                         Text("Mise à jour…")
                             .font(.subheadline)
-                            .foregroundStyle(.white)
                     }
                     .padding(24)
-                    .background(.ultraThinMaterial)
+                    .background(.thickMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
             }
@@ -708,6 +706,7 @@ struct LineDetailSheet: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(.blue)
                 .controlSize(.large)
             }
         }

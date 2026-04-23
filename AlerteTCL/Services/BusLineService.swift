@@ -84,27 +84,27 @@ actor BusLineService {
     }
     
     private func parseBusLines(from response: BusLineResponse) -> [BusLine] {
-        let busLines: [BusLine] = response.features.compactMap { feature -> BusLine? in
+        var busLines: [BusLine] = []
+        
+        for feature in response.features {
             guard let ligne = feature.properties.ligne,
                   !feature.geometry.coordinates.isEmpty else {
-                return nil
+                continue
             }
             
-            // Extraire toutes les coordonnées de la MultiLineString
-            var allCoordinates: [[Double]] = []
-            for lineString in feature.geometry.coordinates {
-                allCoordinates.append(contentsOf: lineString)
+            // Créer un BusLine par segment (évite les lignes parasites entre segments)
+            for (idx, lineString) in feature.geometry.coordinates.enumerated() {
+                guard !lineString.isEmpty else { continue }
+                busLines.append(BusLine(
+                    id: "\(feature.id)_\(idx)",
+                    name: ligne,
+                    coordinates: lineString
+                ))
             }
-            
-            return BusLine(
-                id: feature.id,
-                name: ligne,
-                coordinates: allCoordinates
-            )
         }
         
-        AppLogger.debug("📊 Lignes C chargées: \(busLines.count)")
-        AppLogger.debug("📊 Exemples: \(busLines.prefix(5).map { $0.name }.joined(separator: ", "))")
+        AppLogger.debug("📊 Lignes C chargées: \(busLines.count) segments")
+        AppLogger.debug("📊 Exemples: \(Set(busLines.map { $0.name }).sorted().prefix(5).joined(separator: ", "))")
         
         return busLines
     }

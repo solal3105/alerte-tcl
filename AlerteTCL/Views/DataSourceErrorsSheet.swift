@@ -35,9 +35,13 @@ struct DataSourceErrorsSheet: View {
                 } header: {
                     Text("Sources de données en erreur")
                 } footer: {
-                    Text("Ces erreurs peuvent être causées par une maintenance des serveurs Grand Lyon ou un problème de connexion.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    let h = Calendar.current.component(.hour, from: Date())
+                    Text(h >= 22 || h < 6
+                        ? "Il est probable que Grand Lyon coupe ses serveurs la nuit. Pas d'inquiétude, tout reviendra demain matin !"
+                        : "Ces erreurs sont généralement temporaires. Réessayez dans quelques instants."
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 }
                 
                 Section {
@@ -155,16 +159,20 @@ struct ErrorRow: View {
     }
     
     private var simplifiedError: String {
-        if error.contains("Timeout") || error.contains("timeout") || error.contains("timed out") {
-            return "Timeout - serveur lent ou indisponible"
-        } else if error.contains("connection") || error.contains("network") {
-            return "Problème de connexion réseau"
-        } else if error.contains("401") || error.contains("403") {
-            return "Erreur d'authentification"
+        let hour = Calendar.current.component(.hour, from: Date())
+        if hour >= 22 || hour < 6 {
+            return "Les serveurs Grand Lyon se reposent la nuit — réessayez après 6h"
+        }
+        if error.contains("504") || error.contains("Timeout") || error.contains("timeout") || error.contains("timed out") {
+            return "Le serveur prend son temps... réessayez dans quelques instants"
         } else if error.contains("500") || error.contains("502") || error.contains("503") {
-            return "Serveur indisponible"
+            return "Serveur en maintenance, revenez bientôt"
+        } else if error.contains("connection") || error.contains("network") || error.contains("Network") {
+            return "Vérifiez votre connexion internet"
+        } else if error.contains("401") || error.contains("403") {
+            return "Erreur d'authentification avec l'API Grand Lyon"
         } else {
-            return error
+            return "Données temporairement indisponibles"
         }
     }
 }

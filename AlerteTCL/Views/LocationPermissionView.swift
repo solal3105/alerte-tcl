@@ -51,6 +51,7 @@ struct LocationPermissionView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
+                    .tint(.blue)
                     .controlSize(.large)
                     
                     Button("Plus tard", role: .cancel) {
