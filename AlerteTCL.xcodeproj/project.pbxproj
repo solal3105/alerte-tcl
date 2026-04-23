@@ -25,6 +25,7 @@
 		4F9DFFA32F1457F900E01BFB /* ParkingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */; };
 		4F9DFFA72F14667B00E01BFB /* Stop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA62F14667B00E01BFB /* Stop.swift */; };
 		4F9DFFB92F146B6F00E01BFB /* tcl_stops.json in Resources */ = {isa = PBXBuildFile; fileRef = 4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */; };
+		4FAA11002F200001AABBCC00 /* tcl_transit_lines.json in Resources */ = {isa = PBXBuildFile; fileRef = 4FAA11012F200001AABBCC00 /* tcl_transit_lines.json */; };
 		4F9DFFBB2F146D4B00E01BFB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */; };
 		4F9DFFC72F146EFE00E01BFB /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */; };
 		4F9DFFC92F146EFE00E01BFB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC82F146EFE00E01BFB /* SwiftUI.framework */; };
@@ -134,6 +135,7 @@
 		4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingViewModel.swift; sourceTree = "<group>"; };
 		4F9DFFA62F14667B00E01BFB /* Stop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stop.swift; sourceTree = "<group>"; };
 		4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = tcl_stops.json; path = Resources/tcl_stops.json; sourceTree = "<group>"; };
+		4FAA11012F200001AABBCC00 /* tcl_transit_lines.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = tcl_transit_lines.json; path = Resources/tcl_transit_lines.json; sourceTree = "<group>"; };
 		4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AlerteTCLWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -350,6 +352,7 @@
 				4F095CB12F16EA78001D059A /* Utilities */,
 				4F9DFFE02F14700200E01BFB /* AlerteTCL.entitlements */,
 				4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */,
+				4FAA11012F200001AABBCC00 /* tcl_transit_lines.json */,
 				AAA00011 /* AlerteTCLApp.swift */,
 				AAA00033 /* Models */,
 				AAA00034 /* Services */,
@@ -472,6 +475,7 @@
 				AAA00003 /* Assets.xcassets in Resources */,
 				A1000005 /* PrivacyInfo.xcprivacy in Resources */,
 				4F9DFFB92F146B6F00E01BFB /* tcl_stops.json in Resources */,
+				4FAA11002F200001AABBCC00 /* tcl_transit_lines.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

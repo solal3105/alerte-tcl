@@ -29,32 +29,42 @@ actor TransitLineService {
             AppLogger.debug("✅ Utilisation du cache pour les lignes de transport")
             return cached
         }
-        
+
         AppLogger.debug("🔄 Chargement des lignes de transport depuis l'API...")
-        
+
         // Charger métro/funiculaire et tramways en parallèle
         async let metroFuniLines = fetchLinesFromAPI(url: metroFuniURL, type: "métro/funiculaire")
         async let tramLines = fetchLinesFromAPI(url: tramURL, type: "tramway")
-        
+
         do {
             let (metroFuni, tram) = try await (metroFuniLines, tramLines)
             let allLines = metroFuni + tram
-            
+
             // Mettre en cache
             cachedTransitLines = allLines
             cacheTimestamp = Date()
-            
-            AppLogger.debug("✅ \(allLines.count) lignes de transport chargées (\(metroFuni.count) métro/funi + \(tram.count) tram)")
-            
+
+            AppLogger.debug("✅ \(allLines.count) lignes de transport chargées depuis l'API (\(metroFuni.count) métro/funi + \(tram.count) tram)")
             return allLines
-            
-        } catch let error as DecodingError {
-            AppLogger.debug("❌ Erreur de décodage: \(error)")
-            throw ServiceError.decodingError
+
         } catch {
-            AppLogger.debug("❌ Erreur réseau: \(error)")
-            throw ServiceError.networkError(error)
+            AppLogger.debug("⚠️ API GeoServer indisponible (\(error.localizedDescription)), fallback sur le bundle...")
+            return try loadBundledTransitLines()
         }
+    }
+
+    /// Charge les tracés depuis le JSON bundlé dans l'app (fallback hors-ligne)
+    private func loadBundledTransitLines() throws -> [TransitLine] {
+        guard let url = Bundle.main.url(forResource: "tcl_transit_lines", withExtension: "json") else {
+            AppLogger.debug("❌ tcl_transit_lines.json introuvable dans le bundle")
+            throw ServiceError.invalidResponse
+        }
+        let data = try Data(contentsOf: url)
+        let lines = try JSONDecoder().decode([TransitLine].self, from: data)
+        cachedTransitLines = lines
+        cacheTimestamp = Date()
+        AppLogger.debug("✅ \(lines.count) segments chargés depuis le bundle (fallback)")
+        return lines
     }
     
     private func fetchLinesFromAPI(url: String, type: String) async throws -> [TransitLine] {
