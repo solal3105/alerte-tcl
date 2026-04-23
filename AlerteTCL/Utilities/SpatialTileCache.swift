@@ -39,20 +39,28 @@ struct TileCacheConfiguration {
     /// Buffer autour de la région visible (multiplicateur)
     let viewportBuffer: Double
     
+    /// Si true, le zoom n'est pas inclus dans la clé de tuile.
+    /// À utiliser pour les données statiques (vélos, 2-roues) : la clé
+    /// spatiale (x, y) suffit et reste stable quel que soit le niveau de zoom.
+    /// Sans ce flag, chaque changement de zoom invalide l'intégralité du cache.
+    let useFixedZoom: Bool
+    
     /// Configuration par défaut pour données statiques (vélos, 2-roues)
     static let staticData = TileCacheConfiguration(
-        tileSizeDegrees: 0.01,  // ~1km tuiles
+        tileSizeDegrees: 0.02,  // ~2km tuiles (4× moins de tuiles qu'avec 0.01°)
         expirationSeconds: 3600, // 1 heure
-        maxTiles: 100,
-        viewportBuffer: 1.5
+        maxTiles: 400,           // couvre toute la métropole lyonnaise
+        viewportBuffer: 1.5,
+        useFixedZoom: true       // clé stable au zoom — évite les cache misses en cascade
     )
     
     /// Configuration pour données temps réel (parkings voiture)
     static let realTimeData = TileCacheConfiguration(
-        tileSizeDegrees: 0.02,  // ~2km tuiles
-        expirationSeconds: 30,   // 30 secondes
+        tileSizeDegrees: 0.02,
+        expirationSeconds: 30,
         maxTiles: 50,
-        viewportBuffer: 1.3
+        viewportBuffer: 1.3,
+        useFixedZoom: false
     )
     
     /// Configuration agressive pour grands datasets
@@ -60,7 +68,8 @@ struct TileCacheConfiguration {
         tileSizeDegrees: 0.015,
         expirationSeconds: 1800, // 30 min
         maxTiles: 150,
-        viewportBuffer: 1.2
+        viewportBuffer: 1.2,
+        useFixedZoom: true
     )
 }
 
@@ -138,7 +147,9 @@ actor SpatialTileCache<T: Identifiable & Sendable> {
         let maxLon = region.center.longitude + lonDelta / 2
         
         let tileSize = config.tileSizeDegrees
-        let zoom = Int(region.span.latitudeDelta * 100)
+        // Pour les données statiques, zoom = 0 : la clé est purement spatiale.
+        // Pour les données temps réel, zoom encode la résolution demandée.
+        let zoom = config.useFixedZoom ? 0 : Int(region.span.latitudeDelta * 100)
         
         var tiles: [TileKey] = []
         

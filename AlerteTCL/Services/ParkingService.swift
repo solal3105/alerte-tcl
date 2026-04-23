@@ -17,6 +17,8 @@ actor ParkingService {
     // Limites de requête
     private let defaultLimit = 500
     private let maxLimit = 1000
+    /// Taille de tuile pour vélo/2-roues — doit correspondre à TileCacheConfiguration.staticData.tileSizeDegrees
+    private static let bikeMotoTileSize: Double = 0.02
     
     private init() {}
     
@@ -70,18 +72,19 @@ actor ParkingService {
         AppLogger.debug("🔄 ParkingService: \(missingTiles.count) tuiles à charger pour \(type.rawValue)")
         
         // Générer le bbox pour les tuiles manquantes
-        let bbox = BBoxHelper.bboxString(for: missingTiles, tileSizeDegrees: 0.01)
-        let limit = BBoxHelper.optimalLimit(for: region.span.latitudeDelta, baseLimit: defaultLimit)
+        let bbox = BBoxHelper.bboxString(for: missingTiles, tileSizeDegrees: Self.bikeMotoTileSize)
+        // Données statiques : on charge tout en une fois (caché 1h), pas de troncature
+        let limit = maxLimit
         
         // Charger les données manquantes
         let newParkings = try await fetchFromAPI(type: type, bbox: bbox, limit: limit)
         
         // Répartir les parkings dans les tuiles correspondantes
         for tile in missingTiles {
-            let tileMinLon = Double(tile.x) * 0.01
-            let tileMaxLon = Double(tile.x + 1) * 0.01
-            let tileMinLat = Double(tile.y) * 0.01
-            let tileMaxLat = Double(tile.y + 1) * 0.01
+            let tileMinLon = Double(tile.x) * Self.bikeMotoTileSize
+            let tileMaxLon = Double(tile.x + 1) * Self.bikeMotoTileSize
+            let tileMinLat = Double(tile.y) * Self.bikeMotoTileSize
+            let tileMaxLat = Double(tile.y + 1) * Self.bikeMotoTileSize
             
             let tileItems = newParkings.filter { parking in
                 parking.coordinate.longitude >= tileMinLon &&

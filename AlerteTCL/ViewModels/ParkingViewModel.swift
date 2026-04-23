@@ -87,15 +87,8 @@ final class ParkingViewModel: ObservableObject {
     private var progressTask: Task<Void, Never>?
     private let refreshInterval: TimeInterval = 60
     
-    // Configuration de clustering - désactivé pour vélos/2-roues sauf zoom très dézoomé
-    private var clusteringConfig: ClusteringEngine.Configuration {
-        .default
-    }
-    
-    /// Seuil de zoom pour activer le clustering des vélos/2-roues (très dézoomé)
-    /// 0.05 = vue très large de Lyon, clustering activé seulement à ce niveau (divisé par 2 pour apparaître plus tard au dézoom)
-    private let bikeClusteringZoomThreshold: Double = 0.03
-    
+    private let clusteringConfig: ClusteringEngine.Configuration = .default
+
     var totalPlacesDisponibles: Int {
         parkings.reduce(0) { $0 + $1.placesDisponibles }
     }
@@ -124,82 +117,45 @@ final class ParkingViewModel: ObservableObject {
     }
     
     // MARK: - Clustering
-    
-    @Published private(set) var cachedClusters: [MapCluster<Parking>] = []
-    @Published private(set) var cachedUnclusteredParkings: [Parking] = []
+
+    @Published private(set) var displayClusters: [MapCluster<Parking>] = []
+    @Published private(set) var displayParkings: [Parking] = []
     private var lastClusteringZoom: Double = 0
     private var lastClusteringParkingCount: Int = 0
-    
-    var shouldShowClusters: Bool {
-        // Pour vélos et 2-roues: clustering seulement si très dézoomé
+
+    /// Clustering actif dès que ≥ 50 points visibles (vélo/2-roues), ou selon le zoom (voitures).
+    private var shouldCluster: Bool {
         if selectedParkingType == .bike || selectedParkingType == .motorized2Wheel {
-            return currentZoomLevel >= bikeClusteringZoomThreshold
+            return visibleParkings.count >= 50
         }
-        // Pour voitures: clustering normal
         return ClusteringEngine.shouldCluster(zoomLevel: currentZoomLevel, config: clusteringConfig)
     }
-    
+
     private func updateClustersIfNeeded(force: Bool = false) {
         let zoomChanged = abs(currentZoomLevel - lastClusteringZoom) > 0.003
-        let parkingsChanged = visibleParkings.count != lastClusteringParkingCount
-        
-        guard force || zoomChanged || parkingsChanged else { return }
-        
-        let parkingsToCluster = visibleParkings
-        
-        // Pour vélos/2-roues: pas de clustering sauf si très dézoomé
-        if (selectedParkingType == .bike || selectedParkingType == .motorized2Wheel) && !shouldShowClusters {
-            cachedClusters = []
-            cachedUnclusteredParkings = parkingsToCluster
-            lastClusteringZoom = currentZoomLevel
-            lastClusteringParkingCount = parkingsToCluster.count
-            AppLogger.debug("🚲 Pas de clustering pour \(selectedParkingType.rawValue): \(parkingsToCluster.count) parkings affichés")
-            return
-        }
-        
-        AppLogger.debug("🔄 Clustering: \(parkingsToCluster.count) parkings, zoom: \(currentZoomLevel)")
-        
-        let result = ClusteringEngine.createClusters(from: parkingsToCluster, zoomLevel: currentZoomLevel, config: clusteringConfig)
-        cachedClusters = result.clusters
-        cachedUnclusteredParkings = result.unclustered
+        let countChanged = visibleParkings.count != lastClusteringParkingCount
+        guard force || zoomChanged || countChanged else { return }
+
+        let visible = visibleParkings
         lastClusteringZoom = currentZoomLevel
-        lastClusteringParkingCount = parkingsToCluster.count
-        
-        AppLogger.debug("📊 Clusters: \(cachedClusters.count), Unclustered: \(cachedUnclusteredParkings.count)")
+        lastClusteringParkingCount = visible.count
+
+        if shouldCluster {
+            let result = ClusteringEngine.createClusters(from: visible, zoomLevel: currentZoomLevel, config: clusteringConfig)
+            displayClusters = result.clusters
+            displayParkings = result.unclustered
+        } else {
+            displayClusters = []
+            // Plafond à 500 markers individuels pour ne pas saturer MapKit
+            displayParkings = visible.count <= 500 ? visible : Array(visible.prefix(500))
+        }
     }
-    
+
     private func invalidateClusterCache() {
-        cachedClusters = []
-        cachedUnclusteredParkings = []
-        lastClusteringZoom = -1  // Force recalculation
+        displayClusters = []
+        displayParkings = []
+        lastClusteringZoom = -1
         lastClusteringParkingCount = -1
-    }
-    
-    var clusters: [MapCluster<Parking>] {
-        cachedClusters
-    }
-    
-    var unclusteredParkings: [Parking] {
-        cachedUnclusteredParkings
-    }
-    
-    // MARK: - Display Limits
-    
-    private let maxDisplayMarkers = 1000
-    
-    var shouldShowTooManyMarkersWarning: Bool {
-        // Compter TOUS les parkings visibles (pas les markers)
-        return visibleParkings.count > maxDisplayMarkers
-    }
-    
-    var displayClusters: [MapCluster<Parking>] {
-        guard !shouldShowTooManyMarkersWarning else { return [] }
-        return clusters
-    }
-    
-    var displayParkings: [Parking] {
-        guard !shouldShowTooManyMarkersWarning else { return [] }
-        return unclusteredParkings
     }
     
     func updateZoomLevel(_ span: MKCoordinateSpan) {
@@ -310,7 +266,7 @@ final class ParkingViewModel: ObservableObject {
                 }
             }
             
-            parkings = mergedParkings.sorted { $0.nom < $1.nom }
+            parkings = mergedParkings  // pas de sort : le tri est inutile pour l'affichage carte
             parkingsCache[selectedParkingType] = parkings
             loadedCount = parkings.count
             totalToLoad = loadedCount
