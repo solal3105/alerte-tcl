@@ -163,7 +163,7 @@ struct LineCard: View {
                 HStack {
                     Text(line.displayName)
                         .font(.system(size: 28, weight: .black))
-                        .foregroundStyle(.black)
+                        .foregroundStyle(.primary)
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
                     
@@ -171,7 +171,7 @@ struct LineCard: View {
                     
                     Image(systemName: isSubscribed ? "bell.fill" : "bell")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.black)
+                        .foregroundStyle(.primary)
                 }
                 
                 Spacer()
@@ -180,11 +180,11 @@ struct LineCard: View {
                     if alertCount > 0 {
                         Text("\(alertCount) alerte\(alertCount > 1 ? "s" : "")")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.black)
+                            .foregroundStyle(.primary)
                     } else {
                         Text("RAS")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.black)
+                            .foregroundStyle(.secondary)
                     }
                     
                     Spacer()

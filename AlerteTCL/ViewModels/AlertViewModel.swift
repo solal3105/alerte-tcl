@@ -184,6 +184,14 @@ final class AlertViewModel: ObservableObject {
                 
                 AppLogger.debug("✅ AlertViewModel: \(fetchedAlerts.count) alertes chargées depuis l'API")
                 return
+            } catch is CancellationError {
+                // La sheet a été fermée pendant le pull-to-refresh : annulation normale,
+                // pas une erreur à afficher à l'utilisateur.
+                AppLogger.debug("⏹️ Chargement alertes annulé (sheet fermée)")
+                return
+            } catch let urlError as URLError where urlError.code == .cancelled {
+                AppLogger.debug("⏹️ Requête alertes annulée (URLError.cancelled)")
+                return
             } catch {
                 lastError = error
                 AppLogger.debug("⚠️ Erreur alertes tentative \(attempt)/\(attempts): \(error.localizedDescription)")
@@ -196,13 +204,17 @@ final class AlertViewModel: ObservableObject {
             }
         }
         
-        // Toutes les tentatives ont échoué
+        // Toutes les tentatives ont échoué (erreur réseau réelle)
         self.error = lastError?.localizedDescription
     }
     
     private func extractLinesFromAlerts(_ alerts: [TCLAlert]) {
-        var existingIds = Set(allLines.map { $0.id })
-        var existingCliKeys = Set(allLines.compactMap { line -> String? in
+        // Travailler sur une copie locale : toutes les mutations se font hors du
+        // @Published, puis on assigne une seule fois → un seul objectWillChange
+        // au lieu de N appels append + 1 sort qui déclenchaient N+1 re-renders.
+        var newLines = allLines
+        var existingIds = Set(newLines.map { $0.id })
+        var existingCliKeys = Set(newLines.compactMap { line -> String? in
             guard !line.ligneCli.isEmpty else { return nil }
             return "\(line.mode.rawValue)-\(line.ligneCli)"
         })
@@ -219,7 +231,7 @@ final class AlertViewModel: ObservableObject {
                 || (cliKey.map(existingCliKeys.contains) ?? false)
             
             if !alreadyExists {
-                allLines.append(line)
+                newLines.append(line)
                 existingIds.insert(line.id)
                 if let cliKey = cliKey {
                     existingCliKeys.insert(cliKey)
@@ -227,7 +239,8 @@ final class AlertViewModel: ObservableObject {
             }
         }
         
-        allLines.sort { $0.mode.sortOrder < $1.mode.sortOrder }
+        newLines.sort { $0.mode.sortOrder < $1.mode.sortOrder }
+        allLines = newLines  // Assignation unique → objectWillChange déclenché une seule fois
     }
     
     func filteredAlerts(for line: TransportLine) -> [TCLAlert] {

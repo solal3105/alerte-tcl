@@ -126,12 +126,19 @@ actor SIRILiteService {
             let destination = extractDestination(from: journey.DestinationRef?.value)
             let delay = parseDelay(journey.Delay)
             
+            // VehicleRef est l'identifiant physique du véhicule (numéro de bus/tram),
+            // stable entre les trips. VehicleMonitoringRef est un identifiant de journey
+            // qui change au terminus → source du clignotement. On préfère VehicleRef.
+            let stableId = journey.VehicleRef?.value?.isEmpty == false
+                ? journey.VehicleRef!.value!
+                : vehicleId
+            
             // Extraire les informations d'arrêts
             let nextStop = parseMonitoredCall(journey.MonitoredCall)
             let onwardStops = parseOnwardCalls(journey.OnwardCalls)
             
             return Vehicle(
-                id: vehicleId,
+                id: stableId,
                 latitude: latitude,
                 longitude: longitude,
                 bearing: journey.Bearing ?? 0,

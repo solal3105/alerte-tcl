@@ -109,9 +109,7 @@ struct LiveMapView: View {
             hasStartedLoading = true
             startBackgroundLoading()
         }
-        .onDisappear {
-            viewModel.stopLiveStream()
-        }
+        // Le stream est arrêté uniquement sur scenePhase.background (ci-dessous).
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .background:

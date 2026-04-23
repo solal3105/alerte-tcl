@@ -264,11 +264,8 @@ final class LiveVehiclesViewModel: ObservableObject {
         
         isLoading = true
         error = nil
-        
-        defer {
-            // TOUJOURS remettre isLoading à false, quoi qu'il arrive
-            isLoading = false
-        }
+        consecutiveErrors = 0
+        defer { isLoading = false }
         
         var lastError: Error?
         let attempts = isInitialLoadComplete ? 1 : (Self.maxRetries + 1)
@@ -283,6 +280,7 @@ final class LiveVehiclesViewModel: ObservableObject {
                 lastUpdate = Date()
                 error = nil
                 isInitialLoadComplete = true
+                consecutiveErrors = 0
                 
                 // Mettre à jour les véhicules filtrés et clusters
                 updateFilteredVehicles()
@@ -292,6 +290,12 @@ final class LiveVehiclesViewModel: ObservableObject {
             } catch let siriError as SIRIError {
                 lastError = siriError
                 AppLogger.debug("⚠️ Erreur SIRI tentative \(attempt)/\(attempts): \(siriError.errorDescription ?? "inconnue")")
+            } catch is CancellationError {
+                AppLogger.debug("⏹️ Chargement véhicules annulé")
+                return
+            } catch let urlError as URLError where urlError.code == .cancelled {
+                AppLogger.debug("⏹️ Requête véhicules annulée (URLError.cancelled)")
+                return
             } catch {
                 lastError = error
                 AppLogger.debug("⚠️ Erreur véhicules tentative \(attempt)/\(attempts): \(error.localizedDescription)")
@@ -369,8 +373,7 @@ final class LiveVehiclesViewModel: ObservableObject {
         guard !isLive else { return }
         isLive = true
         consecutiveErrors = 0
-        
-        // Boucle de fetch
+        error = nil
         streamTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
