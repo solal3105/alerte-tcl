@@ -34,7 +34,6 @@
 		4FAUDIT012F1A000000000001 /* InitialLocationModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FAUDIT002F1A000000000001 /* InitialLocationModifier.swift */; };
 		4FCB1FC62F1EC6D90031B71E /* SpatialTileCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCB1FC52F1EC6D90031B71E /* SpatialTileCache.swift */; };
 		4FCB1FC82F1EC8B60031B71E /* PerformanceOptimizations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCB1FC72F1EC8B60031B71E /* PerformanceOptimizations.swift */; };
-		4FCB1FCA2F1ECA340031B71E /* SecretsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCB1FC92F1ECA340031B71E /* SecretsManager.swift */; };
 		4FCD05DF2F1704F700390BE1 /* TransitStopService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */; };
 		4FCD05E12F17051200390BE1 /* TransitStop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05E02F17051200390BE1 /* TransitStop.swift */; };
 		4FCD05E32F17056D00390BE1 /* TransitStopViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */; };
@@ -46,11 +45,9 @@
 		A1000001 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000011 /* AppLogger.swift */; };
 		A1000002 /* SafeURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000012 /* SafeURL.swift */; };
 		A1000003 /* CoordinateParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000013 /* CoordinateParsing.swift */; };
-		A1000004 /* KeychainCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000014 /* KeychainCredentials.swift */; };
 		A1000005 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A1000015 /* PrivacyInfo.xcprivacy */; };
 		A1000006 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000011 /* AppLogger.swift */; };
 		A1000020 /* AnimationClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000021 /* AnimationClock.swift */; };
-		A1000022 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000023 /* Secrets.swift */; };
 		AAA00001 /* AlerteTCLApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00011 /* AlerteTCLApp.swift */; };
 		AAA00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00012 /* ContentView.swift */; };
 		AAA00003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AAA00013 /* Assets.xcassets */; };
@@ -146,7 +143,6 @@
 		4FAUDIT002F1A000000000001 /* InitialLocationModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InitialLocationModifier.swift; sourceTree = "<group>"; };
 		4FCB1FC52F1EC6D90031B71E /* SpatialTileCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpatialTileCache.swift; sourceTree = "<group>"; };
 		4FCB1FC72F1EC8B60031B71E /* PerformanceOptimizations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceOptimizations.swift; sourceTree = "<group>"; };
-		4FCB1FC92F1ECA340031B71E /* SecretsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretsManager.swift; sourceTree = "<group>"; };
 		4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopService.swift; sourceTree = "<group>"; };
 		4FCD05E02F17051200390BE1 /* TransitStop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStop.swift; sourceTree = "<group>"; };
 		4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopViews.swift; sourceTree = "<group>"; };
@@ -158,10 +154,8 @@
 		A1000011 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		A1000012 /* SafeURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeURL.swift; sourceTree = "<group>"; };
 		A1000013 /* CoordinateParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinateParsing.swift; sourceTree = "<group>"; };
-		A1000014 /* KeychainCredentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainCredentials.swift; sourceTree = "<group>"; };
 		A1000015 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A1000021 /* AnimationClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationClock.swift; sourceTree = "<group>"; };
-		A1000023 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 		AAA00010 /* AlerteTCL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AlerteTCL.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAA00011 /* AlerteTCLApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlerteTCLApp.swift; sourceTree = "<group>"; };
 		AAA00012 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -282,9 +276,6 @@
 			children = (
 				AD4DE5112F994A4200C1BC78 /* GTFSStopsService.swift */,
 				AD4DE5122F994A4200C1BC78 /* StopTimesService.swift */,
-				A1000014 /* KeychainCredentials.swift */,
-				4FCB1FC92F1ECA340031B71E /* SecretsManager.swift */,
-				A1000023 /* Secrets.swift */,
 				4FD3050A2F1E686900EAFA92 /* WidgetStopStorage.swift */,
 				4F39DE022F1BABC200F24E3D /* NetworkConfiguration.swift */,
 				4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */,
@@ -497,8 +488,6 @@
 				4FD3050B2F1E686900EAFA92 /* WidgetStopStorage.swift in Sources */,
 				AAA00001 /* AlerteTCLApp.swift in Sources */,
 				AAA00002 /* ContentView.swift in Sources */,
-				4FCB1FCA2F1ECA340031B71E /* SecretsManager.swift in Sources */,
-				A1000022 /* Secrets.swift in Sources */,
 				AAA00004 /* Alert.swift in Sources */,
 				4F38BD302F15B17000E05786 /* TravauxMapView.swift in Sources */,
 				AAA00005 /* TransportLine.swift in Sources */,
@@ -532,7 +521,6 @@
 				A1000020 /* AnimationClock.swift in Sources */,
 				A1000002 /* SafeURL.swift in Sources */,
 				A1000003 /* CoordinateParsing.swift in Sources */,
-				A1000004 /* KeychainCredentials.swift in Sources */,
 				4F39DE032F1BABC200F24E3D /* NetworkConfiguration.swift in Sources */,
 				AAA0000D /* LineRow.swift in Sources */,
 				4F9DFF9A2F14577200E01BFB /* ParkingMapView.swift in Sources */,
