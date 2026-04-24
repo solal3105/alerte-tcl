@@ -313,7 +313,8 @@ struct NewAlertsView: View {
                 LineGridCell(
                     line: line,
                     alertCount: viewModel.alertCount(for: line),
-                    isSubscribed: viewModel.isSubscribed(to: line)
+                    isSubscribed: viewModel.isSubscribed(to: line),
+                    highestSeverity: highestSeverity(for: line)
                 )
                 .onTapGesture {
                     selectedLine = line
@@ -467,6 +468,16 @@ private struct LineGridCell: View {
     let line: TransportLine
     let alertCount: Int
     let isSubscribed: Bool
+    let highestSeverity: AlertSeverity?
+
+    private var badgeColor: Color {
+        switch highestSeverity {
+        case .major: return .red
+        case .disruption: return .orange
+        case .info: return .blue
+        case nil: return .red
+        }
+    }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -498,7 +509,7 @@ private struct LineGridCell: View {
                     .foregroundStyle(.white)
                     .frame(minWidth: 18, minHeight: 18)
                     .padding(.horizontal, 4)
-                    .background(.red)
+                    .background(badgeColor)
                     .clipShape(Capsule())
                     .offset(x: 4, y: -4)
             } else if isSubscribed {
@@ -628,6 +639,19 @@ struct LineDetailSheet: View {
         }
     }
 
+    private var highestOngoingColor: Color {
+        lineAlerts
+            .map { $0.severity }
+            .min { $0.sortOrder < $1.sortOrder }
+            .map { sev -> Color in
+                switch sev {
+                case .major: return .red
+                case .disruption: return .orange
+                case .info: return .blue
+                }
+            } ?? .orange
+    }
+
     private var heroStatusPill: some View {
         let isClear = lineAlerts.isEmpty
         return HStack(spacing: 5) {
@@ -645,7 +669,7 @@ struct LineDetailSheet: View {
             .font(.caption)
             .fontWeight(.semibold)
         }
-        .foregroundStyle(isClear ? .green : .orange)
+        .foregroundStyle(isClear ? .green : highestOngoingColor)
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .background(.black.opacity(0.22))
@@ -736,7 +760,7 @@ struct LineDetailSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             Label("En cours", systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
-                .foregroundStyle(.orange)
+                .foregroundStyle(highestOngoingColor)
                 .padding(.horizontal, 16)
 
             VStack(spacing: 8) {

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Confidentialité — Lyon Pocket</title>
+<meta name="description" content="Politique de confidentialité de Lyon Pocket. Aucune donnée personnelle collectée." />
+<link rel="icon" type="image/png" href="assets/app-icon.png" />
+<link rel="apple-touch-icon" href="assets/app-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+<style>
+.doc { max-width: 760px; margin: 0 auto; padding: 80px 48px 100px; }
+.doc h1 { font-size: clamp(36px, 5vw, 52px); font-weight: 800; letter-spacing: -0.03em; margin-bottom: 8px; }
+.doc .updated { color: var(--muted); font-size: 14px; margin-bottom: 40px; }
+.doc h2 { font-size: 22px; font-weight: 700; margin: 40px 0 12px; letter-spacing: -0.01em; }
+.doc p, .doc li { color: var(--ink-soft); font-size: 16px; line-height: 1.75; }
+.doc ul { padding-left: 22px; margin: 8px 0; }
+.doc a { color: var(--green); font-weight: 500; }
+.doc a:hover { text-decoration: underline; }
+.summary-box {
+  background: linear-gradient(135deg, rgba(10, 138, 61, 0.06), rgba(43, 127, 255, 0.06));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  margin: 16px 0 40px;
+  font-size: 17px;
+  color: var(--ink);
+}
+.back { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-weight: 500; margin-bottom: 24px; font-size: 14px; }
+.back:hover { color: var(--ink); }
+</style>
+</head>
+<body>
+
+<div class="bg-blobs" aria-hidden="true">
+  <span class="blob blob-1"></span>
+  <span class="blob blob-2"></span>
+</div>
+
+<nav class="nav">
+  <a href="index.html" class="brand">
+    <img src="assets/app-icon.png" alt="" class="brand-icon" />
+    <span>Lyon Pocket</span>
+  </a>
+  <div class="nav-links">
+    <a href="index.html#features">Fonctionnalités</a>
+    <a href="support.html">Assistance</a>
+    <a href="index.html#download" class="nav-cta">Télécharger</a>
+  </div>
+</nav>
+
+<main class="doc">
+  <a href="index.html" class="back">← Retour à l'accueil</a>
+  <h1>Politique de confidentialité</h1>
+  <p class="updated">Dernière mise à jour : avril 2026</p>
+
+  <div class="summary-box">
+    <strong>En résumé :</strong> Lyon Pocket ne collecte, ne stocke et ne transmet <strong>aucune donnée personnelle</strong>. L'application fonctionne entièrement en local sur votre appareil.
+  </div>
+
+  <h2>1. Données de localisation</h2>
+  <p>Lyon Pocket peut accéder à votre position géographique <strong>uniquement si vous l'autorisez explicitement</strong>, afin de :</p>
+  <ul>
+    <li>centrer la carte sur votre position actuelle ;</li>
+    <li>afficher les arrêts, véhicules et parkings à proximité.</li>
+  </ul>
+  <p>Votre position n'est <strong>jamais transmise</strong> à un serveur. Elle est traitée uniquement sur votre appareil et n'est pas enregistrée.</p>
+
+  <h2>2. Données réseau</h2>
+  <p>L'application interroge un proxy Cloudflare Workers pour récupérer les données temps réel du réseau TCL (alertes, horaires, véhicules, lignes). Ces requêtes ne contiennent aucune donnée personnelle et ne sont pas associées à votre identité.</p>
+
+  <h2>3. Notifications</h2>
+  <p>Si vous activez les notifications, Lyon Pocket utilise les services de notifications push d'Apple (APNs) pour vous informer des perturbations sur les lignes que vous suivez. Aucun identifiant personnel n'est transmis à un tiers.</p>
+
+  <h2>4. Données stockées localement</h2>
+  <p>Les préférences (lignes suivies, arrêts favoris, configuration du widget) sont stockées <strong>localement sur votre appareil</strong> via UserDefaults. Ces données ne quittent jamais votre appareil.</p>
+
+  <h2>5. Données tierces</h2>
+  <p>Les données de transport sont fournies par <a href="https://data.grandlyon.com" target="_blank" rel="noopener">Grand Lyon Data</a> sous licence ouverte. Lyon Pocket n'a aucun contrôle sur leur politique de confidentialité.</p>
+
+  <h2>6. Enfants</h2>
+  <p>L'application ne collecte aucune donnée et convient à tous les âges.</p>
+
+  <h2>7. Contact</h2>
+  <p>Pour toute question relative à la confidentialité : <a href="mailto:solal.gendrin@gmail.com">solal.gendrin@gmail.com</a></p>
+</main>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <img src="assets/app-icon.png" alt="" />
+      <div>
+        <strong>Lyon Pocket</strong>
+        <span>Les TCL en direct, sans compromis.</span>
+      </div>
+    </div>
+    <div class="footer-links">
+      <a href="index.html">Accueil</a>
+      <a href="support.html">Assistance</a>
+      <a href="mailto:solal.gendrin@gmail.com">Contact</a>
+    </div>
+    <div class="footer-meta">
+      <p>Données fournies par <a href="https://data.grandlyon.com" target="_blank" rel="noopener">Grand Lyon Data</a> sous licence ouverte.</p>
+      <p class="copyright">© 2026 Solal Gendrin. Tous droits réservés.</p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

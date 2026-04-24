@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Assistance — Lyon Pocket</title>
+<meta name="description" content="Assistance et support pour Lyon Pocket, l'application des transports lyonnais en direct." />
+<link rel="icon" type="image/png" href="assets/app-icon.png" />
+<link rel="apple-touch-icon" href="assets/app-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+<style>
+.doc {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 80px 48px 100px;
+}
+.doc h1 {
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-bottom: 16px;
+}
+.doc .lead { font-size: 19px; color: var(--ink-soft); margin-bottom: 48px; }
+.faq {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 16px;
+  background: #fff;
+  transition: box-shadow 0.2s;
+}
+.faq:hover { box-shadow: var(--shadow-sm); }
+.faq summary {
+  padding: 22px 28px;
+  font-weight: 600;
+  font-size: 16px;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after {
+  content: "+";
+  font-size: 22px;
+  color: var(--muted);
+  transition: transform 0.2s;
+  font-weight: 300;
+}
+.faq[open] summary::after { transform: rotate(45deg); }
+.faq-content {
+  padding: 0 28px 24px;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+.contact-card {
+  margin-top: 56px;
+  padding: 40px;
+  background: linear-gradient(135deg, rgba(10, 138, 61, 0.05), rgba(43, 127, 255, 0.05));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+.contact-card h2 {
+  font-size: 28px;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+.contact-card p { color: var(--ink-soft); margin-bottom: 20px; }
+.contact-card a.btn {
+  background: var(--ink);
+  color: #fff;
+  display: inline-flex;
+}
+.contact-card a.btn:hover { background: var(--green); }
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-bottom: 32px;
+  font-size: 14px;
+}
+.back:hover { color: var(--ink); }
+</style>
+</head>
+<body>
+
+<div class="bg-blobs" aria-hidden="true">
+  <span class="blob blob-1"></span>
+  <span class="blob blob-2"></span>
+</div>
+
+<nav class="nav">
+  <a href="index.html" class="brand">
+    <img src="assets/app-icon.png" alt="" class="brand-icon" />
+    <span>Lyon Pocket</span>
+  </a>
+  <div class="nav-links">
+    <a href="index.html#features">Fonctionnalités</a>
+    <a href="index.html#screens">Aperçu</a>
+    <a href="support.html">Assistance</a>
+    <a href="index.html#download" class="nav-cta">Télécharger</a>
+  </div>
+</nav>
+
+<main class="doc">
+  <a href="index.html" class="back">← Retour à l'accueil</a>
+  <h1>Assistance</h1>
+  <p class="lead">Une question ? Un bug ? Voici les réponses les plus fréquentes — et comment nous joindre.</p>
+
+  <details class="faq" open>
+    <summary>L'application est-elle vraiment gratuite ?</summary>
+    <div class="faq-content">
+      Oui, 100 % gratuite. Aucun achat intégré, aucune publicité, aucun abonnement. Les données utilisées sont celles de Grand Lyon Data, mises à disposition sous licence ouverte.
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>D'où viennent les données des véhicules en direct ?</summary>
+    <div class="faq-content">
+      Toutes les données (positions des véhicules, horaires, perturbations, travaux, parkings relais) proviennent de l'API publique <a href="https://data.grandlyon.com" target="_blank" rel="noopener">Grand Lyon Data</a>. En cas d'indisponibilité de leur service, l'app peut temporairement afficher des données incomplètes.
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>Pourquoi certains véhicules n'apparaissent pas ?</summary>
+    <div class="faq-content">
+      Les véhicules affichés sont ceux qui transmettent leur position au réseau TCL (SIRI-Lite). Certains véhicules peuvent ne pas être équipés, ou rencontrer un problème temporaire de géolocalisation. L'app affiche uniquement ce que le réseau officiel publie.
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>Les notifications d'alerte ne marchent pas ?</summary>
+    <div class="faq-content">
+      Vérifiez que :
+      <ul style="padding-left: 24px; margin-top: 8px;">
+        <li>Vous avez bien autorisé les notifications dans Réglages → Lyon Pocket → Notifications.</li>
+        <li>Vous êtes abonné à au moins une ligne (onglet Alertes → + Ajouter une ligne).</li>
+        <li>Votre appareil est connecté à Internet.</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>L'app me demande ma position. Est-ce obligatoire ?</summary>
+    <div class="faq-content">
+      Non, totalement optionnel. La position sert uniquement à centrer la carte sur vous et afficher les arrêts proches. Elle n'est jamais transmise à un serveur. Vous pouvez refuser et utiliser l'app normalement.
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>Le widget ne se met pas à jour ?</summary>
+    <div class="faq-content">
+      Les widgets iOS sont rafraîchis par le système selon l'usage de l'app et le niveau de batterie. Ouvrir Lyon Pocket périodiquement permet à iOS de prioriser la mise à jour. Vous pouvez aussi retirer puis rajouter le widget pour forcer un rafraîchissement.
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>L'app plante / ne se lance plus.</summary>
+    <div class="faq-content">
+      Essayez de fermer complètement l'app (glissez vers le haut depuis l'écran d'accueil) puis de la rouvrir. Si le problème persiste, désinstallez puis réinstallez l'app. Vos préférences étant locales, elles seront réinitialisées — c'est la contrepartie du « zéro donnée collectée ».
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>Puis-je suggérer une fonctionnalité ?</summary>
+    <div class="faq-content">
+      Avec plaisir ! Toutes les idées, remarques et signalements de bugs sont lus. Contactez-moi par email (ci-dessous).
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>Lyon Pocket est-il officiel ?</summary>
+    <div class="faq-content">
+      Non. Lyon Pocket est une application indépendante, non affiliée à SYTRAL Mobilités, à Keolis Lyon ni à la Métropole de Lyon. Elle exploite uniquement les données publiques mises à disposition par la Métropole.
+    </div>
+  </details>
+
+  <div class="contact-card">
+    <h2>Toujours besoin d'aide ?</h2>
+    <p>Écrivez-moi directement, je réponds personnellement.</p>
+    <a href="mailto:solal.gendrin@gmail.com?subject=Lyon%20Pocket%20—%20Assistance" class="btn">
+      ✉ Envoyer un email
+    </a>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <img src="assets/app-icon.png" alt="" />
+      <div>
+        <strong>Lyon Pocket</strong>
+        <span>Les TCL en direct, sans compromis.</span>
+      </div>
+    </div>
+    <div class="footer-links">
+      <a href="index.html">Accueil</a>
+      <a href="privacy.html">Confidentialité</a>
+      <a href="mailto:solal.gendrin@gmail.com">Contact</a>
+    </div>
+    <div class="footer-meta">
+      <p>Données fournies par <a href="https://data.grandlyon.com" target="_blank" rel="noopener">Grand Lyon Data</a> sous licence ouverte.</p>
+      <p class="copyright">© 2026 Solal Gendrin. Tous droits réservés.</p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

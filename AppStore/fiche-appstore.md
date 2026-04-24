@@ -1,26 +1,32 @@
-# App Store — Fiche marketing AlerteTCL
+# App Store — Fiche marketing Lyon Pocket
 
 ---
 
 ## Description (4000 caractères max)
 
-Suivez en temps réel les perturbations et alertes du réseau TCL de Lyon.
+Vous voyez votre bus arriver en direct sur la carte. Pas une estimation, pas un horaire théorique — le vrai véhicule qui bouge en temps réel. C'est ça, Lyon Pocket.
 
-Alerte TCL affiche les interruptions de service, les travaux et les informations trafic sur toutes les lignes de métro, tram, bus et funiculaire du réseau Transports en Commun Lyonnais. Plus besoin de chercher sur plusieurs applications : tout est centralisé en un coup d'œil.
+Conçue pour les Lyonnais qui prennent les TCL au quotidien, l'app est gratuite, sans pub et sans compte à créer. Elle s'ouvre, tout est là.
 
-**Ce que vous pouvez faire :**
-• Consulter en temps réel toutes les alertes trafic TCL (perturbations, travaux, informations)
-• Suivre vos lignes préférées et recevoir des notifications push dès qu'une perturbation les affecte
-• Voir les prochains passages en temps réel à n'importe quel arrêt
-• Localiser les véhicules en circulation sur une carte interactive
-• Connaître la disponibilité des parkings relais P+R à proximité
-• Visualiser les chantiers en cours sur le réseau
+**🚋 Véhicules en direct sur la carte**
+Suivez la position de chaque bus, tram, métro et funiculaire en temps réel. Tapez sur un véhicule pour voir sa ligne, sa destination, et les prochains arrêts. Vous savez exactement où il est — et combien de temps vous avez pour courir.
 
-**Widget :**
-Ajoutez le widget sur votre écran d'accueil pour voir les prochains départs de vos arrêts favoris sans ouvrir l'application.
+**⏱ Prochains passages**
+Tapez sur n'importe quel arrêt sur la carte pour voir les prochains passages en temps réel. Toutes les lignes, à la seconde près.
 
-**Vie privée :**
-Alerte TCL ne collecte aucune donnée personnelle. Votre position est utilisée uniquement en local pour centrer la carte — elle n'est jamais transmise à un serveur.
+**🔔 Alertes et perturbations**
+Abonnez-vous à vos lignes et recevez une notification dès qu'une perturbation, une déviation ou une interruption les touche. Fini de découvrir sur le quai que la ligne est coupée.
+
+**🚧 Travaux en cours**
+Un onglet dédié affiche tous les chantiers actifs sur le réseau et en ville, visualisés directement sur la carte. Pratique avant de prendre le vélo ou la voiture.
+
+**🅿️ Parkings P+R en temps réel**
+Avant de partir, consultez la disponibilité en direct des parkings relais autour de Lyon. Plus besoin d'arriver pour trouver complet.
+
+**📱 Widget écran d'accueil**
+Ajoutez le widget pour voir les prochains départs de vos arrêts favoris sans même ouvrir l'app.
+
+100 % gratuit. Aucune pub. Aucune donnée personnelle collectée.
 
 Données fournies par Grand Lyon Data (data.grandlyon.com) sous licence ouverte.
 
@@ -28,13 +34,15 @@ Données fournies par Grand Lyon Data (data.grandlyon.com) sous licence ouverte.
 
 ## Description courte / sous-titre (30 caractères max)
 
-Alertes et temps réel TCL Lyon
+Transports lyonnais en direct
 
 ---
 
 ## Mots-clés (100 caractères max, séparés par des virgules)
 
-TCL,Lyon,transport,métro,tram,bus,alerte,perturbation,horaires,temps réel,TCL Lyon,SYTRAL,réseau
+TCL,Lyon,tram,bus,métro,live,travaux,parking,P+R,alerte,horaires,SYTRAL,véhicule
+
+<!-- 81 caractères -->
 
 ---
 

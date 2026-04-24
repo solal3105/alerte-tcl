@@ -577,7 +577,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AlerteTCLWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = AlerteTCLWidget;
+				INFOPLIST_KEY_CFBundleDisplayName = "Lyon Pocket";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -608,7 +608,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AlerteTCLWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = AlerteTCLWidget;
+				INFOPLIST_KEY_CFBundleDisplayName = "Lyon Pocket";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -765,7 +765,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AlerteTCL/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Alerte TCL";
+				INFOPLIST_KEY_CFBundleDisplayName = "Lyon Pocket";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Nous utilisons votre position pour centrer la carte sur votre localisation et vous montrer les transports en commun autour de vous.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -799,7 +799,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AlerteTCL/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Alerte TCL";
+				INFOPLIST_KEY_CFBundleDisplayName = "Lyon Pocket";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Nous utilisons votre position pour centrer la carte sur votre localisation et vous montrer les transports en commun autour de vous.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
