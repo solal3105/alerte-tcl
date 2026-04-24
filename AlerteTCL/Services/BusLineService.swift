@@ -4,7 +4,7 @@ import CoreLocation
 actor BusLineService {
     static let shared = BusLineService()
     
-    private let baseURL = "https://data.grandlyon.com/geoserver/ogc/features/v1/collections/sytral:tcl_sytral.tcllignebus_2_0_0/items"
+    private let baseURL = NetworkConfiguration.proxyBaseURL + "/bus-lines"
     
     // Cache en mémoire
     private var cachedBusLines: [BusLine]?
@@ -47,8 +47,7 @@ actor BusLineService {
         }
         
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.sharedTimeout)
-        
-        request.setBasicAuth(SecretsManager.grandLyonCredentials)
+        request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
         
         do {
             let (data, response) = try await NetworkConfiguration.shared.data(for: request)

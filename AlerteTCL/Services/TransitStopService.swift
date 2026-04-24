@@ -5,16 +5,12 @@ import MapKit
 actor TransitStopService {
     static let shared = TransitStopService()
     
-    private let stopsEndpoint = "https://data.grandlyon.com/geoserver/ogc/features/v1/collections/sytral:tcl_sytral.tclarret/items"
-    private let passagesEndpoint = "https://download.data.grandlyon.com/ws/rdata/tcl_sytral.tclpassagearret/all.json"
+    private let stopsEndpoint = NetworkConfiguration.proxyBaseURL + "/stops"
+    private let passagesEndpoint = NetworkConfiguration.proxyBaseURL + "/passages"
     
     private var cachedStops: [Int: TransitStop] = [:]
     private var lastStopsFetch: Date?
     private let stopsCacheExpiration: TimeInterval = 300 // 5 minutes
-    
-    private var credentials: (username: String, password: String)? {
-        SecretsManager.grandLyonCredentials
-    }
     
     private init() {}
     
@@ -48,8 +44,8 @@ actor TransitStopService {
         
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.heavyTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
         AppLogger.debug("🚀 Arrêts: Début requête (timeout: \(NetworkConfiguration.heavyTimeout)s)")
-        request.setBasicAuth(credentials)
         
         let (data, response) = try await NetworkConfiguration.heavy.data(for: request)
         
@@ -104,14 +100,14 @@ actor TransitStopService {
         
         // Utiliser le filtrage direct de l'API pour récupérer UNIQUEMENT les passages de cet arrêt
         // Cette approche est ultra-optimisée car l'API filtre côté serveur
-        let urlString = "\(passagesEndpoint)?field=id&value=\(stopId)&compact=false&sortby=heurepassage&sortorder=asc"
+        let urlString = "\(passagesEndpoint)?id=\(stopId)&sortby=heurepassage&sortorder=asc"
         guard let url = URL(string: urlString) else {
             throw APIError.invalidURL
         }
         
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.heavyTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setBasicAuth(credentials)
+        request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
         
         let (data, response) = try await NetworkConfiguration.heavy.data(for: request)
         

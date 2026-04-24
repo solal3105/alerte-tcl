@@ -4,6 +4,7 @@ struct ContentView: View {
     @EnvironmentObject var viewModel: AlertViewModel
     @State private var selectedTab = 0
     @Binding var selectedParkingId: String?
+    @Environment(\.scenePhase) private var scenePhase
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -32,6 +33,17 @@ struct ContentView: View {
             if newParkingId != nil {
                 selectedTab = 2
             }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                NotificationService.shared.clearBadge()
+            }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: NSNotification.Name("OpenAlertDetail"))
+                .receive(on: RunLoop.main)
+        ) { _ in
+            selectedTab = 0
         }
     }
 }

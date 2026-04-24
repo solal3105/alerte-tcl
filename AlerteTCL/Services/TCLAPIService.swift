@@ -3,11 +3,9 @@ import Foundation
 actor TCLAPIService {
     static let shared = TCLAPIService()
     
-    private let alertsEndpoint = "https://download.data.grandlyon.com/ws/rdata/tcl_sytral.tclalertetrafic_2/all.json"
-    
-    private var credentials: (username: String, password: String)? {
-        SecretsManager.grandLyonCredentials
-    }
+    // Proxy Cloudflare Worker — les credentials Grand Lyon sont stockés
+    // côté Cloudflare en secrets chiffrés, jamais dans le binaire de l'app.
+    private let alertsEndpoint = NetworkConfiguration.proxyBaseURL + "/alerts"
     
     private init() {}
     
@@ -17,15 +15,14 @@ actor TCLAPIService {
             throw APIError.invalidURL
         }
         
-        AppLogger.debug("🌐 TCLAPIService: Chargement des alertes depuis \(alertsEndpoint)")
+        AppLogger.debug("🌐 TCLAPIService: Chargement des alertes depuis le proxy")
         
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.fastTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
         AppLogger.debug("🚀 Alertes: Début requête (timeout: \(NetworkConfiguration.fastTimeout)s)")
         
-        // Authentification Basic Auth
-        request.setBasicAuth(credentials)
+        // Pas d'auth côté app — le proxy Cloudflare gère les credentials
         
         let (data, response) = try await NetworkConfiguration.fast.data(for: request)
         

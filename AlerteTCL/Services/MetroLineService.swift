@@ -4,8 +4,8 @@ import CoreLocation
 actor TransitLineService {
     static let shared = TransitLineService()
     
-    private let metroFuniURL = "https://data.grandlyon.com/geoserver/ogc/features/v1/collections/sytral:tcl_sytral.tcllignemf_2_0_0/items"
-    private let tramURL = "https://data.grandlyon.com/geoserver/ogc/features/v1/collections/sytral:tcl_sytral.tcllignetram_2_0_0/items"
+    private let metroFuniURL = NetworkConfiguration.proxyBaseURL + "/metro-funi-lines"
+    private let tramURL = NetworkConfiguration.proxyBaseURL + "/tram-lines"
     
     // Cache en mémoire
     private var cachedTransitLines: [TransitLine]?
@@ -82,8 +82,7 @@ actor TransitLineService {
         }
         
         var request = NetworkConfiguration.request(url: finalURL, timeout: NetworkConfiguration.sharedTimeout)
-        
-        request.setBasicAuth(SecretsManager.grandLyonCredentials)
+        request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
         
         let (data, response) = try await NetworkConfiguration.shared.data(for: request)
         

@@ -63,7 +63,8 @@ private enum WidgetCache {
 // MARK: - Passage Service for Widget
 
 struct WidgetPassageService {
-    private static let passagesEndpoint = "https://download.data.grandlyon.com/ws/rdata/tcl_sytral.tclpassagearret/all.json"
+    // URL mise à jour automatiquement par deploy.sh (proxy Cloudflare — sans credentials dans l'app)
+    private static let passagesEndpoint = "https://tcl-proxy.solalgendrin.workers.dev/passages"
 
     /// Fetches real-time passages. Falls back to last successful cached response on failure.
     static func fetchPassages(stopId: Int, line: String, direction: String) async throws -> [WidgetPassage] {
@@ -81,7 +82,9 @@ struct WidgetPassageService {
     }
 
     private static func performNetworkFetch(stopId: Int, line: String, direction: String) async throws -> [WidgetPassage] {
-        let urlString = "\(passagesEndpoint)?field=id&value=\(stopId)&compact=false"
+        // Le proxy Cloudflare accepte /passages?id=<stopId>
+        // (avant déploiement, le script deploy.sh remplace l'URL par celle du worker)
+        let urlString = "\(passagesEndpoint)?id=\(stopId)"
 
         guard let url = URL(string: urlString) else {
             throw WidgetError.invalidURL
@@ -89,15 +92,8 @@ struct WidgetPassageService {
 
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 10
-
-        guard let credentials = WidgetKeychainCredentials.current else {
-            throw WidgetError.missingCredentials
-        }
-        let raw = "\(credentials.username):\(credentials.password)"
-        if let encoded = raw.data(using: .utf8)?.base64EncodedString() {
-            request.setValue("Basic \(encoded)", forHTTPHeaderField: "Authorization")
-        }
 
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 10
@@ -295,5 +291,4 @@ struct WidgetParkingProperties: Codable {
 enum WidgetError: Error {
     case invalidURL
     case invalidResponse
-    case missingCredentials
 }

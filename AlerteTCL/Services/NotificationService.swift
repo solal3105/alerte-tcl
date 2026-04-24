@@ -15,7 +15,18 @@ final class NotificationService: NSObject, ObservableObject {
     private override init() {
         super.init()
         center.delegate = self
+        registerNotificationCategories()
         checkAuthorizationStatus()
+    }
+
+    private func registerNotificationCategories() {
+        let alertCategory = UNNotificationCategory(
+            identifier: "TCL_ALERT",
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+        center.setNotificationCategories([alertCategory])
     }
     
     // MARK: - Permission Management
@@ -69,7 +80,7 @@ final class NotificationService: NSObject, ObservableObject {
         content.title = "\(emoji) \(alert.mode.rawValue) \(alert.ligneCli.isEmpty ? alert.ligneCom : alert.ligneCli)"
         content.subtitle = alert.titre
         content.body = alert.message
-        content.sound = alert.severity == .major ? .defaultCritical : .default
+        content.sound = .default
         content.categoryIdentifier = "TCL_ALERT"
         content.threadIdentifier = "tcl-alerts-\(alert.ligneCom)"
         
@@ -128,16 +139,6 @@ final class NotificationService: NSObject, ObservableObject {
         UserDefaults.standard.set(Date(), forKey: lastCheckKey)
     }
     
-    func scheduleNotifications(for alerts: [TCLAlert], subscribedLines: Set<String>) {
-        let relevantAlerts = alerts.filter { alert in
-            subscribedLines.contains(alert.ligneCom) || subscribedLines.contains(alert.ligneCli)
-        }
-        
-        for alert in relevantAlerts {
-            scheduleAlertNotification(for: alert)
-        }
-    }
-    
     // MARK: - Notification History
     
     private func hasNotified(_ alert: TCLAlert) -> Bool {
@@ -162,8 +163,11 @@ final class NotificationService: NSObject, ObservableObject {
     func updateBadgeCount() {
         Task { [weak self] in
             guard let self else { return }
-            let requests = await self.center.pendingNotificationRequests()
-            let count = requests.filter { $0.content.userInfo["type"] as? String == "tcl_alert" }.count
+            let pending = await self.center.pendingNotificationRequests()
+            let delivered = await self.center.deliveredNotifications()
+            let pendingCount = pending.filter { $0.content.userInfo["type"] as? String == "tcl_alert" }.count
+            let deliveredCount = delivered.filter { $0.request.content.userInfo["type"] as? String == "tcl_alert" }.count
+            let count = pendingCount + deliveredCount
             await MainActor.run { self.pendingNotificationsCount = count }
             do {
                 try await self.center.setBadgeCount(count)

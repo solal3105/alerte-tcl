@@ -37,17 +37,8 @@ actor SIRILiteService {
         return f
     }()
     
-    private let baseURL = "https://data.grandlyon.com"
-    private let vehicleMonitoringEndpoint = "/siri-lite/2.0/vehicle-monitoring.json"
-    
-    private var credentials: (username: String, password: String)? {
-        // Priorité: variables d'environnement (debug) > Keychain (production)
-        if let envUser = ProcessInfo.processInfo.environment["GRANDLYON_USERNAME"],
-           let envPass = ProcessInfo.processInfo.environment["GRANDLYON_PASSWORD"] {
-            return (envUser, envPass)
-        }
-        return SecretsManager.grandLyonCredentials
-    }
+    private let baseURL = NetworkConfiguration.proxyBaseURL
+    private let vehicleMonitoringEndpoint = "/vehicles"
     
     private init() {}
     
@@ -58,9 +49,8 @@ actor SIRILiteService {
         
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.fastTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
         AppLogger.debug("🚀 SIRI: Début requête (timeout: \(NetworkConfiguration.fastTimeout)s)")
-        
-        request.setBasicAuth(credentials)
         
         let (data, response) = try await NetworkConfiguration.fast.data(for: request)
         
