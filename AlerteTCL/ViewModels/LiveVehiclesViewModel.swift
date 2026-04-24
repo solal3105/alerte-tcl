@@ -33,8 +33,12 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published var showBusLines = true
     @Published var showTransitLines = true
     @Published var mapRegion: MKCoordinateRegion
-    @Published var currentZoomLevel: Double = 0.15
-    @Published var visibleRegion: MKCoordinateRegion?
+    /// Non-@Published : lu par les moteurs de clustering/viewport mais pas par
+    /// les Views SwiftUI (la carte est en UIKit). Publier ces deux propriétés
+    /// invaliderait le body de `LiveMapView` à chaque mouvement de caméra
+    /// (~60 Hz en glissement) et relancerait `updateUIView`.
+    var currentZoomLevel: Double = 0.15
+    var visibleRegion: MKCoordinateRegion?
     @Published var isInitialLoadComplete = false
     @Published var isLive = false
     
@@ -44,7 +48,10 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published var isLoadingStops = false
     
     // Cached computed properties for performance
-    @Published private(set) var filteredVehicles: [Vehicle] = []
+    // `filteredVehicles` est un état interne : les vues lisent `displayVehicles`
+    // (qui retourne `cachedUnclusteredVehicles`, lui-même @Published). Inutile
+    // de déclencher une seconde publication par fetch.
+    private(set) var filteredVehicles: [Vehicle] = []
     @Published private(set) var visibleMergedStops: [MergedStop] = []
     
     private var streamTask: Task<Void, Never>?
@@ -122,9 +129,11 @@ final class LiveVehiclesViewModel: ObservableObject {
     private var lastClusteringZoom: Double = 0
     private var lastClusteringVehicleCount: Int = 0
     
-    /// Seuil de zoom pour activer le clustering (très dézoomé seulement)
-    /// 0.08 = vue très large, clustering activé seulement quand on voit presque toute la métropole
-    private let vehicleClusteringZoomThreshold: Double = 0.08
+    /// Seuil de zoom pour activer le clustering.
+    /// 0.05 = vue "ville entière" : clustering actif dès qu'on dézoome au-delà
+    /// d'un quartier. Garde N (marqueurs individuels rendus) dans une fourchette
+    /// gérable pour les O(N) passes MapKit.
+    private let vehicleClusteringZoomThreshold: Double = 0.05
     
     var shouldShowClusters: Bool {
         currentZoomLevel >= vehicleClusteringZoomThreshold
@@ -523,14 +532,16 @@ final class LiveVehiclesViewModel: ObservableObject {
             visibleMergedStops = []
             return
         }
-        // Filtrer les arrêts fusionnés dans le viewport
+        // Précalculer les bornes UNE fois (au lieu de 4 calculs par arrêt).
+        let halfLatSpan = region.span.latitudeDelta / 2
+        let halfLonSpan = region.span.longitudeDelta / 2
+        let minLat = region.center.latitude - halfLatSpan
+        let maxLat = region.center.latitude + halfLatSpan
+        let minLon = region.center.longitude - halfLonSpan
+        let maxLon = region.center.longitude + halfLonSpan
         visibleMergedStops = mergedStops.filter { stop in
             let lat = stop.coordinate.latitude
             let lon = stop.coordinate.longitude
-            let minLat = region.center.latitude - region.span.latitudeDelta / 2
-            let maxLat = region.center.latitude + region.span.latitudeDelta / 2
-            let minLon = region.center.longitude - region.span.longitudeDelta / 2
-            let maxLon = region.center.longitude + region.span.longitudeDelta / 2
             return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon
         }
     }

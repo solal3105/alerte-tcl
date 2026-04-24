@@ -165,8 +165,9 @@ actor SIRILiteService {
     
     private func parseOnwardCalls(_ onwardCalls: OnwardCalls?) -> [StopInfo] {
         guard let calls = onwardCalls?.OnwardCall else { return [] }
-        
-        return calls.compactMap { call -> StopInfo? in
+        // Cap à 6 arrêts : l'UI n'en affiche jamais plus, stocker le reste gaspille
+        // ~10 000 objets StopInfo inutiles en mémoire (624 véhicules × ~15 stops).
+        return calls.prefix(6).compactMap { call -> StopInfo? in
             guard let stopRef = call.StopPointRef?.value else { return nil }
             
             return StopInfo(

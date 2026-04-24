@@ -1,68 +1,10 @@
 import SwiftUI
 import MapKit
 
-// MARK: - Merged Stop Marker (groupes d'arrêts fusionnés)
-
-struct MergedStopMarker: View {
-    let mergedStop: MergedStop
-    let currentZoomLevel: Double
-    
-    private var shouldShowTooltip: Bool {
-        currentZoomLevel < 0.005
-    }
-    
-    private var allLines: [String] {
-        mergedStop.allLines
-    }
-    
-    var body: some View {
-        VStack(spacing: 2) {
-            // Tooltip avec lignes (même style que TransitStopMarker)
-            if shouldShowTooltip && !allLines.isEmpty {
-                HStack(spacing: 4) {
-                    ForEach(allLines.prefix(3), id: \.self) { line in
-                        let bgColor = LineColorHelper.backgroundColor(for: line)
-                        let textColor = LineColorHelper.textColor(for: line)
-                        let needsBorder = LineColorHelper.needsBorder(for: line)
-                        
-                        Text(line)
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(textColor)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(bgColor)
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule()
-                                    .stroke(Color(.systemGray3), lineWidth: needsBorder ? 0.5 : 0)
-                            )
-                    }
-                    if allLines.count > 3 {
-                        Text("+\(allLines.count - 3)")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(.ultraThinMaterial)
-                .clipShape(Capsule())
-                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
-            }
-            
-            // Point de l'arrêt (même style que TransitStopMarker)
-            Circle()
-                .fill(.white)
-                .frame(width: 8, height: 8)
-                .overlay(
-                    Circle()
-                        .fill(Color.purple)
-                        .frame(width: 5, height: 5)
-                )
-                .shadow(color: .black.opacity(0.2), radius: 1.5, x: 0, y: 0.5)
-        }
-    }
-}
+// MARK: - Merged Stop Marker (supprimé)
+//
+// Le marqueur SwiftUI a été supprimé au profit de `MergedStopAnnotationView`
+// (UIKit, UIImage pré-rendue). Voir `MarkerImageCache` + `MapAnnotations`.
 
 // MARK: - Transit Stop Detail Sheet
 

@@ -469,56 +469,6 @@ struct TravauxClusterMarker: View {
     }
 }
 
-/// Marker simplifié pour les clusters de transport - juste le nombre
-struct TransportClusterMarker: View {
-    let cluster: MapCluster<Vehicle>
-    
-    @State private var scale: CGFloat = 0.8
-    @State private var opacity: Double = 0.0
-    
-    private var markerSize: CGFloat {
-        let baseSize: CGFloat = 44
-        let increment = min(CGFloat(cluster.count) * 2, 14)
-        return baseSize + increment
-    }
-    
-    private var dominantType: VehicleType {
-        let typeCounts = Dictionary(grouping: cluster.items, by: { $0.vehicleType })
-        return typeCounts.max(by: { $0.value.count < $1.value.count })?.key ?? .bus
-    }
-    
-    private var clusterColor: Color {
-        // Tous les clusters de transports sont bleus
-        .blue
-    }
-    
-    var body: some View {
-        ZStack {
-            // Cercle principal
-            Circle()
-                .fill(clusterColor)
-                .frame(width: markerSize, height: markerSize)
-                .shadow(color: clusterColor.opacity(0.4), radius: 4, x: 0, y: 2)
-            
-            // Cercle interne
-            Circle()
-                .fill(.white.opacity(0.15))
-                .frame(width: markerSize - 8, height: markerSize - 8)
-            
-            // Contenu simplifié: juste le nombre
-            Text("\(cluster.count)")
-                .font(.system(size: markerSize * 0.4, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
-        }
-        .frame(width: markerSize, height: markerSize)
-        .scaleEffect(scale)
-        .opacity(opacity)
-        .onAppear {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                scale = 1.0
-                opacity = 1.0
-            }
-        }
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: cluster.count)
-    }
-}
+// `TransportClusterMarker` (SwiftUI) supprimé — les clusters sont rendus par
+// `ClusterAnnotationView` (UIKit) + `MarkerImageCache.cluster(count:)`.
+

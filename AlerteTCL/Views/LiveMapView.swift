@@ -16,11 +16,9 @@ struct LiveMapView: View {
     @State private var hasSetInitialLocation = false
     @State private var showRefreshInfo = false
     
-    @State private var mapCameraPosition: MapCameraPosition = .region(
-        MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
-            span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
-        )
+    @State private var mapRegion: MKCoordinateRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
+        span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
     )
     @State private var isSatellite = false
     
@@ -34,14 +32,16 @@ struct LiveMapView: View {
     
     var body: some View {
         ZStack {
-            LiveMapContent(
+            LiveMapRepresentable(
                 viewModel: viewModel,
                 locationService: locationService,
-                mapCameraPosition: $mapCameraPosition,
+                region: $mapRegion,
                 selectedVehicle: $selectedVehicle,
                 selectedMergedStop: $selectedMergedStop,
                 isSatellite: $isSatellite
             )
+            .ignoresSafeArea(edges: .top)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             
             overlayControls
         }
@@ -91,11 +91,9 @@ struct LiveMapView: View {
             
             if !hasSetInitialLocation, let userLocation = locationService.currentLocation, !isSimulator {
                 withAnimation(.easeInOut(duration: 0.8)) {
-                    mapCameraPosition = .region(
-                        MKCoordinateRegion(
-                            center: userLocation.coordinate,
-                            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                        )
+                    mapRegion = MKCoordinateRegion(
+                        center: userLocation.coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                     )
                 }
                 hasSetInitialLocation = true
@@ -129,11 +127,9 @@ struct LiveMapView: View {
         .onChange(of: locationService.currentLocation) { oldValue, newValue in
             if !hasSetInitialLocation, oldValue == nil, let newLocation = newValue, !isSimulator {
                 withAnimation(.easeInOut(duration: 0.8)) {
-                    mapCameraPosition = .region(
-                        MKCoordinateRegion(
-                            center: newLocation.coordinate,
-                            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                        )
+                    mapRegion = MKCoordinateRegion(
+                        center: newLocation.coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                     )
                 }
                 hasSetInitialLocation = true
@@ -249,11 +245,9 @@ struct LiveMapView: View {
                     Button {
                         if let userLocation = locationService.currentLocation, !isSimulator {
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                                mapCameraPosition = .region(
-                                    MKCoordinateRegion(
-                                        center: userLocation.coordinate,
-                                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                                    )
+                                mapRegion = MKCoordinateRegion(
+                                    center: userLocation.coordinate,
+                                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                                 )
                             }
                         } else {
@@ -457,90 +451,9 @@ struct LiveMapView: View {
     }
 }
 
-struct VehicleMarker: View {
-    let vehicle: Vehicle
-    var bearing: Double
-    var currentZoomLevel: Double
-    
-    /// Seuil de zoom pour afficher la ponctualité (zoom fort = valeur basse)
-    private let punctualityZoomThreshold: Double = 0.005
-    
-    private var shouldShowPunctuality: Bool {
-        currentZoomLevel <= punctualityZoomThreshold
-    }
-    
-    init(vehicle: Vehicle, bearing: Double? = nil, currentZoomLevel: Double = 0.01) {
-        self.vehicle = vehicle
-        self.bearing = bearing ?? vehicle.bearing
-        self.currentZoomLevel = currentZoomLevel
-    }
-    
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(markerColor)
-                .frame(width: 32, height: 32)
-                .shadow(color: markerColor.opacity(0.5), radius: 4, x: 0, y: 2)
-            
-            Group {
-                if UIAccessibility.isVoiceOverRunning {
-                    // Mode VoiceOver : afficher le texte du type de véhicule
-                    Text(String(vehicle.vehicleType.rawValue.first ?? "?"))
-                        .font(.system(size: 16, weight: .bold))
-                } else {
-                    // Mode normal : icône
-                    Image(systemName: vehicle.vehicleType.icon)
-                        .font(.system(size: 14, weight: .bold))
-                }
-            }
-            .foregroundStyle(iconColor)
-            
-            if bearing != 0 {
-                Image(systemName: "arrowtriangle.up.fill")
-                    .font(.system(size: 8))
-                    .foregroundStyle(markerColor)
-                    .offset(y: -18)
-                    .rotationEffect(.degrees(bearing))
-            }
-            
-            // Tooltip de ponctualité au zoom fort
-            if shouldShowPunctuality {
-                Text(vehicle.delayFormatted)
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .fixedSize()
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(
-                        Capsule()
-                            .fill(punctualityColor)
-                            .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
-                    )
-                    .offset(y: -24)
-            }
-        }
-    }
-    
-    private var punctualityColor: Color {
-        if vehicle.isDelayed {
-            return .red
-        } else if vehicle.isEarly {
-            return .orange
-        } else {
-            return .green
-        }
-    }
-    
-    private var markerColor: Color {
-        // Utiliser les mêmes couleurs que LineColorHelper pour la cohérence
-        return LineColorHelper.backgroundColor(for: vehicle.lineName)
-    }
-    
-    private var iconColor: Color {
-        // Utiliser les mêmes couleurs que LineColorHelper pour la cohérence
-        return LineColorHelper.textColor(for: vehicle.lineName)
-    }
-}
+// Legacy SwiftUI `VehicleMarker` supprimé — rendu désormais via
+// `MarkerImageCache` + `MKAnnotationView` (cf. LiveMapRepresentable).
+
 
 
 struct VehicleTypeChip: View {
@@ -1167,97 +1080,11 @@ private struct SubscribedLinePill: View {
 
 // MARK: - Traffic State (kept for reference, no longer used)
 
-// MARK: - LiveMapContent
-// Vue enfant isolée qui possède AnimationClock.
-// Seule cette vue re-rend à 15 fps — LiveMapView (overlays, sheets, bandeau) reste stable.
-
-private struct LiveMapContent: View {
-    @ObservedObject var viewModel: LiveVehiclesViewModel
-    @ObservedObject var locationService: LocationService
-    @Binding var mapCameraPosition: MapCameraPosition
-    @Binding var selectedVehicle: Vehicle?
-    @Binding var selectedMergedStop: MergedStop?
-    @Binding var isSatellite: Bool
-
-    @StateObject private var animationClock = AnimationClock()
-    @Environment(\.scenePhase) private var scenePhase
-
-    var body: some View {
-        Map(position: $mapCameraPosition, interactionModes: .all) {
-            if locationService.currentLocation != nil {
-                UserAnnotation()
-            }
-
-            if viewModel.showBusLines {
-                ForEach(viewModel.busLines) { line in
-                    MapPolyline(coordinates: line.clLocationCoordinates)
-                        .stroke(line.lineColor, lineWidth: line.lineWidth)
-                }
-            }
-
-            if viewModel.showTransitLines {
-                ForEach(viewModel.transitLines) { line in
-                    MapPolyline(coordinates: line.clLocationCoordinates)
-                        .stroke(line.lineColor, lineWidth: line.lineWidth)
-                }
-            }
-
-            ForEach(viewModel.displayClusters, id: \.id) { cluster in
-                Annotation("", coordinate: cluster.coordinate) {
-                    TransportClusterMarker(cluster: cluster)
-                }
-            }
-
-            ForEach(viewModel.displayVehicles, id: \.id) { vehicle in
-                let animated = viewModel.animatedVehicles[vehicle.id]
-                let coordinate = animated?.coordinateAt(animationClock.time) ?? vehicle.coordinate
-                let bearing = animated?.bearingAt(animationClock.time) ?? vehicle.bearing
-
-                Annotation(vehicle.lineName, coordinate: coordinate) {
-                    VehicleMarker(vehicle: vehicle, bearing: bearing, currentZoomLevel: viewModel.currentZoomLevel)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(vehicle.accessibilityDescription)
-                        .accessibilityHint("Double-cliquer pour voir les détails du véhicule")
-                        .onTapGesture {
-                            selectedVehicle = vehicle
-                        }
-                }
-            }
-
-            ForEach(viewModel.visibleMergedStops, id: \.id) { mergedStop in
-                Annotation(mergedStop.nom, coordinate: mergedStop.coordinate) {
-                    MergedStopMarker(mergedStop: mergedStop, currentZoomLevel: viewModel.currentZoomLevel)
-                        .onTapGesture {
-                            selectedMergedStop = mergedStop
-                        }
-                }
-                .annotationTitles(.hidden)
-            }
-        }
-        .mapStyle(isSatellite ? .imagery(elevation: .realistic) : .standard(pointsOfInterest: .excludingAll))
-        .ignoresSafeArea(edges: .top)
-        .onMapCameraChange { context in
-            viewModel.updateZoomLevel(context.region.span)
-            viewModel.updateVisibleRegion(context.region)
-        }
-        .onAppear {
-            animationClock.start()
-        }
-        .onDisappear {
-            animationClock.stop()
-        }
-        .onChange(of: scenePhase) { _, newPhase in
-            switch newPhase {
-            case .background:
-                animationClock.stop()
-            case .active:
-                if !animationClock.isRunning { animationClock.start() }
-            default:
-                break
-            }
-        }
-    }
-}
+// La carte live est désormais rendue par `LiveMapRepresentable`
+// (UIKit MKMapView + MKAnnotationView / UIImage).
+// Les anciens types `LiveMapContent`, `AnimatedVehiclesLayer`, `VehicleMarker`
+// ont été supprimés : voir `LiveMapRepresentable.swift` + `MapAnnotations.swift`
+// + `MarkerImageCache.swift`.
 
 #Preview {
     LiveMapView()

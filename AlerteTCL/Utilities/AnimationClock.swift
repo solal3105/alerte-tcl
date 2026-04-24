@@ -18,8 +18,10 @@ final class AnimationClock: ObservableObject {
 
     private var tickTask: Task<Void, Never>?
 
-    /// ~15 fps — compromis fluidité vs charge. Ne pas dépasser 20 fps sur MapKit SwiftUI.
-    private static let tickInterval: UInt64 = 66_666_666 // 66.6 ms
+    /// ~10 fps — bon compromis fluidité/charge pour 300+ marqueurs sur MapKit SwiftUI.
+    /// À 15 fps le coût de repositionnement MKAnnotationContainerView est dominant.
+    /// 10 fps reste imperceptible pour un bus (vitesse réelle ~30 km/h = 0.8 m entre frames).
+    private static let tickInterval: UInt64 = 100_000_000 // 100 ms
 
     var isRunning: Bool { tickTask != nil }
 

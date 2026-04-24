@@ -48,6 +48,9 @@
 		A1000005 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A1000015 /* PrivacyInfo.xcprivacy */; };
 		A1000006 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000011 /* AppLogger.swift */; };
 		A1000020 /* AnimationClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000021 /* AnimationClock.swift */; };
+		A1000030 /* MarkerImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000031 /* MarkerImageCache.swift */; };
+		A1000032 /* MapAnnotations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000033 /* MapAnnotations.swift */; };
+		A1000034 /* LiveMapRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000035 /* LiveMapRepresentable.swift */; };
 		AAA00001 /* AlerteTCLApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00011 /* AlerteTCLApp.swift */; };
 		AAA00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00012 /* ContentView.swift */; };
 		AAA00003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AAA00013 /* Assets.xcassets */; };
@@ -156,6 +159,9 @@
 		A1000013 /* CoordinateParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinateParsing.swift; sourceTree = "<group>"; };
 		A1000015 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A1000021 /* AnimationClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationClock.swift; sourceTree = "<group>"; };
+		A1000031 /* MarkerImageCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkerImageCache.swift; sourceTree = "<group>"; };
+		A1000033 /* MapAnnotations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapAnnotations.swift; sourceTree = "<group>"; };
+		A1000035 /* LiveMapRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMapRepresentable.swift; sourceTree = "<group>"; };
 		AAA00010 /* AlerteTCL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AlerteTCL.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAA00011 /* AlerteTCLApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlerteTCLApp.swift; sourceTree = "<group>"; };
 		AAA00012 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -224,6 +230,7 @@
 			children = (
 				A1000011 /* AppLogger.swift */,
 				A1000021 /* AnimationClock.swift */,
+				A1000031 /* MarkerImageCache.swift */,
 				A1000012 /* SafeURL.swift */,
 				A1000013 /* CoordinateParsing.swift */,
 				4FCB1FC72F1EC8B60031B71E /* PerformanceOptimizations.swift */,
@@ -321,6 +328,8 @@
 				AAA00020 /* NotificationPermissionView.swift */,
 				AAA00031 /* LocationPermissionView.swift */,
 				AAA0002B /* LiveMapView.swift */,
+				A1000033 /* MapAnnotations.swift */,
+				A1000035 /* LiveMapRepresentable.swift */,
 				AAA00037 /* Components */,
 			);
 			path = Views;
@@ -519,6 +528,9 @@
 				AAA0000C /* SubscriptionsView.swift in Sources */,
 				A1000001 /* AppLogger.swift in Sources */,
 				A1000020 /* AnimationClock.swift in Sources */,
+				A1000030 /* MarkerImageCache.swift in Sources */,
+				A1000032 /* MapAnnotations.swift in Sources */,
+				A1000034 /* LiveMapRepresentable.swift in Sources */,
 				A1000002 /* SafeURL.swift in Sources */,
 				A1000003 /* CoordinateParsing.swift in Sources */,
 				4F39DE032F1BABC200F24E3D /* NetworkConfiguration.swift in Sources */,
