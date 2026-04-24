@@ -25,17 +25,16 @@
 		4F9DFFA32F1457F900E01BFB /* ParkingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */; };
 		4F9DFFA72F14667B00E01BFB /* Stop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA62F14667B00E01BFB /* Stop.swift */; };
 		4F9DFFB92F146B6F00E01BFB /* tcl_stops.json in Resources */ = {isa = PBXBuildFile; fileRef = 4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */; };
-		4FAA11002F200001AABBCC00 /* tcl_transit_lines.json in Resources */ = {isa = PBXBuildFile; fileRef = 4FAA11012F200001AABBCC00 /* tcl_transit_lines.json */; };
 		4F9DFFBB2F146D4B00E01BFB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */; };
 		4F9DFFC72F146EFE00E01BFB /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */; };
 		4F9DFFC92F146EFE00E01BFB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC82F146EFE00E01BFB /* SwiftUI.framework */; };
 		4F9DFFDA2F146F0100E01BFB /* AlerteTCLWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4F9DFFEB2F147FA400E01BFB /* RecentItemsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */; };
+		4FAA11002F200001AABBCC00 /* tcl_transit_lines.json in Resources */ = {isa = PBXBuildFile; fileRef = 4FAA11012F200001AABBCC00 /* tcl_transit_lines.json */; };
 		4FAUDIT012F1A000000000001 /* InitialLocationModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FAUDIT002F1A000000000001 /* InitialLocationModifier.swift */; };
 		4FCB1FC62F1EC6D90031B71E /* SpatialTileCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCB1FC52F1EC6D90031B71E /* SpatialTileCache.swift */; };
 		4FCB1FC82F1EC8B60031B71E /* PerformanceOptimizations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCB1FC72F1EC8B60031B71E /* PerformanceOptimizations.swift */; };
 		4FCB1FCA2F1ECA340031B71E /* SecretsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCB1FC92F1ECA340031B71E /* SecretsManager.swift */; };
-		A1000022 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000023 /* Secrets.swift */; };
 		4FCD05DF2F1704F700390BE1 /* TransitStopService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */; };
 		4FCD05E12F17051200390BE1 /* TransitStop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05E02F17051200390BE1 /* TransitStop.swift */; };
 		4FCD05E32F17056D00390BE1 /* TransitStopViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */; };
@@ -51,6 +50,7 @@
 		A1000005 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A1000015 /* PrivacyInfo.xcprivacy */; };
 		A1000006 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000011 /* AppLogger.swift */; };
 		A1000020 /* AnimationClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000021 /* AnimationClock.swift */; };
+		A1000022 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000023 /* Secrets.swift */; };
 		AAA00001 /* AlerteTCLApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00011 /* AlerteTCLApp.swift */; };
 		AAA00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00012 /* ContentView.swift */; };
 		AAA00003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AAA00013 /* Assets.xcassets */; };
@@ -135,7 +135,6 @@
 		4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingViewModel.swift; sourceTree = "<group>"; };
 		4F9DFFA62F14667B00E01BFB /* Stop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stop.swift; sourceTree = "<group>"; };
 		4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = tcl_stops.json; path = Resources/tcl_stops.json; sourceTree = "<group>"; };
-		4FAA11012F200001AABBCC00 /* tcl_transit_lines.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = tcl_transit_lines.json; path = Resources/tcl_transit_lines.json; sourceTree = "<group>"; };
 		4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AlerteTCLWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -143,6 +142,7 @@
 		4F9DFFE02F14700200E01BFB /* AlerteTCL.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AlerteTCL.entitlements; sourceTree = "<group>"; };
 		4F9DFFE12F14705300E01BFB /* AlerteTCLWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AlerteTCLWidgetExtension.entitlements; sourceTree = "<group>"; };
 		4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentItemsService.swift; sourceTree = "<group>"; };
+		4FAA11012F200001AABBCC00 /* tcl_transit_lines.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = tcl_transit_lines.json; path = Resources/tcl_transit_lines.json; sourceTree = "<group>"; };
 		4FAUDIT002F1A000000000001 /* InitialLocationModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InitialLocationModifier.swift; sourceTree = "<group>"; };
 		4FCB1FC52F1EC6D90031B71E /* SpatialTileCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpatialTileCache.swift; sourceTree = "<group>"; };
 		4FCB1FC72F1EC8B60031B71E /* PerformanceOptimizations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceOptimizations.swift; sourceTree = "<group>"; };
