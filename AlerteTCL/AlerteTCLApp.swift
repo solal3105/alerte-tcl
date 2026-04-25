@@ -11,15 +11,6 @@ struct AlerteTCLApp: App {
     
     init() {
         configureAppearance()
-        cleanCorruptedPreferences()
-    }
-    
-    private func cleanCorruptedPreferences() {
-        // Nettoyer les préférences corrompues si nécessaire
-        if UserDefaults.standard.object(forKey: "hasCleanedPrefs") == nil {
-            UserDefaults.standard.set(true, forKey: "hasCleanedPrefs")
-            UserDefaults.standard.synchronize()
-        }
     }
     
     var body: some Scene {

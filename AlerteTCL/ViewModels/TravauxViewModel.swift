@@ -15,12 +15,7 @@ final class TravauxViewModel: ObservableObject {
     @Published var selectedNatureChantier: Set<TravauxNatureChantier> = Set(TravauxNatureChantier.allCases)
     @Published var searchText: String = ""
     
-    @Published var refreshProgress: Double = 0.0
-    @Published var secondsUntilNextRefresh: Int = 300
-    
     private var refreshTask: Task<Void, Never>?
-    private var countdownTask: Task<Void, Never>?
-    private let refreshInterval: TimeInterval = 300 // 5 minutes (non utilisé - cache journalier)
     private let cacheExpirationInterval: TimeInterval = 86400 // 24 heures
     private let clusteringConfig = ClusteringEngine.Configuration.dense
     /// Seuil de zoom au-delà duquel le clustering travaux s'active.
@@ -46,19 +41,6 @@ final class TravauxViewModel: ObservableObject {
         }
         
         return result
-    }
-    
-    var travauxEnCours: Int {
-        travaux.filter { $0.avancement == .enCours }.count
-    }
-    
-    var travauxTresPerturbants: Int {
-        travaux.filter { $0.importance == .tresPerturbant }.count
-    }
-    
-    var travauxParCommune: [String: Int] {
-        Dictionary(grouping: travaux) { $0.commune }
-            .mapValues { $0.count }
     }
     
     var hasActiveFilters: Bool {
@@ -188,7 +170,6 @@ final class TravauxViewModel: ObservableObject {
             let fetchedTravaux = try await TravauxService.shared.fetchTravaux()
             travaux = fetchedTravaux
             lastUpdate = Date()
-            resetCountdown()
             
             // Forcer la mise à jour des clusters
             updateClustersIfNeeded()
@@ -207,33 +188,11 @@ final class TravauxViewModel: ObservableObject {
         
         // Pas de refresh auto pour les travaux - cache de 24h
         AppLogger.debug("ℹ️ TravauxViewModel: Pas de refresh auto (cache journalier)")
-        
-        // Countdown timer pour afficher le temps restant avant expiration du cache
-        countdownTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                guard !Task.isCancelled else { break }
-                
-                if let lastUpdate = lastUpdate {
-                    let timeSinceUpdate = Date().timeIntervalSince(lastUpdate)
-                    let remaining = max(0, cacheExpirationInterval - timeSinceUpdate)
-                    secondsUntilNextRefresh = Int(remaining)
-                    refreshProgress = timeSinceUpdate / cacheExpirationInterval
-                }
-            }
-        }
     }
     
     private func stopAutoRefresh() {
         refreshTask?.cancel()
         refreshTask = nil
-        countdownTask?.cancel()
-        countdownTask = nil
-    }
-    
-    private func resetCountdown() {
-        secondsUntilNextRefresh = Int(refreshInterval)
-        refreshProgress = 0.0
     }
     
     // MARK: - Filters
@@ -253,6 +212,5 @@ final class TravauxViewModel: ObservableObject {
     
     deinit {
         refreshTask?.cancel()
-        countdownTask?.cancel()
     }
 }

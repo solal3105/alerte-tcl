@@ -10,17 +10,10 @@ final class ParkingViewModel: ObservableObject {
     @Published var error: String?
     @Published var lastUpdate: Date?
     @Published var secondsUntilNextRefresh: Int = 60
-    @Published var refreshProgress: Double = 0.0
     @Published var isViewActive = false
     @Published var currentZoomLevel: Double = 0.15
     @Published var visibleRegion: MKCoordinateRegion?
-    
-    // État de chargement spatial (non-bloquant)
-    @Published var loadingMessage: String = ""
-    @Published var loadingProgress: Double = 0.0
     @Published var isLoadingInBackground = false
-    @Published var loadedCount: Int = 0
-    @Published var totalToLoad: Int = 0
     
     // Debounce pour éviter trop de requêtes lors du pan/zoom
     private var regionUpdateTask: Task<Void, Never>?
@@ -71,9 +64,6 @@ final class ParkingViewModel: ObservableObject {
     }
     
     private var currentLoadTask: Task<Void, Never>?
-    
-    private var bikeParkingsLoaded = false
-    private var moto2WheelParkingsLoaded = false
     
     // Cache par type pour éviter de recharger
     private var parkingsCache: [ParkingType: [Parking]] = [:]
@@ -210,16 +200,6 @@ final class ParkingViewModel: ObservableObject {
             // Mettre en cache
             parkingsCache[selectedParkingType] = parkings
             
-            // Marquer comme chargé selon le type
-            switch selectedParkingType {
-            case .bike:
-                bikeParkingsLoaded = true
-            case .motorized2Wheel:
-                moto2WheelParkingsLoaded = true
-            case .car:
-                break
-            }
-            
             // Forcer la mise à jour des clusters
             updateClustersIfNeeded(force: true)
             
@@ -238,9 +218,6 @@ final class ParkingViewModel: ObservableObject {
         guard !isLoadingInBackground, !Task.isCancelled else { return }
         
         isLoadingInBackground = true
-        let typeLabel = selectedParkingType == .bike ? "vélos" : "2-roues"
-        loadingMessage = "Chargement \(typeLabel)..."
-        loadingProgress = 0.3
         error = nil
         
         defer {
@@ -268,37 +245,15 @@ final class ParkingViewModel: ObservableObject {
             
             parkings = mergedParkings  // pas de sort : le tri est inutile pour l'affichage carte
             parkingsCache[selectedParkingType] = parkings
-            loadedCount = parkings.count
-            totalToLoad = loadedCount
             lastUpdate = Date()
-            
-            loadingProgress = 1.0
-            loadingMessage = "\(fetchedParkings.count) \(typeLabel) chargés"
-            
-            // Marquer comme chargé (au moins partiellement)
-            switch selectedParkingType {
-            case .bike:
-                bikeParkingsLoaded = true
-            case .motorized2Wheel:
-                moto2WheelParkingsLoaded = true
-            case .car:
-                break
-            }
             
             updateClustersIfNeeded(force: true)
             
             AppLogger.debug("✅ ParkingViewModel: \(fetchedParkings.count) parkings \(selectedParkingType.rawValue) chargés (total: \(parkings.count))")
             
-            // Effacer le message après un court délai
-            try? await Task.sleep(nanoseconds: 800_000_000) // 0.8s
-            loadingMessage = ""
-            loadingProgress = 0.0
-            
         } catch {
             AppLogger.debug("⚠️ Erreur chargement spatial: \(error.localizedDescription)")
             self.error = error.localizedDescription
-            loadingMessage = ""
-            loadingProgress = 0.0
         }
     }
     
@@ -336,10 +291,8 @@ final class ParkingViewModel: ObservableObject {
                 while !Task.isCancelled {
                     guard self.isViewActive else { return }
                     let elapsed = Date().timeIntervalSince(startTime)
-                    let progress = min(elapsed / self.refreshInterval, 1.0)
                     let remaining = max(0, self.refreshInterval - elapsed)
                     
-                    self.refreshProgress = progress
                     self.secondsUntilNextRefresh = Int(ceil(remaining))
                     
                     if elapsed >= self.refreshInterval {

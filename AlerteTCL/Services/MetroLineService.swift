@@ -126,9 +126,4 @@ actor TransitLineService {
         
         return transitLines
     }
-    
-    func clearCache() {
-        cachedTransitLines = nil
-        cacheTimestamp = nil
-    }
 }

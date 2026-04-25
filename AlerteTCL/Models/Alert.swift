@@ -182,76 +182,9 @@ enum AlertSeverity: String, CaseIterable, Identifiable {
         }
     }
     
-    var displayColor: String {
-        switch self {
-        case .info: return "blue"
-        case .disruption: return "orange"
-        case .major: return "red"
-        }
-    }
 }
 
 struct APIResponse: Codable {
     let values: [TCLAlert]
 }
 
-struct GeoJSONResponse: Codable {
-    let type: String
-    let features: [GeoJSONFeature]
-}
-
-struct GeoJSONFeature: Codable {
-    let type: String
-    let properties: AlertProperties
-}
-
-struct AlertProperties: Codable {
-    let type: String?
-    let cause: String?
-    let debut: String?
-    let fin: String?
-    let mode: String?
-    let ligneCom: String?
-    let ligneCli: String?
-    let titre: String?
-    let message: String?
-    let lastUpdateFme: String?
-    let n: Int?
-    let typeSeverite: String?
-    let niveauSeverite: Int?
-    let typeObjet: String?
-    let listeObjet: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case type, cause, debut, fin, mode, titre, message
-        case ligneCom = "ligne_com"
-        case ligneCli = "ligne_cli"
-        case lastUpdateFme = "last_update_fme"
-        case n
-        case typeSeverite = "typeseverite"
-        case niveauSeverite = "niveauseverite"
-        case typeObjet = "typeobjet"
-        case listeObjet = "listeobjet"
-    }
-    
-    func toTCLAlert() throws -> TCLAlert {
-        let modeString = mode ?? "Bus"
-        let transportMode = TransportMode(rawValue: modeString) ?? .bus
-        
-        let debutDate = debut.flatMap { TCLAlert.parseDate($0) }
-        let finDate = fin.flatMap { TCLAlert.parseDate($0) }
-        
-        return TCLAlert(
-            id: "\(n ?? 0)-\(ligneCom ?? "")-\(ligneCli ?? "")",
-            type: type ?? "Information",
-            cause: cause ?? "",
-            debut: debutDate,
-            fin: finDate,
-            mode: transportMode,
-            ligneCom: ligneCom ?? "",
-            ligneCli: ligneCli ?? "",
-            titre: titre ?? "",
-            message: message ?? ""
-        )
-    }
-}

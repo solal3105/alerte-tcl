@@ -9,6 +9,15 @@ actor SIRILiteService {
     
     private static let jsonDecoder: JSONDecoder = JSONDecoder()
     
+    // Dictionnaire nom d'arrêt par ID numérique GTFS (chargé une fois depuis le bundle)
+    private static let gtfsStopNames: [String: String] = {
+        guard let url = Bundle.main.url(forResource: "tcl_stops", withExtension: "json"),
+              let data = try? Data(contentsOf: url) else { return [:] }
+        struct Stop: Decodable { let id: String; let name: String }
+        guard let stops = try? JSONDecoder().decode([Stop].self, from: data) else { return [:] }
+        return Dictionary(stops.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+    }()
+
     // Regex patterns (pré-compilés une fois)
     private static let lineNameRegex: NSRegularExpression =
         (try? NSRegularExpression(pattern: "::([^:]+):SYTRAL", options: [])) ?? NSRegularExpression()
@@ -125,7 +134,6 @@ actor SIRILiteService {
             
             // Extraire les informations d'arrêts
             let nextStop = parseMonitoredCall(journey.MonitoredCall)
-            let onwardStops = parseOnwardCalls(journey.OnwardCalls)
             
             return Vehicle(
                 id: stableId,
@@ -140,8 +148,7 @@ actor SIRILiteService {
                 status: journey.VehicleStatus,
                 recordedAt: parseISO8601Date(activity.RecordedAtTime),
                 validUntil: parseISO8601Date(activity.ValidUntilTime),
-                nextStop: nextStop,
-                onwardStops: onwardStops
+                nextStop: nextStop
             )
         }
     }
@@ -163,28 +170,12 @@ actor SIRILiteService {
         )
     }
     
-    private func parseOnwardCalls(_ onwardCalls: OnwardCalls?) -> [StopInfo] {
-        guard let calls = onwardCalls?.OnwardCall else { return [] }
-        // Cap à 6 arrêts : l'UI n'en affiche jamais plus, stocker le reste gaspille
-        // ~10 000 objets StopInfo inutiles en mémoire (624 véhicules × ~15 stops).
-        return calls.prefix(6).compactMap { call -> StopInfo? in
-            guard let stopRef = call.StopPointRef?.value else { return nil }
-            
-            return StopInfo(
-                id: stopRef,
-                stopRef: stopRef,
-                stopName: extractStopName(from: stopRef),
-                aimedArrivalTime: parseISO8601Date(call.AimedArrivalTime),
-                aimedDepartureTime: parseISO8601Date(call.AimedDepartureTime),
-                distanceFromStop: call.DistanceFromStop,
-                order: call.Order
-            )
-        }
-    }
-    
-    private func extractStopName(from stopRef: String) -> String? {
-        // Pour l'instant, retourne l'ID. Plus tard, on peut mapper avec les données GTFS
-        return stopRef.components(separatedBy: ":").last
+    private func extractStopName(from stopRef: String) -> String {
+        // Format: "ActIV:StopArea:SP:39975:SYTRAL" → ID numérique à l'index 3
+        let parts = stopRef.components(separatedBy: ":")
+        guard parts.count >= 4 else { return parts.last ?? stopRef }
+        let numericId = parts[3]
+        return Self.gtfsStopNames[numericId] ?? numericId
     }
     
     private func extractLineName(from lineRef: String) -> String {
@@ -280,7 +271,6 @@ enum SIRIError: LocalizedError {
     case serverError(Int)
     case httpError(Int)
     case decodingError(Error)
-    case networkError(Error)
     
     var errorDescription: String? {
         switch self {
@@ -300,8 +290,6 @@ enum SIRIError: LocalizedError {
             return "Erreur HTTP (\(code))"
         case .decodingError:
             return "Erreur de décodage des données"
-        case .networkError(let error):
-            return "Erreur réseau: \(error.localizedDescription)"
         }
     }
 }

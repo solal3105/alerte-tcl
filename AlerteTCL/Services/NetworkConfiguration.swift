@@ -28,7 +28,7 @@ enum NetworkConfiguration {
     // MARK: - Common Configuration
     
     /// Configuration de base optimisée partagée par toutes les sessions
-    private static func baseConfig(timeout: TimeInterval, cacheMemoryMB: Int = 10, cacheDiskMB: Int = 30) -> URLSessionConfiguration {
+    private static func baseConfig(timeout: TimeInterval) -> URLSessionConfiguration {
         let config = URLSessionConfiguration.default
 
         // Timeouts
@@ -64,17 +64,17 @@ enum NetworkConfiguration {
     
     /// URLSession pour les données légères (alertes, véhicules) - timeout très court
     static let fast: URLSession = {
-        URLSession(configuration: baseConfig(timeout: fastTimeout, cacheMemoryMB: 5, cacheDiskMB: 10))
+        URLSession(configuration: baseConfig(timeout: fastTimeout))
     }()
     
     /// URLSession partagée avec timeouts standards
     static let shared: URLSession = {
-        URLSession(configuration: baseConfig(timeout: sharedTimeout, cacheMemoryMB: 15, cacheDiskMB: 40))
+        URLSession(configuration: baseConfig(timeout: sharedTimeout))
     }()
     
     /// URLSession pour les données lourdes (arrêts, lignes) - timeout plus long
     static let heavy: URLSession = {
-        URLSession(configuration: baseConfig(timeout: heavyTimeout, cacheMemoryMB: 25, cacheDiskMB: 60))
+        URLSession(configuration: baseConfig(timeout: heavyTimeout))
     }()
     
     // MARK: - Helper pour créer une URLRequest avec le bon timeout
@@ -85,31 +85,5 @@ enum NetworkConfiguration {
         request.timeoutInterval = timeout
         return request
     }
-    
-    /// Crée une URLRequest optimisée avec headers de compression
-    static func optimizedRequest(url: URL, timeout: TimeInterval) -> URLRequest {
-        var request = URLRequest(url: url)
-        request.timeoutInterval = timeout
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        return request
-    }
 }
 
-// MARK: - URLRequest Basic Auth
-
-extension URLRequest {
-    /// Ajoute l'authentification Basic Auth à la requête
-    mutating func setBasicAuth(username: String, password: String) {
-        let credString = "\(username):\(password)"
-        if let credentialsData = credString.data(using: .utf8) {
-            let base64Credentials = credentialsData.base64EncodedString()
-            setValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
-        }
-    }
-    
-    /// Ajoute l'authentification Basic Auth depuis un tuple credentials
-    mutating func setBasicAuth(_ credentials: (username: String, password: String)?) {
-        guard let creds = credentials else { return }
-        setBasicAuth(username: creds.username, password: creds.password)
-    }
-}

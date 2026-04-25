@@ -190,33 +190,6 @@ actor ParkingService {
         }
     }
     
-    // MARK: - Cache Management
-    
-    /// Vide les caches (utile pour forcer un refresh complet)
-    func clearCaches() async {
-        simpleCache.removeAll()
-        await bikeTileCache.clear()
-        await motoTileCache.clear()
-        AppLogger.debug("🧹 ParkingService: Tous les caches vidés")
-    }
-    
-    /// Statistiques des caches
-    func cacheStats() async -> String {
-        let bikeStats = await bikeTileCache.stats
-        let motoStats = await motoTileCache.stats
-        return "Bike: \(bikeStats) | Moto: \(motoStats)"
-    }
-    
-    func fetchParkingsRelais() async throws -> [Parking] {
-        let allParkings = try await fetchParkings()
-        return allParkings.filter { parking in
-            parking.nom.lowercased().contains("p+r") ||
-            parking.nom.lowercased().contains("parc relais") ||
-            parking.nom.lowercased().contains("park relais") ||
-            parking.gestionnaire.lowercased().contains("tcl") ||
-            parking.gestionnaire.lowercased().contains("sytral")
-        }
-    }
 }
 
 enum ParkingServiceError: LocalizedError {

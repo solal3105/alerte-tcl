@@ -481,24 +481,6 @@ final class LiveVehiclesViewModel: ObservableObject {
         }
     }
     
-    func centerOnLyon() {
-        withAnimation {
-            mapRegion = MKCoordinateRegion(
-                center: Self.lyonCenter,
-                span: Self.defaultSpan
-            )
-        }
-    }
-    
-    func centerOnVehicle(_ vehicle: Vehicle) {
-        withAnimation {
-            mapRegion = MKCoordinateRegion(
-                center: vehicle.coordinate,
-                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-            )
-        }
-    }
-    
     func toggleLineSelection(_ line: String) {
         if selectedLines.contains(line) {
             selectedLines.remove(line)

@@ -47,7 +47,7 @@ struct LiveMapView: View {
         }
         .sheet(item: $selectedVehicle) { vehicle in
             VehicleDetailSheet(vehicle: vehicle)
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .sheet(item: $selectedMergedStop) { mergedStop in
@@ -506,111 +506,268 @@ struct VehicleTypeChip: View {
 struct VehicleDetailSheet: View {
     let vehicle: Vehicle
     @Environment(\.dismiss) private var dismiss
-    
+
+    private var accentColor: Color { vehicle.vehicleType.clusterColor }
+
+    // Destination propre (masquer les IDs techniques)
+    private var cleanDestination: String? {
+        let d = vehicle.destination
+        guard !d.isEmpty, !d.contains(":"), d.count < 60 else { return nil }
+        return d
+    }
+
+    // Stop à afficher : le prochain arrêt uniquement (l'API Grand Lyon ne renvoie pas les suivants)
+    private var stopsToShow: [(stop: StopInfo, isNext: Bool)] {
+        guard let next = vehicle.nextStop else { return [] }
+        return [(next, true)]
+    }
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                VStack(spacing: 16) {
-                    HStack {
-                        ZStack {
-                            Circle()
-                                .fill(vehicleColor)
-                                .frame(width: 60, height: 60)
-                            
-                            Image(systemName: vehicle.vehicleType.icon)
-                                .font(.system(size: 26, weight: .bold))
-                                .foregroundStyle(.white)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Ligne \(vehicle.lineName)")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                            
-                            Text(vehicle.vehicleType.rawValue)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        
-                        Spacer()
+            ScrollView {
+                VStack(spacing: 0) {
+                    headerSection
+                    if !stopsToShow.isEmpty {
+                        timelineSection
                     }
-                    .padding(.horizontal)
-                    
-                    Divider()
-                    
-                    VStack(spacing: 12) {
-                        // Masquer la destination si elle ressemble à un ID technique
-                        if !vehicle.destination.isEmpty && !vehicle.destination.contains(":") && vehicle.destination.count < 50 {
-                            DetailRow(icon: "arrow.right.circle.fill", title: "Destination", value: vehicle.destination)
-                        }
-                        
-                        DetailRow(
-                            icon: vehicle.isDelayed ? "clock.badge.exclamationmark.fill" : "clock.fill",
-                            title: "Ponctualité",
-                            value: vehicle.delayFormatted,
-                            valueColor: vehicle.isDelayed ? .orange : (vehicle.isEarly ? .blue : .green)
-                        )
-                        
-                        if let recordedAt = vehicle.recordedAt {
-                            DetailRow(
-                                icon: "antenna.radiowaves.left.and.right",
-                                title: "Dernière mise à jour",
-                                value: recordedAt.formatted(date: .omitted, time: .shortened)
-                            )
-                        }
-                    }
-                    .padding(.horizontal)
+                    footerSection
                 }
-                .padding(.vertical)
-                
-                Spacer()
+                .padding(.bottom, 32)
             }
-            .navigationTitle("Détails du véhicule")
+            .background(Color(.systemGroupedBackground))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Fermer") {
-                        dismiss()
-                    }
+                    Button("Fermer") { dismiss() }
+                        .fontWeight(.medium)
                 }
             }
         }
     }
-    
-    private var vehicleColor: Color {
-        switch vehicle.vehicleType {
-        case .metro: return .orange
-        case .tram: return .blue
-        case .bus: return .purple
-        case .trolley: return .green
-        case .funicular: return .teal
+
+    // MARK: Header
+
+    private var headerSection: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 16) {
+                // Badge ligne
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(accentColor)
+                        .frame(width: 64, height: 64)
+                    VStack(spacing: 2) {
+                        Image(systemName: vehicle.vehicleType.icon)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.white)
+                        Text(vehicle.lineName)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                    }
+                }
+                .shadow(color: accentColor.opacity(0.35), radius: 8, x: 0, y: 4)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(vehicle.vehicleType.rawValue)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(accentColor)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+
+                    if let dest = cleanDestination {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(dest)
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
+                        }
+                    } else {
+                        Text("Ligne \(vehicle.lineName)")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                    }
+
+                    delayPill
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 20)
+        }
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+    }
+
+    private var delayPill: some View {
+        let color: Color = vehicle.isDelayed ? .orange : (vehicle.isEarly ? .blue : .green)
+        let icon = vehicle.isDelayed ? "clock.badge.exclamationmark.fill" : "clock.fill"
+        return HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2.weight(.semibold))
+            Text(vehicle.delayFormatted)
+                .font(.caption.weight(.semibold))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.12), in: Capsule())
+    }
+
+    // MARK: Timeline
+
+    private var timelineSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(stopsToShow.count > 1 ? "Prochains arrêts" : "Prochain arrêt")
+                    .font(.footnote)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.4)
+                Spacer()
+                if stopsToShow.count <= 1 {
+                    Text("Données limitées")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+            .padding(.bottom, 12)
+
+            VStack(spacing: 0) {
+                ForEach(Array(stopsToShow.enumerated()), id: \.offset) { index, item in
+                    timelineRow(
+                        stop: item.stop,
+                        isNext: item.isNext,
+                        isLast: index == stopsToShow.count - 1
+                    )
+                }
+
+                // End cap
+                HStack(spacing: 0) {
+                    // Aligner avec la ligne verticale
+                    Color.clear.frame(width: 20 + 10) // leading padding + demi-largeur du trait
+                    Circle()
+                        .fill(Color(.tertiaryLabel))
+                        .frame(width: 6, height: 6)
+                    Spacer()
+                }
+                .padding(.leading, 20)
+                .padding(.bottom, 8)
+            }
+            .padding(.horizontal, 16)
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .padding(.horizontal, 16)
         }
     }
-}
 
-struct DetailRow: View {
-    let icon: String
-    let title: String
-    let value: String
-    var valueColor: Color = .primary
-    
-    var body: some View {
-        HStack {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(.secondary)
-                .frame(width: 24)
-            
-            Text(title)
-                .foregroundStyle(.secondary)
-            
-            Spacer()
-            
-            Text(value)
-                .fontWeight(.medium)
-                .foregroundStyle(valueColor)
+    private func timelineRow(stop: StopInfo, isNext: Bool, isLast: Bool) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            // Colonne gauche : trait + dot
+            VStack(spacing: 0) {
+                // Trait supérieur (sauf premier)
+                if !isNext {
+                    Rectangle()
+                        .fill(Color(.separator))
+                        .frame(width: 2)
+                        .frame(height: 10)
+                }
+
+                // Dot
+                ZStack {
+                    if isNext {
+                        Circle()
+                            .fill(accentColor.opacity(0.2))
+                            .frame(width: 24, height: 24)
+                        Circle()
+                            .fill(accentColor)
+                            .frame(width: 12, height: 12)
+                    } else {
+                        Circle()
+                            .strokeBorder(Color(.separator), lineWidth: 1.5)
+                            .frame(width: 10, height: 10)
+                            .background(Circle().fill(Color(.secondarySystemGroupedBackground)))
+                    }
+                }
+
+                // Trait inférieur
+                if !isLast {
+                    Rectangle()
+                        .fill(Color(.separator))
+                        .frame(width: 2)
+                        .frame(minHeight: 28)
+                }
+            }
+            .frame(width: 28)
+            .padding(.top, isNext ? 14 : 10)
+
+            // Contenu
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(stop.stopName ?? stop.stopRef)
+                        .font(isNext ? .subheadline.weight(.semibold) : .subheadline)
+                        .foregroundStyle(isNext ? .primary : .secondary)
+                        .lineLimit(1)
+
+                    if isNext {
+                        Text("Prochain arrêt")
+                            .font(.caption2)
+                            .foregroundStyle(accentColor)
+                            .fontWeight(.medium)
+                    }
+                }
+
+                Spacer()
+
+                if let arrival = stop.aimedArrivalTime ?? stop.aimedDepartureTime {
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(arrival, format: .dateTime.hour().minute())
+                            .font(isNext ? .subheadline.weight(.semibold) : .caption.weight(.medium))
+                            .foregroundStyle(isNext ? .primary : .secondary)
+                            .monospacedDigit()
+
+                        if isNext, let timeUntil = stop.timeUntilArrival, timeUntil > 0 {
+                            Text("dans \(Int(timeUntil / 60)) min")
+                                .font(.caption2)
+                                .foregroundStyle(accentColor)
+                                .fontWeight(.medium)
+                        }
+                    }
+                }
+            }
+            .padding(.leading, 12)
+            .padding(.vertical, isNext ? 16 : 12)
+            .padding(.trailing, 4)
         }
-        .padding(.vertical, 4)
+    }
+
+    // MARK: Footer
+
+    private var footerSection: some View {
+        VStack(spacing: 0) {
+            if let recordedAt = vehicle.recordedAt {
+                HStack(spacing: 6) {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .font(.caption2)
+                    Text("Mis à jour à \(recordedAt.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption2)
+                }
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 20)
+            }
+        }
     }
 }
 

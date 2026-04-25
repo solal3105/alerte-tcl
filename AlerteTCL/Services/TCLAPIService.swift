@@ -57,23 +57,14 @@ actor TCLAPIService {
             throw APIError.decodingError(error)
         }
     }
-    
-    func fetchAlertsForLines(_ lineIds: [String]) async throws -> [TCLAlert] {
-        let allAlerts = try await fetchAlerts()
-        return allAlerts.filter { alert in
-            lineIds.contains(alert.ligneCom) || lineIds.contains(alert.ligneCli)
-        }
-    }
 }
 
 enum APIError: LocalizedError {
     case invalidURL
     case invalidResponse
     case unauthorized
-    case notFound
     case serverError(Int)
     case decodingError(Error)
-    case networkError(Error)
     
     var errorDescription: String? {
         switch self {
@@ -83,14 +74,10 @@ enum APIError: LocalizedError {
             return "Réponse invalide du serveur"
         case .unauthorized:
             return "Accès non autorisé - Clé API requise"
-        case .notFound:
-            return "Données non trouvées"
         case .serverError(let code):
             return "Erreur serveur (\(code))"
         case .decodingError:
             return "Erreur de décodage des données"
-        case .networkError(let error):
-            return "Erreur réseau: \(error.localizedDescription)"
         }
     }
 }

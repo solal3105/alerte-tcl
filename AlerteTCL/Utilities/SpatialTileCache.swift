@@ -63,14 +63,6 @@ struct TileCacheConfiguration {
         useFixedZoom: false
     )
     
-    /// Configuration agressive pour grands datasets
-    static let largeDataset = TileCacheConfiguration(
-        tileSizeDegrees: 0.015,
-        expirationSeconds: 1800, // 30 min
-        maxTiles: 150,
-        viewportBuffer: 1.2,
-        useFixedZoom: true
-    )
 }
 
 // MARK: - Spatial Tile Cache

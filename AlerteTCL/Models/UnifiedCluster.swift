@@ -86,10 +86,6 @@ enum ClusteringEngine {
             minItemsForCluster: 2
         )
         
-        static let sparse = Configuration(
-            screenClusterSize: 45,  // Clusters plus petits
-            minItemsForCluster: 2
-        )
     }
     
     /// Seuil de zoom en dessous duquel on désactive le clustering (zoom fort = latitudeDelta petit)
@@ -232,83 +228,6 @@ enum ClusteringEngine {
         }
         
         return (clusters, unclustered)
-    }
-}
-
-// MARK: - Unified Cluster Marker View
-
-/// Vue de cluster unifiée avec un design moderne et cohérent
-struct UnifiedClusterMarker<T: Clusterable>: View {
-    let cluster: MapCluster<T>
-    let style: ClusterStyle
-    
-    @State private var scale: CGFloat = 0.8
-    @State private var opacity: Double = 0.0
-    
-    enum ClusterStyle {
-        case standard
-        case transport
-        case parking
-        case travaux
-        
-        var backgroundOpacity: Double {
-            switch self {
-            case .standard, .transport: return 1.0
-            case .parking: return 0.95
-            case .travaux: return 0.95
-            }
-        }
-    }
-    
-    init(cluster: MapCluster<T>, style: ClusterStyle = .standard) {
-        self.cluster = cluster
-        self.style = style
-    }
-    
-    private var markerSize: CGFloat {
-        let baseSize: CGFloat = 44
-        let increment = min(CGFloat(cluster.count) * 2, 16)
-        return baseSize + increment
-    }
-    
-    private var backgroundColor: Color {
-        cluster.dominantColor
-    }
-    
-    var body: some View {
-        ZStack {
-            // Cercle externe avec ombre
-            Circle()
-                .fill(backgroundColor.opacity(style.backgroundOpacity))
-                .frame(width: markerSize, height: markerSize)
-                .shadow(color: backgroundColor.opacity(0.4), radius: 6, x: 0, y: 3)
-            
-            // Cercle interne semi-transparent
-            Circle()
-                .fill(.white.opacity(0.2))
-                .frame(width: markerSize - 8, height: markerSize - 8)
-            
-            // Contenu
-            VStack(spacing: 2) {
-                Image(systemName: cluster.dominantIcon)
-                    .font(.system(size: markerSize * 0.28, weight: .bold))
-                    .foregroundStyle(.white)
-                
-                Text("\(cluster.count)")
-                    .font(.system(size: markerSize * 0.28, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
-            }
-        }
-        .frame(width: markerSize, height: markerSize)
-        .scaleEffect(scale)
-        .opacity(opacity)
-        .onAppear {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                scale = 1.0
-                opacity = 1.0
-            }
-        }
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: cluster.count)
     }
 }
 

@@ -50,5 +50,4 @@ struct BusLineGeometry: Codable {
 struct BusLineProperties: Codable {
     let ligne: String?
     let nom_trace: String?
-    let sens: String?
 }

@@ -16,7 +16,6 @@ struct Vehicle: Identifiable, Hashable {
     let recordedAt: Date?
     let validUntil: Date?
     let nextStop: StopInfo?
-    let onwardStops: [StopInfo]
     
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -50,15 +49,6 @@ struct Vehicle: Identifiable, Hashable {
         delay < -60
     }
     
-    /// Description pour VoiceOver et accessibilité
-    var accessibilityDescription: String {
-        let type = vehicleType.rawValue
-        let line = lineName
-        let delay = delayFormatted
-        let destination = destination.isEmpty ? "destination inconnue" : destination
-        
-        return "\(type) ligne \(line), direction \(destination), \(delay)"
-    }
 }
 
 struct StopInfo: Identifiable, Hashable {
@@ -75,18 +65,6 @@ struct StopInfo: Identifiable, Hashable {
         return arrivalTime.timeIntervalSinceNow
     }
     
-    var arrivalFormatted: String {
-        guard let timeUntil = timeUntilArrival else { return "?" }
-        
-        if timeUntil <= 0 {
-            return "Maintenant"
-        } else if timeUntil < 60 {
-            return "\(Int(timeUntil))s"
-        } else {
-            let minutes = Int(timeUntil / 60)
-            return "\(minutes)min"
-        }
-    }
 }
 
 enum VehicleType: String, CaseIterable {
@@ -120,7 +98,7 @@ enum VehicleType: String, CaseIterable {
         switch self {
         case .metro: return Color(hex: "EE3898")
         case .tram: return Color(hex: "8C368C")
-        case .bus: return .blue
+        case .bus: return Color(hex: "6E6E73")
         case .trolley: return Color(hex: "DAA520")
         case .funicular: return Color(hex: "8BC752")
         }
@@ -178,7 +156,6 @@ struct MonitoredVehicleJourney: Codable {
     let Delay: String?
     let VehicleStatus: String?
     let MonitoredCall: MonitoredCall?
-    let OnwardCalls: OnwardCalls?
 }
 
 struct MonitoredCall: Codable {
@@ -191,18 +168,6 @@ struct MonitoredCall: Codable {
     let DistanceFromStop: Int?
     let StopPointRef: RefValue?
     let Order: Int?
-}
-
-struct OnwardCalls: Codable {
-    let OnwardCall: [OnwardCall]?
-}
-
-struct OnwardCall: Codable {
-    let AimedArrivalTime: String?
-    let AimedDepartureTime: String?
-    let StopPointRef: RefValue?
-    let Order: Int?
-    let DistanceFromStop: Int?
 }
 
 struct VehicleLocation: Codable {

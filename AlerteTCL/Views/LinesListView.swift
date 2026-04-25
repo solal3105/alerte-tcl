@@ -3,7 +3,6 @@ import SwiftUI
 struct LinesListView: View {
     @EnvironmentObject var viewModel: AlertViewModel
     @State private var selectedLineForSubscription: TransportLine?
-    @State private var selectedAlertTypes: Set<AlertSeverity> = Set(AlertSeverity.allCases)
     
     private var sortedModes: [TransportMode] {
         viewModel.groupedLines.keys.sorted { $0.sortOrder < $1.sortOrder }
@@ -70,7 +69,6 @@ struct LinesListView: View {
                                             isSubscribed: viewModel.isSubscribed(to: line)
                                         ) {
                                             selectedLineForSubscription = line
-                                            selectedAlertTypes = viewModel.subscriptionService.getNotificationPreferences(for: line)
                                         }
                                     }
                                 }

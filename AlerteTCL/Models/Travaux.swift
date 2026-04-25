@@ -81,22 +81,6 @@ enum TravauxType: String, CaseIterable {
         }
     }
     
-    var color: String {
-        switch self {
-        case .tramway: return "blue"
-        case .metro: return "purple"
-        case .voirie: return "gray"
-        case .eau: return "cyan"
-        case .gaz: return "orange"
-        case .electricite: return "yellow"
-        case .assainissement: return "brown"
-        case .telecom: return "green"
-        case .chauffage: return "red"
-        case .pisteCyclable: return "mint"
-        case .autre: return "gray"
-        }
-    }
-    
     static func detect(from nomChantier: String) -> TravauxType {
         let nom = nomChantier.lowercased()
         
@@ -267,15 +251,6 @@ enum TravauxAvancement: String, CaseIterable {
         }
     }
     
-    var color: String {
-        switch self {
-        case .enCours: return "orange"
-        case .prevu: return "blue"
-        case .termine: return "green"
-        case .inconnu: return "gray"
-        }
-    }
-    
     init(from string: String?) {
         guard let string = string else {
             self = .inconnu
@@ -306,15 +281,6 @@ enum TravauxImportance: Int, CaseIterable, Comparable {
         case .perturbant: return "exclamationmark.2"
         case .peuPerturbant: return "exclamationmark"
         case .inconnu: return "minus"
-        }
-    }
-    
-    var color: String {
-        switch self {
-        case .tresPerturbant: return "red"
-        case .perturbant: return "orange"
-        case .peuPerturbant: return "yellow"
-        case .inconnu: return "gray"
         }
     }
     
@@ -349,16 +315,6 @@ enum TravauxPerturbation: String, CaseIterable {
         case .circulationAlternee: return "arrow.triangle.swap"
         case .genePonctuelle: return "exclamationmark.triangle"
         case .autre: return "questionmark.circle"
-        }
-    }
-    
-    var color: String {
-        switch self {
-        case .circulationInterdite: return "red"
-        case .circulationReduite: return "orange"
-        case .circulationAlternee: return "yellow"
-        case .genePonctuelle: return "blue"
-        case .autre: return "gray"
         }
     }
     

@@ -72,7 +72,6 @@ struct TransitLineGeometry: Codable {
 struct TransitLineProperties: Codable {
     let ligne: String?
     let nom_trace: String?
-    let sens: String?
     let famille_transport: String?
 }
 

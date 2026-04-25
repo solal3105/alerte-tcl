@@ -171,18 +171,6 @@ struct Parking: Identifiable, Hashable, Sendable {
         return Double(capaciteTotale - placesDisponibles) / Double(capaciteTotale)
     }
     
-    var occupationColor: String {
-        switch tauxOccupation {
-        case 0..<0.5: return "green"
-        case 0.5..<0.8: return "orange"
-        default: return "red"
-        }
-    }
-    
-    var isAlmostFull: Bool {
-        tauxOccupation >= 0.9
-    }
-    
     var isFull: Bool {
         placesDisponibles == 0 || etat == .complet
     }

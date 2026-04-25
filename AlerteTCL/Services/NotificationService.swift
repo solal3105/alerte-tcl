@@ -10,7 +10,6 @@ final class NotificationService: NSObject, ObservableObject {
     private let lastCheckKey = "lastAlertCheckDate"
     
     @Published var isAuthorized = false
-    @Published var pendingNotificationsCount = 0
     
     private override init() {
         super.init()
@@ -168,7 +167,6 @@ final class NotificationService: NSObject, ObservableObject {
             let pendingCount = pending.filter { $0.content.userInfo["type"] as? String == "tcl_alert" }.count
             let deliveredCount = delivered.filter { $0.request.content.userInfo["type"] as? String == "tcl_alert" }.count
             let count = pendingCount + deliveredCount
-            await MainActor.run { self.pendingNotificationsCount = count }
             do {
                 try await self.center.setBadgeCount(count)
             } catch {
@@ -196,22 +194,6 @@ final class NotificationService: NSObject, ObservableObject {
         clearBadge()
     }
     
-    func resetNotificationHistory() {
-        UserDefaults.standard.removeObject(forKey: notifiedAlertsKey)
-        UserDefaults.standard.removeObject(forKey: lastCheckKey)
-    }
-    
-    // MARK: - Background Refresh
-    
-    var lastCheckDate: Date? {
-        UserDefaults.standard.object(forKey: lastCheckKey) as? Date
-    }
-    
-    func shouldCheckForNewAlerts() -> Bool {
-        guard let lastCheck = lastCheckDate else { return true }
-        // Vérifier toutes les 5 minutes maximum
-        return Date().timeIntervalSince(lastCheck) > 300
-    }
 }
 
 // MARK: - UNUserNotificationCenterDelegate

@@ -62,32 +62,3 @@ extension Task where Failure == Error {
         }
     }
 }
-
-extension Task where Failure == Never {
-    /// Version non-throwing de withTimeout
-    static func withTimeout(
-        seconds: TimeInterval,
-        operation: @escaping @Sendable () async -> Success
-    ) async -> Success? {
-        await withTaskGroup(of: Success?.self) { group in
-            // Lancer l'opération principale
-            group.addTask {
-                await operation()
-            }
-            
-            // Lancer le timeout
-            group.addTask {
-                try? await Task<Never, Never>.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-                return nil
-            }
-            
-            // Attendre le premier résultat
-            let result = await group.next()!
-            
-            // Annuler l'autre tâche
-            group.cancelAll()
-            
-            return result
-        }
-    }
-}

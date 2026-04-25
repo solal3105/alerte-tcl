@@ -28,15 +28,6 @@ enum AppLogger {
         #endif
     }
 
-    @inlinable
-    static func info(_ message: @autoclosure () -> String, category: Category = .app) {
-        #if DEBUG
-        let text = message()
-        Logger(subsystem: subsystem, category: category.rawValue)
-            .info("\(text, privacy: .public)")
-        #endif
-    }
-
     /// Errors are recorded in release too, but never expose user data.
     @inlinable
     static func error(_ message: @autoclosure () -> String, category: Category = .app) {
@@ -45,5 +36,3 @@ enum AppLogger {
             .error("\(text, privacy: .public)")
     }
 }
-
-private let subsystem = AppLogger.Category.self

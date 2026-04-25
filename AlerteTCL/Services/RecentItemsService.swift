@@ -19,23 +19,6 @@ class RecentItemsService {
     
     // MARK: - Stops
     
-    func saveRecentStop(id: String, name: String) {
-        var recentStops = getRecentStops()
-        
-        // Supprimer l'arrêt s'il existe déjà
-        recentStops.removeAll { $0["id"] == id }
-        
-        // Ajouter en première position
-        recentStops.insert(["id": id, "name": name], at: 0)
-        
-        // Limiter à maxRecentItems
-        if recentStops.count > maxRecentItems {
-            recentStops = Array(recentStops.prefix(maxRecentItems))
-        }
-        
-        defaults?.set(recentStops, forKey: "recentStops")
-    }
-    
     func getRecentStops() -> [[String: String]] {
         return defaults?.array(forKey: "recentStops") as? [[String: String]] ?? []
     }
@@ -63,13 +46,4 @@ class RecentItemsService {
         return defaults?.array(forKey: "recentParkings") as? [[String: String]] ?? []
     }
     
-    // MARK: - Clear
-    
-    func clearRecentStops() {
-        defaults?.removeObject(forKey: "recentStops")
-    }
-    
-    func clearRecentParkings() {
-        defaults?.removeObject(forKey: "recentParkings")
-    }
 }

@@ -4,10 +4,6 @@ import Combine
 struct LineSubscription: Codable {
     let lineId: String
     var notificationTypes: Set<String>
-    
-    static func allTypes() -> Set<String> {
-        Set(AlertSeverity.allCases.map { $0.rawValue })
-    }
 }
 
 @MainActor
@@ -88,8 +84,4 @@ final class SubscriptionService: ObservableObject {
         return Set(AlertSeverity.allCases)
     }
     
-    func unsubscribeAll() {
-        subscriptions.removeAll()
-        saveSubscriptions()
-    }
 }

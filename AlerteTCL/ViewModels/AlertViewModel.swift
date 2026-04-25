@@ -10,7 +10,6 @@ final class AlertViewModel: ObservableObject {
     @Published var lastUpdate: Date?
     @Published var selectedMode: TransportMode?
     @Published var searchText = ""
-    @Published var selectedSeverityFilter: AlertSeverity?
 
     struct LineAlertSummary: Identifiable, Hashable {
         let id: String
@@ -68,16 +67,6 @@ final class AlertViewModel: ObservableObject {
         .sorted { $0.severity.sortOrder < $1.severity.sortOrder }
     }
     
-    var allAlertsSorted: [TCLAlert] {
-        var result = alerts
-        
-        if let filter = selectedSeverityFilter {
-            result = result.filter { $0.severity == filter }
-        }
-        
-        return result.sorted { $0.severity.sortOrder < $1.severity.sortOrder }
-    }
-
     var linesInError: [LineAlertSummary] {
         // Ne prendre que les perturbations en cours (pas info, pas à venir)
         let activeAlerts = alerts.filter { $0.isOngoing && $0.severity != .info }

@@ -47,10 +47,6 @@ class WidgetStopStorage: ObservableObject {
     
     // MARK: - Public API
     
-    func getAllSelections() -> [WidgetStopSelection] {
-        return selections
-    }
-    
     func addSelection(_ selection: WidgetStopSelection) {
         // Supprimer si déjà existant (pour le remonter)
         selections.removeAll { $0.id == selection.id }

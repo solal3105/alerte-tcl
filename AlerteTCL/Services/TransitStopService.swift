@@ -141,16 +141,4 @@ actor TransitStopService {
         return passages
     }
     
-    // MARK: - Get Stop from Cache
-    
-    func getStop(id: Int) -> TransitStop? {
-        cachedStops[id]
-    }
-    
-    // MARK: - Clear Cache
-    
-    func clearCache() {
-        cachedStops.removeAll()
-        lastStopsFetch = nil
-    }
 }

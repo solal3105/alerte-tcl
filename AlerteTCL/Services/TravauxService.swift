@@ -65,53 +65,12 @@ actor TravauxService {
         return activeTravaux
     }
     
-    /// Charge les travaux dans une région spécifique (optimisé avec BBox)
-    func fetchTravauxInRegion(_ region: MKCoordinateRegion) async throws -> [Travaux] {
-        let bbox = BBoxHelper.bboxString(for: region, buffer: 1.5)
-        let urlString = "\(baseURL)?f=application/json&limit=200&bbox=\(bbox)"
-        
-        guard let url = URL(string: urlString) else {
-            throw TravauxServiceError.invalidURL
-        }
-        
-        var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.sharedTimeout)
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
-        request.setValue("gzip, deflate", forHTTPHeaderField: "Accept-Encoding")
-        
-        let (data, response) = try await NetworkConfiguration.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw TravauxServiceError.invalidResponse
-        }
-        
-        let decoder = JSONDecoder()
-        let travauxResponse = try decoder.decode(TravauxResponse.self, from: data)
-        
-        let travaux = travauxResponse.features.map { Travaux(from: $0) }
-        let activeTravaux = travaux.filter { $0.isActive }
-        
-        AppLogger.debug("🚧 TravauxService: \(activeTravaux.count) chantiers dans la région")
-        
-        return activeTravaux
-    }
-    
-    func fetchTravauxByCommune(_ commune: String) async throws -> [Travaux] {
-        let allTravaux = try await fetchTravaux()
-        return allTravaux.filter { $0.commune.lowercased().contains(commune.lowercased()) }
-    }
-    
-    func fetchTravauxTresPerturbants() async throws -> [Travaux] {
-        let allTravaux = try await fetchTravaux()
-        return allTravaux.filter { $0.importance == .tresPerturbant }
-    }
 }
 
 enum TravauxServiceError: LocalizedError {
     case invalidURL
     case invalidResponse
     case httpError(Int)
-    case decodingError(Error)
     
     var errorDescription: String? {
         switch self {
@@ -121,8 +80,6 @@ enum TravauxServiceError: LocalizedError {
             return "Réponse invalide du serveur"
         case .httpError(let code):
             return "Erreur HTTP: \(code)"
-        case .decodingError(let error):
-            return "Erreur de décodage: \(error.localizedDescription)"
         }
     }
 }

@@ -40,11 +40,6 @@ struct TransitStop: Identifiable, Hashable {
         passages.first
     }
     
-    var nextPassageText: String {
-        guard let next = nextPassage else { return "" }
-        return next.delaipassage
-    }
-    
     var hasPassages: Bool {
         !passages.isEmpty
     }
@@ -76,20 +71,6 @@ struct Passage: Identifiable, Hashable, Codable {
     
     var lineColor: Color {
         TransportMode.detectFromLine(ligne).color
-    }
-    
-    /// Délai formaté court (ex: "2m" au lieu de "2 minutes")
-    var shortDelay: String {
-        let delay = delaipassage.lowercased()
-        // Remplacer "minute(s)" par "m"
-        if delay.contains("minute") {
-            return delay
-                .replacingOccurrences(of: " minutes", with: "m")
-                .replacingOccurrences(of: " minute", with: "m")
-                .replacingOccurrences(of: "minutes", with: "m")
-                .replacingOccurrences(of: "minute", with: "m")
-        }
-        return delaipassage
     }
     
     var formattedTime: String {
@@ -144,12 +125,6 @@ struct TransitStopProperties: Codable {
     let pmr: Bool?
     let adresse: String?
     let commune: String?
-    let insee: String?
-    let zone: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case id, nom, desserte, pmr, adresse, commune, insee, zone
-    }
 }
 
 struct PassagesResponse: Codable {
@@ -165,9 +140,6 @@ struct PassageValue: Codable {
     let delaipassage: String
     let heurepassage: String
     let type: String
-    let idtarretdestination: Int?
-    let coursetheorique: String?
-    let gid: Int?
     
     func toPassage() -> Passage {
         Passage(

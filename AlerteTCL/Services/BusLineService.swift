@@ -107,9 +107,4 @@ actor BusLineService {
         
         return busLines
     }
-    
-    func clearCache() {
-        cachedBusLines = nil
-        cacheTimestamp = nil
-    }
 }
