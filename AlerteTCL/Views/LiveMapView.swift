@@ -40,7 +40,7 @@ struct LiveMapView: View {
                 selectedMergedStop: $selectedMergedStop,
                 isSatellite: $isSatellite
             )
-            .ignoresSafeArea(edges: .top)
+            .ignoresSafeArea()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             
             overlayControls
