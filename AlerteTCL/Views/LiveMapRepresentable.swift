@@ -345,14 +345,27 @@ struct LiveMapRepresentable: UIViewRepresentable {
         func refreshVehicleViews(for zoom: Double) {
             let prevZoom = currentZoomLevel
             currentZoomLevel = zoom
+            guard let mapView else { return }
 
-            let prevShow = prevZoom <= Self.punctualityZoomThreshold
-            let nextShow = zoom     <= Self.punctualityZoomThreshold
-            guard prevShow != nextShow, let mapView else { return }
+            // Tooltips de ponctualité sur les véhicules.
+            let prevPunctuality = prevZoom <= Self.punctualityZoomThreshold
+            let nextPunctuality = zoom     <= Self.punctualityZoomThreshold
+            if prevPunctuality != nextPunctuality {
+                for annotation in vehicleAnnotations.values {
+                    if let view = mapView.view(for: annotation) as? VehicleAnnotationView {
+                        view.apply(vehicle: annotation.vehicle, bearing: annotation.bearing, showTooltip: nextPunctuality)
+                    }
+                }
+            }
 
-            for annotation in vehicleAnnotations.values {
-                if let view = mapView.view(for: annotation) as? VehicleAnnotationView {
-                    view.apply(vehicle: annotation.vehicle, bearing: annotation.bearing, showTooltip: nextShow)
+            // Badges de ligne sur les arrêts.
+            let prevBadges = prevZoom <= Self.stopBadgeZoomThreshold
+            let nextBadges = zoom     <= Self.stopBadgeZoomThreshold
+            if prevBadges != nextBadges {
+                for annotation in stopAnnotations.values {
+                    if let view = mapView.view(for: annotation) as? MergedStopAnnotationView {
+                        view.apply(stop: annotation.stop, showBadges: nextBadges)
+                    }
                 }
             }
         }
@@ -396,7 +409,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
                     for: stop
                 ) as? MergedStopAnnotationView ?? MergedStopAnnotationView(annotation: stop, reuseIdentifier: MergedStopAnnotationView.identifier)
                 view.annotation = stop
-                view.apply(stop: stop.stop)
+                view.apply(stop: stop.stop, showBadges: currentZoomLevel <= Self.stopBadgeZoomThreshold)
                 return view
 
             default:
@@ -469,6 +482,8 @@ struct LiveMapRepresentable: UIViewRepresentable {
         // MARK: Constants
 
         private static let punctualityZoomThreshold: Double = 0.005
+        /// En-dessous de ce latitudeDelta, les badges de ligne s'affichent sur les arrêts.
+        private static let stopBadgeZoomThreshold:    Double = 0.008
     }
 
     // MARK: - Style

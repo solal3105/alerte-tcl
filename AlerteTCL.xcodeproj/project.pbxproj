@@ -26,6 +26,7 @@
 		4F9DFFA72F14667B00E01BFB /* Stop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA62F14667B00E01BFB /* Stop.swift */; };
 		4F9DFFB92F146B6F00E01BFB /* tcl_stops.json in Resources */ = {isa = PBXBuildFile; fileRef = 4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */; };
 		4F9DFFBB2F146D4B00E01BFB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */; };
+		4FAB0E1F2F500000000AB002 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FAB0E1F2F500000000AB001 /* AboutView.swift */; };
 		4F9DFFC72F146EFE00E01BFB /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */; };
 		4F9DFFC92F146EFE00E01BFB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC82F146EFE00E01BFB /* SwiftUI.framework */; };
 		4F9DFFDA2F146F0100E01BFB /* AlerteTCLWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -136,6 +137,7 @@
 		4F9DFFA62F14667B00E01BFB /* Stop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stop.swift; sourceTree = "<group>"; };
 		4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = tcl_stops.json; path = Resources/tcl_stops.json; sourceTree = "<group>"; };
 		4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		4FAB0E1F2F500000000AB001 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AlerteTCLWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		4F9DFFC82F146EFE00E01BFB /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -320,6 +322,7 @@
 				4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */,
 				4F38BD2F2F15B17000E05786 /* TravauxMapView.swift */,
 				4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */,
+				4FAB0E1F2F500000000AB001 /* AboutView.swift */,
 				4F9DFF992F14577200E01BFB /* ParkingMapView.swift */,
 				AAA00012 /* ContentView.swift */,
 				AAA0001A /* AlertsView.swift */,
@@ -504,6 +507,7 @@
 				4FD305032F1E60AE00EAFA92 /* DataSourceStatus.swift in Sources */,
 				AAA00007 /* NotificationService.swift in Sources */,
 				4F9DFFBB2F146D4B00E01BFB /* SettingsView.swift in Sources */,
+				4FAB0E1F2F500000000AB002 /* AboutView.swift in Sources */,
 				AAA00008 /* SubscriptionService.swift in Sources */,
 				4F9DFFEB2F147FA400E01BFB /* RecentItemsService.swift in Sources */,
 				4FCB1FC82F1EC8B60031B71E /* PerformanceOptimizations.swift in Sources */,

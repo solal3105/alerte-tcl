@@ -26,6 +26,12 @@ struct ContentView: View {
                     Label("Parkings", systemImage: "car.fill")
                 }
                 .tag(2)
+
+            AboutView()
+                .tabItem {
+                    Label("Info", systemImage: "info.circle.fill")
+                }
+                .tag(3)
         }
         .tint(.primary)
         .tabViewStyle(.automatic)
