@@ -18,16 +18,10 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published var error: String?
     @Published var lastUpdate: Date?
     @Published var selectedVehicleType: VehicleType? {
-        didSet {
-            updateFilteredVehicles()
-            updateClustersIfNeeded()
-        }
+        didSet { updateFilteredVehicles() }
     }
     @Published var selectedLine: String? {
-        didSet {
-            updateFilteredVehicles()
-            updateClustersIfNeeded()
-        }
+        didSet { updateFilteredVehicles() }
     }
     @Published var selectedLines: Set<String> = []
     @Published var showBusLines = true
@@ -57,10 +51,11 @@ final class LiveVehiclesViewModel: ObservableObject {
     private var streamTask: Task<Void, Never>?
     private var regionUpdateTask: Task<Void, Never>?
     private var consecutiveErrors = 0
-    /// L'API SIRI Lite TCL ne publie de nouvelles positions que toutes les 30 s.
-    /// Fetcher plus souvent renvoie les mêmes données → CPU/réseau/batterie gaspillés.
-    /// L'interpolation côté client fait le liant entre deux fetchs.
-    private let baseInterval: TimeInterval = 30
+    /// L'API SIRI Lite TCL publie de nouvelles positions toutes les ~30 s.
+    /// On fetch à 15 s pour aligner avec le TTL du cache Cloudflare (15 s) et
+    /// réduire le décalage worst-case de 45 s → 30 s. Les requêtes supplémentaires
+    /// sont absorbées par le cache serveur (Grand Lyon reçoit toujours ≤ 1 req/15 s).
+    private let baseInterval: TimeInterval = 15
     private let maxInterval: TimeInterval = 60
     private var cancellables = Set<AnyCancellable>()
     private var isFirstLoad = true
@@ -72,9 +67,6 @@ final class LiveVehiclesViewModel: ObservableObject {
         
     private static let lyonCenter = CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659)
     private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
-    
-    static let clusteringZoomThreshold: Double = 0.02
-    private let clusteringConfig = ClusteringEngine.Configuration.default
     
     init() {
         if LocationService.shared.isLocationAvailable,
@@ -119,75 +111,12 @@ final class LiveVehiclesViewModel: ObservableObject {
         }
         
         // Filtrage viewport avec buffer standard
-        result = result.visibleIn(region: visibleRegion, buffer: .standard)
+        result = result.visibleIn(region: visibleRegion, buffer: .standard, coordinateProvider: { $0.coordinate })
         
         filteredVehicles = result
     }
     
-    @Published private(set) var cachedClusters: [MapCluster<Vehicle>] = []
-    @Published private(set) var cachedUnclusteredVehicles: [Vehicle] = []
-    private var lastClusteringZoom: Double = 0
-    private var lastClusteringVehicleCount: Int = 0
-    
-    /// Seuil de zoom pour activer le clustering.
-    /// 0.05 = vue "ville entière" : clustering actif dès qu'on dézoome au-delà
-    /// d'un quartier. Garde N (marqueurs individuels rendus) dans une fourchette
-    /// gérable pour les O(N) passes MapKit.
-    private let vehicleClusteringZoomThreshold: Double = 0.05
-    
-    var shouldShowClusters: Bool {
-        currentZoomLevel >= vehicleClusteringZoomThreshold
-    }
-    
-    private func updateClustersIfNeeded(force: Bool = false) {
-        // Ne recalculer que si le zoom ou le nombre de véhicules a changé significativement
-        let zoomChanged = abs(currentZoomLevel - lastClusteringZoom) > 0.005
-        let vehiclesChanged = filteredVehicles.count != lastClusteringVehicleCount
-        
-        guard force || zoomChanged || vehiclesChanged else { return }
-        
-        // Pas de clustering sauf si très dézoomé
-        if !shouldShowClusters {
-            cachedClusters = []
-            cachedUnclusteredVehicles = filteredVehicles
-            lastClusteringZoom = currentZoomLevel
-            lastClusteringVehicleCount = filteredVehicles.count
-            return
-        }
-        
-        let result = ClusteringEngine.createClusters(from: filteredVehicles, zoomLevel: currentZoomLevel, config: clusteringConfig)
-        cachedClusters = result.clusters
-        cachedUnclusteredVehicles = result.unclustered
-        lastClusteringZoom = currentZoomLevel
-        lastClusteringVehicleCount = filteredVehicles.count
-    }
-    
-    var clusters: [MapCluster<Vehicle>] {
-        cachedClusters
-    }
-    
-    var unclusteredVehicles: [Vehicle] {
-        cachedUnclusteredVehicles
-    }
-    
-    // MARK: - Display Limits
-    
-    private let maxDisplayMarkers = 1000
-    
-    var shouldShowTooManyMarkersWarning: Bool {
-        // Compter TOUS les véhicules filtrés (pas les markers)
-        return filteredVehicles.count > maxDisplayMarkers
-    }
-    
-    var displayClusters: [MapCluster<Vehicle>] {
-        guard !shouldShowTooManyMarkersWarning else { return [] }
-        return clusters
-    }
-    
-    var displayVehicles: [Vehicle] {
-        guard !shouldShowTooManyMarkersWarning else { return [] }
-        return unclusteredVehicles
-    }
+    var displayVehicles: [Vehicle] { filteredVehicles }
     
     var availableLines: [String] {
         if vehicles.count != lastVehicleCount {
@@ -293,8 +222,6 @@ final class LiveVehiclesViewModel: ObservableObject {
                 
                 // Mettre à jour les véhicules filtrés et clusters
                 updateFilteredVehicles()
-                // Forcer la mise à jour des clusters pour actualiser leur position quand les véhicules bougent
-                updateClustersIfNeeded(force: shouldShowClusters)
                 return
             } catch let siriError as SIRIError {
                 lastError = siriError
@@ -431,7 +358,6 @@ final class LiveVehiclesViewModel: ObservableObject {
             consecutiveErrors = 0
             
             updateFilteredVehicles()
-            updateClustersIfNeeded(force: shouldShowClusters)
         } catch {
             consecutiveErrors += 1
             // Only surface error after 3 consecutive failures (transient tolerance)
@@ -477,7 +403,6 @@ final class LiveVehiclesViewModel: ObservableObject {
             lastProcessedRegion = region
             updateFilteredVehicles()
             updateVisibleStops()
-            updateClustersIfNeeded()
         }
     }
     
@@ -488,7 +413,6 @@ final class LiveVehiclesViewModel: ObservableObject {
             selectedLines.insert(line)
         }
         updateFilteredVehicles()
-        updateClustersIfNeeded()
     }
     
     func clearFilters() {
@@ -496,14 +420,13 @@ final class LiveVehiclesViewModel: ObservableObject {
         selectedLine = nil
         selectedLines.removeAll()
         updateFilteredVehicles()
-        updateClustersIfNeeded()
     }
     
     // MARK: - Transit Stops
     
-    /// Zoom threshold pour afficher les arrêts - aligné sur le seuil de clustering (0.01)
+    /// Zoom threshold pour afficher les arrêts (~2 km de hauteur visible)
     /// Plus le latitudeDelta est petit, plus on est zoomé
-    private let stopsZoomThreshold: Double = ClusteringEngine.clusteringZoomThreshold
+    private let stopsZoomThreshold: Double = 0.018
     
     var shouldShowStops: Bool {
         currentZoomLevel <= stopsZoomThreshold

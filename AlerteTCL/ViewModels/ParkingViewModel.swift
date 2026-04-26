@@ -6,6 +6,9 @@ import Combine
 @MainActor
 final class ParkingViewModel: ObservableObject {
     @Published var parkings: [Parking] = []
+    @Published var parcRelais: [Parking] = []
+    @Published var showRealtimeParkings: Bool = true
+    @Published var showParcRelais: Bool = true
     @Published var isLoading = false
     @Published var error: String?
     @Published var lastUpdate: Date?
@@ -126,7 +129,14 @@ final class ParkingViewModel: ObservableObject {
         let countChanged = visibleParkings.count != lastClusteringParkingCount
         guard force || zoomChanged || countChanged else { return }
 
-        let visible = visibleParkings
+        // Appliquer le filtre temps réel avant le clustering
+        let visible: [Parking]
+        if selectedParkingType == .car && !showRealtimeParkings {
+            // Masquer les parkings voiture (laisser seulement les P+R via showParcRelais)
+            visible = []
+        } else {
+            visible = visibleParkings
+        }
         lastClusteringZoom = currentZoomLevel
         lastClusteringParkingCount = visible.count
 
@@ -325,6 +335,9 @@ final class ParkingViewModel: ObservableObject {
                 self.updateClustersIfNeeded(force: true)
             }
             
+            // Charger les P+R en parallèle
+            async let prLoad: Void = self.loadParcRelais()
+
             // Pour voitures: toujours charger (temps réel)
             // Pour vélos/2-roues: charger via updateVisibleRegion
             if self.selectedParkingType == .car {
@@ -332,7 +345,19 @@ final class ParkingViewModel: ObservableObject {
             } else if self.parkings.isEmpty {
                 await self.loadParkingsProgressively()
             }
+            _ = await prLoad
             self.startAutoRefresh()
+        }
+    }
+
+    func loadParcRelais(forceRefresh: Bool = false) async {
+        do {
+            let loaded = try await ParcRelaisService.shared.fetchParcRelais(forceRefresh: forceRefresh)
+            // Dédupliquer : certains P+R apparaissent aussi dans le dataset parkings standard
+            let existingNoms = Set(parkings.map { $0.nom.lowercased().trimmingCharacters(in: .whitespaces) })
+            parcRelais = loaded.filter { !existingNoms.contains($0.nom.lowercased().trimmingCharacters(in: .whitespaces)) }
+        } catch {
+            AppLogger.debug("⚠️ ParcRelais: \(error.localizedDescription)")
         }
     }
     

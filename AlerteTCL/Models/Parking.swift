@@ -146,7 +146,14 @@ struct Parking: Identifiable, Hashable, Sendable {
     let etat: ParkingState
     let lastUpdate: Date?
     let parkingType: ParkingType
-    
+
+    // Parc Relais
+    let isParcRelais: Bool
+    let horaires: String?
+    let surveille: Bool?
+    /// false = pas de données temps réel (P+R sans flux temps réel)
+    let hasRealtimeData: Bool
+
     // Détails optionnels
     let url: String?
     let hauteurMax: String?
@@ -155,7 +162,7 @@ struct Parking: Identifiable, Hashable, Sendable {
     let nbVelo: Int?
     let nb2Rm: Int?
     let nbAutopartage: Int?
-    
+
     // Tarifs
     let tarif1h: Double?
     let tarif2h: Double?
@@ -165,31 +172,49 @@ struct Parking: Identifiable, Hashable, Sendable {
     let aboResident: Double?
     let aboNonResident: Double?
     let gratuit: Bool
-    
+
     var tauxOccupation: Double {
-        guard capaciteTotale > 0 else { return 0 }
+        guard hasRealtimeData, capaciteTotale > 0 else { return 0 }
         return Double(capaciteTotale - placesDisponibles) / Double(capaciteTotale)
     }
-    
-    var isFull: Bool {
-        placesDisponibles == 0 || etat == .complet
+
+    /// Couleur de disponibilité unifiée : gris si pas de données, sinon vert → rouge.
+    var availabilityColor: Color {
+        guard hasRealtimeData else { return .gray }
+        if !isParcRelais, etat != .ouvert { return .gray }
+        switch tauxOccupation {
+        case ..<0.5:  return .green
+        case 0.5..<0.8: return .orange
+        default:        return .red
+        }
     }
-    
+
+    var isFull: Bool {
+        guard hasRealtimeData else { return false }
+        return placesDisponibles == 0 || etat == .complet
+    }
+
     static func == (lhs: Parking, rhs: Parking) -> Bool {
         lhs.id == rhs.id
     }
-    
+
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
-    
+
+    // MARK: - Init depuis l'API parking standard
+
     init?(from feature: ParkingFeature, type: ParkingType = .car) {
         guard let coordinate = feature.geometry.coordinate else { return nil }
         self.id = feature.properties.id ?? "\(feature.properties.gid)"
         self.gid = feature.properties.gid
         self.nom = feature.properties.nom
         self.parkingType = type
-        
+        self.isParcRelais = false
+        self.horaires = nil
+        self.surveille = nil
+        self.hasRealtimeData = true
+
         switch type {
         case .car:
             self.gestionnaire = feature.properties.gestionnaire ?? "Non spécifié"
@@ -204,7 +229,6 @@ struct Parking: Identifiable, Hashable, Sendable {
             self.placesDisponibles = self.capaciteTotale
             self.etat = .ouvert
         case .motorized2Wheel:
-            // Les 2-roues ont une structure différente
             self.gestionnaire = "Ville de Lyon"
             let arrondissement = feature.properties.arrondissement ?? ""
             let numeroVoie = feature.properties.numeroVoie ?? ""
@@ -213,9 +237,9 @@ struct Parking: Identifiable, Hashable, Sendable {
             self.placesDisponibles = self.capaciteTotale
             self.etat = .ouvert
         }
-        
+
         self.coordinate = coordinate
-        
+
         if let lastUpdateStr = feature.properties.lastUpdate {
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -223,7 +247,7 @@ struct Parking: Identifiable, Hashable, Sendable {
         } else {
             self.lastUpdate = nil
         }
-        
+
         self.url = feature.properties.url
         self.hauteurMax = feature.properties.hauteurMax
         self.nbPmr = feature.properties.nbPmr
@@ -231,7 +255,7 @@ struct Parking: Identifiable, Hashable, Sendable {
         self.nbVelo = feature.properties.nbVelo
         self.nb2Rm = feature.properties.nb2Rm
         self.nbAutopartage = feature.properties.nbAutopartage
-        
+
         self.tarif1h = feature.properties.tarif1h
         self.tarif2h = feature.properties.tarif2h
         self.tarif3h = feature.properties.tarif3h
@@ -240,6 +264,50 @@ struct Parking: Identifiable, Hashable, Sendable {
         self.aboResident = feature.properties.aboResident
         self.aboNonResident = feature.properties.aboNonResident
         self.gratuit = feature.properties.gratuit ?? false
+    }
+
+    // MARK: - Init Parc Relais
+
+    init(
+        parcRelaisId: String,
+        nom: String,
+        coordinate: CLLocationCoordinate2D,
+        capacite: Int,
+        placesHandicap: Int,
+        horaires: String?,
+        surveille: Bool,
+        placesDisponibles: Int?
+    ) {
+        self.id = "parc-relais-\(parcRelaisId)"
+        self.gid = 0
+        self.nom = nom
+        self.gestionnaire = "SYTRAL"
+        self.adresse = ""
+        self.coordinate = coordinate
+        self.parkingType = .car
+        self.isParcRelais = true
+        self.horaires = horaires
+        self.surveille = surveille
+        self.hasRealtimeData = placesDisponibles != nil
+        self.capaciteTotale = capacite
+        self.placesDisponibles = placesDisponibles ?? 0
+        self.etat = .ouvert
+        self.lastUpdate = nil
+        self.url = nil
+        self.hauteurMax = nil
+        self.nbPmr = placesHandicap
+        self.nbVoituresElectriques = nil
+        self.nbVelo = nil
+        self.nb2Rm = nil
+        self.nbAutopartage = nil
+        self.tarif1h = nil
+        self.tarif2h = nil
+        self.tarif3h = nil
+        self.tarif4h = nil
+        self.tarif24h = nil
+        self.aboResident = nil
+        self.aboNonResident = nil
+        self.gratuit = true
     }
 }
 
@@ -272,24 +340,14 @@ enum ParkingState: String, Codable {
 
 extension Parking: Clusterable {
     var clusterColor: Color {
-        // Couleur selon le type de parking
         switch parkingType {
-        case .bike:
-            return .green
-        case .motorized2Wheel:
-            return .orange
-        case .car:
-            // Pour les voitures, couleur selon la disponibilité
-            if etat != .ouvert { return .gray }
-            switch tauxOccupation {
-            case 0..<0.5: return .green
-            case 0.5..<0.8: return .orange
-            default: return .red
-            }
+        case .bike:          return .green
+        case .motorized2Wheel: return .orange
+        case .car:           return availabilityColor
         }
     }
-    
+
     var clusterIcon: String {
-        parkingType.icon
+        isParcRelais ? "car.fill" : parkingType.icon
     }
 }

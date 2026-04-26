@@ -334,7 +334,7 @@ struct LiveMapView: View {
                             .scaleEffect(0.5)
                     } else if let lastUpdate = viewModel.lastUpdate {
                         TimelineView(.periodic(from: .now, by: 1)) { _ in
-                            let secs = max(0, 30 - Int(Date().timeIntervalSince(lastUpdate)))
+                            let secs = max(0, 15 - Int(Date().timeIntervalSince(lastUpdate)))
                             Text("\(secs)s")
                                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                                 .foregroundStyle(.secondary)
@@ -380,7 +380,7 @@ struct LiveMapView: View {
                     // Stats
                     HStack(spacing: 0) {
                         VStack(spacing: 3) {
-                            Text("30s")
+                            Text("15s")
                                 .font(.system(size: 20, weight: .bold, design: .rounded))
                                 .foregroundStyle(.green)
                             Text("intervalle")
@@ -634,11 +634,6 @@ struct VehicleDetailSheet: View {
                     .textCase(.uppercase)
                     .tracking(0.4)
                 Spacer()
-                if stopsToShow.count <= 1 {
-                    Text("Données limitées")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 24)

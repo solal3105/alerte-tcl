@@ -47,13 +47,13 @@ enum MarkerImageCache {
         return image
     }
 
-    /// Marqueur de cluster : cercle bleu + nombre. Taille dépend du count.
-    static func cluster(count: Int) -> UIImage {
-        let bucket = clusterBucket(for: count)
-        let key = ClusterKey(bucket: bucket, count: count)
-        if let cached = clusterCache.object(forKey: key) { return cached }
-        let image = renderCluster(count: count, diameter: bucket)
-        clusterCache.setObject(image, forKey: key)
+    /// Petit disque plat (dezoom) : cercle de couleur sans icône ni flèche.
+    /// Taille fixe 12×12 pt. Clé = nom de ligne (la couleur dépend uniquement de la ligne).
+    static func vehicleDot(lineName: String) -> UIImage {
+        let key = lineName as NSString
+        if let cached = vehicleDotCache.object(forKey: key) { return cached }
+        let image = renderVehicleDot(lineName: lineName)
+        vehicleDotCache.setObject(image, forKey: key)
         return image
     }
 
@@ -91,7 +91,7 @@ enum MarkerImageCache {
 
     private static let vehicleBodyCache: NSCache<VehicleBodyKey, UIImage> = makeCache(name: "marker.vehicleBody", limit: 256)
     private static let bearingArrowCache: NSCache<NSString, UIImage>     = makeCache(name: "marker.arrow",       limit: 128)
-    private static let clusterCache: NSCache<ClusterKey, UIImage>        = makeCache(name: "marker.cluster",     limit: 64)
+    private static let vehicleDotCache:   NSCache<NSString, UIImage>      = makeCache(name: "marker.dot",         limit: 128)
     private static let tooltipCache: NSCache<TooltipKey, UIImage>        = makeCache(name: "marker.tooltip",     limit: 128)
     private static let sharedDotCache: NSCache<NSString, UIImage>        = makeCache(name: "marker.stopDot",     limit: 4)
 
@@ -120,17 +120,6 @@ enum MarkerImageCache {
         override func isEqual(_ object: Any?) -> Bool {
             guard let o = object as? VehicleBodyKey else { return false }
             return o.lineName == lineName && o.vehicleType == vehicleType
-        }
-    }
-
-    private final class ClusterKey: NSObject {
-        let bucket: CGFloat
-        let count: Int
-        init(bucket: CGFloat, count: Int) { self.bucket = bucket; self.count = count }
-        override var hash: Int { count.hashValue ^ bucket.hashValue }
-        override func isEqual(_ object: Any?) -> Bool {
-            guard let o = object as? ClusterKey else { return false }
-            return o.bucket == bucket && o.count == count
         }
     }
 
@@ -222,35 +211,18 @@ enum MarkerImageCache {
         }
     }
 
-    private static func renderCluster(count: Int, diameter: CGFloat) -> UIImage {
-        let size = CGSize(width: diameter, height: diameter)
-        let text = "\(count)"
-        let fontSize = diameter * 0.4
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: fontSize, weight: .black),
-            .foregroundColor: UIColor.white,
-        ]
-
+    private static func renderVehicleDot(lineName: String) -> UIImage {
+        let s: CGFloat = 12
+        let size = CGSize(width: s, height: s)
+        let color = uiColor(LineColorHelper.backgroundColor(for: lineName))
         return imageRenderer(size: size).image { ctx in
             let cg = ctx.cgContext
-            let rect = CGRect(origin: .zero, size: size)
-
-            UIColor.systemBlue.setFill()
-            cg.fillEllipse(in: rect)
-
-            // Halo interne (effet "cercle blanc opacité 0.15")
-            UIColor.white.withAlphaComponent(0.15).setFill()
-            cg.fillEllipse(in: rect.insetBy(dx: 4, dy: 4))
-
-            // Texte centré
-            let textSize = (text as NSString).size(withAttributes: attrs)
-            let textRect = CGRect(
-                x: (size.width  - textSize.width)  / 2,
-                y: (size.height - textSize.height) / 2,
-                width:  textSize.width,
-                height: textSize.height
-            )
-            (text as NSString).draw(in: textRect, withAttributes: attrs)
+            color.setFill()
+            cg.fillEllipse(in: CGRect(origin: .zero, size: size))
+            // Bordure fine pour visibilité sur fond clair
+            cg.setStrokeColor(UIColor.black.withAlphaComponent(0.18).cgColor)
+            cg.setLineWidth(0.5)
+            cg.strokeEllipse(in: CGRect(origin: .zero, size: size).insetBy(dx: 0.25, dy: 0.25))
         }
     }
 
@@ -300,12 +272,4 @@ enum MarkerImageCache {
         UIColor(color)
     }
 
-    /// Buckets de diamètre pour limiter le nombre d'images de cluster :
-    /// 44, 46, 48, …, 58 (8 valeurs discrètes au lieu de 300+).
-    private static func clusterBucket(for count: Int) -> CGFloat {
-        let base: CGFloat = 44
-        let increment = min(CGFloat(count) * 2, 14)
-        let rounded = (increment / 2).rounded() * 2
-        return base + rounded
-    }
 }

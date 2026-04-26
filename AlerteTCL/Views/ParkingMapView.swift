@@ -16,6 +16,8 @@ struct ParkingMapView: View {
     @State private var hasSetInitialLocation = false
     @State private var showRefreshInfo = false
     @State private var isSatellite = false
+    @State private var showFilters = false
+    @State private var transitLines: [TransitLine] = []
     @Binding var selectedParkingId: String?
     
     var body: some View {
@@ -34,8 +36,16 @@ struct ParkingMapView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showFilters) {
+            ParkingFilterSheet(viewModel: viewModel)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+        }
         .onAppear {
             viewModel.onAppear()
+            Task {
+                transitLines = (try? await TransitLineService.shared.fetchTransitLines()) ?? []
+            }
         }
         .withInitialLocation(
             mapCameraPosition: $mapCameraPosition,
@@ -100,6 +110,12 @@ struct ParkingMapView: View {
     private var mapContent: some View {
         MapReader { proxy in
             Map(position: $mapCameraPosition) {
+                // Lignes de transport en commun
+                ForEach(transitLines) { line in
+                    MapPolyline(coordinates: line.clLocationCoordinates)
+                        .stroke(line.lineColor.opacity(0.85), lineWidth: line.lineWidth)
+                }
+
                 // Afficher les clusters de parkings
                 ForEach(viewModel.displayClusters, id: \.id) { cluster in
                     Annotation("", coordinate: cluster.coordinate) {
@@ -130,6 +146,16 @@ struct ParkingMapView: View {
                     .tag(parking.id)
                 }
                 
+                // P+R TCL (toujours affichés dans l'onglet voiture)
+                if viewModel.selectedParkingType == .car && viewModel.showParcRelais {
+                    ForEach(viewModel.parcRelais) { pr in
+                        Annotation("", coordinate: pr.coordinate) {
+                            ParkingMarker(parking: pr, currentZoomLevel: viewModel.currentZoomLevel)
+                                .onTapGesture { selectedParking = pr }
+                        }
+                    }
+                }
+
                 if locationService.currentLocation != nil {
                     UserAnnotation()
                 }
@@ -258,6 +284,23 @@ struct ParkingMapView: View {
                             .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
                     .buttonStyle(.plain)
+
+                    // Bouton filtres (onglet voiture uniquement)
+                    if viewModel.selectedParkingType == .car {
+                        let hasActiveFilters = !viewModel.showRealtimeParkings || !viewModel.showParcRelais
+                        Button {
+                            showFilters = true
+                        } label: {
+                            Image(systemName: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundStyle(hasActiveFilters ? .blue : .primary)
+                                .frame(width: 50, height: 50)
+                                .background(.regularMaterial)
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     // Bouton localisation
                     Button {
@@ -416,20 +459,17 @@ struct ParkingMapView: View {
 struct ParkingMarker: View {
     let parking: Parking
     var currentZoomLevel: Double = 0.01
-    
-    /// Seuil de zoom pour afficher le tooltip (zoom fort = valeur basse)
+
     private let tooltipZoomThreshold: Double = 0.005
-    
-    /// Markers compacts pour vélos et 2-roues
+
     private var isCompactMarker: Bool {
         parking.parkingType == .bike || parking.parkingType == .motorized2Wheel
     }
-    
-    /// Afficher le tooltip uniquement au zoom fort
+
     private var shouldShowTooltip: Bool {
         isCompactMarker && currentZoomLevel <= tooltipZoomThreshold
     }
-    
+
     var body: some View {
         if isCompactMarker {
             compactMarkerView
@@ -437,22 +477,17 @@ struct ParkingMarker: View {
             fullMarkerView
         }
     }
-    
+
     // MARK: - Compact Marker (Vélos & 2-Roues)
-    
+
     private var compactMarkerView: some View {
         ZStack {
-            // Simple dot marker
             Circle()
-                .fill(markerColor)
+                .fill(parking.availabilityColor)
                 .frame(width: 16, height: 16)
-                .shadow(color: markerColor.opacity(0.5), radius: 3, x: 0, y: 1)
-                .overlay(
-                    Circle()
-                        .stroke(.white, lineWidth: 2)
-                )
-            
-            // Tooltip avec nombre de places (uniquement au zoom fort)
+                .shadow(color: parking.availabilityColor.opacity(0.5), radius: 3, x: 0, y: 1)
+                .overlay(Circle().stroke(.white, lineWidth: 2))
+
             if shouldShowTooltip {
                 VStack(spacing: 0) {
                     Text("\(parking.capaciteTotale) places")
@@ -463,7 +498,7 @@ struct ParkingMarker: View {
                         .padding(.vertical, 3)
                         .background(
                             Capsule()
-                                .fill(markerColor)
+                                .fill(parking.availabilityColor)
                                 .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
                         )
                 }
@@ -471,60 +506,52 @@ struct ParkingMarker: View {
             }
         }
     }
-    
-    // MARK: - Full Marker (Voitures)
-    
+
+    // MARK: - Full Marker (Voitures + P+R)
+
     private var fullMarkerView: some View {
         ZStack {
-            // Background circle
             Circle()
-                .fill(markerColor)
+                .fill(parking.availabilityColor)
                 .frame(width: 44, height: 44)
-                .shadow(color: markerColor.opacity(0.4), radius: 6, x: 0, y: 3)
-            
-            // Inner content
+                .shadow(color: parking.availabilityColor.opacity(0.4), radius: 6, x: 0, y: 3)
+
             VStack(spacing: 0) {
-                Image(systemName: parking.parkingType.icon)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
-                
-                Text("\(parking.placesDisponibles)")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                if parking.isParcRelais {
+                    Text("P+R")
+                        .font(.system(size: 9, weight: .black))
+                        .foregroundStyle(.white.opacity(0.9))
+                    if parking.hasRealtimeData {
+                        Text("\(parking.placesDisponibles)")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                    } else {
+                        Image(systemName: "car.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.75))
+                    }
+                } else {
+                    Image(systemName: parking.parkingType.icon)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text("\(parking.placesDisponibles)")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                }
             }
         }
         .overlay(
-            // État indicator (only for car parkings with real-time data)
-            Circle()
-                .fill(parking.etat == .ouvert ? .green : .red)
-                .frame(width: 12, height: 12)
-                .overlay(
+            // État open/closed uniquement pour les parkings standards (P+R n'ont pas ce concept)
+            Group {
+                if !parking.isParcRelais {
                     Circle()
-                        .stroke(.white, lineWidth: 2)
-                )
-                .offset(x: 16, y: -16)
+                        .fill(parking.etat == .ouvert ? Color.green : Color.red)
+                        .frame(width: 12, height: 12)
+                        .overlay(Circle().stroke(.white, lineWidth: 2))
+                        .offset(x: 16, y: -16)
+                }
+            }
         )
-    }
-    
-    private var markerColor: Color {
-        switch parking.parkingType {
-        case .car:
-            if parking.etat != .ouvert {
-                return .gray
-            }
-            switch parking.tauxOccupation {
-            case 0..<0.5:
-                return .green
-            case 0.5..<0.8:
-                return .orange
-            default:
-                return .red
-            }
-        case .bike:
-            return .green
-        case .motorized2Wheel:
-            return .orange
-        }
     }
 }
 
@@ -547,26 +574,49 @@ struct ParkingDetailSheet: View {
                 VStack(spacing: 20) {
                     // Header avec places disponibles
                     availabilityHeader
-                    
+
+                    // Bannière statique P+R (pas de données temps réel)
+                    if parking.isParcRelais && !parking.hasRealtimeData {
+                        HStack(spacing: 8) {
+                            Image(systemName: "clock.badge.exclamationmark")
+                                .foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Données statiques uniquement")
+                                    .font(.caption).fontWeight(.semibold)
+                                    .foregroundStyle(.orange)
+                                Text("La disponibilité en temps réel n'est pas disponible pour ce P+R.")
+                                    .font(.caption2).foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer()
+                        }
+                        .padding(12)
+                        .background(Color.orange.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .padding(.horizontal, 0)
+                    }
+
                     // Bouton itinéraire en premier
                     navigationButton
-                    
+
                     // Infos principales
                     mainInfoCard
-                    
-                    // Tarifs
-                    if hasTarifs {
+
+                    // Tarifs (uniquement parkings standard)
+                    if !parking.isParcRelais && hasTarifs {
                         tarifCard
                     }
-                    
-                    // Services
-                    if hasServices {
+
+                    // Services (uniquement parkings standard)
+                    if !parking.isParcRelais && hasServices {
                         servicesCard
                     }
-                    
-                    // Informations supplémentaires
-                    additionalInfoCard
-                    
+
+                    // Informations supplémentaires (uniquement parkings standard)
+                    if !parking.isParcRelais {
+                        additionalInfoCard
+                    }
+
                     // Bouton site web
                     if let urlString = parking.url, let url = URL(string: urlString) {
                         Link(destination: url) {
@@ -593,45 +643,60 @@ struct ParkingDetailSheet: View {
             }
         }
     }
-    
+
     private var availabilityHeader: some View {
         VStack(spacing: 12) {
             // Cercle avec places disponibles
             ZStack {
                 Circle()
-                    .stroke(availabilityColor.opacity(0.2), lineWidth: 12)
+                    .stroke(parking.availabilityColor.opacity(0.2), lineWidth: 12)
                     .frame(width: 120, height: 120)
-                
+
                 Circle()
-                    .trim(from: 0, to: 1 - parking.tauxOccupation)
+                    .trim(from: 0, to: parking.hasRealtimeData ? max(0, 1 - parking.tauxOccupation) : 0)
                     .stroke(
-                        availabilityColor,
+                        parking.availabilityColor,
                         style: StrokeStyle(lineWidth: 12, lineCap: .round)
                     )
                     .frame(width: 120, height: 120)
                     .rotationEffect(.degrees(-90))
-                
+
                 VStack(spacing: 2) {
-                    Text("\(parking.placesDisponibles)")
-                        .font(.system(size: 36, weight: .bold, design: .rounded))
-                        .foregroundStyle(availabilityColor)
-                    
+                    if parking.hasRealtimeData {
+                        Text("\(parking.placesDisponibles)")
+                            .font(.system(size: 36, weight: .bold, design: .rounded))
+                            .foregroundStyle(parking.availabilityColor)
+                    } else {
+                        Text("—")
+                            .font(.system(size: 36, weight: .bold, design: .rounded))
+                            .foregroundStyle(.gray)
+                    }
+
                     Text("/ \(parking.capaciteTotale)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-            
-            // État
+
+            // État / statut temps réel
             HStack(spacing: 6) {
-                Image(systemName: parking.etat.icon)
-                    .foregroundStyle(parking.etat == .ouvert ? .green : .red)
-                
-                Text(parking.etat.displayName)
-                    .font(.headline)
-                    .foregroundStyle(parking.etat == .ouvert ? .green : .red)
+                if parking.isParcRelais {
+                    Image(systemName: parking.hasRealtimeData
+                          ? "antenna.radiowaves.left.and.right"
+                          : "clock.badge.exclamationmark")
+                        .foregroundStyle(parking.hasRealtimeData ? .green : .orange)
+                    Text(parking.hasRealtimeData ? "Données en direct" : "Données statiques")
+                        .font(.headline)
+                        .foregroundStyle(parking.hasRealtimeData ? .green : .orange)
+                } else {
+                    Image(systemName: parking.etat.icon)
+                        .foregroundStyle(parking.etat == .ouvert ? .green : .red)
+                    Text(parking.etat.displayName)
+                        .font(.headline)
+                        .foregroundStyle(parking.etat == .ouvert ? .green : .red)
+                }
             }
-            
+
             // Dernière mise à jour
             if let lastUpdate = parking.lastUpdate {
                 Text("Mis à jour \(lastUpdate.formatted(.relative(presentation: .named)))")
@@ -651,15 +716,35 @@ struct ParkingDetailSheet: View {
             Label("Informations", systemImage: "info.circle.fill")
                 .font(.headline)
                 .foregroundStyle(.blue)
-            
+
             VStack(spacing: 12) {
-                InfoRow(icon: "building.2", title: "Gestionnaire", value: parking.gestionnaire)
-                
-                if let hauteur = parking.hauteurMax {
-                    InfoRow(icon: "arrow.up.and.down", title: "Hauteur max", value: "\(hauteur) cm")
+                if !parking.isParcRelais {
+                    InfoRow(icon: "building.2", title: "Gestionnaire", value: parking.gestionnaire)
+
+                    if let hauteur = parking.hauteurMax {
+                        InfoRow(icon: "arrow.up.and.down", title: "Hauteur max", value: "\(hauteur) cm")
+                    }
                 }
-                
+
                 InfoRow(icon: "car", title: "Capacité totale", value: "\(parking.capaciteTotale) places")
+
+                if let pmr = parking.nbPmr, pmr > 0 {
+                    InfoRow(icon: "figure.roll", title: "Places PMR", value: "\(pmr) places")
+                }
+
+                // Champs spécifiques P+R
+                if parking.isParcRelais {
+                    if let horaires = parking.horaires {
+                        InfoRow(icon: "clock", title: "Horaires", value: horaires)
+                    }
+                    if let surveille = parking.surveille {
+                        InfoRow(
+                            icon: surveille ? "eye.fill" : "eye.slash",
+                            title: "Surveillance",
+                            value: surveille ? "Parc surveillé" : "Non surveillé"
+                        )
+                    }
+                }
             }
         }
         .padding(20)
@@ -845,22 +930,7 @@ struct ParkingDetailSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
-    
-    private var availabilityColor: Color {
-        if parking.etat != .ouvert {
-            return .gray
-        }
-        
-        switch parking.tauxOccupation {
-        case 0..<0.5:
-            return .green
-        case 0.5..<0.8:
-            return .orange
-        default:
-            return .red
-        }
-    }
-    
+
     private func openInMaps() {
         // Ouvrir directement dans Apple Plans
         let placemark = MKPlacemark(coordinate: parking.coordinate)
@@ -946,7 +1016,116 @@ private struct ServiceCell: View {
     }
 }
 
+// MARK: - Parking Filter Sheet
+
+struct ParkingFilterSheet: View {
+    @ObservedObject var viewModel: ParkingViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    private var hasActiveFilters: Bool {
+        !viewModel.showRealtimeParkings || !viewModel.showParcRelais
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if hasActiveFilters {
+                    Section {
+                        Button {
+                            withAnimation {
+                                viewModel.showRealtimeParkings = true
+                                viewModel.showParcRelais        = true
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: "arrow.counterclockwise")
+                                    .foregroundStyle(.red)
+                                Text("Réinitialiser les filtres")
+                                    .foregroundStyle(.red)
+                            }
+                        }
+                    }
+                }
+
+                Section {
+                    // Parkings temps réel
+                    Button {
+                        withAnimation { viewModel.showRealtimeParkings.toggle() }
+                    } label: {
+                        HStack(spacing: 14) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.blue.opacity(0.15))
+                                    .frame(width: 36, height: 36)
+                                Image(systemName: "car.fill")
+                                    .foregroundStyle(.blue)
+                                    .font(.system(size: 16))
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Parkings temps réel")
+                                    .foregroundStyle(.primary)
+                                    .font(.subheadline)
+                                Text("\(viewModel.parkings.count) parkings")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if viewModel.showRealtimeParkings {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.blue)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    // Parcs relais
+                    Button {
+                        withAnimation { viewModel.showParcRelais.toggle() }
+                    } label: {
+                        HStack(spacing: 14) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color(red: 0.34, green: 0.22, blue: 0.47).opacity(0.15))
+                                    .frame(width: 36, height: 36)
+                                Text("P+R")
+                                    .font(.system(size: 11, weight: .black))
+                                    .foregroundStyle(Color(red: 0.34, green: 0.22, blue: 0.47))
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Parcs Relais TCL")
+                                    .foregroundStyle(.primary)
+                                    .font(.subheadline)
+                                Text("\(viewModel.parcRelais.count) P+R • données statiques")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if viewModel.showParcRelais {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.blue)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } header: {
+                    Text("Afficher sur la carte")
+                }
+            }
+            .navigationTitle("Filtres")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Terminé") { dismiss() }
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Preview
 #Preview {
     ParkingMapView(selectedParkingId: .constant(nil))
 }
+
+

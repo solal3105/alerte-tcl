@@ -25,12 +25,12 @@
 		4F9DFFA32F1457F900E01BFB /* ParkingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */; };
 		4F9DFFB92F146B6F00E01BFB /* tcl_stops.json in Resources */ = {isa = PBXBuildFile; fileRef = 4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */; };
 		4F9DFFBB2F146D4B00E01BFB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */; };
-		4FAB0E1F2F500000000AB002 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FAB0E1F2F500000000AB001 /* AboutView.swift */; };
 		4F9DFFC72F146EFE00E01BFB /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */; };
 		4F9DFFC92F146EFE00E01BFB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC82F146EFE00E01BFB /* SwiftUI.framework */; };
 		4F9DFFDA2F146F0100E01BFB /* AlerteTCLWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4F9DFFEB2F147FA400E01BFB /* RecentItemsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */; };
 		4FAA11002F200001AABBCC00 /* tcl_transit_lines.json in Resources */ = {isa = PBXBuildFile; fileRef = 4FAA11012F200001AABBCC00 /* tcl_transit_lines.json */; };
+		4FAB0E1F2F500000000AB002 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FAB0E1F2F500000000AB001 /* AboutView.swift */; };
 		4FAUDIT012F1A000000000001 /* InitialLocationModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FAUDIT002F1A000000000001 /* InitialLocationModifier.swift */; };
 		4FCB1FC62F1EC6D90031B71E /* SpatialTileCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCB1FC52F1EC6D90031B71E /* SpatialTileCache.swift */; };
 		4FCD05DF2F1704F700390BE1 /* TransitStopService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */; };
@@ -69,6 +69,8 @@
 		AAA0002C /* AnimatedVehicle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002D /* AnimatedVehicle.swift */; };
 		AAA0002E /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002F /* LocationService.swift */; };
 		AAA00039 /* LocationPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00031 /* LocationPermissionView.swift */; };
+		AD087F1B2F9E0CC6002CBA68 /* ParcRelaisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD087F1A2F9E0CC6002CBA68 /* ParcRelaisService.swift */; };
+		AD087F1D2F9E0D30002CBA68 /* ParcRelais.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD087F1C2F9E0D30002CBA68 /* ParcRelais.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -128,7 +130,6 @@
 		4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingViewModel.swift; sourceTree = "<group>"; };
 		4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = tcl_stops.json; path = Resources/tcl_stops.json; sourceTree = "<group>"; };
 		4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		4FAB0E1F2F500000000AB001 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AlerteTCLWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		4F9DFFC82F146EFE00E01BFB /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -136,6 +137,7 @@
 		4F9DFFE12F14705300E01BFB /* AlerteTCLWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AlerteTCLWidgetExtension.entitlements; sourceTree = "<group>"; };
 		4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentItemsService.swift; sourceTree = "<group>"; };
 		4FAA11012F200001AABBCC00 /* tcl_transit_lines.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = tcl_transit_lines.json; path = Resources/tcl_transit_lines.json; sourceTree = "<group>"; };
+		4FAB0E1F2F500000000AB001 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		4FAUDIT002F1A000000000001 /* InitialLocationModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InitialLocationModifier.swift; sourceTree = "<group>"; };
 		4FCB1FC52F1EC6D90031B71E /* SpatialTileCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpatialTileCache.swift; sourceTree = "<group>"; };
 		4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopService.swift; sourceTree = "<group>"; };
@@ -175,6 +177,8 @@
 		AAA0002D /* AnimatedVehicle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedVehicle.swift; sourceTree = "<group>"; };
 		AAA0002F /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		AAA00031 /* LocationPermissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPermissionView.swift; sourceTree = "<group>"; };
+		AD087F1A2F9E0CC6002CBA68 /* ParcRelaisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParcRelaisService.swift; sourceTree = "<group>"; };
+		AD087F1C2F9E0D30002CBA68 /* ParcRelais.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParcRelais.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -247,6 +251,7 @@
 		AAA00033 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				AD087F1C2F9E0D30002CBA68 /* ParcRelais.swift */,
 				4FCD05E02F17051200390BE1 /* TransitStop.swift */,
 				4F38BD272F15B0AC00E05786 /* Travaux.swift */,
 				4F095CAE2F16E92F001D059A /* UnifiedCluster.swift */,
@@ -264,6 +269,7 @@
 		AAA00034 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				AD087F1A2F9E0CC6002CBA68 /* ParcRelaisService.swift */,
 				4FD3050A2F1E686900EAFA92 /* WidgetStopStorage.swift */,
 				4F39DE022F1BABC200F24E3D /* NetworkConfiguration.swift */,
 				4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */,
@@ -490,6 +496,7 @@
 				4F38BD282F15B0AC00E05786 /* Travaux.swift in Sources */,
 				4F38BD2E2F15B0E200E05786 /* TravauxViewModel.swift in Sources */,
 				4FCD05DF2F1704F700390BE1 /* TransitStopService.swift in Sources */,
+				AD087F1D2F9E0D30002CBA68 /* ParcRelais.swift in Sources */,
 				4F38BD262F159CCA00E05786 /* MetroLine.swift in Sources */,
 				4F9DFF9D2F1457E200E01BFB /* Parking.swift in Sources */,
 				4FCD05E12F17051200390BE1 /* TransitStop.swift in Sources */,
@@ -497,6 +504,7 @@
 				4F9DFFA02F1457EE00E01BFB /* FavoriteLinesService.swift in Sources */,
 				4F095CAF2F16E92F001D059A /* UnifiedCluster.swift in Sources */,
 				4F9DFFA12F1457EE00E01BFB /* ParkingService.swift in Sources */,
+				AD087F1B2F9E0CC6002CBA68 /* ParcRelaisService.swift in Sources */,
 				AAA0000A /* AlertsView.swift in Sources */,
 				AAA0000B /* LinesListView.swift in Sources */,
 				4FCB1FC62F1EC6D90031B71E /* SpatialTileCache.swift in Sources */,

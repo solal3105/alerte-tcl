@@ -43,7 +43,6 @@ struct LiveMapRepresentable: UIViewRepresentable {
         mapView.insetsLayoutMarginsFromSafeArea = false
 
         mapView.register(VehicleAnnotationView.self,   forAnnotationViewWithReuseIdentifier: VehicleAnnotationView.identifier)
-        mapView.register(ClusterAnnotationView.self,   forAnnotationViewWithReuseIdentifier: ClusterAnnotationView.identifier)
         mapView.register(MergedStopAnnotationView.self, forAnnotationViewWithReuseIdentifier: MergedStopAnnotationView.identifier)
 
         applyMapStyle(to: mapView, satellite: isSatellite)
@@ -84,7 +83,6 @@ struct LiveMapRepresentable: UIViewRepresentable {
 
         // Diff des annotations et overlays
         coord.syncVehicleAnnotations(viewModel.displayVehicles, animated: viewModel.animatedVehicles)
-        coord.syncClusterAnnotations(viewModel.displayClusters)
         coord.syncMergedStopAnnotations(viewModel.visibleMergedStops)
         coord.syncPolylineOverlays(
             busLines:     viewModel.showBusLines     ? viewModel.busLines     : [],
@@ -120,7 +118,6 @@ struct LiveMapRepresentable: UIViewRepresentable {
 
         // Diff state
         private var vehicleAnnotations:   [String: VehicleAnnotation]    = [:]
-        private var clusterAnnotations:   [String: ClusterAnnotation]    = [:]
         private var stopAnnotations:      [String: MergedStopAnnotation] = [:]
         private var busOverlaysById:      [String: MKPolyline]           = [:]
         private var transitOverlaysById:  [String: MKPolyline]           = [:]
@@ -169,21 +166,23 @@ struct LiveMapRepresentable: UIViewRepresentable {
         private func applyAnimationTick(_ time: CFTimeInterval) {
             guard let mapView else { return }
             let animated = owner.viewModel.animatedVehicles
+            let isSimplified = currentZoomLevel > Self.simpleDotZoomThreshold
 
             for (id, annotation) in vehicleAnnotations {
                 guard let anim = animated[id] else { continue }
-                let newCoord = anim.coordinateAt(time)
-                let newBearing = anim.bearingAt(time)
+                annotation.coordinate = anim.coordinateAt(time)
 
-                // Met à jour la coordonnée seulement si visible (optimisation
-                // MapKit : un hors-écran ne crée pas de repositioning).
-                annotation.coordinate = newCoord
+                // En mode simplifié la flèche n'existe pas : skip mapView.view(for:)
+                // qui est l'opération la plus coûteuse de la boucle au dezoom.
+                guard !isSimplified else { continue }
+
+                let newBearing = anim.bearingAt(time)
                 annotation.bearing = newBearing
 
-                // Rotation de la flèche (le corps reste fixe).
                 if let view = mapView.view(for: annotation) as? VehicleAnnotationView {
                     view.apply(vehicle: annotation.vehicle, bearing: newBearing,
-                               showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold)
+                               showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold,
+                               simplified: false)
                 }
             }
         }
@@ -205,6 +204,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
 
             // Ajouts et mises à jour
             var toAdd: [VehicleAnnotation] = []
+            let isSimplified = currentZoomLevel > Self.simpleDotZoomThreshold
             for vehicle in vehicles {
                 let bearing = animated[vehicle.id]?.bearingAt(clock.time) ?? vehicle.bearing
                 let coord   = animated[vehicle.id]?.coordinateAt(clock.time) ?? vehicle.coordinate
@@ -215,40 +215,12 @@ struct LiveMapRepresentable: UIViewRepresentable {
                     existing.bearing = bearing
                     if let view = mapView.view(for: existing) as? VehicleAnnotationView {
                         view.apply(vehicle: vehicle, bearing: bearing,
-                                   showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold)
+                                   showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold,
+                                   simplified: isSimplified)
                     }
                 } else {
                     let annotation = VehicleAnnotation(vehicle: vehicle, coordinate: coord, bearing: bearing)
                     vehicleAnnotations[vehicle.id] = annotation
-                    toAdd.append(annotation)
-                }
-            }
-            if !toAdd.isEmpty { mapView.addAnnotations(toAdd) }
-        }
-
-        func syncClusterAnnotations(_ clusters: [MapCluster<Vehicle>]) {
-            guard let mapView else { return }
-
-            let incomingIDs = Set(clusters.map(\.id))
-            let currentIDs  = Set(clusterAnnotations.keys)
-
-            let toRemoveIDs = currentIDs.subtracting(incomingIDs)
-            if !toRemoveIDs.isEmpty {
-                let toRemove = toRemoveIDs.compactMap { clusterAnnotations.removeValue(forKey: $0) }
-                mapView.removeAnnotations(toRemove)
-            }
-
-            var toAdd: [ClusterAnnotation] = []
-            for cluster in clusters {
-                if let existing = clusterAnnotations[cluster.id] {
-                    existing.cluster = cluster
-                    existing.coordinate = cluster.coordinate
-                    if let view = mapView.view(for: existing) as? ClusterAnnotationView {
-                        view.apply(cluster: cluster)
-                    }
-                } else {
-                    let annotation = ClusterAnnotation(cluster: cluster)
-                    clusterAnnotations[cluster.id] = annotation
                     toAdd.append(annotation)
                 }
             }
@@ -347,13 +319,29 @@ struct LiveMapRepresentable: UIViewRepresentable {
             currentZoomLevel = zoom
             guard let mapView else { return }
 
-            // Tooltips de ponctualité sur les véhicules.
-            let prevPunctuality = prevZoom <= Self.punctualityZoomThreshold
-            let nextPunctuality = zoom     <= Self.punctualityZoomThreshold
-            if prevPunctuality != nextPunctuality {
+            // Passages simplifié ↔ complet
+            let prevSimplified = prevZoom > Self.simpleDotZoomThreshold
+            let nextSimplified = zoom     > Self.simpleDotZoomThreshold
+            if prevSimplified != nextSimplified {
                 for annotation in vehicleAnnotations.values {
                     if let view = mapView.view(for: annotation) as? VehicleAnnotationView {
-                        view.apply(vehicle: annotation.vehicle, bearing: annotation.bearing, showTooltip: nextPunctuality)
+                        view.apply(vehicle: annotation.vehicle, bearing: annotation.bearing,
+                                   showTooltip: zoom <= Self.punctualityZoomThreshold,
+                                   simplified: nextSimplified)
+                    }
+                }
+            }
+
+            // Tooltips de ponctualité (zoom serré uniquement, ne s'applique pas au mode simplifié)
+            if !nextSimplified {
+                let prevPunctuality = prevZoom <= Self.punctualityZoomThreshold
+                let nextPunctuality = zoom     <= Self.punctualityZoomThreshold
+                if prevPunctuality != nextPunctuality {
+                    for annotation in vehicleAnnotations.values {
+                        if let view = mapView.view(for: annotation) as? VehicleAnnotationView {
+                            view.apply(vehicle: annotation.vehicle, bearing: annotation.bearing,
+                                       showTooltip: nextPunctuality, simplified: false)
+                        }
                     }
                 }
             }
@@ -391,16 +379,8 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 ) as? VehicleAnnotationView ?? VehicleAnnotationView(annotation: vehicle, reuseIdentifier: VehicleAnnotationView.identifier)
                 view.annotation = vehicle
                 view.apply(vehicle: vehicle.vehicle, bearing: vehicle.bearing,
-                           showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold)
-                return view
-
-            case let cluster as ClusterAnnotation:
-                let view = mapView.dequeueReusableAnnotationView(
-                    withIdentifier: ClusterAnnotationView.identifier,
-                    for: cluster
-                ) as? ClusterAnnotationView ?? ClusterAnnotationView(annotation: cluster, reuseIdentifier: ClusterAnnotationView.identifier)
-                view.annotation = cluster
-                view.apply(cluster: cluster.cluster)
+                           showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold,
+                           simplified: currentZoomLevel > Self.simpleDotZoomThreshold)
                 return view
 
             case let stop as MergedStopAnnotation:
@@ -438,13 +418,6 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 owner.selectedVehicle = v.vehicle
             case let s as MergedStopAnnotation:
                 owner.selectedMergedStop = s.stop
-            case let c as ClusterAnnotation:
-                // Zoom sur le cluster (comportement "drill-down" classique)
-                let zoomSpan = MKCoordinateSpan(
-                    latitudeDelta:  mapView.region.span.latitudeDelta  / 2.5,
-                    longitudeDelta: mapView.region.span.longitudeDelta / 2.5
-                )
-                mapView.setRegion(MKCoordinateRegion(center: c.coordinate, span: zoomSpan), animated: true)
             default:
                 break
             }
@@ -483,7 +456,10 @@ struct LiveMapRepresentable: UIViewRepresentable {
 
         private static let punctualityZoomThreshold: Double = 0.005
         /// En-dessous de ce latitudeDelta, les badges de ligne s'affichent sur les arrêts.
-        private static let stopBadgeZoomThreshold:    Double = 0.008
+        private static let stopBadgeZoomThreshold:    Double = 0.005
+        /// Au-dessus de ce latitudeDelta (dezoom), les véhicules s'affichent comme
+        /// un simple disque coloré sans icône ni flèche.
+        private static let simpleDotZoomThreshold:    Double = 0.05
     }
 
     // MARK: - Style

@@ -105,18 +105,6 @@ enum VehicleType: String, CaseIterable {
     }
 }
 
-// MARK: - Clusterable Conformance
-
-extension Vehicle: Clusterable {
-    var clusterColor: Color {
-        vehicleType.clusterColor
-    }
-    
-    var clusterIcon: String {
-        vehicleType.icon
-    }
-}
-
 struct SIRIResponse: Codable {
     let Siri: SIRIRoot
 }

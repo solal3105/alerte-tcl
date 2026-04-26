@@ -21,19 +21,6 @@ final class VehicleAnnotation: NSObject, MKAnnotation {
     }
 }
 
-final class ClusterAnnotation: NSObject, MKAnnotation {
-    @objc dynamic var coordinate: CLLocationCoordinate2D
-    let id: String
-    var cluster: MapCluster<Vehicle>
-
-    init(cluster: MapCluster<Vehicle>) {
-        self.id = cluster.id
-        self.cluster = cluster
-        self.coordinate = cluster.coordinate
-        super.init()
-    }
-}
-
 final class MergedStopAnnotation: NSObject, MKAnnotation {
     @objc dynamic var coordinate: CLLocationCoordinate2D
     let id: String
@@ -51,17 +38,11 @@ final class MergedStopAnnotation: NSObject, MKAnnotation {
 
 /// Vue d'annotation véhicule.
 ///
-/// Géométrie du frame (carré 56 × 56 pt) :
+/// **Mode simplifié** (dezoom, latitudeDelta > 0.05) : disque plat 12 pt, aucun layer
+/// de flèche mis à jour → coût animation tick ≈ 0.
 ///
-///    centre = (28, 28)  ← coordonnée map / centre du corps
-///
-///  La flèche orbite à `orbit`=22 pt autour du centre du corps.
-///  Position = (28 + orbit·sin θ, 28 − orbit·cos θ) en coord. UIKit.
-///  L'image flèche pointe vers le haut au repos (bearing=0=nord) ;
-///  la rotation CGAffineTransform la fait pointer dans la bonne direction.
-///
-///  Le frame 56 pt garantit que la flèche (10×7) reste à l'intérieur
-///  quelle que soit la direction (worst-case est/ouest : centre à x=50, marge 1 pt).
+/// **Mode complet** (zoom, latitudeDelta ≤ 0.05) : cercle coloré 32 pt + flèche
+/// orbitale 10×7 pt dans un frame 56×56 pt.
 ///
 /// Aucune UIHostingView, aucune View SwiftUI.
 final class VehicleAnnotationView: MKAnnotationView {
@@ -71,18 +52,17 @@ final class VehicleAnnotationView: MKAnnotationView {
         static let bodySize: CGFloat = 32
         static let arrowW:   CGFloat = 10
         static let arrowH:   CGFloat = 7
-        /// Distance entre le centre du corps et le centre de la flèche.
-        /// = rayon corps (16) + demi-hauteur flèche (3.5) → flèche collée au cercle
         static let orbit:    CGFloat = 19
-        /// Côté du frame carré : 2 × (orbit + demi-largeur flèche + 1 pt)
         static let side:     CGFloat = 56
+        static let dotSize:  CGFloat = 12   // mode simplifié
     }
 
     private let bodyLayer  = CALayer()
     private let arrowLayer = CALayer()
 
-    private var currentLineName: String?
-    private var currentType:     VehicleType?
+    private var currentLineName:  String?
+    private var currentType:      VehicleType?
+    private var currentSimplified: Bool = false
 
     override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
@@ -93,61 +73,79 @@ final class VehicleAnnotationView: MKAnnotationView {
 
     private func setUp() {
         backgroundColor = .clear
+        // Véhicules toujours au-dessus des arrêts
+        displayPriority = .required
 
-        // Frame carré : flèche orbitale toujours à l'intérieur.
         bounds = CGRect(origin: .zero, size: CGSize(width: Layout.side, height: Layout.side))
 
         layer.addSublayer(bodyLayer)
         layer.addSublayer(arrowLayer)
 
-        // Corps centré dans le frame carré.
         bodyLayer.bounds   = CGRect(origin: .zero, size: CGSize(width: Layout.bodySize, height: Layout.bodySize))
-        bodyLayer.position = CGPoint(x: Layout.side / 2, y: Layout.side / 2)  // (28, 28)
+        bodyLayer.position = CGPoint(x: Layout.side / 2, y: Layout.side / 2)
         bodyLayer.contentsGravity = .resizeAspect
 
-        // Flèche : position initiale « nord » (au-dessus du corps).
-        // Elle sera repositionnée + tournée dans apply(bearing:).
-        arrowLayer.bounds         = CGRect(origin: .zero, size: CGSize(width: Layout.arrowW, height: Layout.arrowH))
-        arrowLayer.position       = CGPoint(x: Layout.side / 2,
-                                            y: Layout.side / 2 - Layout.orbit) // (28, 6)
+        arrowLayer.bounds          = CGRect(origin: .zero, size: CGSize(width: Layout.arrowW, height: Layout.arrowH))
+        arrowLayer.position        = CGPoint(x: Layout.side / 2, y: Layout.side / 2 - Layout.orbit)
         arrowLayer.contentsGravity = .resizeAspect
         arrowLayer.isHidden        = true
 
-        // Corps centré → coordonnée map au centre de la vue.
         centerOffset = .zero
     }
 
-    /// Mise à jour idempotente : ne re-rend que si les données discriminantes changent.
-    func apply(vehicle: Vehicle, bearing: Double, showTooltip: Bool) {
+    // MARK: - API
+
+    func apply(vehicle: Vehicle, bearing: Double, showTooltip: Bool, simplified: Bool) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
 
-        // Corps (image pré-rendue, clé = lineName + vehicleType)
-        if currentLineName != vehicle.lineName || currentType != vehicle.vehicleType {
-            let img = MarkerImageCache.vehicleBody(lineName: vehicle.lineName, vehicleType: vehicle.vehicleType)
-            bodyLayer.contents = img.cgImage
-            currentLineName = vehicle.lineName
-            currentType     = vehicle.vehicleType
-        }
-
-        // Flèche directionnelle (masquée si bearing = 0 / inconnu)
-        if bearing != 0 {
-            let img = MarkerImageCache.vehicleBearingArrow(lineName: vehicle.lineName)
-            arrowLayer.contents = img.cgImage
-            arrowLayer.isHidden  = false
-            let θ = CGFloat(bearing * .pi / 180)
-            let cx = Layout.side / 2
-            let cy = Layout.side / 2
-            // Orbite : déplace le centre de la flèche autour du corps.
-            // UIKit : x → est, y ↓ → sud ⟹ nord = y − orbit·cos(0) = y − orbit.
-            arrowLayer.position = CGPoint(
-                x: cx + Layout.orbit * sin(θ),
-                y: cy - Layout.orbit * cos(θ)
-            )
-            // L'image pointe vers le haut au repos (bearing=0=nord).
-            arrowLayer.setAffineTransform(CGAffineTransform(rotationAngle: θ))
-        } else {
+        if simplified {
+            // ── Mode dot : frame 12×12, aucune flèche ──────────────────────
+            if !currentSimplified || currentLineName != vehicle.lineName {
+                let d = Layout.dotSize
+                bounds = CGRect(origin: .zero, size: CGSize(width: d, height: d))
+                bodyLayer.bounds   = CGRect(origin: .zero, size: CGSize(width: d, height: d))
+                bodyLayer.position = CGPoint(x: d / 2, y: d / 2)
+                bodyLayer.contents = MarkerImageCache.vehicleDot(lineName: vehicle.lineName).cgImage
+                centerOffset = .zero
+                currentLineName = vehicle.lineName
+                currentType     = vehicle.vehicleType
+            }
             arrowLayer.isHidden = true
+            currentSimplified = true
+
+        } else {
+            // ── Mode complet : frame 56×56, corps + flèche ─────────────────
+            if currentSimplified {
+                // Restaurer la géométrie pleine taille
+                bounds = CGRect(origin: .zero, size: CGSize(width: Layout.side, height: Layout.side))
+                bodyLayer.bounds   = CGRect(origin: .zero, size: CGSize(width: Layout.bodySize, height: Layout.bodySize))
+                bodyLayer.position = CGPoint(x: Layout.side / 2, y: Layout.side / 2)
+                centerOffset = .zero
+                currentLineName = nil  // forcer re-rendu du corps
+                currentType     = nil
+            }
+
+            if currentLineName != vehicle.lineName || currentType != vehicle.vehicleType {
+                bodyLayer.contents = MarkerImageCache.vehicleBody(lineName: vehicle.lineName, vehicleType: vehicle.vehicleType).cgImage
+                currentLineName = vehicle.lineName
+                currentType     = vehicle.vehicleType
+            }
+
+            if bearing != 0 {
+                arrowLayer.contents = MarkerImageCache.vehicleBearingArrow(lineName: vehicle.lineName).cgImage
+                arrowLayer.isHidden = false
+                let θ = CGFloat(bearing * .pi / 180)
+                arrowLayer.position = CGPoint(
+                    x: Layout.side / 2 + Layout.orbit * sin(θ),
+                    y: Layout.side / 2 - Layout.orbit * cos(θ)
+                )
+                arrowLayer.setAffineTransform(CGAffineTransform(rotationAngle: θ))
+            } else {
+                arrowLayer.isHidden = true
+            }
+
+            currentSimplified = false
         }
 
         CATransaction.commit()
@@ -155,27 +153,10 @@ final class VehicleAnnotationView: MKAnnotationView {
 
     override func prepareForReuse() {
         super.prepareForReuse()
-        currentLineName = nil
-        currentType     = nil
+        currentLineName   = nil
+        currentType       = nil
+        currentSimplified = false
         arrowLayer.isHidden = true
-    }
-}
-
-/// Vue d'annotation cluster (cercle bleu + nombre).
-final class ClusterAnnotationView: MKAnnotationView {
-    static let identifier = "cluster"
-
-    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
-        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
-        backgroundColor = .clear
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
-
-    func apply(cluster: MapCluster<Vehicle>) {
-        let img = MarkerImageCache.cluster(count: cluster.count)
-        image = img
-        frame = CGRect(origin: .zero, size: img.size)
     }
 }
 
@@ -190,20 +171,29 @@ final class MergedStopAnnotationView: MKAnnotationView {
     static let identifier = "stop"
 
     private enum L {
-        static let dot:     CGFloat = 9
-        static let badgeH:  CGFloat = 14
-        static let gap:     CGFloat = 3   // dot ↔ première rangée badges
-        static let hPad:    CGFloat = 5   // padding horizontal à l'intérieur du badge
-        static let spacing: CGFloat = 2   // espacement entre badges
-        static let font = UIFont.systemFont(ofSize: 9, weight: .bold)
-        static let maxBadges = 3
+        // Mode compact
+        static let dot:      CGFloat = 9
+        // Mode badge — le dot est légèrement plus grand pour ancrer visuellement
+        static let badgeDot: CGFloat = 11
+        // Badges
+        static let badgeH:   CGFloat = 11   // très compact
+        static let gap:      CGFloat = 2    // dot ↔ rangée de badges
+        static let hPad:     CGFloat = 3    // padding horizontal interne
+        static let spacing:  CGFloat = 2    // entre badges
+        static let font = UIFont.systemFont(ofSize: 7.5, weight: .bold)
+        static let maxBadges = 4
     }
 
-    // Conteneur du disque (taille = L.dot × L.dot, réutilisé dans les deux modes)
+    // Conteneur du disque — réutilisé dans les deux modes
     private let dotLayer: CALayer = {
         let l = CALayer()
         l.contents = MarkerImageCache.mergedStopDot().cgImage
         l.contentsGravity = .resizeAspect
+        // Ombre douce pour visibilité sur carte claire et sombre
+        l.shadowColor  = UIColor.black.cgColor
+        l.shadowOpacity = 0
+        l.shadowRadius  = 2
+        l.shadowOffset  = CGSize(width: 0, height: 1)
         return l
     }()
     private var badgeLayers: [CALayer] = []
@@ -211,8 +201,9 @@ final class MergedStopAnnotationView: MKAnnotationView {
     override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
         backgroundColor = .clear
+        // Arrêts en-dessous des véhicules
+        displayPriority = .defaultLow
         layer.addSublayer(dotLayer)
-        // Mode compact par défaut
         setCompact()
     }
 
@@ -241,22 +232,29 @@ final class MergedStopAnnotationView: MKAnnotationView {
     private func setCompact() {
         badgeLayers.forEach { $0.removeFromSuperlayer() }
         badgeLayers = []
+        dotLayer.shadowOpacity = 0
         let s = L.dot
-        bounds          = CGRect(origin: .zero, size: CGSize(width: s, height: s))
-        dotLayer.frame  = CGRect(origin: .zero, size: CGSize(width: s, height: s))
-        centerOffset    = .zero
+        bounds         = CGRect(origin: .zero, size: CGSize(width: s, height: s))
+        dotLayer.frame = CGRect(origin: .zero, size: CGSize(width: s, height: s))
+        centerOffset   = .zero
     }
 
     private func setBadges(lines: [String], overflow: Int) {
         badgeLayers.forEach { $0.removeFromSuperlayer() }
         badgeLayers = []
 
-        // Calcul de la largeur totale de la rangée de badges.
-        var totalBadgeW: CGFloat = 0
-        var badgeWidths: [CGFloat] = []
-        // Texte réel de chaque badge (y compris éventuel "+X")
+        // Ombre légère sur le dot en mode badge
+        dotLayer.shadowOpacity = 0.22
+
+        let d = L.badgeDot
+
+        // Construction de la liste d'items avec éventuel overflow
         var allItems: [(text: String, isOverflow: Bool)] = lines.map { ($0, false) }
         if overflow > 0 { allItems.append(("+\(overflow)", true)) }
+
+        // Pré-calculer les largeurs des badges
+        var badgeWidths: [CGFloat] = []
+        var totalBadgeW: CGFloat = 0
         for item in allItems {
             let tw = ceil((item.text as NSString).size(withAttributes: [.font: L.font]).width)
             let bw = tw + 2 * L.hPad
@@ -265,42 +263,63 @@ final class MergedStopAnnotationView: MKAnnotationView {
         }
         totalBadgeW += L.spacing * CGFloat(max(allItems.count - 1, 0))
 
-        let totalW = max(L.dot, totalBadgeW)
-        let totalH = L.dot + L.gap + L.badgeH
+        let totalW = max(d, totalBadgeW)
+        let totalH = d + L.gap + L.badgeH
 
         bounds = CGRect(origin: .zero, size: CGSize(width: totalW, height: totalH))
 
-        // Dot centré en haut.
-        let dotX = (totalW - L.dot) / 2
-        dotLayer.frame = CGRect(x: dotX, y: 0, width: L.dot, height: L.dot)
+        // Dot centré horizontalement en haut
+        let dotX = (totalW - d) / 2
+        dotLayer.frame = CGRect(x: dotX, y: 0, width: d, height: d)
 
-        // Badges centrés en dessous.
+        // Rangée de badges centrée sous le dot
         var x = (totalW - totalBadgeW) / 2
-        let y = L.dot + L.gap
-        for (item, bw) in zip(allItems, badgeWidths) {
-            let bgColor: UIColor  = item.isOverflow
-                ? .secondarySystemFill
-                : UIColor(LineColorHelper.backgroundColor(for: item.text))
-            let txtColor: UIColor = item.isOverflow
-                ? .secondaryLabel
-                : UIColor(LineColorHelper.textColor(for: item.text))
+        let y = d + L.gap
 
-            // Capsule (CALayer)
+        for (item, bw) in zip(allItems, badgeWidths) {
+            let bgColor: UIColor
+            let txtColor: UIColor
+            let needsBorder: Bool
+
+            if item.isOverflow {
+                bgColor     = UIColor.systemGray5
+                txtColor    = UIColor.secondaryLabel
+                needsBorder = false
+            } else {
+                bgColor     = UIColor(LineColorHelper.backgroundColor(for: item.text))
+                txtColor    = UIColor(LineColorHelper.textColor(for: item.text))
+                needsBorder = LineColorHelper.needsBorder(for: item.text)
+            }
+
+            // Capsule de fond
             let bg = CALayer()
             bg.frame           = CGRect(x: x, y: y, width: bw, height: L.badgeH)
             bg.backgroundColor = bgColor.cgColor
             bg.cornerRadius    = L.badgeH / 2
+            bg.masksToBounds   = false  // false pour permettre contour + ombre éventuelle
+
+            // Bordure fine sur les badges à fond clair (bus blanc)
+            if needsBorder {
+                bg.borderWidth = 0.5
+                bg.borderColor = UIColor.systemGray4.cgColor
+            }
+            // Clip après borderColor pour que le texte reste dans la capsule
             bg.masksToBounds   = true
 
-            // Texte (CATextLayer)
+            // Texte
             let txt = CATextLayer()
-            txt.string          = item.text
+            txt.string         = item.text
             txt.font           = L.font
-            txt.fontSize       = 9
+            txt.fontSize       = 7.5
             txt.foregroundColor = txtColor.cgColor
             txt.alignmentMode  = .center
             txt.contentsScale  = UIScreen.main.scale
-            txt.frame          = CGRect(x: L.hPad, y: (L.badgeH - 11) / 2, width: bw - 2 * L.hPad, height: 11)
+            // Centrer verticalement le texte dans le badge
+            let textH: CGFloat = 9
+            txt.frame          = CGRect(x: L.hPad,
+                                        y: (L.badgeH - textH) / 2,
+                                        width: bw - 2 * L.hPad,
+                                        height: textH)
 
             bg.addSublayer(txt)
             layer.addSublayer(bg)
@@ -308,7 +327,7 @@ final class MergedStopAnnotationView: MKAnnotationView {
             x += bw + L.spacing
         }
 
-        // La coordonnée map doit pointer sur le centre du dot, pas le centre de la vue.
-        centerOffset = CGPoint(x: 0, y: totalH / 2 - L.dot / 2)
+        // La coordonnée map pointe sur le centre du dot
+        centerOffset = CGPoint(x: 0, y: totalH / 2 - d / 2)
     }
 }

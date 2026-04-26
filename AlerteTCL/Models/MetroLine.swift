@@ -43,6 +43,9 @@ struct TransitLine: Identifiable, Codable {
         // Tramways T1–T7 + TGS (Tram Grand Stade, même réseau)
         case "T1", "T2", "T3", "T4", "T5", "T6", "T7", "TGS":
             return Color(hex: "8C368C") // Violet/Mauve
+        // Trolleybus TB (TB11, TB12…) – jaune officiel TCL
+        case let s where s.hasPrefix("TB"):
+            return Color(hex: "FFCC00") // Jaune
         // Rhônexpress
         case "RHONEXPRESS", "RX":
             return Color(hex: "C92B21") // Rouge
