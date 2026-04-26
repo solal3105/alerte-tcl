@@ -7,7 +7,7 @@ import com.alertetcl.shared.geo.LatLng
  * Les couleurs/icônes sont des identifiants (hex / clé string).
  */
 interface Clusterable {
-    val id: String
+    val clusterId: String
     val coordinate: LatLng
     val clusterColorHex: String
     val clusterIconKey: String
@@ -19,6 +19,7 @@ data class MapCluster<T : Clusterable>(
     val center: LatLng,
     val items: List<T>
 ) {
+    val coordinate: LatLng get() = center
     val count: Int get() = items.size
     val isSingle: Boolean get() = count == 1
 }
@@ -36,7 +37,7 @@ class ClusteringEngine(
     fun <T : Clusterable> cluster(items: List<T>, latitudeDelta: Double): List<MapCluster<T>> {
         if (items.isEmpty()) return emptyList()
         if (latitudeDelta < zoomThreshold) {
-            return items.map { MapCluster(it.id, it.coordinate, listOf(it)) }
+            return items.map { MapCluster(it.clusterId, it.coordinate, listOf(it)) }
         }
 
         // Spatial hashing
@@ -54,10 +55,16 @@ class ClusteringEngine(
             val sumLon = group.sumOf { it.coordinate.longitude }
             val n = group.size.toDouble()
             MapCluster(
-                id = "cluster-" + group.joinToString("|") { it.id },
+                id = "cluster-" + group.joinToString("|") { it.clusterId },
                 center = LatLng(sumLat / n, sumLon / n),
                 items = group
             )
         }
+    }
+
+    companion object {
+        private val DEFAULT = ClusteringEngine()
+        fun <T : Clusterable> cluster(items: List<T>, latitudeDelta: Double) =
+            DEFAULT.cluster(items, latitudeDelta)
     }
 }

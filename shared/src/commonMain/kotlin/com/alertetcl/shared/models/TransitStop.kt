@@ -40,8 +40,11 @@ data class TransitStop(
     val passages: List<Passage> = emptyList(),
     val isLoadingPassages: Boolean = false,
     val passagesLoaded: Boolean = false
-) {
-    val coordinate: LatLng get() = LatLng(latitude, longitude)
+) : Clusterable {
+    override val clusterId: String get() = id.toString()
+    override val coordinate: LatLng get() = LatLng(latitude, longitude)
+    override val clusterColorHex: String get() = "#1976D2"
+    override val clusterIconKey: String get() = "stop"
 
     /** Lignes uniques desservant cet arrêt. */
     val lines: List<String> by lazy {
