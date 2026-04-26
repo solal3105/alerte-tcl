@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -31,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onOpenWidgetStops: () -> Unit = {}) {
     val context = LocalContext.current
     val pm = context.packageManager
     val versionName = runCatching { pm.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "1.0"
@@ -64,6 +65,16 @@ fun SettingsScreen() {
                 leadingContent = { Icon(Icons.Filled.WorkspacePremium, contentDescription = null, tint = Color(0xFFFFB300)) },
                 headlineContent = { Text("Soutenir l'application") },
                 supportingContent = { Text("Abonnement mensuel ou annuel") }
+            )
+        }
+
+        item { SectionHeader("Widget") }
+        item {
+            ListItem(
+                leadingContent = { Icon(Icons.Filled.Widgets, contentDescription = null) },
+                headlineContent = { Text("Arrêts du widget") },
+                supportingContent = { Text("Sélectionner les arrêts affichés sur l'écran d'accueil") },
+                modifier = Modifier.clickable { onOpenWidgetStops() }
             )
         }
 

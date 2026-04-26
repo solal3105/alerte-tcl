@@ -26,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
@@ -144,6 +145,8 @@ fun LiveMapScreen() {
     var selectedVehicle by remember { mutableStateOf<Vehicle?>(null) }
     var selectedStop by remember { mutableStateOf<TransitStop?>(null) }
     var showAlertsSheet by remember { mutableStateOf(false) }
+    var showSettingsSheet by remember { mutableStateOf(false) }
+    var showWidgetStopsSheet by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         GoogleMap(
@@ -285,6 +288,10 @@ fun LiveMapScreen() {
                 Icon(Icons.Filled.Warning, contentDescription = "Alertes")
             }
             Spacer(Modifier.height(8.dp))
+            FilledIconButton(onClick = { showSettingsSheet = true }) {
+                Icon(Icons.Filled.Settings, contentDescription = "Réglages")
+            }
+            Spacer(Modifier.height(8.dp))
             FilledIconButton(onClick = { vm.refresh() }) {
                 Icon(Icons.Filled.Refresh, contentDescription = "Rafraîchir")
             }
@@ -310,6 +317,31 @@ fun LiveMapScreen() {
         ) {
             Box(modifier = Modifier.fillMaxSize().padding(0.dp)) {
                 com.alertetcl.android.ui.alerts.AlertsScreen()
+            }
+        }
+    }
+    if (showSettingsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSettingsSheet = false },
+            sheetState = rememberModalBottomSheetState()
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                com.alertetcl.android.ui.settings.SettingsScreen(
+                    onOpenWidgetStops = {
+                        showSettingsSheet = false
+                        showWidgetStopsSheet = true
+                    }
+                )
+            }
+        }
+    }
+    if (showWidgetStopsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showWidgetStopsSheet = false },
+            sheetState = rememberModalBottomSheetState()
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                com.alertetcl.android.ui.widgetstop.WidgetStopSelectionScreen()
             }
         }
     }
