@@ -6,12 +6,15 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PointF
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.location.LocationManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,14 +25,30 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Construction
+import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Plumbing
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.Traffic
+import androidx.compose.material.icons.filled.Tram
+import androidx.compose.material.icons.filled.Train
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.filled.Whatshot
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathNode
+import androidx.compose.ui.graphics.vector.VectorGroup
+import androidx.compose.ui.graphics.vector.VectorPath
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -276,35 +295,41 @@ fun TravauxScreen() {
         val style = mapStyle ?: return@LaunchedEffect
         val tx = filteredTravaux
 
+        val now = System.currentTimeMillis() / 1000L
         val polyFeatures = tx.flatMap { t ->
-            val (fillHex, _) = travauxColorHex(t.importance)
+            val colorHex = progressColorHex(t.completionPercentage(now))
             t.polygons.mapNotNull { ring ->
                 if (ring.size < 3) null
                 else {
                     val outer = ring.map { c -> Point.fromLngLat(c.longitude, c.latitude) }
                     val props = JsonObject().apply {
                         addProperty("id", t.id)
-                        addProperty("fill", fillHex)
+                        addProperty("fill", colorHex)
                     }
                     Feature.fromGeometry(Polygon.fromLngLats(listOf(outer)), props)
                 }
             }
         }
         val outlineFeatures = tx.flatMap { t ->
-            val (_, strokeHex) = travauxColorHex(t.importance)
+            val colorHex = progressColorHex(t.completionPercentage(now))
             t.polygons.mapNotNull { ring ->
                 if (ring.size < 3) null
                 else {
                     val pts = ring.map { c -> Point.fromLngLat(c.longitude, c.latitude) }
-                    val props = JsonObject().apply { addProperty("stroke", strokeHex) }
+                    val props = JsonObject().apply { addProperty("stroke", colorHex) }
                     Feature.fromGeometry(LineString.fromLngLats(pts), props)
                 }
             }
         }
         val markerFeatures = tx.map { t ->
+            val pct = t.completionPercentage(now)
+            val colorHex = progressColorHex(pct)
+            val iconId = "travaux_${t.id}"
+            if (style.getImage(iconId) == null)
+                style.addImage(iconId, travauxMarkerBitmap(colorHex, t.type.iconKey, t.importance))
             val props = JsonObject().apply {
                 addProperty("id", t.id)
-                addProperty("icon", travauxIconId(t.importance))
+                addProperty("icon", iconId)
             }
             Feature.fromGeometry(Point.fromLngLat(t.centroid.longitude, t.centroid.latitude), props)
         }
@@ -328,11 +353,6 @@ fun TravauxScreen() {
         } else style.getSourceAs<GeoJsonSource>(OUTLINE_SRC)?.setGeoJson(FeatureCollection.fromFeatures(outlineFeatures))
 
         if (style.getSource(MARKERS_SRC) == null) {
-            TravauxImportance.entries.forEach { imp ->
-                val iconId = travauxIconId(imp)
-                if (style.getImage(iconId) == null)
-                    style.addImage(iconId, travauxMarkerBitmap(imp))
-            }
             style.addSource(GeoJsonSource(MARKERS_SRC, FeatureCollection.fromFeatures(markerFeatures)))
             style.addLayer(SymbolLayer(MARKERS_LAYER, MARKERS_SRC).withProperties(
                 PropertyFactory.iconImage(org.maplibre.android.style.expressions.Expression.get("icon")),
@@ -492,35 +512,120 @@ private fun recenterMapOnUser(context: android.content.Context, map: MapLibreMap
 
 @Composable
 private fun TravauxDetailSheet(t: Travaux) {
-    Column(modifier = Modifier.padding(16.dp)) {
-        Text(t.nomChantier.ifEmpty { t.nom },
-            fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        Text(t.commune, fontSize = 12.sp, color = Color.Gray)
-        Spacer(Modifier.height(8.dp))
-        ImportanceBadge(t.importance)
-        Spacer(Modifier.height(8.dp))
-        Text("Type      : ${t.type.displayName}", fontSize = 13.sp)
-        Text("Nature    : ${t.natureChantier.displayName}", fontSize = 13.sp)
-        Text("Avancement : ${t.avancement.displayName}", fontSize = 13.sp)
-        Text("Perturb.   : ${t.typePerturbation.raw}", fontSize = 13.sp)
-        if (t.intervenant.isNotEmpty()) {
-            Text("Intervenant: ${t.intervenant}", fontSize = 13.sp, color = Color.Gray)
-        }
-        t.precisionLocalisation?.let {
-            Spacer(Modifier.height(6.dp))
-            Text(it, fontSize = 12.sp, color = Color.Gray)
+    val now = System.currentTimeMillis() / 1000L
+    val pct = t.completionPercentage(now)
+    val pColor = Color(AndroidColor.parseColor(progressColorHex(pct)))
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Progress circle (iOS parity)
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp)
+        ) {
+            CircularProgressIndicator(
+                progress = { 1f },
+                modifier = Modifier.size(130.dp),
+                color = pColor.copy(alpha = 0.2f),
+                strokeWidth = 10.dp,
+                trackColor = Color.Transparent
+            )
+            CircularProgressIndicator(
+                progress = { (pct / 100.0).toFloat().coerceIn(0f, 1f) },
+                modifier = Modifier.size(130.dp),
+                color = pColor,
+                strokeWidth = 10.dp,
+                trackColor = Color.Transparent
+            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "${pct.toInt()}%",
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = pColor
+                )
+                Text("Réalisé", fontSize = 12.sp, color = Color(0xFF8E8E93))
+            }
         }
 
-        val now = System.currentTimeMillis() / 1000L
-        val pct = t.completionPercentage(now)
-        Spacer(Modifier.height(10.dp))
-        HorizontalDivider()
-        Spacer(Modifier.height(6.dp))
-        Text("Progression : ${"%.0f".format(pct)} %", fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        t.description?.let {
-            Spacer(Modifier.height(8.dp))
-            Text(it, fontSize = 12.sp)
+        // Avancement badge
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            Surface(color = pColor, shape = RoundedCornerShape(50)) {
+                Text(
+                    t.avancement.displayName,
+                    color = Color.White,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
+            }
         }
+
+        // Type card
+        Surface(color = pColor.copy(alpha = 0.08f), shape = RoundedCornerShape(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(color = pColor.copy(alpha = 0.18f), shape = CircleShape, modifier = Modifier.size(44.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = typeImageVector(t.type.iconKey),
+                            contentDescription = t.type.displayName,
+                            tint = pColor,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+                Column {
+                    Text(t.type.displayName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(t.natureChantier.displayName, fontSize = 12.sp, color = Color(0xFF8E8E93))
+                }
+            }
+        }
+
+        // Nom + commune
+        Surface(color = Color(0xFFF2F2F7), shape = RoundedCornerShape(16.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(t.nomChantier.ifEmpty { t.nom }, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(t.commune, fontSize = 13.sp, color = Color.Gray)
+                if (t.intervenant.isNotEmpty()) {
+                    Text(t.intervenant, fontSize = 12.sp, color = Color.Gray)
+                }
+                t.precisionLocalisation?.let {
+                    Text(it, fontSize = 12.sp, color = Color.Gray)
+                }
+            }
+        }
+
+        ImportanceBadge(t.importance)
+
+        // Perturbation
+        Surface(color = Color(0xFFF2F2F7), shape = RoundedCornerShape(12.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Perturbation", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93))
+                Text(t.typePerturbation.raw, fontSize = 13.sp)
+            }
+        }
+
+        // Description
+        t.description?.let {
+            Surface(color = Color(0xFFF2F2F7), shape = RoundedCornerShape(12.dp)) {
+                Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Description", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93))
+                    Text(it, fontSize = 13.sp)
+                }
+            }
+        }
+
         Spacer(Modifier.height(16.dp))
     }
 }
@@ -544,27 +649,133 @@ private fun ImportanceBadge(imp: TravauxImportance) {
     }
 }
 
-private fun travauxColorHex(imp: TravauxImportance): Pair<String, String> {
-    val base = when (imp) {
-        TravauxImportance.TRES_PERTURBANT -> "#E53935"
-        TravauxImportance.PERTURBANT      -> "#FB8C00"
-        TravauxImportance.PEU_PERTURBANT  -> "#43A047"
-        TravauxImportance.INCONNU         -> "#6E6E73"
-    }
-    return base to base
+/** Couleur de progression identique à iOS : 0% rouge → 100% vert, par paliers de 10%. */
+private fun progressColorHex(percentage: Double): String = when {
+    percentage < 10  -> "#DC2626"
+    percentage < 20  -> "#EF4444"
+    percentage < 30  -> "#F97316"
+    percentage < 40  -> "#FB923C"
+    percentage < 50  -> "#FBBF24"
+    percentage < 60  -> "#EAB308"
+    percentage < 70  -> "#CA8A04"
+    percentage < 80  -> "#84CC16"
+    percentage < 90  -> "#65A30D"
+    percentage < 100 -> "#22C55E"
+    else             -> "#16A34A"
 }
 
-private fun travauxIconId(imp: TravauxImportance) = "travaux_${imp.name}"
+/** Icône vectorielle Material correspondant au type de travaux (pour Compose). */
+private fun typeImageVector(iconKey: String): ImageVector = when (iconKey) {
+    "tram"        -> Icons.Filled.Tram
+    "metro"       -> Icons.Filled.Train
+    "road"        -> Icons.Filled.Traffic
+    "drop"        -> Icons.Filled.WaterDrop
+    "flame"       -> Icons.Filled.Whatshot
+    "bolt"        -> Icons.Filled.Bolt
+    "pipe"        -> Icons.Filled.Plumbing
+    "antenna"     -> Icons.Filled.Sensors
+    "thermometer" -> Icons.Filled.Thermostat
+    "bike"        -> Icons.Filled.DirectionsBike
+    else          -> Icons.Filled.Construction
+}
 
-/** Marker iso iOS : disque coloré + icone H + badge importance (rouge "!" / orange) en haut-droite. */
-private fun travauxMarkerBitmap(imp: TravauxImportance): Bitmap {
-    val s = 80; val cx = s / 2f; val cy = s / 2f
-    val baseColor = when (imp) {
-        TravauxImportance.TRES_PERTURBANT -> AndroidColor.parseColor("#E53935")
-        TravauxImportance.PERTURBANT      -> AndroidColor.parseColor("#FB8C00")
-        TravauxImportance.PEU_PERTURBANT  -> AndroidColor.parseColor("#43A047")
-        TravauxImportance.INCONNU         -> AndroidColor.parseColor("#6E6E73")
+/**
+ * Convertit une liste de PathNode Compose en android.graphics.Path, mis à l'échelle [scale].
+ * Supporte tous les types de noeuds SVG utilisés dans les icônes Material.
+ */
+private fun pathNodesToAndroidPath(pathData: List<PathNode>, scale: Float): android.graphics.Path {
+    val p = android.graphics.Path()
+    var cx = 0f; var cy = 0f
+    var lbcx = 0f; var lbcy = 0f  // dernier ctrl cubic
+    var lqcx = 0f; var lqcy = 0f  // dernier ctrl quad
+    for (node in pathData) {
+        when (node) {
+            is PathNode.MoveTo -> { p.moveTo(node.x * scale, node.y * scale); cx = node.x; cy = node.y; lbcx = cx; lbcy = cy; lqcx = cx; lqcy = cy }
+            is PathNode.RelativeMoveTo -> { p.rMoveTo(node.dx * scale, node.dy * scale); cx += node.dx; cy += node.dy; lbcx = cx; lbcy = cy; lqcx = cx; lqcy = cy }
+            is PathNode.LineTo -> { p.lineTo(node.x * scale, node.y * scale); cx = node.x; cy = node.y; lbcx = cx; lbcy = cy; lqcx = cx; lqcy = cy }
+            is PathNode.RelativeLineTo -> { p.rLineTo(node.dx * scale, node.dy * scale); cx += node.dx; cy += node.dy; lbcx = cx; lbcy = cy; lqcx = cx; lqcy = cy }
+            is PathNode.HorizontalTo -> { p.lineTo(node.x * scale, cy * scale); cx = node.x; lbcx = cx; lbcy = cy }
+            is PathNode.RelativeHorizontalTo -> { p.rLineTo(node.dx * scale, 0f); cx += node.dx; lbcx = cx; lbcy = cy }
+            is PathNode.VerticalTo -> { p.lineTo(cx * scale, node.y * scale); cy = node.y; lbcx = cx; lbcy = cy }
+            is PathNode.RelativeVerticalTo -> { p.rLineTo(0f, node.dy * scale); cy += node.dy; lbcx = cx; lbcy = cy }
+            is PathNode.CurveTo -> {
+                p.cubicTo(node.x1 * scale, node.y1 * scale, node.x2 * scale, node.y2 * scale, node.x3 * scale, node.y3 * scale)
+                lbcx = node.x2; lbcy = node.y2; cx = node.x3; cy = node.y3; lqcx = cx; lqcy = cy
+            }
+            is PathNode.RelativeCurveTo -> {
+                p.rCubicTo(node.dx1 * scale, node.dy1 * scale, node.dx2 * scale, node.dy2 * scale, node.dx3 * scale, node.dy3 * scale)
+                lbcx = cx + node.dx2; lbcy = cy + node.dy2; cx += node.dx3; cy += node.dy3; lqcx = cx; lqcy = cy
+            }
+            is PathNode.ReflectiveCurveTo -> {
+                val rx = 2 * cx - lbcx; val ry = 2 * cy - lbcy
+                p.cubicTo(rx * scale, ry * scale, node.x1 * scale, node.y1 * scale, node.x2 * scale, node.y2 * scale)
+                lbcx = node.x1; lbcy = node.y1; cx = node.x2; cy = node.y2; lqcx = cx; lqcy = cy
+            }
+            is PathNode.RelativeReflectiveCurveTo -> {
+                val rx = cx - lbcx; val ry = cy - lbcy
+                p.rCubicTo(rx * scale, ry * scale, node.dx1 * scale, node.dy1 * scale, node.dx2 * scale, node.dy2 * scale)
+                lbcx = cx + node.dx1; lbcy = cy + node.dy1; cx += node.dx2; cy += node.dy2; lqcx = cx; lqcy = cy
+            }
+            is PathNode.QuadTo -> {
+                p.quadTo(node.x1 * scale, node.y1 * scale, node.x2 * scale, node.y2 * scale)
+                lqcx = node.x1; lqcy = node.y1; cx = node.x2; cy = node.y2; lbcx = cx; lbcy = cy
+            }
+            is PathNode.RelativeQuadTo -> {
+                p.rQuadTo(node.dx1 * scale, node.dy1 * scale, node.dx2 * scale, node.dy2 * scale)
+                lqcx = cx + node.dx1; lqcy = cy + node.dy1; cx += node.dx2; cy += node.dy2; lbcx = cx; lbcy = cy
+            }
+            is PathNode.ReflectiveQuadTo -> {
+                val rx = 2 * cx - lqcx; val ry = 2 * cy - lqcy
+                p.quadTo(rx * scale, ry * scale, node.x1 * scale, node.y1 * scale)
+                lqcx = rx; lqcy = ry; cx = node.x1; cy = node.y1; lbcx = cx; lbcy = cy
+            }
+            is PathNode.RelativeReflectiveQuadTo -> {
+                val rx = cx - lqcx; val ry = cy - lqcy
+                p.rQuadTo(rx * scale, ry * scale, node.dx * scale, node.dy * scale)
+                lqcx = cx + rx; lqcy = cy + ry; cx += node.dx; cy += node.dy; lbcx = cx; lbcy = cy
+            }
+            is PathNode.ArcTo -> {
+                // Approximation lineTo (les icônes Material utilisent rarement les arcs)
+                p.lineTo(node.arcStartX * scale, node.arcStartY * scale)
+                cx = node.arcStartX; cy = node.arcStartY; lbcx = cx; lbcy = cy; lqcx = cx; lqcy = cy
+            }
+            is PathNode.RelativeArcTo -> {
+                p.rLineTo(node.arcStartDx * scale, node.arcStartDy * scale)
+                cx += node.arcStartDx; cy += node.arcStartDy; lbcx = cx; lbcy = cy; lqcx = cx; lqcy = cy
+            }
+            PathNode.Close -> p.close()
+        }
     }
+    return p
+}
+
+private fun drawVectorGroup(canvas: Canvas, group: VectorGroup, scale: Float, paint: Paint) {
+    for (node in group) {
+        when (node) {
+            is VectorGroup -> drawVectorGroup(canvas, node, scale, paint)
+            is VectorPath  -> canvas.drawPath(pathNodesToAndroidPath(node.pathData, scale), paint)
+        }
+    }
+}
+
+/** Dessine l'icône Material [vector] sur le canvas, centrée en (cx, cy), taille iconSize px. */
+private fun drawImageVectorOnCanvas(
+    canvas: Canvas, vector: ImageVector, cx: Float, cy: Float, iconSize: Float, tintColor: Int
+) {
+    val scale = iconSize / maxOf(vector.viewportWidth, vector.viewportHeight)
+    val dx = cx - (vector.viewportWidth  * scale) / 2f
+    val dy = cy - (vector.viewportHeight * scale) / 2f
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tintColor; style = Paint.Style.FILL }
+    canvas.save()
+    canvas.translate(dx, dy)
+    drawVectorGroup(canvas, vector.root, scale, paint)
+    canvas.restore()
+}
+
+/** Marker iso iOS : disque coloré (progression) + icône vectorielle type + badge importance en haut-droite. */
+private fun travauxMarkerBitmap(colorHex: String, typeIconKey: String, importance: TravauxImportance): Bitmap {
+    val s = 80; val cx = s / 2f; val cy = s / 2f
+    val baseColor = AndroidColor.parseColor(colorHex)
     val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     val mainR = 26f
@@ -572,13 +783,10 @@ private fun travauxMarkerBitmap(imp: TravauxImportance): Bitmap {
     canvas.drawCircle(cx, cy, mainR, Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 3f
     })
-    // Letter "H" (chantier / hammer) centered
-    canvas.drawText("H", cx, cy + 10f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.WHITE; textSize = 28f; textAlign = Paint.Align.CENTER
-        typeface = Typeface.DEFAULT_BOLD
-    })
-    // Importance badge top-right (offset like iOS x:12, y:-12)
-    when (imp) {
+    // Icône Material centrée dans le disque (22px)
+    drawImageVectorOnCanvas(canvas, typeImageVector(typeIconKey), cx, cy, 22f, AndroidColor.WHITE)
+    // Badge importance en haut-droite (identique iOS)
+    when (importance) {
         TravauxImportance.TRES_PERTURBANT -> {
             val br = 11f; val bx = cx + 18f; val by = cy - 18f
             canvas.drawCircle(bx, by, br, Paint(Paint.ANTI_ALIAS_FLAG).apply {

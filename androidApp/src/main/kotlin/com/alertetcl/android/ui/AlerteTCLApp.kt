@@ -99,7 +99,7 @@ fun AlerteTCLApp(initialRoute: String? = null) {
         NavHost(
             navController = nav,
             startDestination = "live",
-            modifier = Modifier.padding(padding)
+            modifier = Modifier.padding(bottom = padding.calculateBottomPadding())
         ) {
             composable("live")    { LiveMapScreen() }
             composable("travaux") { TravauxScreen() }

@@ -8,12 +8,15 @@ import android.graphics.Color as AndroidColor
 import android.graphics.Paint
 import android.graphics.PointF
 import android.location.LocationManager
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,23 +24,40 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.ElectricCar
+import androidx.compose.material.icons.filled.Euro
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.TwoWheeler
+import androidx.compose.material.icons.filled.VerticalAlignTop
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -56,11 +76,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import com.alertetcl.shared.geo.GeoRegion
 import com.alertetcl.shared.geo.LatLng as GeoLatLng
 import com.alertetcl.shared.models.AvailabilityColor
@@ -204,7 +231,7 @@ fun ParkingScreen() {
         }
 
         // Selector top-center (translucide pour ne pas masquer la carte) + indicator de chargement
-        Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp)) {
             if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             Row(
                 modifier = Modifier.padding(top = 8.dp).align(Alignment.CenterHorizontally),
@@ -380,51 +407,356 @@ private fun recenterParkingOnUser(context: android.content.Context, map: MapLibr
 
 @Composable
 private fun ParkingDetailSheet(p: Parking) {
-    Column(modifier = Modifier.padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .width(12.dp)
-                    .height(12.dp)
-                    .padding(end = 0.dp),
-            )
-            Text(p.nom, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+    val context = LocalContext.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Title
+        Text(
+            p.nom,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center
+        )
+
+        // --- Bannière statique P+R ---
+        if (p.isParcRelais && !p.hasRealtimeData) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFFFF3E0),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Filled.AccessTime, null, tint = Color(0xFFF57C00), modifier = Modifier.size(20.dp))
+                    Column {
+                        Text("Données statiques uniquement", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFF57C00))
+                        Text("La disponibilité en temps réel n'est pas disponible pour ce P+R.", fontSize = 11.sp, color = Color(0xFF757575))
+                    }
+                }
+            }
         }
-        Text(p.adresse, fontSize = 12.sp, color = Color.Gray)
-        Spacer(Modifier.height(10.dp))
-        if (p.isParcRelais) {
-            Text("Parc Relais (P+R)", color = Color(0xFF1976D2), fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(6.dp))
+
+        // --- Availability header ---
+        ParkingAvailabilityHeader(p)
+
+        // --- Navigation button ---
+        Button(
+            onClick = {
+                val uri = Uri.parse("google.navigation:q=${p.latitude},${p.longitude}&mode=d")
+                val intent = Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.google.android.apps.maps") }
+                val fallback = Intent(Intent.ACTION_VIEW, Uri.parse("geo:${p.latitude},${p.longitude}?q=${Uri.encode(p.nom)}"))
+                try { context.startActivity(intent) } catch (e: Exception) { context.startActivity(fallback) }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF)),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(Icons.Filled.Navigation, null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Itinéraire", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
         }
-        if (p.hasRealtimeData) {
-            Text("${p.placesDisponibles} / ${p.capaciteTotale} places",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = parkingColorFor(p.availabilityColor))
-            Text("État : ${p.etat.displayName}", fontSize = 13.sp, color = Color.Gray)
-        } else {
-            Text("Capacité : ${p.capaciteTotale}", fontSize = 14.sp)
-            Text("Données statiques", fontSize = 11.sp, color = Color.Gray)
+
+        // --- Main info card ---
+        ParkingInfoCard(p)
+
+        // --- Tarifs ---
+        val hasTarifs = p.tarif1h != null || p.tarif24h != null || p.gratuit
+        if (!p.isParcRelais && hasTarifs) {
+            ParkingTarifCard(p)
         }
-        if (p.gestionnaire.isNotEmpty()) {
-            Spacer(Modifier.height(6.dp))
-            Text("Gestionnaire : ${p.gestionnaire}", fontSize = 12.sp, color = Color.Gray)
+
+        // --- Services ---
+        val hasServices = (p.nbPmr ?: 0) > 0 || (p.nbVoituresElectriques ?: 0) > 0 ||
+            (p.nbVelo ?: 0) > 0 || (p.nb2Rm ?: 0) > 0 || (p.nbAutopartage ?: 0) > 0
+        if (!p.isParcRelais && hasServices) {
+            ParkingServicesCard(p)
         }
-        p.horaires?.let {
-            Spacer(Modifier.height(6.dp))
-            Text("Horaires : $it", fontSize = 12.sp)
+
+        // --- Additional info ---
+        if (!p.isParcRelais) {
+            ParkingAdditionalCard(p)
         }
-        if (p.tarif1h != null || p.tarif24h != null) {
-            Spacer(Modifier.height(8.dp))
-            HorizontalDivider()
-            Spacer(Modifier.height(6.dp))
-            Text("Tarifs", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-            p.tarif1h?.let  { Text("1h    : ${"%.2f".format(it)} €", fontSize = 12.sp) }
-            p.tarif2h?.let  { Text("2h    : ${"%.2f".format(it)} €", fontSize = 12.sp) }
-            p.tarif24h?.let { Text("24h   : ${"%.2f".format(it)} €", fontSize = 12.sp) }
-            p.aboResident?.let { Text("Abo. résident : ${"%.2f".format(it)} €", fontSize = 12.sp) }
+
+        // --- URL ---
+        p.url?.let { urlStr ->
+            FilledTonalButton(
+                onClick = {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(urlStr)))
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Filled.Language, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Site web du parking", fontSize = 14.sp)
+            }
         }
+
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun ParkingAvailabilityHeader(p: Parking) {
+    val accentColor = parkingColorFor(p.availabilityColor)
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Circular availability indicator
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(120.dp)) {
+                val sweep = if (p.hasRealtimeData && p.capaciteTotale > 0)
+                    (1f - p.tauxOccupation.toFloat()).coerceIn(0f, 1f) * 360f else 0f
+                Canvas(modifier = Modifier.size(120.dp)) {
+                    val stroke = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
+                    val inset = 6.dp.toPx()
+                    val arcSize = Size(size.width - inset * 2, size.height - inset * 2)
+                    val arcOffset = Offset(inset, inset)
+                    // Track
+                    drawArc(
+                        color = accentColor.copy(alpha = 0.2f),
+                        startAngle = -90f, sweepAngle = 360f,
+                        useCenter = false, topLeft = arcOffset, size = arcSize, style = stroke
+                    )
+                    // Progress
+                    if (sweep > 0f) drawArc(
+                        color = accentColor,
+                        startAngle = -90f, sweepAngle = sweep,
+                        useCenter = false, topLeft = arcOffset, size = arcSize, style = stroke
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (p.hasRealtimeData) {
+                        Text(
+                            "${p.placesDisponibles}",
+                            fontSize = 32.sp, fontWeight = FontWeight.Bold, color = accentColor
+                        )
+                    } else {
+                        Text("—", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                    }
+                    Text("/ ${p.capaciteTotale}", fontSize = 12.sp, color = Color.Gray)
+                }
+            }
+
+            // Status row
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (p.isParcRelais) {
+                    val (ic, col, lbl) = if (p.hasRealtimeData)
+                        Triple(Icons.Filled.CheckCircle, Color(0xFF43A047), "Données en direct")
+                    else Triple(Icons.Filled.AccessTime, Color(0xFFF57C00), "Données statiques")
+                    Icon(ic, null, tint = col, modifier = Modifier.size(18.dp))
+                    Text(lbl, fontWeight = FontWeight.SemiBold, color = col)
+                } else {
+                    val (ic, col, lbl) = if (p.etat.raw == "ouvert")
+                        Triple(Icons.Filled.CheckCircle, Color(0xFF43A047), "Ouvert")
+                    else Triple(Icons.Filled.Info, Color(0xFFE53935), p.etat.displayName)
+                    Icon(ic, null, tint = col, modifier = Modifier.size(18.dp))
+                    Text(lbl, fontWeight = FontWeight.SemiBold, color = col)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ParkingInfoCard(p: Parking) {
+    ParkingCard(title = "Informations", icon = Icons.Filled.Info, iconColor = Color(0xFF007AFF)) {
+        if (!p.isParcRelais && p.gestionnaire.isNotEmpty()) {
+            ParkingInfoRow(icon = Icons.Filled.Build, label = "Gestionnaire", value = p.gestionnaire)
+        }
+        p.hauteurMax?.let { h ->
+            ParkingInfoRow(icon = Icons.Filled.VerticalAlignTop, label = "Hauteur max", value = "$h cm")
+        }
+        ParkingInfoRow(icon = Icons.Filled.DirectionsCar, label = "Capacité totale", value = "${p.capaciteTotale} places")
+        val pmr = p.nbPmr ?: 0
+        if (pmr > 0) ParkingInfoRow(icon = Icons.Filled.Person, label = "Places PMR", value = "$pmr places")
+        if (p.isParcRelais) {
+            p.horaires?.let { h -> ParkingInfoRow(icon = Icons.Filled.AccessTime, label = "Horaires", value = h) }
+            p.surveille?.let { s ->
+                ParkingInfoRow(
+                    icon = Icons.Filled.Security, label = "Surveillance",
+                    value = if (s) "Parc surveillé" else "Non surveillé"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ParkingTarifCard(p: Parking) {
+    ParkingCard(title = "Tarifs", icon = Icons.Filled.Euro, iconColor = Color(0xFF43A047)) {
+        if (p.gratuit) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.CheckCircle, null, tint = Color(0xFF43A047), modifier = Modifier.size(18.dp))
+                Text("Parking gratuit", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            }
+        } else {
+            val tarifs = listOfNotNull(
+                p.tarif1h?.let { "1h" to it },
+                p.tarif2h?.let { "2h" to it },
+                p.tarif3h?.let { "3h" to it },
+                p.tarif4h?.let { "4h" to it },
+                p.tarif24h?.let { "24h" to it }
+            )
+            if (tarifs.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    tarifs.forEach { (dur, price) ->
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(vertical = 10.dp)
+                            ) {
+                                Text(dur, fontSize = 11.sp, color = Color.Gray)
+                                Text("${"%.2f".format(price)}€", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
+            }
+            val hasAbo = p.aboResident != null || p.aboNonResident != null
+            if (hasAbo) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Text("Abonnements", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(4.dp))
+                p.aboResident?.let {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text("Résident", fontSize = 13.sp, color = Color.Gray, modifier = Modifier.weight(1f))
+                        Text("${"%.0f".format(it)}€/mois", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                p.aboNonResident?.let {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text("Non-résident", fontSize = 13.sp, color = Color.Gray, modifier = Modifier.weight(1f))
+                        Text("${"%.0f".format(it)}€/mois", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ParkingServicesCard(p: Parking) {
+    data class ServiceItem(val icon: ImageVector, val label: String, val count: Int, val color: Color)
+    val services = listOfNotNull(
+        p.nbPmr?.takeIf { it > 0 }?.let { ServiceItem(Icons.Filled.Person, "PMR", it, Color(0xFF007AFF)) },
+        p.nbVoituresElectriques?.takeIf { it > 0 }?.let { ServiceItem(Icons.Filled.ElectricCar, "Électrique", it, Color(0xFF43A047)) },
+        p.nbVelo?.takeIf { it > 0 }?.let { ServiceItem(Icons.Filled.DirectionsBike, "Vélos", it, Color(0xFFFF9500)) },
+        p.nb2Rm?.takeIf { it > 0 }?.let { ServiceItem(Icons.Filled.TwoWheeler, "2 roues", it, Color(0xFFE53935)) },
+        p.nbAutopartage?.takeIf { it > 0 }?.let { ServiceItem(Icons.Filled.DirectionsCar, "Autopartage", it, Color(0xFF9C27B0)) }
+    )
+    ParkingCard(title = "Services", icon = Icons.Filled.Build, iconColor = Color(0xFF9C27B0)) {
+        val rows = services.chunked(2)
+        rows.forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                rowItems.forEach { svc ->
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(svc.icon, null, tint = svc.color, modifier = Modifier.size(20.dp))
+                            Column {
+                                Text("${svc.count}", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text(svc.label, fontSize = 11.sp, color = Color.Gray)
+                            }
+                        }
+                    }
+                }
+                if (rowItems.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ParkingAdditionalCard(p: Parking) {
+    ParkingCard(title = "Informations complémentaires", icon = Icons.Filled.Info, iconColor = Color(0xFFFF9500)) {
+        ParkingInfoRow(icon = Icons.Filled.Person, label = "Type d'usagers", value = "Tous publics")
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            val (ic, col, lbl) = if (p.gratuit)
+                Triple(Icons.Filled.CheckCircle, Color(0xFF43A047), "Gratuit")
+            else Triple(Icons.Filled.Euro, Color(0xFFFF9500), "Payant")
+            Icon(ic, null, tint = col, modifier = Modifier.size(18.dp))
+            Column {
+                Text("Statut", fontSize = 11.sp, color = Color.Gray)
+                Text(lbl, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = col)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ParkingCard(
+    title: String,
+    icon: ImageVector,
+    iconColor: Color,
+    content: @Composable () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(icon, null, tint = iconColor, modifier = Modifier.size(18.dp))
+                Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+private fun ParkingInfoRow(icon: ImageVector, label: String, value: String) {
+    Row(
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Icon(icon, null, tint = Color.Gray, modifier = Modifier.size(16.dp).padding(top = 2.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, fontSize = 11.sp, color = Color.Gray)
+            Text(value, fontSize = 14.sp)
+        }
     }
 }
 

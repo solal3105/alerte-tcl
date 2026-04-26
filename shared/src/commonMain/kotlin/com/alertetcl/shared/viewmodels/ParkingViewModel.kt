@@ -51,6 +51,11 @@ class ParkingViewModel(
         _selectedTypes.value = cur
     }
 
+    /** Sélection exclusive d'un seul type (comportement radio, comme iOS). */
+    fun setType(type: ParkingType) {
+        _selectedTypes.value = setOf(type)
+    }
+
     fun toggleParcRelais() {
         _showParcRelais.value = !_showParcRelais.value
     }

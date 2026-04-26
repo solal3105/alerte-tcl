@@ -1,6 +1,12 @@
 package com.alertetcl.android.ui.about
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.alertetcl.android.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,6 +66,7 @@ fun AboutScreen() {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .background(Color(0xFFF2F2F7)),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
@@ -82,17 +90,15 @@ private fun HeroSection() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Box(
+        Image(
+            painter = painterResource(id = R.mipmap.ic_launcher),
+            contentDescription = "App icon",
+            contentScale = ContentScale.Crop,
             modifier = Modifier
                 .size(96.dp)
-                .background(
-                    brush = Brush.linearGradient(listOf(Color(0xFF26A69A), Color(0xFF00897B))),
-                    shape = RoundedCornerShape(22.dp)
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Filled.Tram, null, tint = Color.White, modifier = Modifier.size(42.dp))
-        }
+                .clip(RoundedCornerShape(22.dp))
+                .shadow(elevation = 8.dp, shape = RoundedCornerShape(22.dp))
+        )
         Text("Lyon Pocket", fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Text(
             "Les transports lyonnais, en direct.",

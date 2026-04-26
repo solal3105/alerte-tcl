@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -35,7 +36,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Accessible
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.MyLocation
@@ -96,6 +99,7 @@ import com.alertetcl.shared.viewmodels.LiveVehiclesViewModel
 import com.google.gson.JsonObject
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
@@ -134,13 +138,13 @@ private const val TRANSIT_SRC     = "transit-src"
 private const val BUS_SRC         = "bus-src"
 private const val VEHICLES_SRC    = "vehicles-src"
 private const val STOPS_SRC       = "stops-src"
-private const val CLUSTERS_SRC    = "clusters-src"
 private const val TRANSIT_LAYER   = "transit-layer"
 private const val BUS_LAYER       = "bus-layer"
 private const val VEHICLES_LAYER  = "vehicles-layer"
-private const val STOPS_LAYER     = "stops-layer"
-private const val CLUSTER_CIRCLE  = "cluster-circle-layer"
-private const val CLUSTER_TEXT    = "cluster-text-layer"
+private const val VEHICLES_ARROW_LAYER = "vehicles-arrow-layer"
+private const val STOPS_LAYER       = "stops-layer"        // CircleLayer mode compact
+private const val STOPS_BADGE_LAYER = "stops-badge-layer"  // SymbolLayer mode badges (zoom serré)
+private const val STOPS_COMPACT_KEY = "stop_compact"
 
 @Composable
 private fun rememberMapView(): MapView {
@@ -211,7 +215,6 @@ fun LiveMapScreen() {
     val favorites by store.favoriteLines.collectAsState(initial = emptySet())
 
     var showLineTraces by remember { mutableStateOf(true) }
-    var showStops      by remember { mutableStateOf(false) }
     var isSatellite    by remember { mutableStateOf(false) }
 
     val transitLines = produceState<List<TransitLine>>(initialValue = emptyList()) {
@@ -220,9 +223,9 @@ fun LiveMapScreen() {
     val busLines = produceState<List<BusLine>>(initialValue = emptyList()) {
         value = runCatching { BusLineService.shared.fetchBusLines() }.getOrDefault(emptyList())
     }
-    val stops = produceState<List<TransitStop>>(initialValue = emptyList(), showStops) {
-        if (showStops && value.isEmpty())
-            value = runCatching { TransitStopService.shared.fetchStops() }.getOrDefault(emptyList())
+    // Chargé une seule fois au démarrage (comme iOS), affichage contrôlé par zoom/toggle
+    val stops = produceState<List<TransitStop>>(initialValue = emptyList()) {
+        value = runCatching { TransitStopService.shared.fetchStops() }.getOrDefault(emptyList())
     }
 
     // Animation tick every 100 ms
@@ -244,6 +247,7 @@ fun LiveMapScreen() {
     var mapLibreMap  by remember { mutableStateOf<MapLibreMap?>(null) }
     var mapStyle     by remember { mutableStateOf<Style?>(null) }
     var currentZoom  by remember { mutableDoubleStateOf(12.5) }
+    var visibleBounds by remember { mutableStateOf<LatLngBounds?>(null) }
 
     // Stable mutable refs readable from non-composable callbacks
     val vehiclesRef = remember { mutableStateOf<List<Vehicle>>(emptyList()) }
@@ -251,10 +255,34 @@ fun LiveMapScreen() {
     vehiclesRef.value = filteredVehicles
     stopsRef.value    = stops.value
 
+    // Parité iOS exacte :
+    //   stopsZoomThreshold   = 0.018  → afficher les arrêts
+    //   stopBadgeZoomThreshold = 0.005 → afficher les badges de ligne
+    // (iOS utilise latitudeDelta en degrés depuis MKCoordinateSpan)
+    val latitudeDelta by remember {
+        derivedStateOf {
+            visibleBounds?.let { it.northEast.latitude - it.southWest.latitude } ?: Double.MAX_VALUE
+        }
+    }
+    val stopsVisible by remember { derivedStateOf { latitudeDelta <= 0.018 } }
+    val showBadges   by remember { derivedStateOf { latitudeDelta <= 0.005 } }
+
     val visibleClusters by remember {
         derivedStateOf {
-            if (!showStops) emptyList()
-            else ClusteringEngine.cluster(stopsRef.value, max(0.001, 80.0 / 2.0.pow(currentZoom)))
+            if (!stopsVisible) emptyList()
+            else {
+                val bounds = visibleBounds
+                val filtered = if (bounds != null) {
+                    val ne = bounds.northEast; val sw = bounds.southWest
+                    val latBuf = (ne.latitude  - sw.latitude)  * 0.3
+                    val lonBuf = (ne.longitude - sw.longitude) * 0.3
+                    stopsRef.value.filter { s ->
+                        s.latitude  in (sw.latitude  - latBuf)..(ne.latitude  + latBuf) &&
+                        s.longitude in (sw.longitude - lonBuf)..(ne.longitude + lonBuf)
+                    }
+                } else stopsRef.value
+                ClusteringEngine.cluster(filtered, max(0.001, 80.0 / 2.0.pow(currentZoom)))
+            }
         }
     }
 
@@ -267,6 +295,7 @@ fun LiveMapScreen() {
     var showFilterSheet by remember { mutableStateOf(false) }
     var showErrorsSheet by remember { mutableStateOf(false) }
     var showRefreshInfo by remember { mutableStateOf(false) }
+    var showStops       by remember { mutableStateOf(true) }
 
     // Permission location pour le FAB localisation
     val locationPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -277,9 +306,8 @@ fun LiveMapScreen() {
 
     val mapView = rememberMapView()
 
-    // Filtres actifs (parité iOS hasActiveFilters)
-    val hasActiveFilters = selectedTypes.size != VehicleType.entries.size ||
-                           !showLineTraces || showStops
+    // Filtres actifs (parité iOS hasActiveFilters — les arrêts sont automatiques, pas un filtre)
+    val hasActiveFilters = selectedTypes.size != VehicleType.entries.size || !showLineTraces
 
     // ── UI ────────────────────────────────────────────────────────────────
     Box(modifier = Modifier.fillMaxSize()) {
@@ -297,7 +325,10 @@ fun LiveMapScreen() {
                             .target(LatLng(45.764043, 4.835659))
                             .zoom(12.5)
                             .build()
-                        map.addOnCameraIdleListener { currentZoom = map.cameraPosition.zoom }
+                        map.addOnCameraIdleListener {
+                            currentZoom = map.cameraPosition.zoom
+                            visibleBounds = map.projection.visibleRegion.latLngBounds
+                        }
                         map.addOnMapClickListener { latLng ->
                             val screen = map.projection.toScreenLocation(latLng)
                             val pt = PointF(screen.x, screen.y)
@@ -314,7 +345,10 @@ fun LiveMapScreen() {
                             }
                             false
                         }
-                        map.setStyle(Style.Builder().fromUri(STYLE_URL_LIBERTY)) { style -> mapStyle = style }
+                        map.setStyle(Style.Builder().fromUri(STYLE_URL_LIBERTY)) { style ->
+                            visibleBounds = map.projection.visibleRegion.latLngBounds
+                            mapStyle = style
+                        }
                     }
                 }
             },
@@ -338,6 +372,7 @@ fun LiveMapScreen() {
             hasError = vehiclesError != null || alertsError != null,
             modifier = Modifier
                 .align(Alignment.TopCenter)
+                .statusBarsPadding()
                 .padding(horizontal = 12.dp, vertical = 8.dp)
                 .fillMaxWidth(),
             onTap = { showAlertsSheet = true }
@@ -457,30 +492,50 @@ fun LiveMapScreen() {
     LaunchedEffect(mapStyle, filteredVehicles) {
         val style = mapStyle ?: return@LaunchedEffect
 
-        // Register icons for each unique line (only once per icon)
+        // Register circle body + arrow icons (once per unique line)
+        if (style.getImage("no_arrow") == null)
+            style.addImage("no_arrow", Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888))
+
         filteredVehicles.forEach { v ->
-            val iconId = "v_${v.lineName.replace(Regex("[^A-Za-z0-9]"), "_")}"
-            if (style.getImage(iconId) == null) style.addImage(iconId, vehicleMarkerBitmap(v.lineName))
+            val iconId  = "v_${v.lineName.replace(Regex("[^A-Za-z0-9]"), "_")}"
+            val arrowId = "va_${v.lineName.replace(Regex("[^A-Za-z0-9]"), "_")}"
+            if (style.getImage(iconId)  == null) style.addImage(iconId,  vehicleMarkerBitmap(v.lineName))
+            if (style.getImage(arrowId) == null) style.addImage(arrowId, bearingArrowBitmap(v.lineName))
         }
 
         val features = filteredVehicles.map { v ->
             val animated = vm.animatedVehicleFor(v.id)
             val nowSec   = System.currentTimeMillis() / 1000.0
             val coord    = animated?.currentInterpolatedCoordinate(nowSec) ?: v.coordinate
+            val bearing  = animated?.currentInterpolatedBearing(nowSec) ?: v.bearing
             val iconId   = "v_${v.lineName.replace(Regex("[^A-Za-z0-9]"), "_")}"
+            val arrowId  = "va_${v.lineName.replace(Regex("[^A-Za-z0-9]"), "_")}"
             val props    = JsonObject().apply {
                 addProperty("id",          v.id)
                 addProperty("line",        v.lineName)
                 addProperty("destination", v.destination)
                 addProperty("icon",        iconId)
+                addProperty("arrow_icon",  if (bearing != 0.0) arrowId else "no_arrow")
+                addProperty("bearing",     bearing.toFloat())
             }
             Feature.fromGeometry(Point.fromLngLat(coord.longitude, coord.latitude), props)
         }
 
         if (style.getSource(VEHICLES_SRC) == null) {
             style.addSource(GeoJsonSource(VEHICLES_SRC, FeatureCollection.fromFeatures(features)))
+            // Layer 1 : corps cercle (sans rotation — texte reste lisible)
             style.addLayer(SymbolLayer(VEHICLES_LAYER, VEHICLES_SRC).withProperties(
                 PropertyFactory.iconImage(Expression.get("icon")),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.iconIgnorePlacement(true),
+                PropertyFactory.iconSize(1f)
+            ))
+            // Layer 2 : flèche orbitale (tourne selon le bearing, comme iOS)
+            style.addLayer(SymbolLayer(VEHICLES_ARROW_LAYER, VEHICLES_SRC).withProperties(
+                PropertyFactory.iconImage(Expression.get("arrow_icon")),
+                PropertyFactory.iconRotate(Expression.toNumber(Expression.get("bearing"))),
+                PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+                PropertyFactory.iconOffset(arrayOf(0f, -28f)),
                 PropertyFactory.iconAllowOverlap(true),
                 PropertyFactory.iconIgnorePlacement(true),
                 PropertyFactory.iconSize(1f)
@@ -490,58 +545,65 @@ fun LiveMapScreen() {
         }
     }
 
-    // Stops / clusters
-    LaunchedEffect(mapStyle, showStops, visibleClusters) {
+    // Stops — parit\u00e9 iOS exacte
+    // - Compact (cercle blanc/bleu)  : stopsVisible && !showBadges
+    // - Badges  (dot + capsules)     : stopsVisible && showBadges
+    LaunchedEffect(mapStyle, stopsVisible, showBadges, visibleClusters) {
         val style = mapStyle ?: return@LaunchedEffect
 
-        val singleFeatures = if (showStops) visibleClusters.filter { it.count == 1 }.map { cl ->
-            val s = cl.items.first()
-            Feature.fromGeometry(
-                Point.fromLngLat(s.coordinate.longitude, s.coordinate.latitude),
-                JsonObject().apply { addProperty("id", s.id) }
-            )
-        } else emptyList()
+        // Enregistrer l'ic\u00f4ne compacte une seule fois par style
+        if (style.getImage(STOPS_COMPACT_KEY) == null) {
+            style.addImage(STOPS_COMPACT_KEY, stopCompactBitmap())
+        }
 
-        val clusterFeatures = if (showStops) visibleClusters.filter { it.count > 1 }.map { cl ->
-            Feature.fromGeometry(
-                Point.fromLngLat(cl.coordinate.longitude, cl.coordinate.latitude),
-                JsonObject().apply { addProperty("count", cl.count) }
-            )
-        } else emptyList()
+        // Construire les features (arr\u00eats individuels seulement — pas de clusters \u00e0 ce zoom)
+        val features = if (!stopsVisible) emptyList()
+        else visibleClusters.filter { it.count == 1 }.map { cl ->
+            val s = cl.items.first()
+            val props = JsonObject().apply { addProperty("id", s.id) }
+            if (showBadges) {
+                val visibleLines = s.lines.filter { !it.startsWith("JD", ignoreCase = true) }
+                if (visibleLines.isNotEmpty()) {
+                    val iconKey = "stop_" + visibleLines.take(4).joinToString("_")
+                    if (style.getImage(iconKey) == null) {
+                        style.addImage(iconKey, stopBadgeBitmap(visibleLines))
+                    }
+                    props.addProperty("icon", iconKey)
+                } else {
+                    props.addProperty("icon", STOPS_COMPACT_KEY)
+                }
+            }
+            Feature.fromGeometry(Point.fromLngLat(s.coordinate.longitude, s.coordinate.latitude), props)
+        }
 
         if (style.getSource(STOPS_SRC) == null) {
-            style.addSource(GeoJsonSource(STOPS_SRC, FeatureCollection.fromFeatures(singleFeatures)))
+            style.addSource(GeoJsonSource(STOPS_SRC, FeatureCollection.fromFeatures(features)))
+
+            // Layer 1 : disque compact (CircleLayer)
             style.addLayer(CircleLayer(STOPS_LAYER, STOPS_SRC).withProperties(
                 PropertyFactory.circleColor("#FFFFFF"),
-                PropertyFactory.circleRadius(6f),
+                PropertyFactory.circleRadius(5f),
                 PropertyFactory.circleStrokeColor("#1976D2"),
                 PropertyFactory.circleStrokeWidth(2f)
             ))
-        } else {
-            style.getSourceAs<GeoJsonSource>(STOPS_SRC)?.setGeoJson(FeatureCollection.fromFeatures(singleFeatures))
-        }
 
-        if (style.getSource(CLUSTERS_SRC) == null) {
-            style.addSource(GeoJsonSource(CLUSTERS_SRC, FeatureCollection.fromFeatures(clusterFeatures)))
-            style.addLayer(CircleLayer(CLUSTER_CIRCLE, CLUSTERS_SRC).withProperties(
-                PropertyFactory.circleColor("#1976D2"),
-                PropertyFactory.circleRadius(16f)
-            ))
-            style.addLayer(SymbolLayer(CLUSTER_TEXT, CLUSTERS_SRC).withProperties(
-                PropertyFactory.textField(Expression.toString(Expression.get("count"))),
-                PropertyFactory.textSize(12f),
-                PropertyFactory.textColor("#FFFFFF"),
-                PropertyFactory.textAllowOverlap(true),
-                PropertyFactory.textIgnorePlacement(true)
+            // Layer 2 : badges de ligne (SymbolLayer, visible seulement en mode badge)
+            // ICON_ANCHOR_CENTER : le bitmap est conçu pour que le centre du dot
+            // coïncide avec le centre vertical du bitmap (via top padding = badgeH + gap)
+            style.addLayer(SymbolLayer(STOPS_BADGE_LAYER, STOPS_SRC).withProperties(
+                PropertyFactory.iconImage(Expression.get("icon")),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.iconIgnorePlacement(true),
+                PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
             ))
         } else {
-            style.getSourceAs<GeoJsonSource>(CLUSTERS_SRC)?.setGeoJson(FeatureCollection.fromFeatures(clusterFeatures))
+            style.getSourceAs<GeoJsonSource>(STOPS_SRC)?.setGeoJson(FeatureCollection.fromFeatures(features))
         }
 
-        val vis = if (showStops) Property.VISIBLE else Property.NONE
-        style.getLayer(STOPS_LAYER)?.setProperties(PropertyFactory.visibility(vis))
-        style.getLayer(CLUSTER_CIRCLE)?.setProperties(PropertyFactory.visibility(vis))
-        style.getLayer(CLUSTER_TEXT)?.setProperties(PropertyFactory.visibility(vis))
+        val compactVis = if (stopsVisible && !showBadges) Property.VISIBLE else Property.NONE
+        val badgeVis   = if (stopsVisible && showBadges)  Property.VISIBLE else Property.NONE
+        style.getLayer(STOPS_LAYER)?.setProperties(PropertyFactory.visibility(compactVis))
+        style.getLayer(STOPS_BADGE_LAYER)?.setProperties(PropertyFactory.visibility(badgeVis))
     }
 
     // ── Bottom sheets ───────────────────────────────────────────────────
@@ -567,9 +629,7 @@ fun LiveMapScreen() {
                 selectedTypes = selectedTypes,
                 onToggleType = { vm.toggleType(it) },
                 showLineTraces = showLineTraces,
-                onToggleTraces = { showLineTraces = !showLineTraces },
-                showStops = showStops,
-                onToggleStops = { showStops = !showStops }
+                onToggleTraces = { showLineTraces = !showLineTraces }
             )
         }
     }
@@ -593,29 +653,210 @@ fun LiveMapScreen() {
 
 @Composable
 private fun VehicleDetailSheet(v: Vehicle) {
-    Column(modifier = Modifier.padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            LineBadgeMap(v.lineName)
-            Spacer(Modifier.width(10.dp))
-            Column {
-                Text(v.lineName, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(v.vehicleType.displayName, fontSize = 12.sp, color = Color.Gray)
+    val accentColor = Color(android.graphics.Color.parseColor(v.vehicleType.clusterColorHex))
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 24.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // ── Header card ──
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            shadowElevation = 3.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Icône colorée 64×64
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = accentColor,
+                    shadowElevation = 4.dp,
+                    modifier = Modifier.size(64.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Icon(
+                                imageVector = vehicleTypeIcon(v.vehicleType),
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = v.lineName,
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // Textes droite
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Text(
+                        text = v.vehicleType.displayName.uppercase(),
+                        color = accentColor,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.5.sp
+                    )
+                    val cleanDest = v.destination.trim()
+                    if (cleanDest.isNotEmpty() && !cleanDest.contains(":") && cleanDest.length < 60) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(Icons.Filled.ArrowForward, null, tint = Color(0xFF8E8E93), modifier = Modifier.size(12.dp))
+                            Text(cleanDest, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        }
+                    }
+                    // Pastille retard
+                    val delayColor = when {
+                        v.isDelayed -> Color(0xFFFF9500)
+                        v.isEarly   -> Color(0xFF007AFF)
+                        else        -> Color(0xFF34C759)
+                    }
+                    Surface(shape = RoundedCornerShape(50), color = delayColor.copy(alpha = 0.12f)) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Filled.AccessTime, null, tint = delayColor, modifier = Modifier.size(11.dp))
+                            Text(v.delayFormatted, color = delayColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
             }
         }
-        Spacer(Modifier.height(12.dp))
-        Text("→ ${v.destination}", fontSize = 15.sp)
-        Spacer(Modifier.height(6.dp))
-        val delayColor = when { v.isDelayed -> Color(0xFFE53935); v.isEarly -> Color(0xFFFB8C00); else -> Color(0xFF43A047) }
-        Text(v.delayFormatted, color = delayColor, fontWeight = FontWeight.SemiBold)
+
+        // ── Timeline prochain arrêt ──
         v.nextStop?.let { ns ->
-            Spacer(Modifier.height(8.dp))
-            HorizontalDivider()
-            Spacer(Modifier.height(8.dp))
-            Text("Prochain arrêt", fontSize = 12.sp, color = Color.Gray)
-            Text(ns.stopName ?: ns.stopRef, fontWeight = FontWeight.Medium)
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color.White,
+                shadowElevation = 3.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
+                    Text(
+                        text = "PROCHAIN ARRÊT",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF8E8E93),
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row {
+                        // Colonne dot
+                        Box(
+                            modifier = Modifier.width(28.dp).padding(top = 14.dp),
+                            contentAlignment = Alignment.TopCenter
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(accentColor.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .clip(CircleShape)
+                                        .background(accentColor)
+                                )
+                            }
+                        }
+                        // Contenu
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 12.dp, top = 16.dp, bottom = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(
+                                    text = ns.stopName ?: ns.stopRef,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                                Text("Prochain arrêt", fontSize = 10.sp, color = accentColor, fontWeight = FontWeight.Medium)
+                            }
+                            val arrivalEpoch = ns.aimedArrivalTimeEpoch ?: ns.aimedDepartureTimeEpoch
+                            if (arrivalEpoch != null) {
+                                val time = java.time.Instant.ofEpochMilli(arrivalEpoch)
+                                    .atZone(java.time.ZoneId.systemDefault())
+                                val timeStr = java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(time)
+                                val minsUntil = (arrivalEpoch - System.currentTimeMillis()) / 60000L
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                                ) {
+                                    Text(
+                                        text = timeStr,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    )
+                                    if (minsUntil > 0) {
+                                        Text(
+                                            text = "dans $minsUntil min",
+                                            fontSize = 10.sp,
+                                            color = accentColor,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
-        Spacer(Modifier.height(16.dp))
+
+        // ── Footer mis à jour ──
+        v.recordedAtEpoch?.let { epoch ->
+            val timeStr = java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(
+                java.time.Instant.ofEpochMilli(epoch).atZone(java.time.ZoneId.systemDefault())
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.Public, null, tint = Color(0xFFAEAEB2), modifier = Modifier.size(11.dp))
+                Spacer(Modifier.width(5.dp))
+                Text("Mis à jour à $timeStr", fontSize = 10.sp, color = Color(0xFFAEAEB2))
+            }
+        }
     }
+}
+
+private fun vehicleTypeIcon(type: VehicleType): androidx.compose.ui.graphics.vector.ImageVector = when (type) {
+    VehicleType.BUS, VehicleType.TROLLEY -> Icons.Filled.DirectionsBus
+    else -> Icons.Filled.Tram
 }
 
 // ── Bottom-sheet helpers ─────────────────────────────────────────────────
@@ -968,9 +1209,7 @@ private fun FilterSheet(
     selectedTypes: Set<VehicleType>,
     onToggleType: (VehicleType) -> Unit,
     showLineTraces: Boolean,
-    onToggleTraces: () -> Unit,
-    showStops: Boolean,
-    onToggleStops: () -> Unit
+    onToggleTraces: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Filtres", fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -996,30 +1235,19 @@ private fun FilterSheet(
 
         Text("Affichage", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93))
         Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFF2F2F7), modifier = Modifier.fillMaxWidth()) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Tracés des lignes", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        Text("Affiche les itinéraires des lignes", fontSize = 11.sp, color = Color(0xFF8E8E93))
-                    }
-                    Switch(checked = showLineTraces, onCheckedChange = { onToggleTraces() })
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Tracés des lignes", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text("Affiche les itinéraires des lignes", fontSize = 11.sp, color = Color(0xFF8E8E93))
                 }
-                HorizontalDivider(modifier = Modifier.padding(start = 14.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Arrêts", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        Text("Affiche les arrêts sur la carte", fontSize = 11.sp, color = Color(0xFF8E8E93))
-                    }
-                    Switch(checked = showStops, onCheckedChange = { onToggleStops() })
-                }
+                Switch(checked = showLineTraces, onCheckedChange = { onToggleTraces() })
             }
         }
+        // Note: les arrêts s'affichent automatiquement au zoom (latitudeDelta ≤ 0.018),
+        // comme sur iOS. Pas de toggle manuel.
         Spacer(Modifier.height(8.dp))
     }
 }
@@ -1054,19 +1282,150 @@ private fun parseAndroidColor(hex: String): Int {
     catch (_: Exception) { AndroidColor.GRAY }
 }
 
+/**
+ * Marqueur véhicule — cercle iOS-like (96×96 px).
+ * Forme : disque coloré + bordure fine noire 15% + nom de ligne centré.
+ * La flèche directionnelle est sur VEHICLES_ARROW_LAYER (ne tourne pas avec le texte).
+ */
 private fun vehicleMarkerBitmap(line: String): Bitmap {
+    val density = android.content.res.Resources.getSystem().displayMetrics.density
     val bg = parseAndroidColor(LineColors.backgroundHex(line))
     val tx = parseAndroidColor(LineColors.textHex(line))
-    val w = 110; val h = 64
-    val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    // 40dp diameter so MapLibre (which divides by density) renders it as 40dp on screen
+    val size = (40 * density).toInt().coerceAtLeast(1)
+    val bmp  = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
-    val rect = RectF(2f, 2f, (w - 2).toFloat(), (h - 2).toFloat())
-    canvas.drawRoundRect(rect, 14f, 14f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bg; style = Paint.Style.FILL })
-    canvas.drawRoundRect(rect, 14f, 14f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 4f
+    val cx = size / 2f; val cy = size / 2f; val radius = size / 2f - density
+    canvas.drawCircle(cx, cy, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = bg; style = Paint.Style.FILL
     })
-    canvas.drawText(line, w / 2f, h / 2f + 11f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = tx; textSize = 30f; textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD
+    canvas.drawCircle(cx, cy, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.argb(38, 0, 0, 0); style = Paint.Style.STROKE; strokeWidth = density
+    })
+    val textSize = when { line.length <= 2 -> 14f * density; line.length == 3 -> 11f * density; else -> 9f * density }
+    canvas.drawText(line, cx, cy + textSize * 0.38f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = tx; this.textSize = textSize; textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD
     })
     return bmp
 }
+
+/** Triangle directionnel (pointe vers le haut = nord), coloré avec la couleur de ligne. */
+private fun bearingArrowBitmap(line: String): Bitmap {
+    val density = android.content.res.Resources.getSystem().displayMetrics.density
+    val bg = parseAndroidColor(LineColors.backgroundHex(line))
+    // 14×10dp so MapLibre renders it at 14×10dp after dividing by density
+    val w = (14 * density).toInt().coerceAtLeast(1)
+    val h = (10 * density).toInt().coerceAtLeast(1)
+    val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    val path = android.graphics.Path()
+    path.moveTo(w / 2f, 0f)
+    path.lineTo(w.toFloat(), h.toFloat())
+    path.lineTo(0f, h.toFloat())
+    path.close()
+    canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bg; style = Paint.Style.FILL })
+    return bmp
+}
+
+/**
+ * Disque compact pour un arrêt (mode dezoom, latitudeDelta > 0.005).
+ * Équivalent iOS : MergedStopAnnotationView.setCompact() — dot 9pt blanc + contour bleu.
+ */
+private fun stopCompactBitmap(): Bitmap {
+    val density = 3f
+    val size    = (9 * density).toInt()
+    val bmp     = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas  = Canvas(bmp)
+    val cx = size / 2f; val cy = size / 2f; val r = size / 2f - density
+    canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE; style = Paint.Style.FILL
+    })
+    canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.parseColor("#1976D2"); style = Paint.Style.STROKE; strokeWidth = density
+    })
+    return bmp
+}
+
+/**
+ * Disque (11pt) + rangée de capsules de ligne colorées (mode zoom serré, latitudeDelta ≤ 0.005).
+ * Équivalent iOS : MergedStopAnnotationView.setBadges()
+ *
+ * Layout (bitmap en pixels @3x) :
+ *   ●           ← dot 11pt centré horizontalement
+ *   gap 2pt
+ *   [C26][T1]…  ← badges (hauteur 11pt, police 7.5pt bold, max 4 lignes)
+ */
+private fun stopBadgeBitmap(lines: List<String>): Bitmap {
+    val density    = 3f
+    val dotSizePx  = (11 * density).toInt()
+    val badgeH     = (11 * density).toInt()
+    val gapPx      = (2  * density).toInt()
+    val hPadPx     = (3  * density).toInt()
+    val spacingPx  = (2  * density).toInt()
+    val textSizePx = 7.5f * density
+    val cornerR    = badgeH / 2f
+
+    val capped     = lines.take(4)
+    val textPaint  = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        this.textSize = textSizePx; typeface = Typeface.DEFAULT_BOLD
+    }
+
+    val badgeWidths = capped.map { line ->
+        (textPaint.measureText(line) + 2 * hPadPx).toInt()
+    }
+    val totalBadgeW = badgeWidths.sum() + spacingPx * (capped.size - 1).coerceAtLeast(0)
+    val totalW      = maxOf(dotSizePx, totalBadgeW)
+    // Top padding = badgeH + gap pour que le centre du dot = centre vertical du bitmap
+    // (avec ICON_ANCHOR_CENTER, MapLibre place le centre du bitmap sur la coordonnée)
+    val topPad = badgeH + gapPx
+    val totalH = topPad + dotSizePx + gapPx + badgeH
+
+    val bmp    = Bitmap.createBitmap(totalW, totalH, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+
+    // ── Dot ──────────────────────────────────────────────────────────────
+    val dotX = (totalW - dotSizePx) / 2f
+    val cx   = dotX + dotSizePx / 2f
+    val cy   = topPad + dotSizePx / 2f
+    val r    = dotSizePx / 2f - density
+    canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE; style = Paint.Style.FILL
+    })
+    canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.parseColor("#1976D2"); style = Paint.Style.STROKE; strokeWidth = density
+    })
+
+    // ── Badges ────────────────────────────────────────────────────────────
+    var x = ((totalW - totalBadgeW) / 2f).toInt()
+    val y = (topPad + dotSizePx + gapPx).toFloat()
+
+    for ((i, line) in capped.withIndex()) {
+        val bw     = badgeWidths[i].toFloat()
+        val bgCol  = parseAndroidColor(LineColors.backgroundHex(line))
+        val txCol  = parseAndroidColor(LineColors.textHex(line))
+        val border = LineColors.needsBorder(line)
+        val rect   = RectF(x.toFloat(), y, x + bw, y + badgeH)
+
+        canvas.drawRoundRect(rect, cornerR, cornerR,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bgCol; style = Paint.Style.FILL })
+
+        if (border) {
+            canvas.drawRoundRect(rect, cornerR, cornerR,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = AndroidColor.parseColor("#C7C7CC")
+                    style = Paint.Style.STROKE; strokeWidth = 1.5f
+                })
+        }
+
+        val textY = y + badgeH / 2f + textSizePx * 0.35f
+        canvas.drawText(line, x + bw / 2f, textY,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = txCol; this.textSize = textSizePx
+                textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD
+            })
+
+        x += (bw + spacingPx).toInt()
+    }
+    return bmp
+}
+
