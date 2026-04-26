@@ -11,7 +11,7 @@
     <application
         android:name=".AlerteTCLApplication"
         android:label="Alerte TCL"
-        android:theme="@style/Theme.Material3.DynamicColors.DayNight"
+        android:theme="@style/Theme.AlerteTCL"
         android:icon="@android:drawable/ic_dialog_map"
         android:usesCleartextTraffic="false">
 
@@ -23,7 +23,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="Alerte TCL"
-            android:theme="@style/Theme.Material3.DynamicColors.DayNight">
+            android:theme="@style/Theme.AlerteTCL">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

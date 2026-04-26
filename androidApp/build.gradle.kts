@@ -14,6 +14,13 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+
+        // Lit MAPS_API_KEY depuis ~/.gradle/gradle.properties ou variable d'env, défaut vide pour debug
+        val mapsApiKey: String =
+            (project.findProperty("MAPS_API_KEY") as String?)
+                ?: System.getenv("MAPS_API_KEY")
+                ?: ""
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildFeatures {

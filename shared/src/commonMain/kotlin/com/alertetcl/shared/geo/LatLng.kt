@@ -1,11 +1,13 @@
 package com.alertetcl.shared.geo
 
+import kotlinx.serialization.Serializable
 import kotlin.math.cos
 import kotlin.math.sqrt
 
 /**
  * Coordonnée géographique. Equivalent multiplatforme de CLLocationCoordinate2D.
  */
+@Serializable
 data class LatLng(
     val latitude: Double,
     val longitude: Double
