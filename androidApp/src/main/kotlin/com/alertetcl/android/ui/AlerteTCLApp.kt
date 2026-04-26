@@ -48,7 +48,7 @@ private val tabs = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlerteTCLApp() {
+fun AlerteTCLApp(initialRoute: String? = null) {
     val context = LocalContext.current
     val store = remember { FavoritesStore(context) }
     val scope = rememberCoroutineScope()
@@ -63,6 +63,17 @@ fun AlerteTCLApp() {
     val nav = rememberNavController()
     val backStackEntry = nav.currentBackStackEntryAsState().value
     val currentRoute = backStackEntry?.destination?.route
+
+    // Deep-link: switch tab on incoming route
+    androidx.compose.runtime.LaunchedEffect(initialRoute) {
+        val target = initialRoute ?: return@LaunchedEffect
+        if (tabs.any { it.route == target }) {
+            nav.navigate(target) {
+                launchSingleTop = true
+                popUpTo(nav.graph.startDestinationId) { saveState = true }
+            }
+        }
+    }
 
     Scaffold(
         bottomBar = {

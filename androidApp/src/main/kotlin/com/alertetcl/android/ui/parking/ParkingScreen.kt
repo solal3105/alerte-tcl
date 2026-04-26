@@ -5,6 +5,8 @@ import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Paint
 import android.graphics.PointF
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,15 +17,25 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -36,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -98,6 +111,9 @@ fun ParkingScreen() {
     parkingsRef.value = parkings
 
     var selectedParking by remember { mutableStateOf<Parking?>(null) }
+    var showFilterSheet by remember { mutableStateOf(false) }
+    val showCarFilters = ParkingType.CAR in selectedTypes
+    val currentRegion = remember { mutableStateOf<GeoRegion?>(null) }
 
     val mapView = rememberParkingMapView()
 
@@ -123,6 +139,7 @@ fun ParkingScreen() {
                                     center = GeoLatLng(target.latitude, target.longitude),
                                     latitudeDelta = deltaLat, longitudeDelta = deltaLat
                                 )
+                                currentRegion.value = region
                                 vm.loadInRegion(region)
                             }
                         }
@@ -148,29 +165,50 @@ fun ParkingScreen() {
                 .padding(8.dp)
         ) {
             if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                tonalElevation = 4.dp,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            // iOS-style capsule segmented selector
+            Row(
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .align(Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()).padding(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = Color.White,
+                    tonalElevation = 4.dp,
+                    shadowElevation = 4.dp
                 ) {
-                    ParkingType.entries.forEach { type ->
-                        FilterChip(
-                            selected = type in selectedTypes,
-                            onClick = { vm.toggleType(type) },
-                            label = { Text(type.displayName, fontSize = 12.sp) }
-                        )
+                    Row(
+                        modifier = Modifier.padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        ParkingType.entries.forEach { type ->
+                            ParkingTypeButton(
+                                type = type,
+                                isSelected = type in selectedTypes,
+                                onClick = { vm.toggleType(type) }
+                            )
+                        }
                     }
-                    Spacer(Modifier.width(4.dp))
-                    FilterChip(
-                        selected = showParcRelais,
-                        onClick = { vm.toggleParcRelais() },
-                        label = { Text("Parc Relais (P+R)", fontSize = 12.sp) }
-                    )
+                }
+                if (showCarFilters) {
+                    val hasActiveFilters = !showParcRelais
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White,
+                        tonalElevation = 4.dp,
+                        shadowElevation = 4.dp,
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        IconButton(onClick = { showFilterSheet = true }, modifier = Modifier.fillMaxSize()) {
+                            Icon(
+                                Icons.Filled.FilterList, "Filtres",
+                                tint = if (hasActiveFilters) Color(0xFFFF9500) else Color(0xFF1C1C1E),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -178,14 +216,39 @@ fun ParkingScreen() {
         Surface(
             shape = RoundedCornerShape(8.dp),
             tonalElevation = 4.dp,
+            color = Color.White.copy(alpha = 0.92f),
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
         ) {
             Text(
                 "${parkings.size} parkings",
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                fontSize = 12.sp
+                fontSize = 12.sp, fontWeight = FontWeight.Medium
             )
         }
+
+        // Refresh card bottom-left for car type (iOS parity)
+        if (showCarFilters) {
+            Surface(
+                shape = CircleShape,
+                color = Color.White.copy(alpha = 0.95f),
+                tonalElevation = 6.dp,
+                shadowElevation = 6.dp,
+                modifier = Modifier.align(Alignment.BottomStart).padding(16.dp).size(44.dp)
+            ) {
+                IconButton(onClick = {
+                    currentRegion.value?.let { vm.loadInRegion(it, forceRefresh = true) }
+                }, modifier = Modifier.fillMaxSize()) {
+                    Icon(Icons.Filled.Refresh, "Rafraîchir", tint = Color(0xFF007AFF), modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+    }
+
+    if (showFilterSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showFilterSheet = false },
+            sheetState = rememberModalBottomSheetState()
+        ) { ParkingFilterSheet(showParcRelais = showParcRelais, onToggleParcRelais = { vm.toggleParcRelais() }) }
     }
 
     selectedParking?.let { p ->
@@ -284,6 +347,60 @@ private fun parkingColorFor(c: AvailabilityColor): Color = when (c) {
     AvailabilityColor.GREEN  -> Color(0xFF43A047)
     AvailabilityColor.ORANGE -> Color(0xFFFB8C00)
     AvailabilityColor.RED    -> Color(0xFFE53935)
+}
+
+private fun parkingTypeColor(type: ParkingType): Color = when (type) {
+    ParkingType.CAR           -> Color(0xFF007AFF)
+    ParkingType.BIKE          -> Color(0xFF34C759)
+    ParkingType.MOTORIZED_2W  -> Color(0xFFFF9500)
+}
+
+private fun parkingTypeIcon(type: ParkingType) = when (type) {
+    ParkingType.CAR           -> Icons.Filled.DirectionsCar
+    ParkingType.BIKE          -> Icons.Filled.DirectionsBike
+    ParkingType.MOTORIZED_2W  -> Icons.Filled.TwoWheeler
+}
+
+@Composable
+private fun ParkingTypeButton(type: ParkingType, isSelected: Boolean, onClick: () -> Unit) {
+    val accent = parkingTypeColor(type)
+    val bg = if (isSelected) accent else Color.Transparent
+    val fg = if (isSelected) Color.White else accent
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = bg,
+        modifier = Modifier.clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(parkingTypeIcon(type), null, tint = fg, modifier = Modifier.size(16.dp))
+            Text(type.displayName, color = fg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun ParkingFilterSheet(showParcRelais: Boolean, onToggleParcRelais: () -> Unit) {
+    Column(modifier = Modifier.padding(20.dp)) {
+        Text("Filtres", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Spacer(Modifier.height(16.dp))
+        Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFF2F2F7), modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp).fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Parc Relais (P+R)", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text("Afficher les parkings relais TCL", fontSize = 11.sp, color = Color(0xFF8E8E93))
+                }
+                Switch(checked = showParcRelais, onCheckedChange = { onToggleParcRelais() })
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+    }
 }
 
 private fun parkingAndroidColor(c: AvailabilityColor): Int = when (c) {

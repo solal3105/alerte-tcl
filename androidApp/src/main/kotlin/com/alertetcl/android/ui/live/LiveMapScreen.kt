@@ -18,17 +18,25 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Accessible
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
@@ -68,6 +76,7 @@ import com.alertetcl.shared.models.ClusteringEngine
 import com.alertetcl.shared.models.LineColors
 import com.alertetcl.shared.models.Passage
 import com.alertetcl.shared.models.TransitLine
+import com.alertetcl.shared.models.TransportMode
 import com.alertetcl.shared.models.TransitStop
 import com.alertetcl.shared.models.Vehicle
 import com.alertetcl.shared.models.VehicleType
@@ -96,7 +105,21 @@ import kotlin.math.max
 import kotlin.math.pow
 
 // Tuiles OpenFreeMap — 100% gratuit, sans clé API
-private const val STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
+private const val STYLE_URL_LIBERTY = "https://tiles.openfreemap.org/styles/liberty"
+
+// Style satellite via raster ESRI World Imagery (free, no key)
+private const val STYLE_JSON_SATELLITE = """{
+  "version": 8,
+  "sources": {
+    "satellite": {
+      "type": "raster",
+      "tiles": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+      "tileSize": 256,
+      "attribution": "Tiles © Esri"
+    }
+  },
+  "layers": [{"id": "satellite", "type": "raster", "source": "satellite"}]
+}"""
 
 private const val TRANSIT_SRC     = "transit-src"
 private const val BUS_SRC         = "bus-src"
@@ -152,6 +175,7 @@ fun LiveMapScreen() {
 
     var showLineTraces by remember { mutableStateOf(true) }
     var showStops      by remember { mutableStateOf(false) }
+    var isSatellite    by remember { mutableStateOf(false) }
 
     val transitLines = produceState<List<TransitLine>>(initialValue = emptyList()) {
         value = runCatching { TransitLineService.shared.fetchTransitLines() }.getOrDefault(emptyList())
@@ -237,12 +261,21 @@ fun LiveMapScreen() {
                             }
                             false
                         }
-                        map.setStyle(STYLE_URL) { style -> mapStyle = style }
+                        map.setStyle(Style.Builder().fromUri(STYLE_URL_LIBERTY)) { style -> mapStyle = style }
                     }
                 }
             },
             modifier = Modifier.fillMaxSize()
         )
+
+        // Switch base style when satellite toggled (re-applies layers via mapStyle observer)
+        LaunchedEffect(isSatellite) {
+            val map = mapLibreMap ?: return@LaunchedEffect
+            val builder = if (isSatellite) Style.Builder().fromJson(STYLE_JSON_SATELLITE)
+                          else              Style.Builder().fromUri(STYLE_URL_LIBERTY)
+            mapStyle = null
+            map.setStyle(builder) { style -> mapStyle = style }
+        }
 
         // Top overlay: progress + error badge + filter chips
         Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
@@ -280,21 +313,30 @@ fun LiveMapScreen() {
             }
         }
 
-        // Bottom-right overlay: count + FABs
+        // Bottom-right overlay: counter + 3 circular FABs (iOS parity)
         Column(
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
-            horizontalAlignment = Alignment.End
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Surface(shape = RoundedCornerShape(8.dp), tonalElevation = 4.dp) {
+            Surface(shape = RoundedCornerShape(8.dp), tonalElevation = 4.dp,
+                color = Color.White.copy(alpha = 0.92f)) {
                 Text("${filteredVehicles.size} véhicules",
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), fontSize = 12.sp)
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    fontSize = 12.sp, fontWeight = FontWeight.Medium)
             }
-            Spacer(Modifier.height(8.dp))
-            FilledIconButton(onClick = { showAlertsSheet      = true }) { Icon(Icons.Filled.Warning,  "Alertes") }
-            Spacer(Modifier.height(8.dp))
-            FilledIconButton(onClick = { showSettingsSheet    = true }) { Icon(Icons.Filled.Settings, "Réglages") }
-            Spacer(Modifier.height(8.dp))
-            FilledIconButton(onClick = { vm.refresh() })                { Icon(Icons.Filled.Refresh,  "Rafraîchir") }
+            CircleFab(icon = Icons.Filled.Public, contentDesc = "Vue satellite",
+                tint = if (isSatellite) Color(0xFFFF9500) else Color(0xFF1C1C1E),
+                onClick = { isSatellite = !isSatellite })
+            CircleFab(icon = Icons.Filled.Warning, contentDesc = "Alertes",
+                tint = Color(0xFFFF9500),
+                onClick = { showAlertsSheet = true })
+            CircleFab(icon = Icons.Filled.Settings, contentDesc = "Réglages",
+                tint = Color(0xFF1C1C1E),
+                onClick = { showSettingsSheet = true })
+            CircleFab(icon = Icons.Filled.Refresh, contentDesc = "Rafraîchir",
+                tint = Color(0xFF007AFF),
+                onClick = { vm.refresh() })
         }
     }
 
@@ -507,44 +549,151 @@ private fun VehicleDetailSheet(v: Vehicle) {
     }
 }
 
+// ── Bottom-sheet helpers ─────────────────────────────────────────────────
+
+@Composable
+private fun CircleFab(icon: androidx.compose.ui.graphics.vector.ImageVector, contentDesc: String,
+                     tint: Color, onClick: () -> Unit) {
+    Surface(shape = CircleShape, color = Color.White.copy(alpha = 0.95f),
+        tonalElevation = 6.dp, shadowElevation = 6.dp,
+        modifier = Modifier.size(50.dp)) {
+        IconButton(onClick = onClick, modifier = Modifier.fillMaxSize()) {
+            Icon(icon, contentDesc, tint = tint, modifier = Modifier.size(22.dp))
+        }
+    }
+}
+
+private data class LineDirectionKey(val line: String, val direction: String)
+
 @Composable
 private fun StopDetailSheet(stop: TransitStop) {
     val passages = produceState<List<Passage>?>(initialValue = null, stop.id) {
         value = runCatching { TransitStopService.shared.fetchPassagesForStop(stop.id) }.getOrNull() ?: emptyList()
     }
-    Column(modifier = Modifier.padding(16.dp)) {
-        Text(stop.nom, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        if (stop.commune.isNotEmpty()) Text(stop.commune, fontSize = 12.sp, color = Color.Gray)
-        if (stop.pmr) { Spacer(Modifier.height(4.dp)); Text("Accessible PMR", fontSize = 12.sp, color = Color(0xFF1976D2)) }
+    val groupedPassages = remember(passages.value) {
+        val list = passages.value ?: return@remember emptyList<Pair<LineDirectionKey, List<Passage>>>()
+        list.groupBy { LineDirectionKey(it.ligne, it.direction) }
+            .toList()
+            .sortedWith(
+                compareBy<Pair<LineDirectionKey, List<Passage>>> {
+                    TransportMode.detectFromLine(it.first.line).sortOrder
+                }.thenBy { it.first.line }.thenBy { it.first.direction }
+            )
+    }
+
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+        .heightIn(max = 560.dp)
+        .verticalScroll(rememberScrollState())) {
+
+        // Header (centered) — iOS parity
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    modifier = Modifier.size(60.dp).clip(CircleShape)
+                        .background(Color(0xFF007AFF).copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.Tram, null, tint = Color(0xFF007AFF), modifier = Modifier.size(28.dp))
+                }
+                Text(stop.nom, fontWeight = FontWeight.Bold, fontSize = 19.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                if (stop.commune.isNotEmpty())
+                    Text(stop.commune, fontSize = 13.sp, color = Color(0xFF8E8E93))
+
+                if (stop.lines.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        stop.lines.take(6).forEach { line ->
+                            com.alertetcl.android.ui.alerts.LineBadge(line, size = 28.dp, fontSize = 12.sp)
+                        }
+                        if (stop.lines.size > 6) Text("+${stop.lines.size - 6}", fontSize = 11.sp,
+                            color = Color(0xFF8E8E93), modifier = Modifier.padding(start = 4.dp))
+                    }
+                }
+                if (stop.pmr) {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Icons.Filled.Accessible, null, tint = Color(0xFF007AFF),
+                            modifier = Modifier.size(14.dp))
+                        Text("Accessible PMR", fontSize = 11.sp, color = Color(0xFF007AFF))
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+
+        // Passages section
+        Text("Prochains passages", fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+            color = Color(0xFF1C1C1E))
         Spacer(Modifier.height(12.dp))
-        HorizontalDivider()
-        Spacer(Modifier.height(8.dp))
-        Text("Prochains passages", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        Spacer(Modifier.height(8.dp))
-        val list = passages.value
         when {
-            list == null    -> Text("Chargement…", fontSize = 13.sp, color = Color.Gray)
-            list.isEmpty()  -> Text("Aucun passage à venir", fontSize = 13.sp, color = Color.Gray)
-            else            -> LazyColumn(
-                contentPadding = PaddingValues(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.height(280.dp)
-            ) { items(list) { p -> PassageRow(p) } }
+            passages.value == null -> {
+                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                    contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
+                        Text("Chargement des passages…", fontSize = 12.sp, color = Color(0xFF8E8E93))
+                    }
+                }
+            }
+            groupedPassages.isEmpty() -> {
+                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp),
+                    contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Filled.HelpOutline, null, tint = Color(0xFF8E8E93),
+                            modifier = Modifier.size(36.dp))
+                        Text("Aucun passage à venir", fontSize = 13.sp, color = Color(0xFF8E8E93))
+                    }
+                }
+            }
+            else -> {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    groupedPassages.forEach { (key, list) ->
+                        LinePassagesCard(line = key.line, direction = key.direction, passages = list)
+                    }
+                }
+            }
         }
         Spacer(Modifier.height(16.dp))
     }
 }
 
 @Composable
-private fun PassageRow(p: Passage) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        LineBadgeMap(p.ligne)
-        Spacer(Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(p.direction, fontSize = 13.sp)
-            if (p.isRealTime) Text("Temps réel", fontSize = 10.sp, color = Color(0xFF43A047))
+private fun LinePassagesCard(line: String, direction: String, passages: List<Passage>) {
+    Surface(shape = RoundedCornerShape(14.dp), color = Color.White,
+        tonalElevation = 1.dp, shadowElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                com.alertetcl.android.ui.alerts.LineBadge(line, size = 32.dp, fontSize = 13.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Direction", fontSize = 10.sp, color = Color(0xFF8E8E93))
+                    Text(direction, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 2)
+                }
+            }
+            Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                passages.take(4).forEach { p -> PassageChip(p) }
+            }
         }
-        Text(p.formattedTime, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun PassageChip(p: Passage) {
+    val bg = if (p.isRealTime) Color(0xFF34C759).copy(alpha = 0.14f) else Color(0xFFF2F2F7)
+    val accent = if (p.isRealTime) Color(0xFF34C759) else Color(0xFF8E8E93)
+    Surface(shape = RoundedCornerShape(10.dp), color = bg) {
+        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(p.delaipassage.ifBlank { "--" }, fontSize = 13.sp,
+                fontWeight = FontWeight.Bold, color = accent)
+            Text(p.formattedTime, fontSize = 9.sp, color = Color(0xFF8E8E93))
+        }
     }
 }
 

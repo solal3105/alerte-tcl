@@ -1,6 +1,11 @@
 package com.alertetcl.android.ui.travaux
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color as AndroidColor
+import android.graphics.Paint
 import android.graphics.PointF
+import android.graphics.Typeface
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -21,6 +26,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,9 +49,9 @@ import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.LineLayer
-import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
@@ -87,6 +93,7 @@ fun TravauxScreen() {
 
     var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
     var mapStyle by remember { mutableStateOf<Style?>(null) }
+    var currentZoom by remember { mutableDoubleStateOf(12.5) }
 
     val travauxRef = remember { mutableStateOf<List<Travaux>>(emptyList()) }
     travauxRef.value = travaux
@@ -105,6 +112,7 @@ fun TravauxScreen() {
                             .target(LatLng(45.764043, 4.835659))
                             .zoom(12.5)
                             .build()
+                        map.addOnCameraIdleListener { currentZoom = map.cameraPosition.zoom }
                         map.addOnMapClickListener { latLng ->
                             val screen = map.projection.toScreenLocation(latLng)
                             val pt = PointF(screen.x, screen.y)
@@ -175,7 +183,7 @@ fun TravauxScreen() {
         val markerFeatures = travaux.map { t ->
             val props = JsonObject().apply {
                 addProperty("id", t.id)
-                addProperty("color", travauxColorHex(t.importance).second)
+                addProperty("icon", travauxIconId(t.importance))
             }
             Feature.fromGeometry(Point.fromLngLat(t.centroid.longitude, t.centroid.latitude), props)
         }
@@ -201,14 +209,28 @@ fun TravauxScreen() {
         } else style.getSourceAs<GeoJsonSource>(OUTLINE_SRC)?.setGeoJson(FeatureCollection.fromFeatures(outlineFeatures))
 
         if (style.getSource(MARKERS_SRC) == null) {
+            // Register marker bitmaps once per importance × nature
+            TravauxImportance.entries.forEach { imp ->
+                val iconId = travauxIconId(imp)
+                if (style.getImage(iconId) == null)
+                    style.addImage(iconId, travauxMarkerBitmap(imp))
+            }
             style.addSource(GeoJsonSource(MARKERS_SRC, FeatureCollection.fromFeatures(markerFeatures)))
-            style.addLayer(CircleLayer(MARKERS_LAYER, MARKERS_SRC).withProperties(
-                PropertyFactory.circleColor(org.maplibre.android.style.expressions.Expression.get("color")),
-                PropertyFactory.circleRadius(10f),
-                PropertyFactory.circleStrokeColor("#FFFFFF"),
-                PropertyFactory.circleStrokeWidth(2f)
+            style.addLayer(SymbolLayer(MARKERS_LAYER, MARKERS_SRC).withProperties(
+                PropertyFactory.iconImage(org.maplibre.android.style.expressions.Expression.get("icon")),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.iconIgnorePlacement(true),
+                PropertyFactory.iconSize(1f)
             ))
         } else style.getSourceAs<GeoJsonSource>(MARKERS_SRC)?.setGeoJson(FeatureCollection.fromFeatures(markerFeatures))
+    }
+
+    // Show polygons only when zoomed in enough (iOS parity: latitudeDelta < 0.03 ≈ zoom > 13.5)
+    LaunchedEffect(mapStyle, currentZoom) {
+        val style = mapStyle ?: return@LaunchedEffect
+        val vis = if (currentZoom > 13.0) Property.VISIBLE else Property.NONE
+        style.getLayer(POLY_LAYER)?.setProperties(PropertyFactory.visibility(vis))
+        style.getLayer(OUTLINE_LAYER)?.setProperties(PropertyFactory.visibility(vis))
     }
 
     selected?.let { t ->
@@ -281,4 +303,56 @@ private fun travauxColorHex(imp: TravauxImportance): Pair<String, String> {
         TravauxImportance.INCONNU         -> "#6E6E73"
     }
     return base to base
+}
+
+private fun travauxIconId(imp: TravauxImportance) = "travaux_${imp.name}"
+
+/** Marker iso iOS : disque coloré + icone H + badge importance (rouge "!" / orange) en haut-droite. */
+private fun travauxMarkerBitmap(imp: TravauxImportance): Bitmap {
+    val s = 80; val cx = s / 2f; val cy = s / 2f
+    val baseColor = when (imp) {
+        TravauxImportance.TRES_PERTURBANT -> AndroidColor.parseColor("#E53935")
+        TravauxImportance.PERTURBANT      -> AndroidColor.parseColor("#FB8C00")
+        TravauxImportance.PEU_PERTURBANT  -> AndroidColor.parseColor("#43A047")
+        TravauxImportance.INCONNU         -> AndroidColor.parseColor("#6E6E73")
+    }
+    val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    val mainR = 26f
+    canvas.drawCircle(cx, cy, mainR, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = baseColor; style = Paint.Style.FILL })
+    canvas.drawCircle(cx, cy, mainR, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 3f
+    })
+    // Letter "H" (chantier / hammer) centered
+    canvas.drawText("H", cx, cy + 10f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE; textSize = 28f; textAlign = Paint.Align.CENTER
+        typeface = Typeface.DEFAULT_BOLD
+    })
+    // Importance badge top-right (offset like iOS x:12, y:-12)
+    when (imp) {
+        TravauxImportance.TRES_PERTURBANT -> {
+            val br = 11f; val bx = cx + 18f; val by = cy - 18f
+            canvas.drawCircle(bx, by, br, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = AndroidColor.parseColor("#E53935"); style = Paint.Style.FILL
+            })
+            canvas.drawCircle(bx, by, br, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 2f
+            })
+            canvas.drawText("!", bx, by + 6f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = AndroidColor.WHITE; textSize = 16f; textAlign = Paint.Align.CENTER
+                typeface = Typeface.DEFAULT_BOLD
+            })
+        }
+        TravauxImportance.PERTURBANT -> {
+            val br = 9f; val bx = cx + 18f; val by = cy - 18f
+            canvas.drawCircle(bx, by, br, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = AndroidColor.parseColor("#FB8C00"); style = Paint.Style.FILL
+            })
+            canvas.drawCircle(bx, by, br, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 2f
+            })
+        }
+        else -> {}
+    }
+    return bmp
 }
