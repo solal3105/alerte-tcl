@@ -23,6 +23,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // N-02: clear notif badge sur reprise (parité iOS UNUserNotificationCenter setBadgeCount(0))
+        runCatching {
+            androidx.core.app.NotificationManagerCompat.from(this).cancelAll()
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         intent.getStringExtra(EXTRA_INITIAL_ROUTE)?.let {
@@ -33,5 +41,6 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_INITIAL_ROUTE = "initial_route"
+        const val EXTRA_PARKING_ID = "parking_id"
     }
 }

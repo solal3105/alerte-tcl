@@ -36,6 +36,14 @@ class LiveVehiclesViewModel(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    /** True quand le polling est actif (utilisé par l'indicateur "LIVE"). */
+    private val _isLive = MutableStateFlow(false)
+    val isLive: StateFlow<Boolean> = _isLive.asStateFlow()
+
+    /** Timestamp epoch-ms du dernier rafraîchissement réussi (pour le countdown). */
+    private val _lastUpdateEpochMs = MutableStateFlow<Long?>(null)
+    val lastUpdateEpochMs: StateFlow<Long?> = _lastUpdateEpochMs.asStateFlow()
+
     /** Index des véhicules animés par id (pour interpolation côté UI). */
     private val animatedVehicles = mutableMapOf<String, AnimatedVehicle>()
 
@@ -52,6 +60,7 @@ class LiveVehiclesViewModel(
 
     fun startPolling() {
         if (pollingJob?.isActive == true) return
+        _isLive.value = true
         pollingJob = scope.launch {
             while (isActive) {
                 refresh()
@@ -63,6 +72,7 @@ class LiveVehiclesViewModel(
     fun stopPolling() {
         pollingJob?.cancel()
         pollingJob = null
+        _isLive.value = false
     }
 
     fun refresh() {
@@ -73,6 +83,7 @@ class LiveVehiclesViewModel(
                 updateAnimated(newList)
                 _vehicles.value = newList
                 _errorMessage.value = null
+                _lastUpdateEpochMs.value = Clock.System.now().toEpochMilliseconds()
             } catch (e: Throwable) {
                 AppLogger.error("LiveVehiclesViewModel error", e)
                 _errorMessage.value = e.message

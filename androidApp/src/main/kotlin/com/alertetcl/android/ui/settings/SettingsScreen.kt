@@ -97,25 +97,6 @@ fun SettingsScreen(onOpenWidgetStops: () -> Unit = {}) {
             )
         }
 
-        // Section Notifications
-        item {
-            SectionHeader("NOTIFICATIONS")
-            SettingsCard {
-                SettingsRow(
-                    icon = Icons.Filled.NotificationsActive,
-                    iconTint = iOSBlue,
-                    title = "Permissions",
-                    subtitle = "Activer les alertes critiques",
-                    onClick = {
-                        val intent = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                            putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
-                        }
-                        context.startActivity(intent)
-                    }
-                )
-            }
-        }
-
         // Section À propos
         item {
             SectionHeader("À PROPOS")

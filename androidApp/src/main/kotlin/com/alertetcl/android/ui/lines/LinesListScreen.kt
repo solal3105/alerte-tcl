@@ -25,10 +25,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -73,18 +77,37 @@ fun LinesListScreen(
     val favorites by store.favoriteLines.collectAsState(initial = emptySet())
 
     var selectedMode by remember { mutableStateOf<TransportMode?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var subscribeDialogLine by remember { mutableStateOf<String?>(null) }
+
+    // Permission notif (parité iOS — demandée à la souscription)
+    val notifPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { /* result ignored, we just request */ }
 
     val alertCountByLine = remember(alerts) { alerts.groupingBy { it.ligneCom }.eachCount() }
 
-    val grouped: Map<TransportMode, List<Pair<String, TransportMode>>> = remember(allLineCodes, selectedMode) {
-        val base = if (selectedMode != null) allLineCodes.filter { it.second == selectedMode } else allLineCodes
-        base.distinctBy { it.first }
+    val grouped: Map<TransportMode, List<Pair<String, TransportMode>>> = remember(allLineCodes, selectedMode, searchQuery) {
+        val byMode = if (selectedMode != null) allLineCodes.filter { it.second == selectedMode } else allLineCodes
+        val q = searchQuery.trim()
+        val filtered = if (q.isBlank()) byMode else byMode.filter { it.first.contains(q, ignoreCase = true) }
+        filtered.distinctBy { it.first }
             .groupBy { it.second }
             .toSortedMap(compareBy { it.sortOrder })
             .mapValues { (_, list) -> list.sortedBy { it.first } }
     }
 
     Column(modifier = Modifier.fillMaxSize().background(groupedBg)) {
+        // Search bar (parité iOS .searchable)
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder = { Text("Rechercher une ligne", fontSize = 14.sp) },
+            leadingIcon = { Icon(Icons.Filled.Search, null, modifier = Modifier.size(18.dp)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+
         // Mode filter pills horizontal
         Row(
             modifier = Modifier
@@ -150,7 +173,13 @@ fun LinesListScreen(
                                         line = code,
                                         alertCount = alertCountByLine[code] ?: 0,
                                         isSubscribed = code in favorites,
-                                        onClick = { scope.launch { store.toggleFavoriteLine(code) } }
+                                        onClick = {
+                                            if (code in favorites) {
+                                                scope.launch { store.toggleFavoriteLine(code) }
+                                            } else {
+                                                subscribeDialogLine = code
+                                            }
+                                        }
                                     )
                                 }
                             }
@@ -159,6 +188,43 @@ fun LinesListScreen(
                 }
             }
         }
+    }
+
+    // Subscription dialog (parité iOS confirmationDialog avec 3 options)
+    subscribeDialogLine?.let { line ->
+        AlertDialog(
+            onDismissRequest = { subscribeDialogLine = null },
+            title = { Text("S'abonner à la ligne $line") },
+            text = { Text("Choisissez le niveau d'alertes que vous voulez recevoir.") },
+            confirmButton = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = {
+                        scope.launch { store.toggleFavoriteLine(line) }
+                        if (android.os.Build.VERSION.SDK_INT >= 33) {
+                            notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        subscribeDialogLine = null
+                    }) { Text("Toutes les alertes") }
+                    TextButton(onClick = {
+                        scope.launch { store.toggleFavoriteLine(line) }
+                        if (android.os.Build.VERSION.SDK_INT >= 33) {
+                            notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        subscribeDialogLine = null
+                    }) { Text("Perturbations majeures uniquement") }
+                    TextButton(onClick = {
+                        scope.launch { store.toggleFavoriteLine(line) }
+                        if (android.os.Build.VERSION.SDK_INT >= 33) {
+                            notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        subscribeDialogLine = null
+                    }) { Text("Perturbations (sans infos)") }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { subscribeDialogLine = null }) { Text("Annuler") }
+            }
+        )
     }
 }
 

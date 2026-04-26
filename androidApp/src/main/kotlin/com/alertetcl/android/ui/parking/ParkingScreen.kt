@@ -1,10 +1,13 @@
 package com.alertetcl.android.ui.parking
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Paint
 import android.graphics.PointF
+import android.location.LocationManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -26,6 +29,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,6 +48,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -63,6 +69,7 @@ import com.alertetcl.shared.models.ParkingType
 import com.alertetcl.shared.viewmodels.ParkingViewModel
 import com.google.gson.JsonObject
 import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
@@ -77,6 +84,18 @@ import org.maplibre.geojson.Point
 import kotlin.math.pow
 
 private const val STYLE_URL     = "https://tiles.openfreemap.org/styles/liberty"
+private const val STYLE_JSON_SATELLITE = """{
+  "version": 8,
+  "sources": {
+    "satellite": {
+      "type": "raster",
+      "tiles": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+      "tileSize": 256,
+      "attribution": "Tiles © Esri"
+    }
+  },
+  "layers": [{"id": "satellite", "type": "raster", "source": "satellite"}]
+}"""
 private const val PARKING_SRC   = "parking-src"
 private const val PARKING_LAYER = "parking-layer"
 
@@ -97,15 +116,19 @@ private fun rememberParkingMapView(): MapView {
 @Composable
 fun ParkingScreen() {
     val vm = remember { ParkingViewModel() }
+    val context = LocalContext.current
     DisposableEffect(Unit) { onDispose { vm.dispose() } }
 
     val parkings by vm.parkings.collectAsState()
     val selectedTypes by vm.selectedTypes.collectAsState()
     val showParcRelais by vm.showParcRelais.collectAsState()
+    val showRealtimeParkings by vm.showRealtimeParkings.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
+    val lastUpdateMs by vm.lastUpdateEpochMs.collectAsState()
 
     var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
     var mapStyle by remember { mutableStateOf<Style?>(null) }
+    var isSatellite by remember { mutableStateOf(false) }
 
     val parkingsRef = remember { mutableStateOf<List<Parking>>(emptyList()) }
     parkingsRef.value = parkings
@@ -114,6 +137,16 @@ fun ParkingScreen() {
     var showFilterSheet by remember { mutableStateOf(false) }
     val showCarFilters = ParkingType.CAR in selectedTypes
     val currentRegion = remember { mutableStateOf<GeoRegion?>(null) }
+
+    // Tick 1s pour rafraîchir le label "il y a Xs" du refresh card
+    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) { kotlinx.coroutines.delay(1000); nowMs = System.currentTimeMillis() }
+    }
+
+    val locationPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) recenterParkingOnUser(context, mapLibreMap) }
 
     val mapView = rememberParkingMapView()
 
@@ -159,30 +192,32 @@ fun ParkingScreen() {
             modifier = Modifier.fillMaxSize()
         )
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        ) {
+        // Switch base style on satellite toggle
+        LaunchedEffect(isSatellite) {
+            val map = mapLibreMap ?: return@LaunchedEffect
+            val builder = if (isSatellite) Style.Builder().fromJson(STYLE_JSON_SATELLITE)
+                          else              Style.Builder().fromUri(STYLE_URL)
+            mapStyle = null
+            map.setStyle(builder) { style -> mapStyle = style }
+            // Re-trigger parking load to recreate marker layer on new style
+            currentRegion.value?.let { vm.loadInRegion(it) }
+        }
+
+        // Selector top-center (translucide pour ne pas masquer la carte) + indicator de chargement
+        Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
             if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            // iOS-style capsule segmented selector
             Row(
-                modifier = Modifier
-                    .padding(top = 8.dp)
-                    .align(Alignment.CenterHorizontally),
+                modifier = Modifier.padding(top = 8.dp).align(Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = Color.White,
+                    color = Color.White.copy(alpha = 0.85f),
                     tonalElevation = 4.dp,
                     shadowElevation = 4.dp
                 ) {
-                    Row(
-                        modifier = Modifier.padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
+                    Row(modifier = Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         ParkingType.entries.forEach { type ->
                             ParkingTypeButton(
                                 type = type,
@@ -192,53 +227,66 @@ fun ParkingScreen() {
                         }
                     }
                 }
-                if (showCarFilters) {
-                    val hasActiveFilters = !showParcRelais
-                    Surface(
-                        shape = CircleShape,
-                        color = Color.White,
-                        tonalElevation = 4.dp,
-                        shadowElevation = 4.dp,
-                        modifier = Modifier.size(44.dp)
-                    ) {
-                        IconButton(onClick = { showFilterSheet = true }, modifier = Modifier.fillMaxSize()) {
-                            Icon(
-                                Icons.Filled.FilterList, "Filtres",
-                                tint = if (hasActiveFilters) Color(0xFFFF9500) else Color(0xFF1C1C1E),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                }
             }
         }
 
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            tonalElevation = 4.dp,
-            color = Color.White.copy(alpha = 0.92f),
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
+        // Bottom-right FABs (parité iOS) : satellite, filters (only car), location
+        Column(
+            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                "${parkings.size} parkings",
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                fontSize = 12.sp, fontWeight = FontWeight.Medium
+            ParkingCircleFab(
+                icon = Icons.Filled.Public, contentDesc = "Vue satellite",
+                tint = if (isSatellite) Color(0xFFFF9500) else Color(0xFF1C1C1E),
+                onClick = { isSatellite = !isSatellite }
+            )
+            if (showCarFilters) {
+                val hasActiveFilters = !showParcRelais || !showRealtimeParkings
+                ParkingCircleFab(
+                    icon = Icons.Filled.FilterList, contentDesc = "Filtres",
+                    tint = if (hasActiveFilters) Color(0xFFFF9500) else Color(0xFF1C1C1E),
+                    onClick = { showFilterSheet = true }
+                )
+            }
+            ParkingCircleFab(
+                icon = Icons.Filled.MyLocation, contentDesc = "Ma position",
+                tint = Color(0xFF007AFF),
+                onClick = {
+                    val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.ACCESS_FINE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (granted) recenterParkingOnUser(context, mapLibreMap)
+                    else locationPermLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                }
             )
         }
 
-        // Refresh card bottom-left for car type (iOS parity)
+        // Refresh card bottom-left for car type (avec timestamp)
         if (showCarFilters) {
             Surface(
-                shape = CircleShape,
+                shape = RoundedCornerShape(50),
                 color = Color.White.copy(alpha = 0.95f),
                 tonalElevation = 6.dp,
                 shadowElevation = 6.dp,
-                modifier = Modifier.align(Alignment.BottomStart).padding(16.dp).size(44.dp)
+                modifier = Modifier.align(Alignment.BottomStart).padding(16.dp)
+                    .clickable { currentRegion.value?.let { vm.loadInRegion(it, forceRefresh = true) } }
             ) {
-                IconButton(onClick = {
-                    currentRegion.value?.let { vm.loadInRegion(it, forceRefresh = true) }
-                }, modifier = Modifier.fillMaxSize()) {
-                    Icon(Icons.Filled.Refresh, "Rafraîchir", tint = Color(0xFF007AFF), modifier = Modifier.size(20.dp))
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Filled.Refresh, "Rafraîchir", tint = Color(0xFF007AFF), modifier = Modifier.size(18.dp))
+                    val txt = lastUpdateMs?.let {
+                        val s = (nowMs - it) / 1000L
+                        when {
+                            s < 5 -> "à l'instant"
+                            s < 60 -> "il y a ${s}s"
+                            else -> "il y a ${s / 60}min"
+                        }
+                    } ?: "Rafraîchir"
+                    Text(txt, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                 }
             }
         }
@@ -248,7 +296,14 @@ fun ParkingScreen() {
         ModalBottomSheet(
             onDismissRequest = { showFilterSheet = false },
             sheetState = rememberModalBottomSheetState()
-        ) { ParkingFilterSheet(showParcRelais = showParcRelais, onToggleParcRelais = { vm.toggleParcRelais() }) }
+        ) {
+            ParkingFilterSheet(
+                showParcRelais = showParcRelais,
+                onToggleParcRelais = { vm.toggleParcRelais() },
+                showRealtimeParkings = showRealtimeParkings,
+                onToggleRealtime = { vm.toggleRealtimeParkings() }
+            )
+        }
     }
 
     selectedParking?.let { p ->
@@ -261,15 +316,12 @@ fun ParkingScreen() {
     // Update parking markers
     LaunchedEffect(mapStyle, parkings) {
         val style = mapStyle ?: return@LaunchedEffect
-
-        // Register icons (one per availability × isParcRelais combo)
         AvailabilityColor.entries.forEach { color ->
             listOf(false, true).forEach { pr ->
                 val iconId = parkingIconId(color, pr)
                 if (style.getImage(iconId) == null) style.addImage(iconId, parkingMarkerBitmap(color, pr))
             }
         }
-
         val features = parkings.map { p ->
             val props = JsonObject().apply {
                 addProperty("id", p.id)
@@ -277,7 +329,6 @@ fun ParkingScreen() {
             }
             Feature.fromGeometry(Point.fromLngLat(p.longitude, p.latitude), props)
         }
-
         if (style.getSource(PARKING_SRC) == null) {
             style.addSource(GeoJsonSource(PARKING_SRC, FeatureCollection.fromFeatures(features)))
             style.addLayer(SymbolLayer(PARKING_LAYER, PARKING_SRC).withProperties(
@@ -290,6 +341,41 @@ fun ParkingScreen() {
             style.getSourceAs<GeoJsonSource>(PARKING_SRC)?.setGeoJson(FeatureCollection.fromFeatures(features))
         }
     }
+}
+
+@Composable
+private fun ParkingCircleFab(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDesc: String, tint: Color, onClick: () -> Unit
+) {
+    Surface(
+        shape = CircleShape, color = Color.White.copy(alpha = 0.95f),
+        tonalElevation = 6.dp, shadowElevation = 6.dp,
+        modifier = Modifier.size(50.dp)
+    ) {
+        IconButton(onClick = onClick, modifier = Modifier.fillMaxSize()) {
+            Icon(icon, contentDesc, tint = tint, modifier = Modifier.size(22.dp))
+        }
+    }
+}
+
+private fun recenterParkingOnUser(context: android.content.Context, map: MapLibreMap?) {
+    val m = map ?: return
+    val lm = context.getSystemService(android.content.Context.LOCATION_SERVICE) as? LocationManager ?: return
+    val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+        context, Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+    if (!granted) return
+    @Suppress("MissingPermission")
+    val loc = listOfNotNull(
+        runCatching { lm.getLastKnownLocation(LocationManager.GPS_PROVIDER) }.getOrNull(),
+        runCatching { lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) }.getOrNull()
+    ).maxByOrNull { it.time } ?: return
+    m.animateCamera(
+        CameraUpdateFactory.newCameraPosition(
+            CameraPosition.Builder().target(LatLng(loc.latitude, loc.longitude)).zoom(15.0).build()
+        )
+    )
 }
 
 @Composable
@@ -383,20 +469,38 @@ private fun ParkingTypeButton(type: ParkingType, isSelected: Boolean, onClick: (
 }
 
 @Composable
-private fun ParkingFilterSheet(showParcRelais: Boolean, onToggleParcRelais: () -> Unit) {
+private fun ParkingFilterSheet(
+    showParcRelais: Boolean,
+    onToggleParcRelais: () -> Unit,
+    showRealtimeParkings: Boolean,
+    onToggleRealtime: () -> Unit
+) {
     Column(modifier = Modifier.padding(20.dp)) {
         Text("Filtres", fontWeight = FontWeight.Bold, fontSize = 18.sp)
         Spacer(Modifier.height(16.dp))
         Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFF2F2F7), modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp).fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Parc Relais (P+R)", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    Text("Afficher les parkings relais TCL", fontSize = 11.sp, color = Color(0xFF8E8E93))
+            Column {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Parkings temps réel", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("Affiche les parkings publics avec disponibilité", fontSize = 11.sp, color = Color(0xFF8E8E93))
+                    }
+                    Switch(checked = showRealtimeParkings, onCheckedChange = { onToggleRealtime() })
                 }
-                Switch(checked = showParcRelais, onCheckedChange = { onToggleParcRelais() })
+                HorizontalDivider(modifier = Modifier.padding(start = 14.dp))
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Parc Relais (P+R)", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("Afficher les parkings relais TCL", fontSize = 11.sp, color = Color(0xFF8E8E93))
+                    }
+                    Switch(checked = showParcRelais, onCheckedChange = { onToggleParcRelais() })
+                }
             }
         }
         Spacer(Modifier.height(20.dp))

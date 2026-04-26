@@ -7,6 +7,9 @@ import android.graphics.Paint
 import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.Manifest
+import android.content.pm.PackageManager
+import android.location.LocationManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -24,31 +27,37 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Accessible
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -164,14 +173,42 @@ private fun toMapColor(hex: String): String {
 @Composable
 fun LiveMapScreen() {
     val vm = remember { LiveVehiclesViewModel() }
-    DisposableEffect(Unit) {
-        vm.startPolling()
-        onDispose { vm.dispose() }
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Lifecycle: stop polling on background, restart on resume (parité iOS scenePhase)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> vm.startPolling()
+                Lifecycle.Event.ON_STOP  -> vm.stopPolling()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            vm.dispose()
+        }
     }
     val vehicles     by vm.vehicles.collectAsState()
     val selectedTypes by vm.selectedTypes.collectAsState()
     val isLoading    by vm.isLoading.collectAsState()
     val vehiclesError by vm.errorMessage.collectAsState()
+    val isLive       by vm.isLive.collectAsState()
+    val lastUpdateMs by vm.lastUpdateEpochMs.collectAsState()
+
+    // Alertes pour le bandeau trafic en haut
+    val alertsVm = remember { com.alertetcl.shared.viewmodels.AlertsViewModel() }
+    DisposableEffect(Unit) {
+        alertsVm.startPolling()
+        onDispose { alertsVm.dispose() }
+    }
+    val alerts by alertsVm.alerts.collectAsState()
+    val alertsError by alertsVm.errorMessage.collectAsState()
+
+    val store = remember { com.alertetcl.android.data.FavoritesStore(context) }
+    val favorites by store.favoriteLines.collectAsState(initial = emptySet())
 
     var showLineTraces by remember { mutableStateOf(true) }
     var showStops      by remember { mutableStateOf(false) }
@@ -192,6 +229,11 @@ fun LiveMapScreen() {
     var tick by remember { mutableLongStateOf(0L) }
     LaunchedEffect(Unit) {
         while (true) { kotlinx.coroutines.delay(100); tick++ }
+    }
+    // Tick 1s pour le countdown LIVE
+    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) { kotlinx.coroutines.delay(1000); nowMs = System.currentTimeMillis() }
     }
 
     val filteredVehicles by remember {
@@ -216,17 +258,28 @@ fun LiveMapScreen() {
         }
     }
 
-    // Selection state (updated from map click listener on main thread → safe)
+    // Selection state
     val selectedVehicle = remember { mutableStateOf<Vehicle?>(null) }
     val selectedStop    = remember { mutableStateOf<TransitStop?>(null) }
 
     // Bottom sheet flags
-    var showAlertsSheet      by remember { mutableStateOf(false) }
-    var showSettingsSheet    by remember { mutableStateOf(false) }
-    var showWidgetStopsSheet by remember { mutableStateOf(false) }
-    var showErrorsSheet      by remember { mutableStateOf(false) }
+    var showAlertsSheet by remember { mutableStateOf(false) }
+    var showFilterSheet by remember { mutableStateOf(false) }
+    var showErrorsSheet by remember { mutableStateOf(false) }
+    var showRefreshInfo by remember { mutableStateOf(false) }
+
+    // Permission location pour le FAB localisation
+    val locationPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) recenterOnUser(context, mapLibreMap)
+    }
 
     val mapView = rememberMapView()
+
+    // Filtres actifs (parité iOS hasActiveFilters)
+    val hasActiveFilters = selectedTypes.size != VehicleType.entries.size ||
+                           !showLineTraces || showStops
 
     // ── UI ────────────────────────────────────────────────────────────────
     Box(modifier = Modifier.fillMaxSize()) {
@@ -277,66 +330,79 @@ fun LiveMapScreen() {
             map.setStyle(builder) { style -> mapStyle = style }
         }
 
-        // Top overlay: progress + error badge + filter chips
-        Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
-            if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            if (vehiclesError != null) {
-                TextButton(onClick = { showErrorsSheet = true }, modifier = Modifier.padding(top = 4.dp)) {
-                    Icon(Icons.Filled.Warning, null, tint = Color(0xFFFF9800), modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("1 source en erreur", fontSize = 12.sp, color = Color(0xFFFF9800))
-                }
-            }
-            Surface(
-                shape = RoundedCornerShape(12.dp), tonalElevation = 4.dp,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()).padding(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+        // ── Top: Traffic Banner (parité iOS) ─────────────────────────────
+        TrafficBanner(
+            subscribedLines = favorites,
+            alerts = alerts,
+            lastUpdateMs = lastUpdateMs,
+            hasError = vehiclesError != null || alertsError != null,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .fillMaxWidth(),
+            onTap = { showAlertsSheet = true }
+        )
+
+        // ── Bottom-left: Live Indicator ──────────────────────────────────
+        Column(
+            modifier = Modifier.align(Alignment.BottomStart).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (vehiclesError != null || alertsError != null) {
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = Color(0xFFFFF4E5),
+                    shadowElevation = 4.dp,
+                    modifier = Modifier.clickable { showErrorsSheet = true }
                 ) {
-                    VehicleType.entries.sortedBy { it.sortOrder }.forEach { type ->
-                        FilterChip(
-                            selected = type in selectedTypes,
-                            onClick = { vm.toggleType(type) },
-                            label = { Text(type.displayName, fontSize = 12.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = colorFromHex(type.clusterColorHex).copy(alpha = 0.25f)
-                            )
-                        )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(Icons.Filled.Warning, null, tint = Color(0xFFFF9500), modifier = Modifier.size(14.dp))
+                        val n = (if (vehiclesError != null) 1 else 0) + (if (alertsError != null) 1 else 0)
+                        Text("$n source${if (n > 1) "s" else ""} en erreur", fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
-                    Spacer(Modifier.width(4.dp))
-                    FilterChip(selected = showLineTraces, onClick = { showLineTraces = !showLineTraces }, label = { Text("Tracés", fontSize = 12.sp) })
-                    FilterChip(selected = showStops,      onClick = { showStops = !showStops },           label = { Text("Arrêts", fontSize = 12.sp) })
                 }
             }
+            LiveIndicator(
+                isLive = isLive,
+                isLoading = isLoading,
+                lastUpdateMs = lastUpdateMs,
+                nowMs = nowMs,
+                hasError = vehiclesError != null,
+                onTap = { showRefreshInfo = true }
+            )
         }
 
-        // Bottom-right overlay: counter + 3 circular FABs (iOS parity)
+        // ── Bottom-right: 3 FABs (satellite, filters, location) ─────────
         Column(
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Surface(shape = RoundedCornerShape(8.dp), tonalElevation = 4.dp,
-                color = Color.White.copy(alpha = 0.92f)) {
-                Text("${filteredVehicles.size} véhicules",
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            }
-            CircleFab(icon = Icons.Filled.Public, contentDesc = "Vue satellite",
+            CircleFab(
+                icon = Icons.Filled.Public, contentDesc = "Vue satellite",
                 tint = if (isSatellite) Color(0xFFFF9500) else Color(0xFF1C1C1E),
-                onClick = { isSatellite = !isSatellite })
-            CircleFab(icon = Icons.Filled.Warning, contentDesc = "Alertes",
-                tint = Color(0xFFFF9500),
-                onClick = { showAlertsSheet = true })
-            CircleFab(icon = Icons.Filled.Settings, contentDesc = "Réglages",
-                tint = Color(0xFF1C1C1E),
-                onClick = { showSettingsSheet = true })
-            CircleFab(icon = Icons.Filled.Refresh, contentDesc = "Rafraîchir",
+                onClick = { isSatellite = !isSatellite }
+            )
+            CircleFab(
+                icon = Icons.Filled.FilterList, contentDesc = "Filtres",
+                tint = if (hasActiveFilters) Color(0xFF007AFF) else Color(0xFF1C1C1E),
+                onClick = { showFilterSheet = true }
+            )
+            CircleFab(
+                icon = Icons.Filled.MyLocation, contentDesc = "Ma position",
                 tint = Color(0xFF007AFF),
-                onClick = { vm.refresh() })
+                onClick = {
+                    val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.ACCESS_FINE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (granted) recenterOnUser(context, mapLibreMap)
+                    else locationPermLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                }
+            )
         }
     }
 
@@ -495,25 +561,28 @@ fun LiveMapScreen() {
             Box(Modifier.fillMaxSize()) { com.alertetcl.android.ui.alerts.AlertsScreen() }
         }
     }
-    if (showSettingsSheet) {
-        ModalBottomSheet(onDismissRequest = { showSettingsSheet = false }, sheetState = rememberModalBottomSheetState()) {
-            Box(Modifier.fillMaxSize()) {
-                com.alertetcl.android.ui.settings.SettingsScreen(onOpenWidgetStops = {
-                    showSettingsSheet = false; showWidgetStopsSheet = true
-                })
-            }
+    if (showFilterSheet) {
+        ModalBottomSheet(onDismissRequest = { showFilterSheet = false }, sheetState = rememberModalBottomSheetState()) {
+            FilterSheet(
+                selectedTypes = selectedTypes,
+                onToggleType = { vm.toggleType(it) },
+                showLineTraces = showLineTraces,
+                onToggleTraces = { showLineTraces = !showLineTraces },
+                showStops = showStops,
+                onToggleStops = { showStops = !showStops }
+            )
         }
     }
-    if (showWidgetStopsSheet) {
-        ModalBottomSheet(onDismissRequest = { showWidgetStopsSheet = false }, sheetState = rememberModalBottomSheetState()) {
-            Box(Modifier.fillMaxSize()) { com.alertetcl.android.ui.widgetstop.WidgetStopSelectionScreen() }
+    if (showRefreshInfo) {
+        ModalBottomSheet(onDismissRequest = { showRefreshInfo = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+            RefreshInfoSheet(lastUpdateMs = lastUpdateMs)
         }
     }
     if (showErrorsSheet) {
         ModalBottomSheet(onDismissRequest = { showErrorsSheet = false }, sheetState = rememberModalBottomSheetState()) {
             DataSourceErrorsSheet(
-                vehiclesError = vehiclesError, alertsError = null,
-                onRetryVehicles = { vm.refresh() }, onRetryAlerts = {},
+                vehiclesError = vehiclesError, alertsError = alertsError,
+                onRetryVehicles = { vm.refresh() }, onRetryAlerts = { alertsVm.refresh() },
                 onDismiss = { showErrorsSheet = false }
             )
         }
@@ -623,8 +692,17 @@ private fun StopDetailSheet(stop: TransitStop) {
         Spacer(Modifier.height(20.dp))
 
         // Passages section
-        Text("Prochains passages", fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
-            color = Color(0xFF1C1C1E))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                Icons.Filled.AccessTime, null,
+                tint = Color(0xFF007AFF), modifier = Modifier.size(15.dp)
+            )
+            Text("Prochains passages", fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+                color = Color(0xFF007AFF))
+        }
         Spacer(Modifier.height(12.dp))
         when {
             passages.value == null -> {
@@ -643,9 +721,16 @@ private fun StopDetailSheet(stop: TransitStop) {
                     contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Filled.HelpOutline, null, tint = Color(0xFF8E8E93),
-                            modifier = Modifier.size(36.dp))
-                        Text("Aucun passage à venir", fontSize = 13.sp, color = Color(0xFF8E8E93))
+                        Icon(
+                            Icons.Filled.AccessTime, null,
+                            tint = Color(0xFF8E8E93), modifier = Modifier.size(36.dp)
+                        )
+                        Text("Aucun passage prévu", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF8E8E93))
+                        Text(
+                            "Les horaires seront affichés quand des véhicules seront en approche",
+                            fontSize = 11.sp, color = Color(0xFF8E8E93),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                     }
                 }
             }
@@ -704,6 +789,261 @@ private fun LineBadgeMap(line: String) {
             .background(colorFromHex(LineColors.backgroundHex(line))),
         contentAlignment = Alignment.Center
     ) { Text(line, color = colorFromHex(LineColors.textHex(line)), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+}
+
+// ── Traffic Banner / Live Indicator / Filter Sheet ──────────────────────
+
+@Composable
+private fun TrafficBanner(
+    subscribedLines: Set<String>,
+    alerts: List<com.alertetcl.shared.models.TCLAlert>,
+    lastUpdateMs: Long?,
+    hasError: Boolean,
+    modifier: Modifier = Modifier,
+    onTap: () -> Unit
+) {
+    val majorOnNetwork = remember(alerts) {
+        alerts.count { it.severity == com.alertetcl.shared.models.AlertSeverity.MAJOR }
+    }
+    val mySubAlerts = remember(alerts, subscribedLines) {
+        alerts.filter { it.ligneCom in subscribedLines }
+    }
+    val mySubMajor = mySubAlerts.count { it.severity == com.alertetcl.shared.models.AlertSeverity.MAJOR }
+
+    val (bg, fg, icon, title, subtitle) = when {
+        hasError -> Quintuple(
+            Color(0xFFFFF4E5), Color(0xFFFF9500),
+            Icons.Filled.Warning,
+            "Données partielles",
+            "Certaines sources sont indisponibles"
+        )
+        mySubMajor > 0 -> Quintuple(
+            Color(0xFFFFEBEE), Color(0xFFFF3B30),
+            Icons.Filled.Warning,
+            "$mySubMajor perturbation${if (mySubMajor > 1) "s" else ""} majeure${if (mySubMajor > 1) "s" else ""}",
+            "Sur vos lignes abonnées"
+        )
+        mySubAlerts.isNotEmpty() -> Quintuple(
+            Color(0xFFFFF8E1), Color(0xFFFF9500),
+            Icons.Filled.NotificationsActive,
+            "${mySubAlerts.size} info${if (mySubAlerts.size > 1) "s" else ""} trafic",
+            "Sur vos lignes abonnées"
+        )
+        majorOnNetwork > 0 -> Quintuple(
+            Color(0xFFFFF4E5), Color(0xFFFF9500),
+            Icons.Filled.Warning,
+            "$majorOnNetwork perturbation${if (majorOnNetwork > 1) "s" else ""} majeure${if (majorOnNetwork > 1) "s" else ""}",
+            "Sur le réseau TCL"
+        )
+        else -> Quintuple(
+            Color(0xFFE8F5E9), Color(0xFF34C759),
+            Icons.Filled.CheckCircle,
+            "Réseau fluide",
+            "Aucune perturbation majeure"
+        )
+    }
+
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = bg,
+        shadowElevation = 4.dp,
+        modifier = modifier.clickable { onTap() }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier.size(32.dp).clip(CircleShape).background(fg),
+                contentAlignment = Alignment.Center
+            ) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(18.dp)) }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1C1C1E))
+                Text(subtitle, fontSize = 11.sp, color = Color(0xFF6E6E73))
+            }
+        }
+    }
+}
+
+private data class Quintuple<A,B,C,D,E>(val a: A, val b: B, val c: C, val d: D, val e: E)
+
+@Composable
+private fun LiveIndicator(
+    isLive: Boolean,
+    isLoading: Boolean,
+    lastUpdateMs: Long?,
+    nowMs: Long,
+    hasError: Boolean,
+    onTap: () -> Unit
+) {
+    val dotColor = if (hasError) Color(0xFFFF9500) else Color(0xFF34C759)
+    val labelColor = if (!isLive) Color(0xFF8E8E93) else if (hasError) Color(0xFFFF9500) else Color(0xFF34C759)
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = Color.White.copy(alpha = 0.92f),
+        shadowElevation = 4.dp,
+        modifier = Modifier.clickable { onTap() }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(dotColor))
+            Text(
+                if (isLive) "LIVE" else "PAUSE",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Black,
+                color = labelColor
+            )
+            if (isLoading) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    modifier = Modifier.size(12.dp),
+                    strokeWidth = 1.5.dp
+                )
+            } else if (lastUpdateMs != null) {
+                val secs = ((15_000L - (nowMs - lastUpdateMs)).coerceAtLeast(0) / 1000L).toInt()
+                Text("${secs}s", fontSize = 11.sp, color = Color(0xFF8E8E93))
+            }
+        }
+    }
+}
+
+@Composable
+private fun RefreshInfoSheet(lastUpdateMs: Long?) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF34C759).copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) { Icon(Icons.Filled.NotificationsActive, null, tint = Color(0xFF34C759), modifier = Modifier.size(20.dp)) }
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Temps réel", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text("Positions TCL en direct", fontSize = 12.sp, color = Color(0xFF8E8E93))
+            }
+        }
+        HorizontalDivider()
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("15s", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF34C759))
+                Text("intervalle", fontSize = 11.sp, color = Color(0xFF8E8E93))
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                val txt = lastUpdateMs?.let {
+                    val s = (System.currentTimeMillis() - it) / 1000L
+                    when {
+                        s < 5 -> "à l'instant"
+                        s < 60 -> "il y a ${s}s"
+                        else -> "il y a ${s / 60}min"
+                    }
+                } ?: "—"
+                Text(txt, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("dernière maj", fontSize = 11.sp, color = Color(0xFF8E8E93))
+            }
+        }
+        HorizontalDivider()
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(Icons.Filled.CheckCircle, null, tint = Color(0xFF34C759), modifier = Modifier.size(16.dp))
+            Text("Inutile de rafraîchir manuellement", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun FilterSheet(
+    selectedTypes: Set<VehicleType>,
+    onToggleType: (VehicleType) -> Unit,
+    showLineTraces: Boolean,
+    onToggleTraces: () -> Unit,
+    showStops: Boolean,
+    onToggleStops: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text("Filtres", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+
+        Text("Types de véhicules", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93))
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            VehicleType.entries.sortedBy { it.sortOrder }.forEach { type ->
+                FilterChip(
+                    selected = type in selectedTypes,
+                    onClick = { onToggleType(type) },
+                    label = { Text(type.displayName, fontSize = 12.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = colorFromHex(type.clusterColorHex).copy(alpha = 0.25f)
+                    )
+                )
+            }
+        }
+
+        HorizontalDivider()
+
+        Text("Affichage", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93))
+        Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFF2F2F7), modifier = Modifier.fillMaxWidth()) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Tracés des lignes", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("Affiche les itinéraires des lignes", fontSize = 11.sp, color = Color(0xFF8E8E93))
+                    }
+                    Switch(checked = showLineTraces, onCheckedChange = { onToggleTraces() })
+                }
+                HorizontalDivider(modifier = Modifier.padding(start = 14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Arrêts", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("Affiche les arrêts sur la carte", fontSize = 11.sp, color = Color(0xFF8E8E93))
+                    }
+                    Switch(checked = showStops, onCheckedChange = { onToggleStops() })
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+private fun recenterOnUser(context: android.content.Context, map: MapLibreMap?) {
+    val m = map ?: return
+    val lm = context.getSystemService(android.content.Context.LOCATION_SERVICE) as? LocationManager ?: return
+    val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+        context, Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+    if (!granted) return
+    @Suppress("MissingPermission")
+    val loc = listOfNotNull(
+        runCatching { lm.getLastKnownLocation(LocationManager.GPS_PROVIDER) }.getOrNull(),
+        runCatching { lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) }.getOrNull()
+    ).maxByOrNull { it.time } ?: return
+    m.animateCamera(
+        org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(
+            CameraPosition.Builder()
+                .target(LatLng(loc.latitude, loc.longitude))
+                .zoom(15.0)
+                .build()
+        )
+    )
 }
 
 // ── Bitmap helpers ───────────────────────────────────────────────────────

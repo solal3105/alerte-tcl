@@ -195,6 +195,7 @@ fun AlertsScreen() {
                     item {
                         ModeFilterTabs(
                             allLines = allLines,
+                            alertsByLine = alertsByLine,
                             selected = selectedModeFilter,
                             onSelect = { selectedModeFilter = it },
                             modifier = Modifier.padding(top = 14.dp)
@@ -345,6 +346,26 @@ private fun MyLinesSection(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
+            // Page indicator dots (parité iOS)
+            if (sorted.size > 1) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(sorted.size) { idx ->
+                        val isCurrent = pagerState.currentPage == idx
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 3.dp)
+                                .size(if (isCurrent) 8.dp else 6.dp)
+                                .clip(CircleShape)
+                                .background(if (isCurrent) iOSBlue else Color(0xFFC6C6C8))
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -461,6 +482,7 @@ private fun AllLinesHeader(modifier: Modifier = Modifier) {
 @Composable
 private fun ModeFilterTabs(
     allLines: List<TransportLine>,
+    alertsByLine: Map<String, List<TCLAlert>>,
     selected: TransportMode?,
     onSelect: (TransportMode?) -> Unit,
     modifier: Modifier = Modifier
@@ -468,17 +490,28 @@ private fun ModeFilterTabs(
     val availableModes = remember(allLines) {
         TransportMode.entries.filter { mode -> allLines.any { it.mode == mode } }.sortedBy { it.sortOrder }
     }
+    val totalAlerts = alertsByLine.values.sumOf { it.size }
+    val countByMode: Map<TransportMode, Int> = remember(allLines, alertsByLine) {
+        val map = mutableMapOf<TransportMode, Int>()
+        allLines.forEach { line ->
+            val n = alertsByLine[line.ligneCom]?.size ?: 0
+            if (n > 0) map[line.mode] = (map[line.mode] ?: 0) + n
+        }
+        map
+    }
     Row(
         modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         ModeChip(label = "Tout", icon = Icons.Filled.Apps, color = secondary,
+            badgeCount = totalAlerts,
             isSelected = selected == null) { onSelect(null) }
         availableModes.forEach { mode ->
             ModeChip(
                 label = mode.displayName,
                 icon = transportModeIcon(mode),
                 color = transportModeColor(mode),
+                badgeCount = countByMode[mode] ?: 0,
                 isSelected = selected == mode
             ) { onSelect(mode) }
         }
@@ -486,7 +519,7 @@ private fun ModeFilterTabs(
 }
 
 @Composable
-private fun ModeChip(label: String, icon: ImageVector, color: Color, isSelected: Boolean, onClick: () -> Unit) {
+private fun ModeChip(label: String, icon: ImageVector, color: Color, badgeCount: Int = 0, isSelected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
@@ -498,6 +531,17 @@ private fun ModeChip(label: String, icon: ImageVector, color: Color, isSelected:
             Icon(icon, null, tint = if (isSelected) Color.White else color, modifier = Modifier.size(11.dp))
             Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                 color = if (isSelected) Color.White else color)
+            if (badgeCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (isSelected) Color.White else color)
+                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                ) {
+                    Text("$badgeCount", fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                        color = if (isSelected) color else Color.White)
+                }
+            }
         }
     }
 }
