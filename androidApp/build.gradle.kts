@@ -14,13 +14,6 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-
-        // Lit MAPS_API_KEY depuis ~/.gradle/gradle.properties ou variable d'env, défaut vide pour debug
-        val mapsApiKey: String =
-            (project.findProperty("MAPS_API_KEY") as String?)
-                ?: System.getenv("MAPS_API_KEY")
-                ?: ""
-        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildFeatures {
@@ -68,9 +61,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
 
-    implementation(libs.maps.compose)
-    implementation(libs.play.services.maps)
-    implementation(libs.play.services.location)
+    implementation(libs.maplibre.android)
 
     implementation(libs.glance.appwidget)
     implementation(libs.glance.material3)
