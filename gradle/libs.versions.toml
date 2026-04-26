@@ -15,7 +15,7 @@ mapsCompose = "4.4.1"
 playServicesMaps = "19.0.0"
 playServicesLocation = "21.3.0"
 androidxDatastore = "1.1.1"
-androidxWorkManager = "2.10.0"
+androidxWorkManager = "2.9.1"
 billingClient = "7.1.1"
 glance = "1.1.1"
 

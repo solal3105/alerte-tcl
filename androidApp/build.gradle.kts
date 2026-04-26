@@ -75,6 +75,9 @@ dependencies {
     implementation(libs.glance.appwidget)
     implementation(libs.glance.material3)
 
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.work.runtime)
+
     implementation(libs.billing.client)
 
     debugImplementation(libs.compose.ui.tooling)
