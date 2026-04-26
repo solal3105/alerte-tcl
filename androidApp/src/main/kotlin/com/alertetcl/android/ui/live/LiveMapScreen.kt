@@ -96,6 +96,7 @@ fun LiveMapScreen() {
     val vehicles by vm.vehicles.collectAsState()
     val selectedTypes by vm.selectedTypes.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
+    val vehiclesError by vm.errorMessage.collectAsState()
 
     val cameraState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(LYON, 12.5f)
@@ -147,6 +148,7 @@ fun LiveMapScreen() {
     var showAlertsSheet by remember { mutableStateOf(false) }
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showWidgetStopsSheet by remember { mutableStateOf(false) }
+    var showErrorsSheet by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         GoogleMap(
@@ -227,6 +229,21 @@ fun LiveMapScreen() {
                 .padding(8.dp)
         ) {
             if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            if (vehiclesError != null) {
+                androidx.compose.material3.TextButton(
+                    onClick = { showErrorsSheet = true },
+                    modifier = Modifier.padding(top = 4.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Warning,
+                        contentDescription = null,
+                        tint = Color(0xFFFF9800),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text("1 source en erreur", fontSize = 12.sp, color = Color(0xFFFF9800))
+                }
+            }
 
             Surface(
                 shape = RoundedCornerShape(12.dp),
@@ -343,6 +360,20 @@ fun LiveMapScreen() {
             Box(modifier = Modifier.fillMaxSize()) {
                 com.alertetcl.android.ui.widgetstop.WidgetStopSelectionScreen()
             }
+        }
+    }
+    if (showErrorsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showErrorsSheet = false },
+            sheetState = rememberModalBottomSheetState()
+        ) {
+            DataSourceErrorsSheet(
+                vehiclesError = vehiclesError,
+                alertsError = null,
+                onRetryVehicles = { vm.refresh() },
+                onRetryAlerts = {},
+                onDismiss = { showErrorsSheet = false }
+            )
         }
     }
 }

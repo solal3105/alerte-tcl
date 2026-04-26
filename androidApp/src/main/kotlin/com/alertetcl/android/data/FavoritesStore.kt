@@ -27,6 +27,9 @@ class FavoritesStore(private val context: Context) {
     val premiumActive: Flow<Boolean> =
         context.favStore.data.map { p -> p[KEY_PREMIUM] == "1" }
 
+    val onboardingDone: Flow<Boolean> =
+        context.favStore.data.map { p -> p[KEY_ONBOARDING] == "1" }
+
     suspend fun toggleFavoriteLine(line: String) {
         context.favStore.edit { p ->
             val cur = parse(p[KEY_FAV_LINES]).toMutableSet()
@@ -55,6 +58,10 @@ class FavoritesStore(private val context: Context) {
         context.favStore.edit { p -> p[KEY_PREMIUM] = if (active) "1" else "0" }
     }
 
+    suspend fun setOnboardingDone() {
+        context.favStore.edit { p -> p[KEY_ONBOARDING] = "1" }
+    }
+
     private fun parse(s: String?): Set<String> =
         s.orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
 
@@ -62,5 +69,6 @@ class FavoritesStore(private val context: Context) {
         private val KEY_FAV_LINES    = stringPreferencesKey("fav_lines")
         private val KEY_WIDGET_STOPS = stringPreferencesKey("widget_stops")
         private val KEY_PREMIUM      = stringPreferencesKey("premium_active")
+        private val KEY_ONBOARDING   = stringPreferencesKey("onboarding_done")
     }
 }
