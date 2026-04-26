@@ -26,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
@@ -142,6 +143,7 @@ fun LiveMapScreen() {
 
     var selectedVehicle by remember { mutableStateOf<Vehicle?>(null) }
     var selectedStop by remember { mutableStateOf<TransitStop?>(null) }
+    var showAlertsSheet by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         GoogleMap(
@@ -279,6 +281,10 @@ fun LiveMapScreen() {
                 )
             }
             Spacer(Modifier.height(8.dp))
+            FilledIconButton(onClick = { showAlertsSheet = true }) {
+                Icon(Icons.Filled.Warning, contentDescription = "Alertes")
+            }
+            Spacer(Modifier.height(8.dp))
             FilledIconButton(onClick = { vm.refresh() }) {
                 Icon(Icons.Filled.Refresh, contentDescription = "Rafraîchir")
             }
@@ -296,6 +302,16 @@ fun LiveMapScreen() {
             onDismissRequest = { selectedStop = null },
             sheetState = rememberModalBottomSheetState()
         ) { StopDetailSheet(stop) }
+    }
+    if (showAlertsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAlertsSheet = false },
+            sheetState = rememberModalBottomSheetState()
+        ) {
+            Box(modifier = Modifier.fillMaxSize().padding(0.dp)) {
+                com.alertetcl.android.ui.alerts.AlertsScreen()
+            }
+        }
     }
 }
 

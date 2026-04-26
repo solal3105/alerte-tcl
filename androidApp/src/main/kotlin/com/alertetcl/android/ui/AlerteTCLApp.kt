@@ -2,11 +2,10 @@ package com.alertetcl.android.ui
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsBus
-import androidx.compose.material.icons.filled.LocalParking
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -19,20 +18,18 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.alertetcl.android.ui.alerts.AlertsScreen
+import com.alertetcl.android.ui.about.AboutScreen
 import com.alertetcl.android.ui.live.LiveMapScreen
 import com.alertetcl.android.ui.parking.ParkingScreen
-import com.alertetcl.android.ui.settings.SettingsScreen
 import com.alertetcl.android.ui.travaux.TravauxScreen
 
 private data class TabItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
 private val tabs = listOf(
-    TabItem("alerts",   "Alertes",  Icons.Filled.Notifications),
-    TabItem("live",     "Carte",    Icons.Filled.Map),
-    TabItem("parking",  "Parkings", Icons.Filled.LocalParking),
-    TabItem("travaux",  "Travaux",  Icons.Filled.DirectionsBus),
-    TabItem("settings", "Réglages", Icons.Filled.Settings),
+    TabItem("live",     "Transport", Icons.Filled.Tram),
+    TabItem("travaux",  "Travaux",   Icons.Filled.Build),
+    TabItem("parking",  "Parkings",  Icons.Filled.DirectionsCar),
+    TabItem("about",    "Info",      Icons.Filled.Info),
 )
 
 @Composable
@@ -64,14 +61,13 @@ fun AlerteTCLApp() {
     ) { padding ->
         NavHost(
             navController = nav,
-            startDestination = "alerts",
+            startDestination = "live",
             modifier = Modifier.padding(padding)
         ) {
-            composable("alerts")   { AlertsScreen() }
-            composable("live")     { LiveMapScreen() }
-            composable("parking")  { ParkingScreen() }
-            composable("travaux")  { TravauxScreen() }
-            composable("settings") { SettingsScreen() }
+            composable("live")    { LiveMapScreen() }
+            composable("travaux") { TravauxScreen() }
+            composable("parking") { ParkingScreen() }
+            composable("about")   { AboutScreen() }
         }
     }
 }
