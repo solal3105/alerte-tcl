@@ -5,14 +5,27 @@
 ✅ Build APK : `./gradlew :androidApp:assembleDebug`
 - Sortie : `androidApp/build/outputs/apk/debug/androidApp-debug.apk`
 - Logique métier 100 % partagée via `:shared`
-- Écrans Compose : Alertes, LiveMap (filtres + clustering + animation 100 ms),
-  Parking (viewport reload), Travaux (polygones colorés), Settings
+- Écrans Compose :
+  - **LiveMap** : carte temps réel avec filtres, clustering, animation 100 ms,
+    boutons d'action (alertes, réglages, refresh) en overlay
+  - **Travaux** : carte polygones colorés
+  - **Parkings** : carte avec viewport reload + ParkingViewModel
+  - **À propos** : Hero, Manifesto, OpenData, Sources (5 lignes), Créateur,
+    Contact LinkedIn, Liens, Version (réplique d'`AboutView.swift`)
+  - **Alertes** (modale depuis LiveMap) : StatusBanner contextuel,
+    section "Mes lignes" (favoris), "Toutes les alertes",
+    grille "Toutes les lignes" — réplique de `NewAlertsView.swift`
+  - **Lignes** (`LinesListScreen`) : grille 2 colonnes, recherche, filtre par
+    mode de transport, toggle favori
+  - **Sélection arrêts widget** : recherche d'arrêts + sélection multiple
+  - **Settings** : permissions notif, premium, widget, données, confidentialité
 - Persistance : DataStore (`FavoritesStore`) — lignes favorites, arrêts widget,
   flag premium
 - Notifications : WorkManager (`AlertWorker` toutes les 30 min) +
   channel `tcl_alerts`
 - Widget : Glance `NextDeparturesGlanceWidget` (prochains passages aux 2 arrêts
   favoris)
+- Navigation : 4 onglets (Transport, Travaux, Parkings, Info) identiques à iOS
 
 ## Statut iOS
 
