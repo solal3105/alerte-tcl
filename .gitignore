@@ -68,3 +68,13 @@ fastlane/test_output
 *.gcno
 *.gcda
 *.gcov
+
+# Android / Gradle / KMP
+.gradle/
+local.properties
+*.iml
+.idea/
+captures/
+.cxx/
+**/build/
+.kotlin/

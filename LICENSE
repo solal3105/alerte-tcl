@@ -1,0 +1,53 @@
+Licence Alerte TCL
+Copyright (c) 2024-2026 Solal Gendrin
+
+Salut ! 👋
+
+Ce projet est ouvert : tu peux lire le code, l'auditer, t'en inspirer et l'utiliser librement pour des projets personnels. Voici les règles du jeu, en toute transparence.
+
+─────────────────────────────────────────────────────────────────────────────
+
+CE QUI EST AUTORISÉ SANS RESTRICTION
+
+  • Lire, étudier et auditer le code (c'est même encouragé)
+  • Utiliser tout ou partie du code pour un usage personnel, éducatif ou non commercial
+  • Forker le dépôt pour expérimenter dans ton coin
+  • Partager le lien vers ce dépôt
+
+─────────────────────────────────────────────────────────────────────────────
+
+CE QUI NÉCESSITE MON ACCORD PRÉALABLE
+
+Toute utilisation commerciale est soumise à discussion préalable avec moi.
+Cela inclut, sans s'y limiter :
+
+  • Intégrer ce code (ou une version dérivée) dans un produit ou service payant
+  • Redistribuer une version modifiée sous une autre marque à des fins commerciales
+  • Utiliser le code comme base d'une offre SaaS ou d'une application monetisée
+
+Si tu as un projet commercial en tête, contacte-moi — je suis ouvert à la conversation.
+
+─────────────────────────────────────────────────────────────────────────────
+
+CONTRIBUTIONS
+
+Toute contribution soumise à ce projet (pull request, patch, suggestion de code…)
+est la bienvenue. Cependant, contribuer n'implique en aucun cas la cession de la
+propriété intellectuelle au titulaire du projet. Tu restes l'auteur de ta contribution.
+
+En soumettant une contribution, tu accordes simplement une licence d'utilisation de
+celle-ci dans le cadre de ce projet, dans les mêmes conditions que cette licence.
+
+─────────────────────────────────────────────────────────────────────────────
+
+LIMITATION DE RESPONSABILITÉ
+
+Ce logiciel est fourni "tel quel", sans garantie d'aucune sorte, expresse ou implicite.
+L'auteur ne saurait être tenu responsable de tout dommage direct ou indirect résultant
+de l'utilisation ou de l'impossibilité d'utiliser ce logiciel.
+
+─────────────────────────────────────────────────────────────────────────────
+
+Pour toute question, tu peux me contacter directement via le dépôt GitHub.
+
+Bonne lecture du code ! 🚇
