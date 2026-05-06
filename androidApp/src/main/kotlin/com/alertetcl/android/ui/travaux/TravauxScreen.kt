@@ -726,8 +726,8 @@ private fun pathNodesToAndroidPath(pathData: List<PathNode>, scale: Float): andr
             }
             is PathNode.ReflectiveQuadTo -> {
                 val rx = 2 * cx - lqcx; val ry = 2 * cy - lqcy
-                p.quadTo(rx * scale, ry * scale, node.x1 * scale, node.y1 * scale)
-                lqcx = rx; lqcy = ry; cx = node.x1; cy = node.y1; lbcx = cx; lbcy = cy
+                p.quadTo(rx * scale, ry * scale, node.x * scale, node.y * scale)
+                lqcx = rx; lqcy = ry; cx = node.x; cy = node.y; lbcx = cx; lbcy = cy
             }
             is PathNode.RelativeReflectiveQuadTo -> {
                 val rx = cx - lqcx; val ry = cy - lqcy

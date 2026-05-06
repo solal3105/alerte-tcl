@@ -145,9 +145,12 @@ Dans `AlertViewModel.swift`, ajuster la logique de `loadAlerts()`
 ### Build failed
 → Menu Product > Clean Build Folder (`Cmd + Shift + K`) puis relancer
 
-## 📄 License
+## 📄 Licence
 
-MIT - Libre d'utilisation et de modification.
+Code ouvert, librement auditable et gratuit. Usage personnel bienvenu sans restriction.
+Usage commercial → parlons-en d'abord. Les contributions ne valent pas cession de propriété intellectuelle.
+
+Voir le fichier [LICENSE](LICENSE) pour les détails complets.
 
 ---
 

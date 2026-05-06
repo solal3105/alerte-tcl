@@ -114,23 +114,25 @@ actor SIRILiteService {
             guard let journey = activity.MonitoredVehicleJourney,
                   let location = journey.VehicleLocation,
                   let latitude = location.Latitude,
-                  let longitude = location.Longitude,
-                  let vehicleId = activity.VehicleMonitoringRef?.value, !vehicleId.isEmpty else {
+                  let longitude = location.Longitude else {
+                return nil
+            }
+            
+            // VehicleRef est l'identifiant physique du véhicule (numéro de bus/tram),
+            // stable entre les trips. VehicleMonitoringRef est un identifiant de journey
+            // qui change au terminus → source du clignotement. On préfère VehicleRef.
+            // Certains véhicules (trams, métros) peuvent ne pas avoir de VehicleMonitoringRef.
+            let vehRef = journey.VehicleRef?.value
+            let monRef = activity.VehicleMonitoringRef?.value
+            guard let stableId = (vehRef?.isEmpty == false ? vehRef : monRef), !stableId.isEmpty else {
                 return nil
             }
             
             let lineRef = journey.LineRef?.value ?? ""
             let lineName = extractLineName(from: lineRef)
-            let vehicleType = detectVehicleType(lineRef: lineRef, vehicleRef: journey.VehicleRef?.value)
+            let vehicleType = detectVehicleType(lineRef: lineRef, vehicleRef: vehRef)
             let destination = extractDestination(from: journey.DestinationRef?.value)
             let delay = parseDelay(journey.Delay)
-            
-            // VehicleRef est l'identifiant physique du véhicule (numéro de bus/tram),
-            // stable entre les trips. VehicleMonitoringRef est un identifiant de journey
-            // qui change au terminus → source du clignotement. On préfère VehicleRef.
-            let stableId = journey.VehicleRef?.value?.isEmpty == false
-                ? journey.VehicleRef!.value!
-                : vehicleId
             
             // Extraire les informations d'arrêts
             let nextStop = parseMonitoredCall(journey.MonitoredCall)

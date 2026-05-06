@@ -12,11 +12,9 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -68,7 +66,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -151,7 +149,7 @@ fun ParkingScreen() {
     val showParcRelais by vm.showParcRelais.collectAsState()
     val showRealtimeParkings by vm.showRealtimeParkings.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
-    val lastUpdateMs by vm.lastUpdateEpochMs.collectAsState()
+    val errorMessage by vm.errorMessage.collectAsState()
 
     var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
     var mapStyle by remember { mutableStateOf<Style?>(null) }
@@ -162,13 +160,22 @@ fun ParkingScreen() {
 
     var selectedParking by remember { mutableStateOf<Parking?>(null) }
     var showFilterSheet by remember { mutableStateOf(false) }
-    val showCarFilters = ParkingType.CAR in selectedTypes
+    val isCarSelected = ParkingType.CAR in selectedTypes
     val currentRegion = remember { mutableStateOf<GeoRegion?>(null) }
 
-    // Tick 1s pour rafraîchir le label "il y a Xs" du refresh card
-    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) { kotlinx.coroutines.delay(1000); nowMs = System.currentTimeMillis() }
+    // Countdown auto-refresh 60s (voitures seulement, comme iOS)
+    var secondsUntilRefresh by remember { mutableIntStateOf(60) }
+    LaunchedEffect(isCarSelected) {
+        if (!isCarSelected) return@LaunchedEffect
+        secondsUntilRefresh = 60
+        while (true) {
+            kotlinx.coroutines.delay(1000)
+            secondsUntilRefresh = (secondsUntilRefresh - 1).coerceAtLeast(0)
+            if (secondsUntilRefresh <= 0) {
+                currentRegion.value?.let { vm.loadInRegion(it, forceRefresh = true) }
+                secondsUntilRefresh = 60
+            }
+        }
     }
 
     val locationPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -249,7 +256,7 @@ fun ParkingScreen() {
                             ParkingTypeButton(
                                 type = type,
                                 isSelected = type in selectedTypes,
-                                onClick = { vm.toggleType(type) }
+                                onClick = { vm.setType(type) }
                             )
                         }
                     }
@@ -268,7 +275,7 @@ fun ParkingScreen() {
                 tint = if (isSatellite) Color(0xFFFF9500) else Color(0xFF1C1C1E),
                 onClick = { isSatellite = !isSatellite }
             )
-            if (showCarFilters) {
+            if (isCarSelected) {
                 val hasActiveFilters = !showParcRelais || !showRealtimeParkings
                 ParkingCircleFab(
                     icon = Icons.Filled.FilterList, contentDesc = "Filtres",
@@ -289,31 +296,90 @@ fun ParkingScreen() {
             )
         }
 
-        // Refresh card bottom-left for car type (avec timestamp)
-        if (showCarFilters) {
+        // Error overlay (centré sur la carte, comme iOS)
+        errorMessage?.let { err ->
+            val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+            val isNight = hour >= 22 || hour < 6
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = Color.White.copy(alpha = 0.97f),
+                tonalElevation = 8.dp,
+                shadowElevation = 16.dp,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(20.dp)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(if (isNight) "🌙" else "☁", fontSize = 44.sp)
+                    Text(
+                        if (isNight) "Les serveurs se reposent"
+                        else "Données temporairement indisponibles",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        if (isNight) "Grand Lyon coupe ses serveurs la nuit.\nRevenez après 6h !"
+                        else friendlyParkingError(err),
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center
+                    )
+                    Button(
+                        onClick = { currentRegion.value?.let { vm.loadInRegion(it, forceRefresh = true) } },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF)),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Réessayer")
+                    }
+                }
+            }
+        }
+
+        // LIVE card bottom-left (voitures seulement, comme iOS)
+        if (isCarSelected) {            val liveColor = if (errorMessage != null) Color(0xFFFF9500) else Color(0xFF007AFF)
             Surface(
                 shape = RoundedCornerShape(50),
                 color = Color.White.copy(alpha = 0.95f),
                 tonalElevation = 6.dp,
                 shadowElevation = 6.dp,
                 modifier = Modifier.align(Alignment.BottomStart).padding(16.dp)
-                    .clickable { currentRegion.value?.let { vm.loadInRegion(it, forceRefresh = true) } }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(Icons.Filled.Refresh, "Rafraîchir", tint = Color(0xFF007AFF), modifier = Modifier.size(18.dp))
-                    val txt = lastUpdateMs?.let {
-                        val s = (nowMs - it) / 1000L
-                        when {
-                            s < 5 -> "à l'instant"
-                            s < 60 -> "il y a ${s}s"
-                            else -> "il y a ${s / 60}min"
-                        }
-                    } ?: "Rafraîchir"
-                    Text(txt, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(liveColor)
+                    )
+                    Text(
+                        "LIVE",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = liveColor
+                    )
+                    if (isLoading) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(12.dp),
+                            strokeWidth = 1.5.dp,
+                            color = liveColor
+                        )
+                    } else {
+                        Text(
+                            "${secondsUntilRefresh}s",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.Gray
+                        )
+                    }
                 }
             }
         }
@@ -328,7 +394,11 @@ fun ParkingScreen() {
                 showParcRelais = showParcRelais,
                 onToggleParcRelais = { vm.toggleParcRelais() },
                 showRealtimeParkings = showRealtimeParkings,
-                onToggleRealtime = { vm.toggleRealtimeParkings() }
+                onToggleRealtime = { vm.toggleRealtimeParkings() },
+                onReset = {
+                    if (!showParcRelais) vm.toggleParcRelais()
+                    if (!showRealtimeParkings) vm.toggleRealtimeParkings()
+                }
             )
         }
     }
@@ -343,16 +413,15 @@ fun ParkingScreen() {
     // Update parking markers
     LaunchedEffect(mapStyle, parkings) {
         val style = mapStyle ?: return@LaunchedEffect
-        AvailabilityColor.entries.forEach { color ->
-            listOf(false, true).forEach { pr ->
-                val iconId = parkingIconId(color, pr)
-                if (style.getImage(iconId) == null) style.addImage(iconId, parkingMarkerBitmap(color, pr))
-            }
+        // Add unique bitmaps per visual state (color × type × places × etat)
+        val uniqueKeys = parkings.groupBy { markerCacheKey(it) }.mapValues { it.value.first() }
+        uniqueKeys.forEach { (key, p) ->
+            if (style.getImage(key) == null) style.addImage(key, createMarkerBitmap(p))
         }
         val features = parkings.map { p ->
             val props = JsonObject().apply {
                 addProperty("id", p.id)
-                addProperty("icon", parkingIconId(p.availabilityColor, p.isParcRelais))
+                addProperty("icon", markerCacheKey(p))
             }
             Feature.fromGeometry(Point.fromLngLat(p.longitude, p.latitude), props)
         }
@@ -795,7 +864,13 @@ private fun ParkingTypeButton(type: ParkingType, isSelected: Boolean, onClick: (
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Icon(parkingTypeIcon(type), null, tint = fg, modifier = Modifier.size(16.dp))
-            Text(type.displayName, color = fg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                when (type) {
+                    ParkingType.MOTORIZED_2W -> "2-Roues"
+                    else -> type.displayName
+                },
+                color = fg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
@@ -805,11 +880,29 @@ private fun ParkingFilterSheet(
     showParcRelais: Boolean,
     onToggleParcRelais: () -> Unit,
     showRealtimeParkings: Boolean,
-    onToggleRealtime: () -> Unit
+    onToggleRealtime: () -> Unit,
+    onReset: () -> Unit
 ) {
+    val hasActiveFilters = !showParcRelais || !showRealtimeParkings
     Column(modifier = Modifier.padding(20.dp)) {
         Text("Filtres", fontWeight = FontWeight.Bold, fontSize = 18.sp)
         Spacer(Modifier.height(16.dp))
+        if (hasActiveFilters) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFFFEBEE),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).clickable { onReset() }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Filled.Refresh, null, tint = Color(0xFFE53935), modifier = Modifier.size(18.dp))
+                    Text("Réinitialiser les filtres", fontSize = 14.sp, color = Color(0xFFE53935), fontWeight = FontWeight.Medium)
+                }
+            }
+        }
         Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFF2F2F7), modifier = Modifier.fillMaxWidth()) {
             Column {
                 Row(
@@ -839,6 +932,16 @@ private fun ParkingFilterSheet(
     }
 }
 
+private fun friendlyParkingError(err: String): String = when {
+    err.contains("504") || err.contains("imeout", ignoreCase = true) ->
+        "Le serveur Grand Lyon prend son temps… Réessayez dans quelques instants."
+    err.contains("500") || err.contains("502") || err.contains("503") ->
+        "Le serveur Grand Lyon est en maintenance. Revenez bientôt !"
+    err.contains("onnection", ignoreCase = true) || err.contains("etwork", ignoreCase = true) ->
+        "Vérifiez votre connexion internet."
+    else -> "Une erreur inattendue s'est produite. Réessayez dans quelques instants."
+}
+
 private fun parkingAndroidColor(c: AvailabilityColor): Int = when (c) {
     AvailabilityColor.GRAY   -> AndroidColor.parseColor("#9E9E9E")
     AvailabilityColor.GREEN  -> AndroidColor.parseColor("#43A047")
@@ -846,22 +949,80 @@ private fun parkingAndroidColor(c: AvailabilityColor): Int = when (c) {
     AvailabilityColor.RED    -> AndroidColor.parseColor("#E53935")
 }
 
-private fun parkingIconId(color: AvailabilityColor, isParcRelais: Boolean) =
-    "parking_${color.name}_${if (isParcRelais) "pr" else "std"}"
+/** Cache key: same visual state → same bitmap. */
+private fun markerCacheKey(p: Parking): String {
+    val isCompact = p.parkingType == ParkingType.BIKE || p.parkingType == ParkingType.MOTORIZED_2W
+    return if (isCompact) "compact_${p.availabilityColor}"
+    else "full_${p.availabilityColor}_${p.isParcRelais}_${p.placesDisponibles}_${p.etat.raw}_${p.hasRealtimeData}"
+}
 
-private fun parkingMarkerBitmap(color: AvailabilityColor, isParcRelais: Boolean): Bitmap {
-    val s = 56
+private fun createMarkerBitmap(p: Parking): Bitmap {
+    val isCompact = p.parkingType == ParkingType.BIKE || p.parkingType == ParkingType.MOTORIZED_2W
+    return if (isCompact) compactMarkerBitmap(p.availabilityColor) else fullMarkerBitmap(p)
+}
+
+/** Small colored dot for bikes and 2-wheel. */
+private fun compactMarkerBitmap(color: AvailabilityColor): Bitmap {
+    val s = 36
     val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bmp)
-    canvas.drawCircle(s / 2f, s / 2f, s / 2f - 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    val cv = Canvas(bmp)
+    val cx = s / 2f; val cy = s / 2f; val r = s / 2f - 3f
+    cv.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
         this.color = parkingAndroidColor(color); style = Paint.Style.FILL
     })
-    canvas.drawCircle(s / 2f, s / 2f, s / 2f - 4f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        this.color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 4f
+    cv.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        this.color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 3f
     })
-    canvas.drawText(if (isParcRelais) "P+R" else "P", s / 2f, s / 2f + 9f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        this.color = AndroidColor.WHITE; textSize = 26f; textAlign = Paint.Align.CENTER
+    return bmp
+}
+
+/** Full marker for cars and P+R: colored circle + places count + open/closed badge. */
+private fun fullMarkerBitmap(p: Parking): Bitmap {
+    val s = 60
+    val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
+    val cv = Canvas(bmp)
+    val cx = s / 2f; val cy = s / 2f; val r = s / 2f - 3f
+
+    // Main filled circle
+    cv.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = parkingAndroidColor(p.availabilityColor); style = Paint.Style.FILL
+    })
+    // White stroke
+    cv.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 3f
+    })
+
+    val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE
+        textAlign = Paint.Align.CENTER
         typeface = android.graphics.Typeface.DEFAULT_BOLD
-    })
+    }
+
+    if (p.isParcRelais) {
+        // "P+R" label + places (if realtime)
+        textPaint.textSize = 13f
+        cv.drawText("P+R", cx, cy - 2f, textPaint)
+        if (p.hasRealtimeData) {
+            textPaint.textSize = 14f
+            cv.drawText("${p.placesDisponibles}", cx, cy + 16f, textPaint)
+        }
+    } else {
+        // Car type icon (drawn as "P") + places count
+        textPaint.textSize = 13f
+        cv.drawText("P", cx, cy - 2f, textPaint)
+        textPaint.textSize = 14f
+        cv.drawText("${p.placesDisponibles}", cx, cy + 16f, textPaint)
+
+        // Open/closed badge at top-right
+        val bx = s - 10f; val by = 10f; val br = 7f
+        cv.drawCircle(bx, by, br, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (p.etat.raw == "ouvert") AndroidColor.parseColor("#43A047")
+                    else AndroidColor.parseColor("#E53935")
+            style = Paint.Style.FILL
+        })
+        cv.drawCircle(bx, by, br, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 2f
+        })
+    }
     return bmp
 }
