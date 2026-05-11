@@ -162,7 +162,8 @@ final class VehicleAnnotationView: MKAnnotationView {
 
 /// Vue d'annotation arrêt fusionné.
 ///
-/// Mode compact (zoom éloigné) : simple disque 9pt.
+/// Mode compact (zoom éloigné) : simple disque dont la taille et la couleur
+///   reflètent la hiérarchie de la ligne la plus importante (metro > tram > busC > bus).
 /// Mode badges  (zoom serré)   : disque + capsules de ligne colorées en dessous.
 ///
 ///    ●          ← dot (coordonnée map = centre du dot)
@@ -171,25 +172,18 @@ final class MergedStopAnnotationView: MKAnnotationView {
     static let identifier = "stop"
 
     private enum L {
-        // Mode compact
-        static let dot:      CGFloat = 9
-        // Mode badge — le dot est légèrement plus grand pour ancrer visuellement
-        static let badgeDot: CGFloat = 11
         // Badges
-        static let badgeH:   CGFloat = 11   // très compact
-        static let gap:      CGFloat = 2    // dot ↔ rangée de badges
-        static let hPad:     CGFloat = 3    // padding horizontal interne
-        static let spacing:  CGFloat = 2    // entre badges
+        static let badgeH:   CGFloat = 11
+        static let gap:      CGFloat = 2
+        static let hPad:     CGFloat = 3
+        static let spacing:  CGFloat = 2
         static let font = UIFont.systemFont(ofSize: 7.5, weight: .bold)
         static let maxBadges = 4
     }
 
-    // Conteneur du disque — réutilisé dans les deux modes
     private let dotLayer: CALayer = {
         let l = CALayer()
-        l.contents = MarkerImageCache.mergedStopDot().cgImage
         l.contentsGravity = .resizeAspect
-        // Ombre douce pour visibilité sur carte claire et sombre
         l.shadowColor  = UIColor.black.cgColor
         l.shadowOpacity = 0
         l.shadowRadius  = 2
@@ -197,14 +191,15 @@ final class MergedStopAnnotationView: MKAnnotationView {
         return l
     }()
     private var badgeLayers: [CALayer] = []
+    private var currentTier: StopTier = .bus
+    private var currentPrimaryLine: String? = nil
 
     override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
         backgroundColor = .clear
-        // Arrêts en-dessous des véhicules
         displayPriority = .defaultLow
         layer.addSublayer(dotLayer)
-        setCompact()
+        setCompact(tier: .bus, primaryLine: nil)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
@@ -213,40 +208,52 @@ final class MergedStopAnnotationView: MKAnnotationView {
 
     func apply(stop: MergedStop, showBadges: Bool) {
         let visibleLines = stop.allLines.filter { !$0.hasPrefix("JD") }
+        let tier        = StopTier.from(lines: visibleLines)
+        let primaryLine = StopTier.primaryLine(from: visibleLines)
+
+        // Priorité d'affichage selon hiérarchie
+        switch tier {
+        case .metro:   displayPriority = .required
+        case .tramway: displayPriority = .defaultHigh
+        case .busC:    displayPriority = .defaultLow
+        case .bus:     displayPriority = .defaultLow
+        }
+
         if showBadges && !visibleLines.isEmpty {
-            let capped = Array(visibleLines.prefix(L.maxBadges))
+            let capped   = Array(visibleLines.prefix(L.maxBadges))
             let overflow = visibleLines.count - capped.count
-            setBadges(lines: capped, overflow: overflow)
+            setBadges(lines: capped, overflow: overflow, tier: tier, primaryLine: primaryLine)
         } else {
-            setCompact()
+            setCompact(tier: tier, primaryLine: primaryLine)
         }
     }
 
     override func prepareForReuse() {
         super.prepareForReuse()
-        setCompact()
+        setCompact(tier: .bus, primaryLine: nil)
     }
 
     // MARK: - Layouts
 
-    private func setCompact() {
+    private func setCompact(tier: StopTier, primaryLine: String?) {
         badgeLayers.forEach { $0.removeFromSuperlayer() }
         badgeLayers = []
         dotLayer.shadowOpacity = 0
-        let s = L.dot
+        let s = tier.compactSize
+        dotLayer.contents = MarkerImageCache.mergedStopDot(tier: tier, primaryLine: primaryLine, forBadge: false).cgImage
         bounds         = CGRect(origin: .zero, size: CGSize(width: s, height: s))
         dotLayer.frame = CGRect(origin: .zero, size: CGSize(width: s, height: s))
         centerOffset   = .zero
     }
 
-    private func setBadges(lines: [String], overflow: Int) {
+    private func setBadges(lines: [String], overflow: Int, tier: StopTier, primaryLine: String?) {
         badgeLayers.forEach { $0.removeFromSuperlayer() }
         badgeLayers = []
 
-        // Ombre légère sur le dot en mode badge
-        dotLayer.shadowOpacity = 0.22
+        dotLayer.shadowOpacity = tier == .metro ? 0.30 : 0.22
+        dotLayer.contents = MarkerImageCache.mergedStopDot(tier: tier, primaryLine: primaryLine, forBadge: true).cgImage
 
-        let d = L.badgeDot
+        let d = tier.badgeSize
 
         // Construction de la liste d'items avec éventuel overflow
         var allItems: [(text: String, isOverflow: Bool)] = lines.map { ($0, false) }

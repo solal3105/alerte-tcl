@@ -15,9 +15,10 @@ struct AboutView: View {
                 VStack(spacing: 28) {
                     heroSection
                     manifestoCard
+                    creatorCard
+                    openProjetsCard
                     openDataTribute
                     sourcesCard
-                    creatorCard
                     contactCard
                     linksFooter
                     versionFooter
@@ -229,58 +230,110 @@ struct AboutView: View {
                 .font(.callout)
                 .foregroundStyle(.primary.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
-
-            Link(destination: URL.trusted("https://openprojets.com/home")) {
-                HStack(spacing: 12) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(LinearGradient(
-                                colors: [.blue, .cyan],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing))
-                            .frame(width: 40, height: 40)
-                        AsyncImage(url: URL(string: "https://openprojets.com/home/img/logos/square_white.png")) { phase in
-                            if let img = phase.image {
-                                img
-                                    .resizable()
-                                    .scaledToFit()
-                                    .padding(8)
-                            } else {
-                                Image(systemName: "map.fill")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(.white)
-                            }
-                        }
-                        .frame(width: 40, height: 40)
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Open Projets")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                        Text("Mon autre projet : la carte des projets urbains pour les collectivités")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.leading)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "arrow.up.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color(.tertiarySystemGroupedBackground))
-                )
-            }
-            .buttonStyle(.plain)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(cardBackground)
+    }
+
+    // MARK: Open Projets
+
+    private var openProjetsCard: some View {
+        VStack(alignment: .leading, spacing: 18) {
+
+            // Header
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(.white.opacity(0.18))
+                        .frame(width: 42, height: 42)
+                    AsyncImage(url: URL(string: "https://openprojets.com/home/img/logos/square_white.png")) { phase in
+                        if let img = phase.image {
+                            img.resizable().scaledToFit().padding(9)
+                        } else {
+                            Image(systemName: "map.fill")
+                                .font(.system(size: 19, weight: .semibold))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    .frame(width: 42, height: 42)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Open Projets by Vazy")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    Text("Mon autre projet")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+            }
+
+            // Pitch
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Vous travaillez dans une collectivité ou vous êtes élu ?")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.white)
+
+                Text("Avec Vazy, société à mission villeurbannaise, on a construit Open Projets : une carte interactive que chaque commune peut déployer pour informer ses habitants sur ses chantiers et projets d'aménagement.")
+                    .font(.callout)
+                    .foregroundStyle(.white.opacity(0.88))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineSpacing(3)
+
+                Text("La carte reprend votre logo, vos couleurs, vos catégories. Vos agents ajoutent les projets en quelques clics. Les habitants consultent depuis leur téléphone, sans compte, sans téléchargement.")
+                    .font(.callout)
+                    .foregroundStyle(.white.opacity(0.88))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineSpacing(3)
+            }
+
+            // Deux CTAs
+            VStack(spacing: 10) {
+                Link(destination: URL.trusted("https://openprojets.com/home")) {
+                    HStack(spacing: 6) {
+                        Text("Découvrir Open Projets")
+                            .font(.subheadline.weight(.semibold))
+                        Image(systemName: "arrow.up.right")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(Color(red: 0.14, green: 0.18, blue: 0.58))
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 11)
+                    .frame(maxWidth: .infinity)
+                    .background(.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Link(destination: URL.trusted("https://openprojets.com/default")) {
+                    HStack(spacing: 6) {
+                        Text("Voir la carte de la Métropole de Lyon")
+                            .font(.subheadline.weight(.medium))
+                        Image(systemName: "arrow.up.right")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .foregroundStyle(.white.opacity(0.85))
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 11)
+                    .frame(maxWidth: .infinity)
+                    .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.12, green: 0.20, blue: 0.60),
+                    Color(red: 0.28, green: 0.14, blue: 0.62)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: Color(red: 0.18, green: 0.22, blue: 0.65).opacity(0.28), radius: 18, x: 0, y: 8)
     }
 
     // MARK: Contact
@@ -347,13 +400,18 @@ struct AboutView: View {
     }
 
     private var versionFooter: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 6) {
             Text("Lyon Pocket \(appVersion)\(buildNumber.isEmpty ? "" : " (\(buildNumber))")")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             Text("Fait à Villeurbanne, avec ♥")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
+            Text("Application indépendante, sans aucune affiliation à SYTRAL Mobilités, Keolis Lyon ou TCL.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .padding(.top, 2)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)

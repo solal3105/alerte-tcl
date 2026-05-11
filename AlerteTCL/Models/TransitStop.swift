@@ -165,18 +165,25 @@ extension Array where Element: Hashable {
 extension TransportMode {
     static func detectFromLine(_ ligne: String) -> TransportMode {
         let upper = ligne.uppercased()
-        
-        if upper.hasPrefix("M") && upper.count <= 3 {
-            return .metro
-        } else if upper.hasPrefix("T") && upper.count <= 3 {
-            return .tramway
-        } else if upper.hasPrefix("F") && upper.count <= 3 {
-            return .funiculaire
-        } else if upper.hasPrefix("C") && upper.count <= 3 {
-            return .busC
-        } else if upper == "RHONEXPRESS" {
-            return .tramway
-        }
+
+        // Métro : lettres seules A/B/C/D (codes GeoServer) ou préfixe M (MA/MB…)
+        if upper == "A" || upper == "B" || upper == "C" || upper == "D" { return .metro }
+        if upper.hasPrefix("M") && upper.count <= 3 { return .metro }
+
+        // Tramways : T + chiffre unique (T1…T9) ou TGS — exclut T36, TB11, etc.
+        if upper == "TGS" { return .tramway }
+        if upper.hasPrefix("T") && upper.count == 2 && (upper.last?.isNumber ?? false) { return .tramway }
+
+        // Funiculaires : F1, F2
+        if upper.hasPrefix("F") && upper.count <= 3 { return .funiculaire }
+
+        // Chronobus : C suivi d'un chiffre (C1, C7, C15E, C200, C20E, etc.)
+        // "C" seul = métro C, déjà traité ci-dessus
+        if upper.hasPrefix("C"), let second = upper.dropFirst().first, second.isNumber { return .busC }
+
+        // RhôneExpress
+        if upper == "RX" || upper == "RHONEXPRESS" { return .tramway }
+
         return .bus
     }
 }

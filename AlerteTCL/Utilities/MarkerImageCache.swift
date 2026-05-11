@@ -1,6 +1,66 @@
 import UIKit
 import SwiftUI
 
+// MARK: - Stop Tier
+
+/// Hiérarchie visuelle des arrêts TCL sur la carte.
+/// Dérivée des lignes desservies : metro > tramway > busC > bus.
+enum StopTier: Int {
+    case metro
+    case tramway
+    case busC
+    case bus
+
+    // MARK: Dimensions
+
+    /// Diamètre du dot en mode compact (zoom éloigné)
+    var compactSize: CGFloat {
+        switch self {
+        case .metro:   return 14
+        case .tramway: return 12
+        case .busC:    return 10.5
+        case .bus:     return 8.5
+        }
+    }
+
+    /// Diamètre du dot en mode badges (zoom serré)
+    var badgeSize: CGFloat {
+        switch self {
+        case .metro:   return 16
+        case .tramway: return 14
+        case .busC:    return 12
+        case .bus:     return 10
+        }
+    }
+
+    /// Épaisseur de l'anneau blanc extérieur
+    var strokeWidth: CGFloat {
+        switch self {
+        case .metro:   return 2.5
+        case .tramway: return 2.0
+        case .busC:    return 1.8
+        case .bus:     return 1.5
+        }
+    }
+
+    // MARK: Factory
+
+    static func from(lines: [String]) -> StopTier {
+        let modes = lines.map { TransportMode.detectFromLine($0) }
+        if modes.contains(.metro)   { return .metro }
+        if modes.contains(.tramway) { return .tramway }
+        if modes.contains(.busC)    { return .busC }
+        return .bus
+    }
+
+    /// Première ligne de la hiérarchie la plus haute parmi `lines`
+    static func primaryLine(from lines: [String]) -> String? {
+        lines.min { a, b in
+            TransportMode.detectFromLine(a).sortOrder < TransportMode.detectFromLine(b).sortOrder
+        }
+    }
+}
+
 /// Cache d'images pré-rendues pour les marqueurs de carte UIKit.
 ///
 /// **Pourquoi** : `Annotation(coordinate:) { SwiftUIView }` crée un `UIHostingView`
@@ -39,11 +99,12 @@ enum MarkerImageCache {
         return image
     }
 
-    /// Point d'arrêt TCL (petit disque blanc + noyau violet).
-    static func mergedStopDot() -> UIImage {
-        if let cached = sharedDotCache.object(forKey: "mergedStopDot" as NSString) { return cached }
-        let image = renderStopDot()
-        sharedDotCache.setObject(image, forKey: "mergedStopDot" as NSString)
+    /// Point d'arrêt TCL — taille et couleur selon le tier de la ligne la plus importante.
+    static func mergedStopDot(tier: StopTier, primaryLine: String?, forBadge: Bool = false) -> UIImage {
+        let key = "stop-\(tier.rawValue)-\(primaryLine ?? "")-\(forBadge ? 1 : 0)" as NSString
+        if let cached = sharedDotCache.object(forKey: key) { return cached }
+        let image = renderStopDot(tier: tier, primaryLine: primaryLine, forBadge: forBadge)
+        sharedDotCache.setObject(image, forKey: key)
         return image
     }
 
@@ -193,21 +254,59 @@ enum MarkerImageCache {
         }
     }
 
-    private static func renderStopDot() -> UIImage {
-        let size = CGSize(width: Dim.stopDotOuter, height: Dim.stopDotOuter)
+    private static func renderStopDot(tier: StopTier, primaryLine: String?, forBadge: Bool) -> UIImage {
+        let outer = forBadge ? tier.badgeSize : tier.compactSize
+        let stroke = tier.strokeWidth
+        let inner = outer - stroke * 2
+        let size = CGSize(width: outer, height: outer)
+
+        // Couleur du noyau selon le tier
+        let fillColor: UIColor
+        switch tier {
+        case .metro:
+            let line = primaryLine ?? ""
+            fillColor = uiColor(LineColorHelper.backgroundColor(for: line))
+        case .tramway:
+            fillColor = UIColor(red: 0.40, green: 0.20, blue: 0.60, alpha: 1) // violet tram
+        case .busC:
+            fillColor = UIColor(red: 0.10, green: 0.20, blue: 0.55, alpha: 1) // bleu nuit bus C
+        case .bus:
+            fillColor = UIColor(red: 0.50, green: 0.55, blue: 0.62, alpha: 1) // gris bleuté
+        }
+
         return imageRenderer(size: size).image { ctx in
             let cg = ctx.cgContext
-            UIColor.white.setFill()
-            cg.fillEllipse(in: CGRect(origin: .zero, size: size))
+            let rect = CGRect(origin: .zero, size: size)
 
-            let innerRect = CGRect(
-                x: (size.width  - Dim.stopDotInner) / 2,
-                y: (size.height - Dim.stopDotInner) / 2,
-                width:  Dim.stopDotInner,
-                height: Dim.stopDotInner
-            )
-            UIColor.systemPurple.setFill()
+            // Ombre portée pour visibilité sur carte (metro + tram uniquement)
+            if tier == .metro || tier == .tramway {
+                cg.setShadow(offset: CGSize(width: 0, height: 1),
+                             blur: 2.5,
+                             color: UIColor.black.withAlphaComponent(0.30).cgColor)
+            }
+
+            // Anneau blanc extérieur
+            UIColor.white.setFill()
+            cg.fillEllipse(in: rect)
+
+            cg.setShadow(offset: .zero, blur: 0, color: nil) // reset ombre avant noyau
+
+            // Noyau coloré
+            fillColor.setFill()
+            let innerRect = rect.insetBy(dx: stroke, dy: stroke)
             cg.fillEllipse(in: innerRect)
+
+            // Micro-détail : point blanc central sur le métro pour effet "œil"
+            if tier == .metro {
+                UIColor.white.withAlphaComponent(0.35).setFill()
+                let pip = inner * 0.30
+                let pipRect = CGRect(
+                    x: outer / 2 - pip / 2,
+                    y: outer / 2 - pip / 2,
+                    width: pip, height: pip
+                )
+                cg.fillEllipse(in: pipRect)
+            }
         }
     }
 
