@@ -212,26 +212,38 @@ struct SmallWidgetView: View {
         } else {
             VStack(spacing: 0) {
 
-                // ── Header teinté couleur de la ligne
-                HStack(spacing: 0) {
-                    Text(entry.lineName)
-                        .font(.system(size: 13, weight: .black))
-                        .foregroundColor(textColor)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(lineColor)
-                        .clipShape(Capsule())
+                // ── Header : ligne + direction
+                HStack(alignment: .top, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(entry.lineName)
+                            .font(.system(size: 12, weight: .black))
+                            .foregroundColor(textColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(lineColor)
+                            .clipShape(Capsule())
+
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 7, weight: .bold))
+                            Text(entry.direction)
+                                .font(.system(size: 9))
+                                .lineLimit(2)
+                        }
+                        .foregroundColor(.secondary)
+                    }
 
                     Spacer()
 
                     if entry.passages.first?.isRealTime == true {
                         Circle()
                             .fill(.green)
-                            .frame(width: 7, height: 7)
+                            .frame(width: 6, height: 6)
+                            .padding(.top, 2)
                     }
                 }
                 .padding(.horizontal, 13)
-                .padding(.top, 13)
+                .padding(.top, 12)
 
                 Spacer()
 
@@ -268,24 +280,14 @@ struct SmallWidgetView: View {
 
                 Spacer()
 
-                // ── Footer : arrêt + direction
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(entry.stopName)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-                    HStack(spacing: 3) {
-                        Image(systemName: "arrow.right")
-                            .font(.system(size: 8, weight: .bold))
-                        Text(entry.direction)
-                            .font(.system(size: 9))
-                            .lineLimit(1)
-                    }
-                    .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 13)
-                .padding(.bottom, 12)
+                // ── Footer : arrêt
+                Text(entry.stopName)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 13)
+                    .padding(.bottom, 12)
             }
         }
     }
@@ -689,6 +691,7 @@ struct NextDeparturesWidget: Widget {
         .configurationDisplayName("Prochains passages")
         .description("Affichez les prochains passages d'un arrêt TCL")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .contentMarginsDisabled()
     }
 }
 

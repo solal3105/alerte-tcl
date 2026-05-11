@@ -12,6 +12,7 @@ import SwiftUI
 struct AlerteTCLWidgetBundle: WidgetBundle {
     var body: some Widget {
         NextDeparturesWidget()
+        TCLBoardWidget()
         ParkingWidget()
     }
 }

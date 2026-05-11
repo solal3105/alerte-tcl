@@ -78,178 +78,212 @@ struct ParkingWidgetEntryView : View {
 struct ParkingWidgetContentView: View {
     let entry: ParkingWidgetEntry
     let family: WidgetFamily
-    
-    var occupancyRate: Double {
+
+    private var occupancyRate: Double {
         guard let spots = entry.availableSpots,
               let total = entry.totalCapacity,
               total > 0 else { return 0 }
         return Double(total - spots) / Double(total)
     }
-    
-    var occupancyColor: Color {
+
+    private var availabilityRate: Double { 1 - occupancyRate }
+
+    private var occupancyColor: Color {
         switch occupancyRate {
         case 0..<0.5: return .green
         case 0.5..<0.8: return .orange
         default: return .red
         }
     }
-    
+
     var body: some View {
         if let spots = entry.availableSpots, let total = entry.totalCapacity {
-            VStack(spacing: 0) {
-                // Header avec nom du parking
-                HStack(spacing: 8) {
-                    Image(systemName: "parkingsign.circle.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.blue)
-                    
-                    Text(entry.parkingName)
-                        .font(.system(size: 13, weight: .bold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                
-                Spacer()
-                
-                // Cercle de progression central
-                ZStack {
-                    // Cercle de fond
-                    Circle()
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 12)
-                        .frame(width: 100, height: 100)
-                    
-                    // Cercle de progression
-                    Circle()
-                        .trim(from: 0, to: occupancyRate)
-                        .stroke(
-                            occupancyColor,
-                            style: StrokeStyle(lineWidth: 12, lineCap: .round)
-                        )
-                        .frame(width: 100, height: 100)
-                        .rotationEffect(.degrees(-90))
-                        .animation(.easeInOut, value: occupancyRate)
-                    
-                    // Texte central
-                    VStack(spacing: 2) {
-                        Text("\(spots)")
-                            .font(.system(size: 32, weight: .bold))
-                            .foregroundColor(occupancyColor)
-                        
-                        Text("/ \(total)")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Spacer()
-                
-                // Footer avec info et heure
-                VStack(spacing: 4) {
-                    Text("places disponibles")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
-                    
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock.fill")
-                            .font(.system(size: 9))
-                        Text(timeAgo(from: entry.date))
-                            .font(.system(size: 10, weight: .medium))
-                    }
-                    .foregroundColor(.secondary.opacity(0.8))
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
+            if family == .systemMedium {
+                mediumContent(spots: spots, total: total)
+            } else {
+                smallContent(spots: spots, total: total)
             }
         } else if entry.parkingId.isEmpty {
-            // Empty state - Aucun parking sélectionné
-            VStack(spacing: 16) {
-                Spacer()
-                
-                ZStack {
-                    Circle()
-                        .fill(LinearGradient(
-                            colors: [.blue.opacity(0.2), .purple.opacity(0.1)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ))
-                        .frame(width: 80, height: 80)
-                    
-                    Image(systemName: "parkingsign.circle.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.blue, .purple],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                }
-                
-                VStack(spacing: 6) {
-                    Text("Parking TCL")
-                        .font(.system(size: 15, weight: .bold))
-                    
-                    Text("Maintenez appuyé\npour configurer")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                
-                Spacer()
-            }
-            .padding(16)
+            emptyState
         } else {
-            // État erreur données
-            VStack(spacing: 16) {
-                HStack(spacing: 8) {
-                    Image(systemName: "parkingsign.circle.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.blue)
-                    
-                    Text(entry.parkingName)
-                        .font(.system(size: 13, weight: .bold))
-                        .lineLimit(1)
-                    
-                    Spacer()
-                }
-                
-                Spacer()
-                
-                VStack(spacing: 12) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 40))
-                        .foregroundColor(.orange)
-                    
-                    Text("Données\nindisponibles")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                
-                Spacer()
-            }
-            .padding(16)
+            errorState
         }
     }
-    
-    private func timeAgo(from date: Date) -> String {
-        let interval = Date().timeIntervalSince(date)
-        let minutes = Int(interval / 60)
-        
-        if minutes < 1 {
-            return "À l'instant"
-        } else if minutes == 1 {
-            return "Il y a 1 min"
-        } else if minutes < 60 {
-            return "Il y a \(minutes) min"
-        } else {
-            let formatter = DateFormatter()
-            formatter.timeStyle = .short
-            return formatter.string(from: date)
+
+    // MARK: - Small
+
+    private func smallContent(spots: Int, total: Int) -> some View {
+        VStack(spacing: 0) {
+            // ── Nom (2 lignes max, scale down si besoin)
+            HStack(spacing: 5) {
+                Image(systemName: "parkingsign.circle.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.blue)
+                    .frame(width: 16)
+                Text(entry.parkingName)
+                    .font(.system(size: 11, weight: .bold))
+                    .minimumScaleFactor(0.65)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+
+            Spacer()
+
+            // ── Jauge + nombre
+            ZStack {
+                Circle()
+                    .stroke(Color.gray.opacity(0.15), lineWidth: 8)
+                    .frame(width: 76, height: 76)
+                Circle()
+                    .trim(from: 0, to: occupancyRate)
+                    .stroke(occupancyColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .frame(width: 76, height: 76)
+                    .rotationEffect(.degrees(-90))
+                VStack(spacing: 0) {
+                    Text("\(spots)")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundColor(occupancyColor)
+                    Text("/ \(total)")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+
+            // ── Heure de mise à jour
+            HStack(spacing: 3) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 8, weight: .medium))
+                Text(entry.date, style: .time)
+                    .font(.system(size: 9, weight: .medium))
+            }
+            .foregroundColor(.secondary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.bottom, 10)
+        }
+    }
+
+    // MARK: - Medium
+
+    private func mediumContent(spots: Int, total: Int) -> some View {
+        HStack(spacing: 0) {
+            // ── Gauche : nom + méta
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 5) {
+                    Image(systemName: "parkingsign.circle.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.blue)
+                    Text("P+R")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.blue)
+                }
+
+                Spacer().frame(height: 8)
+
+                Text(entry.parkingName)
+                    .font(.system(size: 14, weight: .bold))
+                    .minimumScaleFactor(0.8)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer()
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(occupancyColor)
+                            .frame(width: 6, height: 6)
+                        Text("\(Int(availabilityRate * 100))% libre")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 8, weight: .medium))
+                        Text(entry.date, style: .time)
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .foregroundColor(.secondary)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // ── Droite : jauge
+            ZStack {
+                Circle()
+                    .stroke(Color.gray.opacity(0.15), lineWidth: 11)
+                    .frame(width: 100, height: 100)
+                Circle()
+                    .trim(from: 0, to: occupancyRate)
+                    .stroke(occupancyColor, style: StrokeStyle(lineWidth: 11, lineCap: .round))
+                    .frame(width: 100, height: 100)
+                    .rotationEffect(.degrees(-90))
+                VStack(spacing: 1) {
+                    Text("\(spots)")
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
+                        .foregroundColor(occupancyColor)
+                    Text("/ \(total)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.vertical, 14)
+            .padding(.trailing, 16)
+        }
+    }
+
+    // MARK: - Empty / Error
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Spacer()
+            Image(systemName: "parkingsign.circle.fill")
+                .font(.system(size: 34))
+                .foregroundStyle(.blue)
+            VStack(spacing: 4) {
+                Text("Parking TCL")
+                    .font(.system(size: 14, weight: .bold))
+                Text("Dans AlerteTCL, appuyez sur\nun parking pour l'ajouter au widget")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            Spacer()
+        }
+        .padding(14)
+    }
+
+    private var errorState: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 5) {
+                Image(systemName: "parkingsign.circle.fill")
+                    .font(.system(size: 13))
+                    .foregroundColor(.blue)
+                Text(entry.parkingName)
+                    .font(.system(size: 11, weight: .bold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+
+            Spacer()
+
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 24))
+                .foregroundColor(.orange)
+            Text("Données indisponibles")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+                .padding(.top, 6)
+
+            Spacer()
         }
     }
 }
@@ -267,6 +301,7 @@ struct ParkingWidget: Widget {
         .configurationDisplayName("Parking TCL")
         .description("Places disponibles dans un parking")
         .supportedFamilies([.systemSmall, .systemMedium])
+        .contentMarginsDisabled()
     }
 }
 
