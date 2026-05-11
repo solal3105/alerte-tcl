@@ -140,6 +140,33 @@ struct WidgetPassage: Identifiable, Codable {
         return Int(cleaned)
     }
 
+    /// True si le délai est exprimé en minutes restantes (vs heure absolue)
+    var isRelativeDelay: Bool { delayMinutes != nil }
+
+    /// Format principal : minutes restantes ou heure absolue, jamais les deux
+    var smartDelay: String {
+        if let minutes = delayMinutes {
+            return minutes == 0 ? "À l'approche" : "\(minutes) min"
+        }
+        return time
+    }
+
+    /// Format compact pour le petit widget : "X'" ou "HH:mm"
+    var compactDelay: String {
+        if let minutes = delayMinutes {
+            return minutes == 0 ? "~0'" : "\(minutes)'"
+        }
+        return time
+    }
+
+    /// Couleur d'urgence basée sur le délai ; fallback si délai absolu
+    func urgencyColor(fallback: Color) -> Color {
+        guard let minutes = delayMinutes else { return fallback }
+        if minutes <= 2 { return .red }
+        if minutes <= 5 { return .orange }
+        return fallback
+    }
+
     private enum CodingKeys: String, CodingKey {
         case delay, time, isRealTime
     }
@@ -175,186 +202,162 @@ struct NextDeparturesEntryView: View {
 
 struct SmallWidgetView: View {
     let entry: NextDeparturesEntry
-    
-    private var lineColor: Color {
-        WidgetLineColorHelper.backgroundColor(for: entry.lineName)
-    }
-    
-    private var textColor: Color {
-        WidgetLineColorHelper.textColor(for: entry.lineName)
-    }
-    
+
+    private var lineColor: Color { WidgetLineColorHelper.backgroundColor(for: entry.lineName) }
+    private var textColor: Color { WidgetLineColorHelper.textColor(for: entry.lineName) }
+
     var body: some View {
         if let error = entry.error {
             ErrorStateView(error: error, lineName: entry.lineName)
         } else {
             VStack(spacing: 0) {
-                // Header avec ligne
-                HStack(spacing: 8) {
-                    // Badge ligne
+
+                // ── Header teinté couleur de la ligne
+                HStack(spacing: 0) {
                     Text(entry.lineName)
-                        .font(.system(size: 14, weight: .black))
+                        .font(.system(size: 13, weight: .black))
                         .foregroundColor(textColor)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
                         .background(lineColor)
                         .clipShape(Capsule())
-                    
+
                     Spacer()
-                    
-                    // Indicateur temps réel
+
                     if entry.passages.first?.isRealTime == true {
-                        HStack(spacing: 3) {
-                            Circle()
-                                .fill(.green)
-                                .frame(width: 6, height: 6)
-                            Text("Live")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundColor(.green)
+                        Circle()
+                            .fill(.green)
+                            .frame(width: 7, height: 7)
+                    }
+                }
+                .padding(.horizontal, 13)
+                .padding(.top, 13)
+
+                Spacer()
+
+                // ── Délai principal
+                if let next = entry.passages.first {
+                    VStack(spacing: 1) {
+                        Text(next.compactDelay)
+                            .font(.system(size: 38, weight: .bold, design: .rounded))
+                            .foregroundColor(next.urgencyColor(fallback: lineColor))
+                            .minimumScaleFactor(0.55)
+                            .lineLimit(1)
+
+                        if next.isRelativeDelay {
+                            Text(next.time)
+                                .font(.system(size: 12, weight: .regular))
+                                .foregroundColor(.secondary)
                         }
                     }
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 14)
-                
-                Spacer()
-                
-                // Prochain passage (grand)
-                if let next = entry.passages.first {
-                    VStack(spacing: 4) {
-                        Text(formatDelay(next.delay))
-                            .font(.system(size: 42, weight: .bold, design: .rounded))
-                            .foregroundColor(delayColor(for: next))
-                            .minimumScaleFactor(0.6)
-                            .lineLimit(1)
-                        
-                        Text(next.time)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(.secondary)
+
+                    // ── Prochain passage (secondaire)
+                    if entry.passages.count > 1 {
+                        let second = entry.passages[1]
+                        HStack(spacing: 5) {
+                            Text("puis")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                            Text(second.compactDelay)
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundColor(second.urgencyColor(fallback: .secondary))
+                        }
+                        .padding(.top, 3)
                     }
                 }
-                
+
                 Spacer()
-                
-                // Footer avec direction
-                HStack {
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(.secondary)
-                    
-                    Text(entry.direction)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.secondary)
+
+                // ── Footer : arrêt + direction
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(entry.stopName)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.primary)
                         .lineLimit(1)
-                    
-                    Spacer()
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 8, weight: .bold))
+                        Text(entry.direction)
+                            .font(.system(size: 9))
+                            .lineLimit(1)
+                    }
+                    .foregroundColor(.secondary)
                 }
-                .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 13)
                 .padding(.bottom, 12)
             }
         }
     }
-    
-    private func formatDelay(_ delay: String) -> String {
-        let cleaned = delay.lowercased()
-        if cleaned.contains("min") {
-            if let minutes = Int(cleaned.replacingOccurrences(of: " min", with: "").replacingOccurrences(of: "min", with: "").trimmingCharacters(in: .whitespaces)) {
-                return "\(minutes)'"
-            }
-        }
-        return delay
-    }
-    
-    private func delayColor(for passage: WidgetPassage) -> Color {
-        guard let minutes = passage.delayMinutes else { return .primary }
-        if minutes <= 2 { return .red }
-        if minutes <= 5 { return .orange }
-        return .primary
-    }
+
 }
 
 // MARK: - Medium Widget
 
 struct MediumWidgetView: View {
     let entry: NextDeparturesEntry
-    
-    private var lineColor: Color {
-        WidgetLineColorHelper.backgroundColor(for: entry.lineName)
-    }
-    
-    private var textColor: Color {
-        WidgetLineColorHelper.textColor(for: entry.lineName)
-    }
-    
+
+    private var lineColor: Color { WidgetLineColorHelper.backgroundColor(for: entry.lineName) }
+    private var textColor: Color { WidgetLineColorHelper.textColor(for: entry.lineName) }
+
     var body: some View {
         if let error = entry.error {
             ErrorStateView(error: error, lineName: entry.lineName)
         } else {
-            HStack(spacing: 0) {
-                // Partie gauche - Info arrêt
-                VStack(alignment: .leading, spacing: 8) {
-                    // Badge ligne
+            VStack(spacing: 0) {
+
+                // ── Header : badge + arrêt + direction
+                HStack(spacing: 10) {
                     Text(entry.lineName)
-                        .font(.system(size: 16, weight: .black))
+                        .font(.system(size: 15, weight: .black))
                         .foregroundColor(textColor)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
                         .background(lineColor)
                         .clipShape(Capsule())
-                    
-                    Spacer()
-                    
-                    // Nom arrêt
-                    Text(entry.stopName)
-                        .font(.system(size: 15, weight: .bold))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.8)
-                    
-                    // Direction
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.right.circle.fill")
-                            .font(.system(size: 11))
-                            .foregroundColor(lineColor)
-                        
-                        Text(entry.direction)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.secondary)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(entry.stopName)
+                            .font(.system(size: 13, weight: .bold))
                             .lineLimit(1)
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(lineColor)
+                            Text(entry.direction)
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
                     }
-                    
-                    // Indicateur temps réel
+
+                    Spacer()
+
                     if entry.passages.first?.isRealTime == true {
                         HStack(spacing: 4) {
-                            Circle()
-                                .fill(.green)
-                                .frame(width: 6, height: 6)
+                            Circle().fill(.green).frame(width: 6, height: 6)
                             Text("Temps réel")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.system(size: 9, weight: .semibold))
                                 .foregroundColor(.green)
                         }
                     }
                 }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                
-                // Séparateur
-                Rectangle()
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 1)
-                    .padding(.vertical, 16)
-                
-                // Partie droite - Prochains passages
-                VStack(spacing: 8) {
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .background(lineColor.opacity(0.08))
+
+                // ── Passages
+                VStack(spacing: 0) {
                     ForEach(Array(entry.passages.prefix(3).enumerated()), id: \.offset) { index, passage in
-                        PassageRow(passage: passage, isFirst: index == 0, lineColor: lineColor)
-                    }
-                    
-                    if entry.passages.count < 3 {
-                        Spacer()
+                        MediumPassageRow(passage: passage, isFirst: index == 0, lineColor: lineColor)
+                        if index < min(entry.passages.count - 1, 2) {
+                            Divider().padding(.leading, 14)
+                        }
                     }
                 }
-                .padding(16)
-                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+
+                Spacer(minLength: 0)
             }
         }
     }
@@ -364,196 +367,169 @@ struct MediumWidgetView: View {
 
 struct LargeWidgetView: View {
     let entry: NextDeparturesEntry
-    
-    private var lineColor: Color {
-        WidgetLineColorHelper.backgroundColor(for: entry.lineName)
-    }
-    
-    private var textColor: Color {
-        WidgetLineColorHelper.textColor(for: entry.lineName)
-    }
-    
+
+    private var lineColor: Color { WidgetLineColorHelper.backgroundColor(for: entry.lineName) }
+    private var textColor: Color { WidgetLineColorHelper.textColor(for: entry.lineName) }
+
     var body: some View {
         if let error = entry.error {
             ErrorStateView(error: error, lineName: entry.lineName)
         } else {
             VStack(spacing: 0) {
-                // Header
-                HStack {
-                    // Badge ligne
+
+                // ── Header
+                HStack(spacing: 12) {
                     Text(entry.lineName)
-                        .font(.system(size: 18, weight: .black))
+                        .font(.system(size: 17, weight: .black))
                         .foregroundColor(textColor)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 9)
                         .background(lineColor)
                         .clipShape(Capsule())
-                    
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text(entry.stopName)
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.system(size: 15, weight: .bold))
                             .lineLimit(1)
-                        
-                        HStack(spacing: 4) {
+                        HStack(spacing: 3) {
                             Image(systemName: "arrow.right")
-                                .font(.system(size: 10))
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(lineColor)
                             Text(entry.direction)
-                                .font(.system(size: 12, weight: .medium))
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.secondary)
                                 .lineLimit(1)
                         }
-                        .foregroundColor(.secondary)
                     }
-                    
+
                     Spacer()
-                    
-                    // Indicateur temps réel
+
                     if entry.passages.first?.isRealTime == true {
-                        VStack(spacing: 2) {
-                            Circle()
-                                .fill(.green)
-                                .frame(width: 8, height: 8)
-                            Text("Live")
+                        HStack(spacing: 4) {
+                            Circle().fill(.green).frame(width: 7, height: 7)
+                            Text("Temps réel")
                                 .font(.system(size: 9, weight: .semibold))
                                 .foregroundColor(.green)
                         }
                     }
                 }
-                .padding(20)
-                .background(lineColor.opacity(0.1))
-                
-                // Liste des passages
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .background(lineColor.opacity(0.09))
+
+                // ── Premier passage mis en avant
+                if let first = entry.passages.first {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Prochain")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                            Text(first.smartDelay)
+                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .foregroundColor(first.urgencyColor(fallback: lineColor))
+                        }
+                        Spacer()
+                        if first.isRelativeDelay {
+                            Text(first.time)
+                                .font(.system(size: 20, weight: .medium, design: .rounded))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
+                    .background(lineColor.opacity(0.05))
+                }
+
+                // ── Passages suivants
                 VStack(spacing: 0) {
-                    ForEach(Array(entry.passages.prefix(5).enumerated()), id: \.offset) { index, passage in
-                        LargePassageRow(passage: passage, isFirst: index == 0, lineColor: lineColor)
-                        
-                        if index < min(entry.passages.count - 1, 4) {
-                            Divider()
-                                .padding(.horizontal, 20)
+                    ForEach(Array(entry.passages.dropFirst().prefix(4).enumerated()), id: \.offset) { index, passage in
+                        LargePassageRow(passage: passage, lineColor: lineColor)
+                        if index < min(entry.passages.count - 2, 3) {
+                            Divider().padding(.leading, 18)
                         }
                     }
                 }
-                .padding(.vertical, 8)
-                
-                Spacer()
-                
-                // Footer avec heure de mise à jour
-                HStack {
-                    Image(systemName: "clock.fill")
-                        .font(.system(size: 10))
-                    Text("Mis à jour à \(formatTime(entry.date))")
-                        .font(.system(size: 11, weight: .medium))
+
+                Spacer(minLength: 0)
+
+                // ── Footer
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 9, weight: .medium))
+                    Text(entry.date, style: .time)
+                        .font(.system(size: 10, weight: .medium))
                 }
                 .foregroundColor(.secondary)
-                .padding(.bottom, 16)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal, 18)
+                .padding(.bottom, 12)
             }
         }
-    }
-    
-    private func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
     }
 }
 
 // MARK: - Passage Row Components
 
-struct PassageRow: View {
+/// Utilisé dans le medium widget
+struct MediumPassageRow: View {
     let passage: WidgetPassage
     let isFirst: Bool
     let lineColor: Color
-    
+
     var body: some View {
-        HStack {
-            // Délai
-            Text(formatDelay(passage.delay))
-                .font(.system(size: isFirst ? 28 : 18, weight: .bold, design: .rounded))
-                .foregroundColor(isFirst ? delayColor : .primary)
-                .frame(minWidth: 50, alignment: .leading)
-            
+        HStack(spacing: 10) {
+            Circle()
+                .fill(passage.isRealTime ? Color.green : Color.gray.opacity(0.2))
+                .frame(width: 6, height: 6)
+
+            Text(passage.smartDelay)
+                .font(.system(size: isFirst ? 19 : 14, weight: isFirst ? .bold : .semibold, design: .rounded))
+                .foregroundColor(passage.urgencyColor(fallback: isFirst ? lineColor : .primary))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+
             Spacer()
-            
-            // Heure
-            VStack(alignment: .trailing, spacing: 2) {
+
+            if passage.isRelativeDelay {
                 Text(passage.time)
-                    .font(.system(size: isFirst ? 14 : 12, weight: .medium))
+                    .font(.system(size: isFirst ? 13 : 11, weight: .regular))
                     .foregroundColor(.secondary)
-                
-                if passage.isRealTime && isFirst {
-                    Text("temps réel")
-                        .font(.system(size: 8, weight: .medium))
-                        .foregroundColor(.green)
-                }
+                    .lineLimit(1)
             }
         }
-        .padding(.vertical, isFirst ? 8 : 4)
-        .padding(.horizontal, isFirst ? 12 : 8)
-        .background(isFirst ? lineColor.opacity(0.1) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-    }
-    
-    private var delayColor: Color {
-        guard let minutes = passage.delayMinutes else { return .primary }
-        if minutes <= 2 { return .red }
-        if minutes <= 5 { return .orange }
-        return lineColor
-    }
-    
-    private func formatDelay(_ delay: String) -> String {
-        let cleaned = delay.lowercased()
-        if cleaned.contains("min") {
-            if let minutes = Int(cleaned.replacingOccurrences(of: " min", with: "").replacingOccurrences(of: "min", with: "").trimmingCharacters(in: .whitespaces)) {
-                return "\(minutes)'"
-            }
-        }
-        return delay
+        .padding(.vertical, isFirst ? 9 : 7)
+        .padding(.horizontal, 14)
     }
 }
 
+/// Utilisé dans le large widget (passages secondaires)
 struct LargePassageRow: View {
     let passage: WidgetPassage
-    let isFirst: Bool
     let lineColor: Color
-    
+
     var body: some View {
-        HStack {
-            // Indicateur temps réel
+        HStack(spacing: 12) {
             Circle()
-                .fill(passage.isRealTime ? .green : .gray.opacity(0.3))
-                .frame(width: 8, height: 8)
-            
-            // Délai
-            Text(passage.delay)
-                .font(.system(size: isFirst ? 24 : 18, weight: .bold, design: .rounded))
-                .foregroundColor(isFirst ? delayColor : .primary)
-                .frame(minWidth: 80, alignment: .leading)
-            
+                .fill(passage.isRealTime ? Color.green : Color.gray.opacity(0.25))
+                .frame(width: 7, height: 7)
+
+            Text(passage.smartDelay)
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundColor(passage.urgencyColor(fallback: .primary))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+
             Spacer()
-            
-            // Heure
-            Text(passage.time)
-                .font(.system(size: isFirst ? 16 : 14, weight: .medium))
-                .foregroundColor(.secondary)
-            
-            // Type
-            Text(passage.isRealTime ? "R" : "T")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(passage.isRealTime ? .green : .gray)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(passage.isRealTime ? Color.green.opacity(0.15) : Color.gray.opacity(0.15))
-                .clipShape(Capsule())
+
+            if passage.isRelativeDelay {
+                Text(passage.time)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(isFirst ? lineColor.opacity(0.08) : Color.clear)
-    }
-    
-    private var delayColor: Color {
-        guard let minutes = passage.delayMinutes else { return lineColor }
-        if minutes <= 2 { return .red }
-        if minutes <= 5 { return .orange }
-        return lineColor
+        .padding(.horizontal, 18)
+        .padding(.vertical, 11)
     }
 }
 
@@ -562,7 +538,10 @@ struct LargePassageRow: View {
 struct ErrorStateView: View {
     let error: WidgetPassageError
     let lineName: String
-    
+
+    @Environment(\..widgetFamily) var family
+    private var isSmall: Bool { family == .systemSmall }
+
     var body: some View {
         switch error {
         case .noStopSelected:
@@ -575,9 +554,11 @@ struct ErrorStateView: View {
     }
     
     private var emptyStateView: some View {
-        VStack(spacing: 16) {
+        let iconSize: CGFloat = isSmall ? 20 : 28
+        let circleSize: CGFloat = isSmall ? 48 : 72
+        return VStack(spacing: isSmall ? 8 : 14) {
             Spacer()
-            
+
             ZStack {
                 Circle()
                     .fill(LinearGradient(
@@ -585,10 +566,10 @@ struct ErrorStateView: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ))
-                    .frame(width: 80, height: 80)
-                
+                    .frame(width: circleSize, height: circleSize)
+
                 Image(systemName: "tram.fill")
-                    .font(.system(size: 32))
+                    .font(.system(size: iconSize))
                     .foregroundStyle(
                         LinearGradient(
                             colors: [.blue, .purple],
@@ -597,49 +578,60 @@ struct ErrorStateView: View {
                         )
                     )
             }
-            
-            VStack(spacing: 6) {
-                Text("Prochains passages")
-                    .font(.system(size: 15, weight: .bold))
-                
-                Text("Maintenez appuyé\npour choisir un arrêt")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+
+            VStack(spacing: isSmall ? 3 : 6) {
+                Text("Aucun arrêt configuré")
+                    .font(.system(size: isSmall ? 12 : 15, weight: .bold))
+
+                if !isSmall {
+                    Text("Dans AlerteTCL, appuyez sur\nun arrêt sur la carte, puis\nsur \"Ajouter au widget\"")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                } else {
+                    Text("Ouvrez AlerteTCL\net ajoutez un arrêt")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
             }
-            
+
             Spacer()
         }
-        .padding(16)
+        .padding(isSmall ? 12 : 16)
     }
     
     private var noPassagesView: some View {
-        VStack(spacing: 16) {
+        let circleSize: CGFloat = isSmall ? 44 : 64
+        let iconSize: CGFloat = isSmall ? 20 : 28
+        return VStack(spacing: isSmall ? 8 : 14) {
             Spacer()
-            
+
             ZStack {
                 Circle()
                     .fill(Color.orange.opacity(0.15))
-                    .frame(width: 70, height: 70)
-                
+                    .frame(width: circleSize, height: circleSize)
+
                 Image(systemName: "clock.badge.questionmark")
-                    .font(.system(size: 30))
+                    .font(.system(size: iconSize))
                     .foregroundColor(.orange)
             }
-            
-            VStack(spacing: 4) {
+
+            VStack(spacing: isSmall ? 3 : 4) {
                 Text("Aucun passage")
-                    .font(.system(size: 14, weight: .bold))
-                
-                Text("Aucun passage prévu\nprochainement")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+                    .font(.system(size: isSmall ? 12 : 14, weight: .bold))
+
+                if !isSmall {
+                    Text("Aucun passage prévu\nprochainement")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
             }
-            
+
             Spacer()
         }
-        .padding(16)
+        .padding(isSmall ? 12 : 16)
     }
     
     private var networkErrorView: some View {
@@ -647,34 +639,36 @@ struct ErrorStateView: View {
         let isNight = hour >= 22 || hour < 6
         let icon = isNight ? "moon.zzz.fill" : "wifi.slash"
         let color: Color = isNight ? .indigo : .red
-        let title = isNight ? "Dodo des serveurs" : "Données indisponibles"
-        let subtitle = isNight ? "Serveurs inactifs\nla nuit — après 6h ☀️" : "Serveur momentanément\nindisponible"
-        return VStack(spacing: 16) {
+        let title = isNight ? "Serveurs inactifs" : "Données indisponibles"
+        let subtitle = isNight ? "Reprise après 6h ☀️" : "Serveur momentanément\nindisponible"
+        let circleSize: CGFloat = isSmall ? 44 : 64
+        let iconSize: CGFloat = isSmall ? 20 : 28
+        return VStack(spacing: isSmall ? 8 : 14) {
             Spacer()
-            
+
             ZStack {
                 Circle()
                     .fill(color.opacity(0.15))
-                    .frame(width: 70, height: 70)
-                
+                    .frame(width: circleSize, height: circleSize)
+
                 Image(systemName: icon)
-                    .font(.system(size: 30))
+                    .font(.system(size: iconSize))
                     .foregroundColor(color)
             }
-            
-            VStack(spacing: 4) {
+
+            VStack(spacing: isSmall ? 3 : 4) {
                 Text(title)
-                    .font(.system(size: 14, weight: .bold))
-                
+                    .font(.system(size: isSmall ? 12 : 14, weight: .bold))
+
                 Text(subtitle)
-                    .font(.system(size: 11))
+                    .font(.system(size: isSmall ? 9 : 11))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
-            
+
             Spacer()
         }
-        .padding(16)
+        .padding(isSmall ? 12 : 16)
     }
 }
 

@@ -324,8 +324,11 @@ struct MergedStopDetailSheet: View {
         let direction: String
     }
     
-    private var availableLineDirections: [(line: String, direction: String)] {
-        sortedLineDirections.map { ($0.line, $0.direction) }
+    private var availableLineDirections: [WidgetLineDirection] {
+        sortedLineDirections.map { key in
+            let stopId = passagesByLineDirection[key]?.first?.stopId ?? mergedStop.stops[0].id
+            return WidgetLineDirection(stopId: stopId, line: key.line, direction: key.direction)
+        }
     }
     
     private var passagesByLineDirection: [LineDirectionKey: [Passage]] {
@@ -379,7 +382,6 @@ struct MergedStopDetailSheet: View {
         }
         .sheet(isPresented: $showWidgetSheet) {
             AddToWidgetSheet(
-                stopId: mergedStop.stops.first?.id ?? 0,
                 stopName: mergedStop.nom,
                 availableLineDirections: availableLineDirections
             )
@@ -453,7 +455,7 @@ struct MergedStopDetailSheet: View {
             }
             
             // Bouton Ajouter au widget
-            if !availableLineDirections.isEmpty {
+            if !isLoading && !mergedStop.allLines.isEmpty {
                 Button {
                     showWidgetSheet = true
                 } label: {

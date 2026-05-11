@@ -8,16 +8,26 @@
 import SwiftUI
 import WidgetKit
 
+// MARK: - Line Direction Item
+
+/// Associe une ligne et une direction au sous-arrêt exact qui les dessert.
+/// Évite le bug de stopId incorrect sur les arrêts fusionnés.
+struct WidgetLineDirection: Identifiable {
+    let stopId: Int
+    let line: String
+    let direction: String
+    var id: String { "\(stopId)-\(line)-\(direction)" }
+}
+
 // MARK: - Add to Widget Sheet
 
 struct AddToWidgetSheet: View {
-    let stopId: Int
     let stopName: String
-    let availableLineDirections: [(line: String, direction: String)]
+    let availableLineDirections: [WidgetLineDirection]
     
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var widgetStorage = WidgetStopStorage.shared
-    @State private var selectedLineDirection: (line: String, direction: String)?
+    @State private var selectedLineDirection: WidgetLineDirection?
     @State private var showConfirmation = false
     @State private var feedbackTrigger = false
     
@@ -27,21 +37,33 @@ struct AddToWidgetSheet: View {
                 headerSection
                 
                 ScrollView {
-                    VStack(spacing: 12) {
-                        ForEach(availableLineDirections, id: \.line) { item in
-                            LineDirectionRow(
-                                line: item.line,
-                                direction: item.direction,
-                                isSelected: selectedLineDirection?.line == item.line && selectedLineDirection?.direction == item.direction,
-                                isAlreadySaved: widgetStorage.hasSelection(stopId: stopId, line: item.line, direction: item.direction)
-                            ) {
-                                if !widgetStorage.hasSelection(stopId: stopId, line: item.line, direction: item.direction) {
-                                    selectedLineDirection = item
+                    if availableLineDirections.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "exclamationmark.circle")
+                                .font(.system(size: 36)).foregroundStyle(.secondary)
+                            Text("Impossible de charger les directions.\nVérifiez votre connexion et réessayez.")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(40)
+                    } else {
+                        VStack(spacing: 12) {
+                            ForEach(availableLineDirections) { item in
+                                LineDirectionRow(
+                                    line: item.line,
+                                    direction: item.direction,
+                                    isSelected: selectedLineDirection?.id == item.id,
+                                    isAlreadySaved: widgetStorage.hasSelection(stopId: item.stopId, line: item.line, direction: item.direction)
+                                ) {
+                                    if !widgetStorage.hasSelection(stopId: item.stopId, line: item.line, direction: item.direction) {
+                                        selectedLineDirection = item
+                                    }
                                 }
                             }
                         }
+                        .padding(20)
                     }
-                    .padding(20)
                 }
                 
                 if selectedLineDirection != nil {
@@ -132,7 +154,7 @@ struct AddToWidgetSheet: View {
     
     private func addToWidget() {
         guard let selected = selectedLineDirection else { return }
-        let selection = WidgetStopSelection(stopId: stopId, stopName: stopName, line: selected.line, direction: selected.direction)
+        let selection = WidgetStopSelection(stopId: selected.stopId, stopName: stopName, line: selected.line, direction: selected.direction)
         widgetStorage.addSelection(selection)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { showConfirmation = true }
         feedbackTrigger.toggle()
@@ -333,13 +355,18 @@ struct SavedWidgetStopsView: View {
     }
     
     private var emptyState: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 24) {
             Image(systemName: "rectangle.on.rectangle.slash")
                 .font(.system(size: 50)).foregroundColor(.secondary)
-            VStack(spacing: 8) {
+            VStack(spacing: 12) {
                 Text("Aucun arrêt sauvegardé").font(.headline)
-                Text("Ouvrez la fiche d'un arrêt et appuyez sur \"Ajouter au widget\" pour commencer")
-                    .font(.subheadline).foregroundColor(.secondary).multilineTextAlignment(.center)
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Allez sur l'onglet Transport", systemImage: "1.circle.fill")
+                    Label("Appuyez sur un arrêt sur la carte", systemImage: "2.circle.fill")
+                    Label("Appuyez sur \"Ajouter au widget\"", systemImage: "3.circle.fill")
+                }
+                .font(.subheadline)
+                .foregroundColor(.secondary)
             }
         }
         .padding(40)
