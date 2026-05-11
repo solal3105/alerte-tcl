@@ -31,7 +31,9 @@ const GEO_BASE      = `${DATA_BASE}/geoserver/ogc/features/v1/collections`;
 
 const ALERTS_URL    = `${DOWNLOAD_BASE}/tcl_sytral.tclalertetrafic_2/all.json`;
 const PASSAGES_URL  = `${DOWNLOAD_BASE}/tcl_sytral.tclpassagearret/all.json`;
-const VEHICLES_URL  = `${DATA_BASE}/siri-lite/2.0/vehicle-monitoring.json`;
+// MaximumVehicles=2000 couvre la totalité du parc TCL (~800 véhicules en heure de pointe).
+// Sans ce paramètre, Grand Lyon répond avec ≤ 200 véhicules par défaut (MoreData: true ignoré).
+const VEHICLES_URL  = `${DATA_BASE}/siri-lite/2.0/vehicle-monitoring.json?MaximumVehicles=2000`;
 
 const GEO_COLLECTIONS = {
   "metro-funi-lines": "sytral:tcl_sytral.tcllignemf_2_0_0",

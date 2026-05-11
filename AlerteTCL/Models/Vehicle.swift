@@ -116,6 +116,9 @@ struct SIRIRoot: Codable {
 struct ServiceDelivery: Codable {
     let ResponseTimestamp: String?
     let VehicleMonitoringDelivery: [VehicleMonitoringDelivery]?
+    /// `true` = réponse tronquée, d'autres véhicules sont disponibles.
+    /// Ne devrait pas arriver avec MaximumVehicles=2000 dans le worker.
+    let MoreData: Bool?
 }
 
 struct VehicleMonitoringDelivery: Codable {

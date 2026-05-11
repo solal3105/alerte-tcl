@@ -109,6 +109,10 @@ actor SIRILiteService {
         guard let vehicleActivities = response.Siri.ServiceDelivery.VehicleMonitoringDelivery?.first?.VehicleActivity else {
             return []
         }
+
+        if response.Siri.ServiceDelivery.MoreData == true {
+            AppLogger.debug("⚠️ SIRI: MoreData=true — réponse tronquée malgré MaximumVehicles=2000. Augmenter la limite.")
+        }
         
         return vehicleActivities.compactMap { activity -> Vehicle? in
             guard let journey = activity.MonitoredVehicleJourney,
