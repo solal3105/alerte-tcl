@@ -347,6 +347,15 @@ final class LiveVehiclesViewModel: ObservableObject {
         streamTask = nil
         isLive = false
     }
+
+    /// Appelé au retour en foreground : force un fetch immédiat
+    /// puis s'assure que le stream tourne.
+    /// Fonctionne que le stream ait été arrêté (background long) ou non (inactive court).
+    func resumeFromForeground() {
+        // Redémarrer le stream : startLiveStream débute toujours par un fetch
+        stopLiveStream()
+        startLiveStream()
+    }
     
     private func fetchVehiclesQuietly() async {
         do {

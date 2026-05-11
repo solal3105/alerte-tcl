@@ -117,9 +117,7 @@ struct LiveMapView: View {
             case .inactive:
                 break
             case .active:
-                if !viewModel.isLive {
-                    viewModel.startLiveStream()
-                }
+                viewModel.resumeFromForeground()
             @unknown default:
                 break
             }
