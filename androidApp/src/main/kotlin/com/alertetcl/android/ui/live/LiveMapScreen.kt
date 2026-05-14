@@ -48,9 +48,11 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -72,8 +74,10 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -213,6 +217,14 @@ fun LiveMapScreen() {
 
     val store = remember { com.alertetcl.android.data.FavoritesStore(context) }
     val favorites by store.favoriteLines.collectAsState(initial = emptySet())
+    val scope = rememberCoroutineScope()
+    val selectedLines by store.selectedLiveLines.collectAsState(initial = emptySet())
+    val availableLines = remember(vehicles) {
+        vehicles
+            .distinctBy { it.lineName }
+            .sortedWith(compareBy({ it.vehicleType.sortOrder }, { it.lineName.toIntOrNull() ?: Int.MAX_VALUE }, { it.lineName }))
+            .map { it.lineName }
+    }
 
     var showLineTraces by remember { mutableStateOf(true) }
     var isSatellite    by remember { mutableStateOf(false) }
@@ -240,7 +252,7 @@ fun LiveMapScreen() {
     }
 
     val filteredVehicles by remember {
-        derivedStateOf { tick; vehicles.filter { it.vehicleType in selectedTypes } }
+        derivedStateOf { tick; vehicles.filter { it.vehicleType in selectedTypes && (selectedLines.isEmpty() || it.lineName in selectedLines) } }
     }
 
     // MapLibre state
@@ -307,7 +319,7 @@ fun LiveMapScreen() {
     val mapView = rememberMapView()
 
     // Filtres actifs (parité iOS hasActiveFilters — les arrêts sont automatiques, pas un filtre)
-    val hasActiveFilters = selectedTypes.size != VehicleType.entries.size || !showLineTraces
+    val hasActiveFilters = selectedTypes.size != VehicleType.entries.size || !showLineTraces || selectedLines.isNotEmpty()
 
     // ── UI ────────────────────────────────────────────────────────────────
     Box(modifier = Modifier.fillMaxSize()) {
@@ -633,12 +645,32 @@ fun LiveMapScreen() {
         }
     }
     if (showFilterSheet) {
-        ModalBottomSheet(onDismissRequest = { showFilterSheet = false }, sheetState = rememberModalBottomSheetState()) {
+        ModalBottomSheet(
+            onDismissRequest = { showFilterSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ) {
             FilterSheet(
                 selectedTypes = selectedTypes,
                 onToggleType = { vm.toggleType(it) },
+                selectedLines = selectedLines,
+                onToggleLine = { line ->
+                    scope.launch {
+                        store.setSelectedLiveLines(
+                            if (line in selectedLines) selectedLines - line else selectedLines + line
+                        )
+                    }
+                },
+                availableLines = availableLines,
+                favorites = favorites,
+                onToggleFavorite = { scope.launch { store.toggleFavoriteLine(it) } },
                 showLineTraces = showLineTraces,
-                onToggleTraces = { showLineTraces = !showLineTraces }
+                onToggleTraces = { showLineTraces = !showLineTraces },
+                hasActiveFilters = hasActiveFilters,
+                onClearFilters = {
+                    VehicleType.entries.filter { it != VehicleType.METRO && it !in vm.selectedTypes.value }.forEach { vm.toggleType(it) }
+                    scope.launch { store.setSelectedLiveLines(emptySet()) }
+                },
+                vehicles = vehicles
             )
         }
     }
@@ -1217,47 +1249,204 @@ private fun RefreshInfoSheet(lastUpdateMs: Long?) {
 private fun FilterSheet(
     selectedTypes: Set<VehicleType>,
     onToggleType: (VehicleType) -> Unit,
+    selectedLines: Set<String>,
+    onToggleLine: (String) -> Unit,
+    availableLines: List<String>,
+    favorites: Set<String>,
+    onToggleFavorite: (String) -> Unit,
     showLineTraces: Boolean,
-    onToggleTraces: () -> Unit
+    onToggleTraces: () -> Unit,
+    hasActiveFilters: Boolean,
+    onClearFilters: () -> Unit,
+    vehicles: List<Vehicle>
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Filtres", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+    var searchText by remember { mutableStateOf("") }
+    var showAllLines by remember { mutableStateOf(false) }
+    val countByType = remember(vehicles) { vehicles.groupingBy { it.vehicleType }.eachCount() }
+    val filteredLines = if (searchText.isBlank()) availableLines
+                        else availableLines.filter { it.contains(searchText, ignoreCase = true) }
+    val favoriteLines = filteredLines.filter { it in favorites }
+    val otherLines    = filteredLines.filter { it !in favorites }
 
-        Text("Types de véhicules", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93))
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, top = 16.dp, bottom = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            VehicleType.entries.filter { it != VehicleType.METRO }.sortedBy { it.sortOrder }.forEach { type ->
-                FilterChip(
-                    selected = type in selectedTypes,
-                    onClick = { onToggleType(type) },
-                    label = { Text(type.displayName, fontSize = 12.sp) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = colorFromHex(type.clusterColorHex).copy(alpha = 0.25f)
-                    )
+            Text("Filtres", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        }
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(bottom = 32.dp)
+        ) {
+            if (hasActiveFilters) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { onClearFilters() }
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(Icons.Filled.Refresh, null, tint = Color(0xFFFF3B30), modifier = Modifier.size(18.dp))
+                        Text("Réinitialiser les filtres", color = Color(0xFFFF3B30), fontSize = 15.sp)
+                    }
+                    HorizontalDivider()
+                }
+            }
+            item {
+                Text(
+                    "TYPE DE VÉHICULE",
+                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93),
+                    modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 4.dp)
                 )
             }
-        }
-
-        HorizontalDivider()
-
-        Text("Affichage", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93))
-        Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFF2F2F7), modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Tracés des lignes", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    Text("Affiche les itinéraires des lignes", fontSize = 11.sp, color = Color(0xFF8E8E93))
+            items(VehicleType.entries.filter { it != VehicleType.METRO }.sortedBy { it.sortOrder }) { type ->
+                val count = countByType[type] ?: 0
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { onToggleType(type) }
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.size(28.dp)
+                            .background(colorFromHex(type.clusterColorHex).copy(alpha = 0.18f), RoundedCornerShape(7.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            when (type) {
+                                VehicleType.TRAM, VehicleType.FUNICULAR -> Icons.Filled.Tram
+                                else -> Icons.Filled.DirectionsBus
+                            },
+                            null, tint = colorFromHex(type.clusterColorHex), modifier = Modifier.size(15.dp)
+                        )
+                    }
+                    Text(type.displayName, modifier = Modifier.weight(1f), fontSize = 15.sp)
+                    Text("$count", color = Color(0xFF8E8E93), fontSize = 14.sp)
+                    if (type in selectedTypes) {
+                        Icon(Icons.Filled.CheckCircle, null, tint = Color(0xFF007AFF), modifier = Modifier.size(18.dp))
+                    }
                 }
-                Switch(checked = showLineTraces, onCheckedChange = { onToggleTraces() })
+                HorizontalDivider(modifier = Modifier.padding(start = 60.dp))
+            }
+            if (availableLines.isNotEmpty()) {
+                item {
+                    OutlinedTextField(
+                        value = searchText,
+                        onValueChange = { searchText = it; showAllLines = false },
+                        placeholder = { Text("Rechercher une ligne...", fontSize = 13.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+                    )
+                }
+                if (favoriteLines.isNotEmpty()) {
+                    item {
+                        Row(
+                            modifier = Modifier.padding(start = 20.dp, top = 8.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Filled.Star, null, tint = Color(0xFFFFCC00), modifier = Modifier.size(13.dp))
+                            Text("FAVORIS", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93))
+                        }
+                    }
+                    items(favoriteLines, key = { "fav_$it" }) { line ->
+                        LineFilterRow(line, line in selectedLines, true, { onToggleLine(line) }, { onToggleFavorite(line) })
+                        HorizontalDivider(modifier = Modifier.padding(start = 60.dp))
+                    }
+                }
+                if (otherLines.isNotEmpty()) {
+                    item {
+                        Text(
+                            "TOUTES LES LIGNES",
+                            fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93),
+                            modifier = Modifier.padding(start = 20.dp, top = 8.dp, bottom = 4.dp)
+                        )
+                    }
+                    val shown = if (!showAllLines && otherLines.size > 10) otherLines.take(10) else otherLines
+                    items(shown, key = { "other_$it" }) { line ->
+                        LineFilterRow(line, line in selectedLines, false, { onToggleLine(line) }, { onToggleFavorite(line) })
+                        HorizontalDivider(modifier = Modifier.padding(start = 60.dp))
+                    }
+                    if (!showAllLines && otherLines.size > 10) {
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable { showAllLines = true }
+                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    "Afficher toutes les lignes (${otherLines.size})",
+                                    color = Color(0xFF007AFF), fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                Text(
+                    "AFFICHAGE",
+                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93),
+                    modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 8.dp)
+                )
+                Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFF2F2F7), modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Tracés des lignes", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Text("Affiche les itinéraires des lignes", fontSize = 11.sp, color = Color(0xFF8E8E93))
+                        }
+                        Switch(checked = showLineTraces, onCheckedChange = { onToggleTraces() })
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
             }
         }
-        // Note: les arrêts s'affichent automatiquement au zoom (latitudeDelta ≤ 0.018),
-        // comme sur iOS. Pas de toggle manuel.
-        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun LineFilterRow(
+    line: String,
+    isSelected: Boolean,
+    isFavorite: Boolean,
+    onToggle: () -> Unit,
+    onToggleFavorite: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { onToggle() }
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier.size(30.dp)
+                .background(colorFromHex(LineColors.backgroundHex(line)), RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                line,
+                color = colorFromHex(LineColors.textHex(line)),
+                fontSize = when { line.length <= 2 -> 11.sp; line.length == 3 -> 9.sp; else -> 7.sp },
+                fontWeight = FontWeight.Black
+            )
+        }
+        Text(line, modifier = Modifier.weight(1f), fontSize = 15.sp)
+        IconButton(onClick = onToggleFavorite, modifier = Modifier.size(28.dp)) {
+            Icon(
+                if (isFavorite) Icons.Filled.Star else Icons.Outlined.Star,
+                null,
+                tint = if (isFavorite) Color(0xFFFFCC00) else Color(0xFF8E8E93),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        if (isSelected) {
+            Icon(Icons.Filled.CheckCircle, null, tint = Color(0xFF007AFF), modifier = Modifier.size(18.dp))
+        }
     }
 }
 
