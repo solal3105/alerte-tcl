@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Send
@@ -67,15 +68,16 @@ fun AboutScreen() {
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .background(Color(0xFFF2F2F7)),
+            .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         item { HeroSection() }
         item { ManifestoCard() }
+        item { CreatorCard() }
+        item { OpenProjetsCard() }
         item { OpenDataTribute() }
         item { SourcesCard() }
-        item { CreatorCard() }
         item { ContactCard() }
         item { LinksFooter() }
         item { VersionFooter(versionName, versionCode) }
@@ -122,6 +124,88 @@ private fun ManifestoCard() = Card {
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Pill("Gratuit"); Pill("Sans pub"); Pill("Sans tracking")
+        }
+    }
+}
+
+@Composable
+private fun OpenProjetsCard() {
+    val context = LocalContext.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                brush = Brush.linearGradient(listOf(Color(0xFF1F3399), Color(0xFF47249E))),
+                shape = RoundedCornerShape(20.dp)
+            )
+            .padding(20.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(11.dp)),
+                    contentAlignment = Alignment.Center
+                ) { Icon(Icons.Filled.Map, null, tint = Color.White, modifier = Modifier.size(19.dp)) }
+                Column {
+                    Text("Open Projets by Vazy", fontWeight = FontWeight.SemiBold, color = Color.White, fontSize = 15.sp)
+                    Text("Mon autre projet", fontSize = 12.sp, color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.Medium)
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Vous travaillez dans une collectivité ou vous êtes élu ?",
+                    fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp
+                )
+                Text(
+                    "Avec Vazy, société à mission villeurbannaise, on a construit Open Projets : une carte interactive que chaque commune peut déployer pour informer ses habitants sur ses chantiers et projets d’aménagement.",
+                    color = Color.White.copy(alpha = 0.88f), fontSize = 13.sp, lineHeight = 18.sp
+                )
+                Text(
+                    "La carte reprend votre logo, vos couleurs, vos catégories. Vos agents ajoutent les projets en quelques clics. Les habitants consultent depuis leur téléphone, sans compte, sans téléchargement.",
+                    color = Color.White.copy(alpha = 0.88f), fontSize = 13.sp, lineHeight = 18.sp
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.White,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { openUrl(context, "https://openprojets.com/home") }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 11.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Découvrir Open Projets", color = Color(0xFF1F3399), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.Outlined.OpenInNew, null, tint = Color(0xFF1F3399), modifier = Modifier.size(14.dp))
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.White.copy(alpha = 0.12f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { openUrl(context, "https://openprojets.com/default") }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 11.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Voir la carte de la Métropole de Lyon", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.Outlined.OpenInNew, null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
         }
     }
 }
@@ -295,7 +379,7 @@ private fun VersionFooter(version: String, build: String) {
 private fun Card(content: @Composable () -> Unit) {
     Surface(
         shape = RoundedCornerShape(18.dp),
-        color = Color.White,
+        color = MaterialTheme.colorScheme.surface,
         modifier = Modifier.fillMaxWidth()
     ) { content() }
 }

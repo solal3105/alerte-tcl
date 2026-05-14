@@ -90,6 +90,7 @@ import com.alertetcl.shared.geo.GeoRegion
 import com.alertetcl.shared.geo.LatLng as GeoLatLng
 import com.alertetcl.shared.models.AvailabilityColor
 import com.alertetcl.shared.models.Parking
+import com.alertetcl.shared.models.ParkingState
 import com.alertetcl.shared.models.ParkingType
 import com.alertetcl.shared.viewmodels.ParkingViewModel
 import com.google.gson.JsonObject
@@ -145,6 +146,13 @@ fun ParkingScreen() {
     DisposableEffect(Unit) { onDispose { vm.dispose() } }
 
     val parkings by vm.parkings.collectAsState()
+    // Deduplication: if a P+R and a regular car parking share the same name,
+    // keep only the P+R entry (which carries realtime occupancy data).
+    val dedupedParkings = remember(parkings) {
+        val prNoms = parkings.filter { it.isParcRelais }.map { it.nom.trim().lowercase() }.toSet()
+        if (prNoms.isEmpty()) parkings
+        else parkings.filter { it.isParcRelais || it.nom.trim().lowercase() !in prNoms }
+    }
     val selectedTypes by vm.selectedTypes.collectAsState()
     val showParcRelais by vm.showParcRelais.collectAsState()
     val showRealtimeParkings by vm.showRealtimeParkings.collectAsState()
@@ -156,7 +164,7 @@ fun ParkingScreen() {
     var isSatellite by remember { mutableStateOf(false) }
 
     val parkingsRef = remember { mutableStateOf<List<Parking>>(emptyList()) }
-    parkingsRef.value = parkings
+    parkingsRef.value = dedupedParkings
 
     var selectedParking by remember { mutableStateOf<Parking?>(null) }
     var showFilterSheet by remember { mutableStateOf(false) }
@@ -411,14 +419,14 @@ fun ParkingScreen() {
     }
 
     // Update parking markers
-    LaunchedEffect(mapStyle, parkings) {
+    LaunchedEffect(mapStyle, dedupedParkings) {
         val style = mapStyle ?: return@LaunchedEffect
         // Add unique bitmaps per visual state (color × type × places × etat)
-        val uniqueKeys = parkings.groupBy { markerCacheKey(it) }.mapValues { it.value.first() }
+        val uniqueKeys = dedupedParkings.groupBy { markerCacheKey(it) }.mapValues { it.value.first() }
         uniqueKeys.forEach { (key, p) ->
             if (style.getImage(key) == null) style.addImage(key, createMarkerBitmap(p))
         }
-        val features = parkings.map { p ->
+        val features = dedupedParkings.map { p ->
             val props = JsonObject().apply {
                 addProperty("id", p.id)
                 addProperty("icon", markerCacheKey(p))
@@ -963,33 +971,39 @@ private fun createMarkerBitmap(p: Parking): Bitmap {
 
 /** Small colored dot for bikes and 2-wheel. */
 private fun compactMarkerBitmap(color: AvailabilityColor): Bitmap {
-    val s = 36
+    val d = android.content.res.Resources.getSystem().displayMetrics.density
+    val s = (20 * d).toInt().coerceAtLeast(1)
     val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
     val cv = Canvas(bmp)
-    val cx = s / 2f; val cy = s / 2f; val r = s / 2f - 3f
+    val cx = s / 2f; val cy = s / 2f; val r = s / 2f - d
     cv.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
         this.color = parkingAndroidColor(color); style = Paint.Style.FILL
     })
     cv.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        this.color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 3f
+        this.color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = d
     })
     return bmp
 }
 
-/** Full marker for cars and P+R: colored circle + places count + open/closed badge. */
+/** Full marker for cars and P+R: colored circle (44dp) + places count + open/closed badge. */
 private fun fullMarkerBitmap(p: Parking): Bitmap {
-    val s = 60
+    val d = android.content.res.Resources.getSystem().displayMetrics.density
+    val s = (44 * d).toInt().coerceAtLeast(1)
     val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
     val cv = Canvas(bmp)
-    val cx = s / 2f; val cy = s / 2f; val r = s / 2f - 3f
+    val cx = s / 2f; val cy = s / 2f; val r = s / 2f - d
 
+    // Shadow — semi-transparent circle slightly offset downward
+    cv.drawCircle(cx, cy + 1.5f * d, r + d, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.argb(60, 0, 0, 0); style = Paint.Style.FILL
+    })
     // Main filled circle
     cv.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = parkingAndroidColor(p.availabilityColor); style = Paint.Style.FILL
     })
     // White stroke
     cv.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 3f
+        color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = d
     })
 
     val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -999,29 +1013,28 @@ private fun fullMarkerBitmap(p: Parking): Bitmap {
     }
 
     if (p.isParcRelais) {
-        // "P+R" label + places (if realtime)
-        textPaint.textSize = 13f
-        cv.drawText("P+R", cx, cy - 2f, textPaint)
+        textPaint.textSize = 12f * d
+        cv.drawText("P+R", cx, cy - 2f * d, textPaint)
         if (p.hasRealtimeData) {
-            textPaint.textSize = 14f
-            cv.drawText("${p.placesDisponibles}", cx, cy + 16f, textPaint)
+            textPaint.textSize = 11f * d
+            cv.drawText("${p.placesDisponibles}", cx, cy + 12f * d, textPaint)
         }
     } else {
-        // Car type icon (drawn as "P") + places count
-        textPaint.textSize = 13f
-        cv.drawText("P", cx, cy - 2f, textPaint)
-        textPaint.textSize = 14f
-        cv.drawText("${p.placesDisponibles}", cx, cy + 16f, textPaint)
-
-        // Open/closed badge at top-right
-        val bx = s - 10f; val by = 10f; val br = 7f
+        textPaint.textSize = 16f * d
+        cv.drawText("P", cx, cy - 3f * d, textPaint)
+        if (p.hasRealtimeData) {
+            textPaint.textSize = 11f * d
+            cv.drawText("${p.placesDisponibles}", cx, cy + 12f * d, textPaint)
+        }
+        // Open/closed badge at top-right (16dp offset from center, 7dp radius)
+        val bx = cx + 16f * d; val by = cy - 16f * d; val br = 7f * d
         cv.drawCircle(bx, by, br, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (p.etat.raw == "ouvert") AndroidColor.parseColor("#43A047")
+            color = if (p.etat == ParkingState.OUVERT) AndroidColor.parseColor("#43A047")
                     else AndroidColor.parseColor("#E53935")
             style = Paint.Style.FILL
         })
         cv.drawCircle(bx, by, br, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 2f
+            color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = d
         })
     }
     return bmp

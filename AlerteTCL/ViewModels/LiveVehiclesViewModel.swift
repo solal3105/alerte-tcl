@@ -18,12 +18,19 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published var error: String?
     @Published var lastUpdate: Date?
     @Published var selectedVehicleType: VehicleType? {
-        didSet { updateFilteredVehicles() }
+        didSet {
+            UserDefaults.standard.set(selectedVehicleType?.rawValue, forKey: PersistenceKey.selectedVehicleType)
+            updateFilteredVehicles()
+        }
     }
     @Published var selectedLine: String? {
         didSet { updateFilteredVehicles() }
     }
-    @Published var selectedLines: Set<String> = []
+    @Published var selectedLines: Set<String> = [] {
+        didSet {
+            UserDefaults.standard.set(Array(selectedLines), forKey: PersistenceKey.selectedLines)
+        }
+    }
     @Published var showBusLines = true
     @Published var showTransitLines = true
     @Published var mapRegion: MKCoordinateRegion
@@ -64,7 +71,12 @@ final class LiveVehiclesViewModel: ObservableObject {
     private var lastVehicleCount: Int = 0
     
     let favoriteLinesService = FavoriteLinesService.shared
-        
+
+    private enum PersistenceKey {
+        static let selectedLines = "liveMap.selectedLines"
+        static let selectedVehicleType = "liveMap.selectedVehicleType"
+    }
+
     private static let lyonCenter = CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659)
     private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
     
@@ -82,6 +94,13 @@ final class LiveVehiclesViewModel: ObservableObject {
             )
         }
         
+        if let saved = UserDefaults.standard.array(forKey: PersistenceKey.selectedLines) as? [String] {
+            _selectedLines = Published(initialValue: Set(saved))
+        }
+        if let raw = UserDefaults.standard.string(forKey: PersistenceKey.selectedVehicleType) {
+            _selectedVehicleType = Published(initialValue: VehicleType(rawValue: raw))
+        }
+
         LocationService.shared.$currentLocation
             .compactMap { $0 }
             .first()

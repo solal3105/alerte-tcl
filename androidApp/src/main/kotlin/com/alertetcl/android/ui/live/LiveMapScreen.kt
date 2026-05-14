@@ -510,6 +510,14 @@ fun LiveMapScreen() {
             val bearing  = animated?.currentInterpolatedBearing(nowSec) ?: v.bearing
             val iconId   = "v_${v.lineName.replace(Regex("[^A-Za-z0-9]"), "_")}"
             val arrowId  = "va_${v.lineName.replace(Regex("[^A-Za-z0-9]"), "_")}"
+            // Orbit offset: place the arrow at orbit radius in the bearing direction.
+            // [orbit·sin θ, −orbit·cos θ] in screen-space dp (x=right, y=down).
+            val orbitDp  = 24f
+            val θRad     = Math.toRadians(bearing)
+            val arrowOffset = JsonArray().apply {
+                add((orbitDp * Math.sin(θRad)).toFloat())
+                add((-orbitDp * Math.cos(θRad)).toFloat())
+            }
             val props    = JsonObject().apply {
                 addProperty("id",          v.id)
                 addProperty("line",        v.lineName)
@@ -517,6 +525,7 @@ fun LiveMapScreen() {
                 addProperty("icon",        iconId)
                 addProperty("arrow_icon",  if (bearing != 0.0) arrowId else "no_arrow")
                 addProperty("bearing",     bearing.toFloat())
+                add("arrow_offset", arrowOffset)
             }
             Feature.fromGeometry(Point.fromLngLat(coord.longitude, coord.latitude), props)
         }
@@ -530,12 +539,12 @@ fun LiveMapScreen() {
                 PropertyFactory.iconIgnorePlacement(true),
                 PropertyFactory.iconSize(1f)
             ))
-            // Layer 2 : flèche orbitale (tourne selon le bearing, comme iOS)
+            // Layer 2 : flèche orbitale — offset pré-calculé par feature (orbit·sinθ, -orbit·cosθ)
             style.addLayer(SymbolLayer(VEHICLES_ARROW_LAYER, VEHICLES_SRC).withProperties(
                 PropertyFactory.iconImage(Expression.get("arrow_icon")),
                 PropertyFactory.iconRotate(Expression.toNumber(Expression.get("bearing"))),
-                PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
-                PropertyFactory.iconOffset(arrayOf(0f, -28f)),
+                PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_VIEWPORT),
+                PropertyFactory.iconOffset(Expression.get("arrow_offset")),
                 PropertyFactory.iconAllowOverlap(true),
                 PropertyFactory.iconIgnorePlacement(true),
                 PropertyFactory.iconSize(1f)
@@ -1219,7 +1228,7 @@ private fun FilterSheet(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            VehicleType.entries.sortedBy { it.sortOrder }.forEach { type ->
+            VehicleType.entries.filter { it != VehicleType.METRO }.sortedBy { it.sortOrder }.forEach { type ->
                 FilterChip(
                     selected = type in selectedTypes,
                     onClick = { onToggleType(type) },
