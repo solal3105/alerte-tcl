@@ -29,8 +29,7 @@ actor SIRILiteService {
         (try? NSRegularExpression(pattern: "^TB\\d+$", options: [])) ?? NSRegularExpression()
     private static let funicularRegex: NSRegularExpression =
         (try? NSRegularExpression(pattern: "^F\\d*$", options: [])) ?? NSRegularExpression()
-    private static let destinationRegex: NSRegularExpression =
-        (try? NSRegularExpression(pattern: "::([^:]+):", options: [])) ?? NSRegularExpression()
+
     private static let delayRegex: NSRegularExpression =
         (try? NSRegularExpression(pattern: "PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?", options: [])) ?? NSRegularExpression()
     
@@ -220,16 +219,11 @@ actor SIRILiteService {
     
     private func extractDestination(from destinationRef: String?) -> String {
         guard let ref = destinationRef, !ref.isEmpty else { return "" }
-        
-        let nsRef = ref as NSString
-        let fullRange = NSRange(location: 0, length: nsRef.length)
-        if let match = Self.destinationRegex.firstMatch(in: ref, options: [], range: fullRange) {
-            let extracted = nsRef.substring(with: match.range)
-            return extracted.replacingOccurrences(of: "::", with: "")
-                .replacingOccurrences(of: ":", with: "")
-        }
-        
-        return ref
+        // Format DestinationRef : "ActIV:StopArea:SP:39975:SYTRAL" — identique aux StopPointRef
+        let parts = ref.components(separatedBy: ":")
+        guard parts.count >= 4 else { return "" }
+        let numericId = parts[3]
+        return Self.gtfsStopNames[numericId] ?? ""
     }
     
     private func parseDelay(_ delay: String?) -> Int {

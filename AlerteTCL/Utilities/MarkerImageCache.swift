@@ -16,20 +16,20 @@ enum StopTier: Int {
     /// Diamètre du dot en mode compact (zoom éloigné)
     var compactSize: CGFloat {
         switch self {
-        case .metro:   return 14
-        case .tramway: return 12
-        case .busC:    return 10.5
-        case .bus:     return 8.5
+        case .metro:   return 17
+        case .tramway: return 15
+        case .busC:    return 13
+        case .bus:     return 11
         }
     }
 
     /// Diamètre du dot en mode badges (zoom serré)
     var badgeSize: CGFloat {
         switch self {
-        case .metro:   return 16
-        case .tramway: return 14
-        case .busC:    return 12
-        case .bus:     return 10
+        case .metro:   return 20
+        case .tramway: return 17
+        case .busC:    return 15
+        case .bus:     return 13
         }
     }
 

@@ -29,12 +29,11 @@ class SiriLiteService {
     /** Provider de noms d'arrêts GTFS — chargé via le bundle natif. */
     var stopNameLookup: (String) -> String? = { null }
 
-    private val lineNameRegex = Regex("::([^:]+):SYTRAL")
-    private val metroRegex     = Regex("^M[A-D]$")
-    private val tramRegex      = Regex("^T\\d+$")
-    private val trolleyRegex   = Regex("^TB\\d+$")
-    private val funicularRegex = Regex("^F\\d*$")
-    private val destinationRegex = Regex("::([^:]+):")
+    private val lineNameRegex    = Regex("::([^:]+):SYTRAL")
+    private val metroRegex        = Regex("^M[A-D]$")
+    private val tramRegex         = Regex("^T\\d+$")
+    private val trolleyRegex      = Regex("^TB\\d+$")
+    private val funicularRegex    = Regex("^F\\d*$")
 
     suspend fun fetchVehicles(): List<Vehicle> {
         val response: HttpResponse = try {
@@ -59,8 +58,12 @@ class SiriLiteService {
     }
 
     private fun parseVehicles(siri: SIRIResponse): List<Vehicle> {
-        val activities = siri.Siri.ServiceDelivery.VehicleMonitoringDelivery
-            ?.firstOrNull()?.VehicleActivity ?: return emptyList()
+        val delivery = siri.Siri.ServiceDelivery.VehicleMonitoringDelivery?.firstOrNull()
+        val activities = delivery?.VehicleActivity ?: return emptyList()
+
+        if (delivery.MoreData == true) {
+            AppLogger.warn("⚠️ MoreData=true — réponse tronquée, augmenter MaximumVehicles ou paginer")
+        }
 
         return activities.mapNotNull { activity ->
             val journey = activity.MonitoredVehicleJourney ?: return@mapNotNull null
@@ -139,7 +142,11 @@ class SiriLiteService {
 
     private fun extractDestination(ref: String?): String {
         if (ref.isNullOrEmpty()) return ""
-        return destinationRegex.find(ref)?.groupValues?.get(1) ?: ref
+        // Format DestinationRef : "ActIV:StopArea:SP:39975:SYTRAL" — identique aux StopPointRef
+        val parts = ref.split(":")
+        if (parts.size < 4) return ""
+        val numericId = parts[3]
+        return stopNameLookup(numericId) ?: ""
     }
 
     companion object { val shared = SiriLiteService() }

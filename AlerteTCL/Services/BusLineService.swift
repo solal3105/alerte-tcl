@@ -35,11 +35,9 @@ actor BusLineService {
             throw ServiceError.invalidURL
         }
         
-        // Paramètres de requête - filtrer uniquement les lignes C côté serveur
         components.queryItems = [
-            URLQueryItem(name: "limit", value: "500"),
-            URLQueryItem(name: "f", value: "json"),
-            URLQueryItem(name: "filter", value: "ligne LIKE 'C%'")
+            URLQueryItem(name: "limit", value: "1000"),
+            URLQueryItem(name: "f", value: "json")
         ]
         
         guard let url = components.url else {

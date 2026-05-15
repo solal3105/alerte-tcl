@@ -31,7 +31,7 @@ enum class TransportMode(val displayName: String, val iconKey: String, val sortO
 
         fun fromString(s: String?): TransportMode = when (s) {
             "Métro" -> METRO
-            "Tramway" -> TRAMWAY
+            "Tramway", "Trambus" -> TRAMWAY
             "Bus C" -> BUS_C
             "Funiculaire" -> FUNICULAR
             "Navette maritime/fluviale" -> NAVETTE

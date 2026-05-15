@@ -34,12 +34,12 @@ struct NextDeparturesProvider: AppIntentTimelineProvider {
 
     func timeline(for configuration: NextDeparturesConfigurationIntent, in context: Context) async -> Timeline<NextDeparturesEntry> {
         let base = await fetchData(for: configuration)
-        // Generate entries every minute for the next 8 minutes so countdowns stay
-        // accurate even if the widget isn't refreshed from the network.
+        // Generate entries every minute for 15 minutes so countdowns stay
+        // accurate even when iOS delays the scheduled widget refresh.
         let calendar = Calendar.current
         let now = Date()
         var entries: [NextDeparturesEntry] = []
-        for minuteOffset in 0..<8 {
+        for minuteOffset in 0..<15 {
             guard let entryDate = calendar.date(byAdding: .minute, value: minuteOffset, to: now) else { continue }
             let decayed = base.passages.compactMap { passage -> WidgetPassage? in
                 guard let minutes = passage.delayMinutes else { return passage }
@@ -61,7 +61,7 @@ struct NextDeparturesProvider: AppIntentTimelineProvider {
                 error: decayed.isEmpty && base.error == nil ? .noPassages : base.error
             ))
         }
-        let nextUpdate = now.addingTimeInterval(8 * 60)
+        let nextUpdate = now.addingTimeInterval(15 * 60)
         return Timeline(entries: entries, policy: .after(nextUpdate))
     }
     

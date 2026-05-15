@@ -23,6 +23,7 @@ private enum WidgetFormatters {
         let f = DateFormatter()
         f.dateFormat = "HH:mm"
         f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "Europe/Paris")
         return f
     }()
 }
@@ -120,10 +121,10 @@ struct WidgetPassageService {
             let valueDirection = value.direction.lowercased().trimmingCharacters(in: .whitespaces)
             let matchesLine = valueLine == normalizedLine
             let matchesDirection = valueDirection.contains(directionPrefix) || normalizedDirection.contains(String(valueDirection.prefix(8)))
-            if let passageDate = WidgetFormatters.apiDate.date(from: value.heurepassage) {
-                return matchesLine && matchesDirection && passageDate >= now
-            }
-            return matchesLine && matchesDirection
+            guard matchesLine && matchesDirection else { return false }
+            guard let passageDate = WidgetFormatters.apiDate.date(from: value.heurepassage) else { return true }
+            // Exclure les passages passés et les passages à plus de 90 min (données de fin de service)
+            return passageDate >= now && passageDate.timeIntervalSince(now) <= 90 * 60
         }
 
         let sorted = filtered.sorted { lhs, rhs in

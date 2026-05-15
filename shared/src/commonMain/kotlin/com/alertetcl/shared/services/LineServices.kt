@@ -30,7 +30,7 @@ class BusLineService {
         mutex.withLock { cache }?.let { (data, ts) ->
             if (Clock.System.now().epochSeconds - ts < cacheValidity) return data
         }
-        val url = "$baseURL?limit=500&f=json&filter=ligne+LIKE+%27C%25%27"
+        val url = "$baseURL?limit=1000&f=json"
         val resp = try {
             client.get(url) {
                 timeout { requestTimeoutMillis = NetworkConfiguration.SHARED_TIMEOUT_SECONDS * 1000 }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -103,6 +104,7 @@ fun AlertsScreen() {
     val alerts by viewModel.alerts.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.errorMessage.collectAsState()
+    val lastUpdate by viewModel.lastUpdate.collectAsState()
 
     val context = LocalContext.current
     val store = remember { FavoritesStore(context) }
@@ -117,7 +119,9 @@ fun AlertsScreen() {
     }
     val allLines: List<TransportLine> = remember(transitLines.value, busLines.value) {
         val tl = transitLines.value.map {
-            TransportLine.create(it.name, it.name, TransportMode.detectFromLine(it.name))
+            // Utiliser familyTransport (Grand Lyon) plutôt que detectFromLine(name) :
+            // les lignes TB11, RX, TS ont un nom qui ne matche pas les patterns ≤ 3 chars.
+            TransportLine.create(it.name, it.name, TransportMode.fromString(it.familyTransport))
         }
         val bl = busLines.value.map {
             TransportLine.create(it.name, it.name, TransportMode.detectFromLine(it.name))
@@ -128,7 +132,27 @@ fun AlertsScreen() {
     val subscribedLines = remember(allLines, favorites) {
         allLines.filter { it.ligneCom in favorites }
     }
-    val alertsByLine = remember(alerts) { alerts.groupBy { it.ligneCom } }
+    val alertsByLine: Map<String, List<TCLAlert>> = remember(alerts) {
+        val now = System.currentTimeMillis() / 1000L
+        val active = alerts.filter { it.severity != AlertSeverity.INFO && it.isOngoing(now) }
+        buildMap<String, MutableList<TCLAlert>> {
+            active.forEach { a ->
+                getOrPut(a.ligneCom) { mutableListOf() }.add(a)
+                if (a.ligneCli.isNotBlank() && a.ligneCli != a.ligneCom)
+                    getOrPut(a.ligneCli) { mutableListOf() }.add(a)
+            }
+        }
+    }
+    val allAlertsByLine: Map<String, List<TCLAlert>> = remember(alerts) {
+        val nonInfo = alerts.filter { it.severity != AlertSeverity.INFO }
+        buildMap<String, MutableList<TCLAlert>> {
+            nonInfo.forEach { a ->
+                getOrPut(a.ligneCom) { mutableListOf() }.add(a)
+                if (a.ligneCli.isNotBlank() && a.ligneCli != a.ligneCom)
+                    getOrPut(a.ligneCli) { mutableListOf() }.add(a)
+            }
+        }
+    }
 
     var selectedModeFilter by remember { mutableStateOf<TransportMode?>(null) }
     var subscribeSheetOpen by remember { mutableStateOf(false) }
@@ -166,6 +190,7 @@ fun AlertsScreen() {
                             StatusSummaryBanner(
                                 subscribedLines = subscribedLines,
                                 alertsByLine = alertsByLine,
+                                lastUpdate = lastUpdate,
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
                                     .padding(top = 16.dp)
@@ -236,7 +261,7 @@ fun AlertsScreen() {
         ) {
             LineDetailSheet(
                 line = line,
-                alerts = alertsByLine[line.ligneCom].orEmpty(),
+                alerts = allAlertsByLine[line.ligneCom].orEmpty(),
                 isSubscribed = line.ligneCom in favorites,
                 onToggleSubscription = { scope.launch { store.toggleFavoriteLine(line.ligneCom) } }
             )
@@ -244,11 +269,19 @@ fun AlertsScreen() {
     }
 }
 
+/** Tri naturel : préfixe alphabétique d'abord, puis suffixe numérique ("C10" après "C9"). */
+private fun naturalLineOrder(name: String): Pair<String, Int> {
+    val idx = name.indexOfFirst { it.isDigit() }
+    return if (idx < 0) name to 0
+           else name.substring(0, idx) to (name.substring(idx).toIntOrNull() ?: 0)
+}
+
 // ─── Status Summary Banner ───────────────────────────────────────────────
 @Composable
 private fun StatusSummaryBanner(
     subscribedLines: List<TransportLine>,
     alertsByLine: Map<String, List<TCLAlert>>,
+    lastUpdate: Long?,
     modifier: Modifier = Modifier
 ) {
     val totalAlerts = subscribedLines.sumOf { alertsByLine[it.ligneCom]?.size ?: 0 }
@@ -260,6 +293,14 @@ private fun StatusSummaryBanner(
         hasMajor -> Icons.Filled.Warning
         totalAlerts > 0 -> Icons.Filled.NotificationsActive
         else -> Icons.Filled.CheckCircle
+    }
+    val updateText: String? = lastUpdate?.let { epoch ->
+        val elapsed = System.currentTimeMillis() / 1000L - epoch
+        when {
+            elapsed < 60L -> "il y a quelques secondes"
+            elapsed < 3600L -> "il y a ${elapsed / 60} min"
+            else -> "il y a ${elapsed / 3600}h"
+        }
     }
     Box(
         modifier = modifier
@@ -284,6 +325,9 @@ private fun StatusSummaryBanner(
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
                 }
+                if (updateText != null) {
+                    Text("Mis à jour $updateText", fontSize = 11.sp, color = secondary)
+                }
             }
         }
     }
@@ -303,7 +347,11 @@ private fun MyLinesSection(
         subscribedLines.sortedWith(
             compareBy<TransportLine> { line ->
                 alertsByLine[line.ligneCom]?.minOfOrNull { it.severity.sortOrder } ?: 999
-            }.thenBy { it.mode.sortOrder }.thenBy { it.displayName }
+            }.thenBy { it.mode.sortOrder }.thenComparator { a, b ->
+                val (ap, an) = naturalLineOrder(a.displayName)
+                val (bp, bn) = naturalLineOrder(b.displayName)
+                ap.compareTo(bp).takeIf { it != 0 } ?: an.compareTo(bn)
+            }
         )
     }
 
@@ -557,7 +605,13 @@ private fun LinesGrid(
 ) {
     val filtered = remember(lines, selectedMode) {
         val base = if (selectedMode != null) lines.filter { it.mode == selectedMode } else lines
-        base.sortedWith(compareBy<TransportLine> { it.mode.sortOrder }.thenBy { it.displayName })
+        base.sortedWith(
+            compareBy<TransportLine> { it.mode.sortOrder }.thenComparator { a, b ->
+                val (ap, an) = naturalLineOrder(a.displayName)
+                val (bp, bn) = naturalLineOrder(b.displayName)
+                ap.compareTo(bp).takeIf { it != 0 } ?: an.compareTo(bn)
+            }
+        )
     }
     val rows = (filtered.size + 2) / 3
     val cellHeight = 96.dp
@@ -599,7 +653,7 @@ private fun LineGridCell(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(96.dp)
+            .heightIn(min = 96.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(modeColor.copy(alpha = 0.08f))
             .border(
@@ -653,7 +707,13 @@ private fun SubscribeLineSheet(
 ) {
     var query by remember { mutableStateOf("") }
     val sortedLines = remember(allLines) {
-        allLines.sortedWith(compareBy<TransportLine> { it.mode.sortOrder }.thenBy { it.displayName })
+        allLines.sortedWith(
+            compareBy<TransportLine> { it.mode.sortOrder }.thenComparator { a, b ->
+                val (ap, an) = naturalLineOrder(a.displayName)
+                val (bp, bn) = naturalLineOrder(b.displayName)
+                ap.compareTo(bp).takeIf { it != 0 } ?: an.compareTo(bn)
+            }
+        )
     }
     val filtered = remember(sortedLines, query) {
         if (query.isBlank()) sortedLines else sortedLines.filter { it.displayName.contains(query, ignoreCase = true) }
@@ -704,6 +764,14 @@ private fun LineDetailSheet(
     onToggleSubscription: () -> Unit
 ) {
     val modeColor = transportModeColor(line.mode)
+    val now = remember { System.currentTimeMillis() / 1000L }
+    val ongoingAlerts = remember(alerts) {
+        alerts.filter { it.isOngoing(now) }.sortedBy { it.severity.sortOrder }
+    }
+    val upcomingAlerts = remember(alerts) {
+        alerts.filter { it.isUpcoming(now) }.sortedBy { it.debutEpoch ?: Long.MAX_VALUE }
+    }
+
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             LineBadge(line.ligneCom, size = 56.dp, fontSize = 18.sp)
@@ -728,20 +796,37 @@ private fun LineDetailSheet(
             }
         }
         Spacer(Modifier.height(16.dp))
-        if (alerts.isEmpty()) {
+        if (ongoingAlerts.isEmpty() && upcomingAlerts.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Filled.CheckCircle, null, tint = iOSGreen, modifier = Modifier.size(48.dp))
-                    Text("Aucune perturbation", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Le service circule normalement", fontSize = 13.sp, color = secondary)
+                    Text("Service normal", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Aucune perturbation en cours sur cette ligne", fontSize = 13.sp, color = secondary)
                 }
             }
         } else {
-            Text("Perturbations en cours", fontSize = 13.sp, color = secondary, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(8.dp))
-            alerts.sortedBy { it.severity.sortOrder }.forEach { alert ->
-                AlertDetailRow(alert)
+            if (ongoingAlerts.isNotEmpty()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Filled.Warning, null, tint = iOSOrange, modifier = Modifier.size(14.dp))
+                    Text("En cours", fontSize = 13.sp, color = iOSOrange, fontWeight = FontWeight.SemiBold)
+                }
                 Spacer(Modifier.height(8.dp))
+                ongoingAlerts.forEach { alert ->
+                    AlertDetailRow(alert)
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+            if (upcomingAlerts.isNotEmpty()) {
+                if (ongoingAlerts.isNotEmpty()) Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Filled.Notifications, null, tint = secondary, modifier = Modifier.size(14.dp))
+                    Text("À venir", fontSize = 13.sp, color = secondary, fontWeight = FontWeight.SemiBold)
+                }
+                Spacer(Modifier.height(8.dp))
+                upcomingAlerts.forEach { alert ->
+                    AlertDetailRow(alert)
+                    Spacer(Modifier.height(8.dp))
+                }
             }
         }
         Spacer(Modifier.height(24.dp))
@@ -784,12 +869,12 @@ internal fun LineBadge(line: String, size: Dp, fontSize: TextUnit = 14.sp) {
 }
 
 internal fun transportModeColor(mode: TransportMode): Color = when (mode) {
-    TransportMode.METRO     -> Color(0xFFE63946)
-    TransportMode.TRAMWAY   -> Color(0xFF1E88E5)
-    TransportMode.FUNICULAR -> Color(0xFF8E44AD)
-    TransportMode.BUS_C     -> Color(0xFFE67E22)
-    TransportMode.BUS       -> Color(0xFF455A64)
-    TransportMode.NAVETTE   -> Color(0xFF16A085)
+    TransportMode.METRO     -> Color(0xFFFF9500)  // iOS .orange
+    TransportMode.TRAMWAY   -> Color(0xFF007AFF)  // iOS .blue
+    TransportMode.FUNICULAR -> Color(0xFF34C759)  // iOS .green
+    TransportMode.BUS_C     -> Color(0xFFAF52DE)  // iOS .purple
+    TransportMode.BUS       -> Color(0xFF5856D6)  // iOS .indigo
+    TransportMode.NAVETTE   -> Color(0xFF32ADE6)  // iOS .cyan
 }
 
 internal fun transportModeIcon(mode: TransportMode): ImageVector = when (mode) {

@@ -23,8 +23,9 @@ final class AnimatedVehicle: Identifiable {
     var lastSeenAt: Date = Date()
     var isActive: Bool = true
 
-    /// Suppression après 3 cycles sans données (poll toutes les 15 s → 45 s de grâce).
-    static let gracePeriod: TimeInterval = 45.0
+    /// Suppression après ~2 cycles sans données (API publie toutes les ~30 s, on poll toutes les 15 s).
+    /// 25 s = 1 cycle API manqué sans qu'un fantôme reste trop longtemps à l'écran.
+    static let gracePeriod: TimeInterval = 25.0
 
     var shouldBeRemoved: Bool {
         !isActive && Date().timeIntervalSince(lastSeenAt) > Self.gracePeriod

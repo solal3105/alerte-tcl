@@ -117,6 +117,8 @@ data class ParkingProperties(
     val gestionnaire: String? = null,
     val capacite: Int? = null,
     val nb_place_dispo: Int? = null,
+    val nb_places: Int? = null,
+    val places_disponibles: Int? = null,
     val etat: String? = null,
     val date_maj: String? = null,
     val url: String? = null,
@@ -132,7 +134,9 @@ data class ParkingProperties(
     val tarif_4h: Double? = null,
     val tarif_24h: Double? = null,
     val abo_resident: Double? = null,
-    val abo_non_resident: Double? = null
+    val abo_non_resident: Double? = null,
+    val nbarceaux: Int? = null,
+    val longueur: Double? = null
 )
 
 // ─── Travaux ─────────────────────────────────────────────────────────────────
@@ -199,7 +203,9 @@ data class ServiceDelivery(
 @Serializable
 data class VehicleMonitoringDelivery(
     @SerialName("VehicleActivity")
-    val VehicleActivity: List<VehicleActivity>? = null
+    val VehicleActivity: List<VehicleActivity>? = null,
+    @SerialName("MoreData")
+    val MoreData: Boolean? = null
 )
 
 @Serializable

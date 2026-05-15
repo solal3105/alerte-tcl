@@ -10,7 +10,13 @@ import android.graphics.Typeface
 import android.Manifest
 import android.content.pm.PackageManager
 import android.location.LocationManager
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,11 +47,15 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.filled.Refresh
@@ -70,6 +80,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -81,6 +92,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -104,6 +116,9 @@ import com.google.gson.JsonObject
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
+import org.maplibre.android.location.LocationComponentActivationOptions
+import org.maplibre.android.location.modes.CameraMode
+import org.maplibre.android.location.modes.RenderMode
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
@@ -148,7 +163,6 @@ private const val VEHICLES_LAYER  = "vehicles-layer"
 private const val VEHICLES_ARROW_LAYER = "vehicles-arrow-layer"
 private const val STOPS_LAYER       = "stops-layer"        // CircleLayer mode compact
 private const val STOPS_BADGE_LAYER = "stops-badge-layer"  // SymbolLayer mode badges (zoom serré)
-private const val STOPS_COMPACT_KEY = "stop_compact"
 
 @Composable
 private fun rememberMapView(): MapView {
@@ -228,6 +242,7 @@ fun LiveMapScreen() {
 
     var showLineTraces by remember { mutableStateOf(true) }
     var isSatellite    by remember { mutableStateOf(false) }
+    var bannerCollapsed by remember { mutableStateOf(false) }
 
     val transitLines = produceState<List<TransitLine>>(initialValue = emptyList()) {
         value = runCatching { TransitLineService.shared.fetchTransitLines() }.getOrDefault(emptyList())
@@ -252,7 +267,7 @@ fun LiveMapScreen() {
     }
 
     val filteredVehicles by remember {
-        derivedStateOf { tick; vehicles.filter { it.vehicleType in selectedTypes && (selectedLines.isEmpty() || it.lineName in selectedLines) } }
+        derivedStateOf { vehicles.filter { it.vehicleType in selectedTypes && (selectedLines.isEmpty() || it.lineName in selectedLines) } }
     }
 
     // MapLibre state
@@ -299,8 +314,8 @@ fun LiveMapScreen() {
     }
 
     // Selection state
-    val selectedVehicle = remember { mutableStateOf<Vehicle?>(null) }
-    val selectedStop    = remember { mutableStateOf<TransitStop?>(null) }
+    val selectedVehicleId = remember { mutableStateOf<String?>(null) }
+    val selectedStop      = remember { mutableStateOf<TransitStop?>(null) }
 
     // Bottom sheet flags
     var showAlertsSheet by remember { mutableStateOf(false) }
@@ -313,7 +328,14 @@ fun LiveMapScreen() {
     val locationPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) recenterOnUser(context, mapLibreMap)
+        if (granted) {
+            // Activer le composant localisation si ce n'est pas encore fait
+            // (permission accordée pendant que l'appli tournait déjà)
+            val map = mapLibreMap
+            val style = map?.style
+            if (map != null && style != null) enableLocationComponent(context, map, style)
+            recenterOnUser(context, mapLibreMap)
+        }
     }
 
     val mapView = rememberMapView()
@@ -330,9 +352,10 @@ fun LiveMapScreen() {
                 mapView.also { mv ->
                     mv.getMapAsync { map ->
                         mapLibreMap = map
-                        map.uiSettings.isLogoEnabled         = false
-                        map.uiSettings.isAttributionEnabled  = false
-                        map.uiSettings.isCompassEnabled      = true
+                        map.uiSettings.isLogoEnabled              = false
+                        map.uiSettings.isAttributionEnabled       = false
+                        map.uiSettings.isCompassEnabled           = false
+                        map.uiSettings.isRotateGesturesEnabled    = false
                         map.cameraPosition = CameraPosition.Builder()
                             .target(LatLng(45.764043, 4.835659))
                             .zoom(12.5)
@@ -346,10 +369,10 @@ fun LiveMapScreen() {
                             val pt = PointF(screen.x, screen.y)
                             val vf = map.queryRenderedFeatures(pt, VEHICLES_LAYER)
                             if (vf.isNotEmpty()) {
-                                selectedVehicle.value = vehiclesRef.value.find { it.id == vf[0].getStringProperty("id") }
+                                selectedVehicleId.value = vf[0].getStringProperty("id")
                                 return@addOnMapClickListener true
                             }
-                            val sf = map.queryRenderedFeatures(pt, STOPS_LAYER)
+                            val sf = map.queryRenderedFeatures(pt, STOPS_LAYER, STOPS_BADGE_LAYER)
                             if (sf.isNotEmpty()) {
                                 val sid = sf[0].getNumberProperty("id")?.toInt()
                                 selectedStop.value = stopsRef.value.find { it.id == sid }
@@ -359,6 +382,7 @@ fun LiveMapScreen() {
                         }
                         map.setStyle(Style.Builder().fromUri(STYLE_URL_LIBERTY)) { style ->
                             visibleBounds = map.projection.visibleRegion.latLngBounds
+                            enableLocationComponent(context, map, style)
                             mapStyle = style
                         }
                     }
@@ -373,22 +397,63 @@ fun LiveMapScreen() {
             val builder = if (isSatellite) Style.Builder().fromJson(STYLE_JSON_SATELLITE)
                           else              Style.Builder().fromUri(STYLE_URL_LIBERTY)
             mapStyle = null
-            map.setStyle(builder) { style -> mapStyle = style }
+            map.setStyle(builder) { style ->
+                enableLocationComponent(context, map, style)
+                mapStyle = style
+            }
         }
 
-        // ── Top: Traffic Banner (parité iOS) ─────────────────────────────
-        TrafficBanner(
-            subscribedLines = favorites,
-            alerts = alerts,
-            lastUpdateMs = lastUpdateMs,
-            hasError = vehiclesError != null || alertsError != null,
+        // ── Top: Traffic Banner ───────────────────────────────────────────
+        AnimatedVisibility(
+            visible = !bannerCollapsed,
+            enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+            exit  = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
                 .padding(horizontal = 12.dp, vertical = 8.dp)
-                .fillMaxWidth(),
-            onTap = { showAlertsSheet = true }
-        )
+                .fillMaxWidth()
+        ) {
+            var dragOffsetY by remember { mutableFloatStateOf(0f) }
+            TrafficBanner(
+                subscribedLines = favorites,
+                alerts = alerts,
+                lastUpdateMs = lastUpdateMs,
+                hasError = vehiclesError != null || alertsError != null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures(
+                            onVerticalDrag = { _, delta -> dragOffsetY += delta },
+                            onDragEnd = {
+                                if (dragOffsetY < -40f) bannerCollapsed = true
+                                dragOffsetY = 0f
+                            },
+                            onDragCancel = { dragOffsetY = 0f }
+                        )
+                    },
+                onTap = { showAlertsSheet = true }
+            )
+        }
+        if (bannerCollapsed) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 8.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White.copy(alpha = 0.92f))
+                    .clickable { bannerCollapsed = false }
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.KeyboardArrowDown, null,
+                    modifier = Modifier.size(20.dp),
+                    tint = Color(0xFF6E6E73)
+                )
+            }
+        }
 
         // ── Bottom-left: Live Indicator ──────────────────────────────────
         Column(
@@ -456,10 +521,11 @@ fun LiveMapScreen() {
     // ── Map update effects ──────────────────────────────────────────────
 
     // Line traces (transit + bus)
-    LaunchedEffect(mapStyle, showLineTraces, transitLines.value, busLines.value) {
+    LaunchedEffect(mapStyle, showLineTraces, transitLines.value, busLines.value, selectedLines) {
         val style = mapStyle ?: return@LaunchedEffect
 
         val transitFeatures = if (showLineTraces) transitLines.value.mapNotNull { line ->
+            if (selectedLines.isNotEmpty() && line.name !in selectedLines) return@mapNotNull null
             val pts = line.coordinates.mapNotNull { c -> if (c.size < 2) null else Point.fromLngLat(c[0], c[1]) }
             if (pts.size < 2) null else {
                 val props = JsonObject().apply { addProperty("color", toMapColor(line.strokeColorHex)) }
@@ -468,6 +534,7 @@ fun LiveMapScreen() {
         } else emptyList()
 
         val busFeatures = if (showLineTraces) busLines.value.mapNotNull { line ->
+            if (selectedLines.isNotEmpty() && line.name !in selectedLines) return@mapNotNull null
             val pts = line.coordinates.mapNotNull { c -> if (c.size < 2) null else Point.fromLngLat(c[0], c[1]) }
             if (pts.size < 2) null else {
                 val props = JsonObject().apply { addProperty("color", toMapColor(LineColors.routeStrokeHex(line.name))) }
@@ -501,62 +568,70 @@ fun LiveMapScreen() {
     }
 
     // Vehicle markers
-    LaunchedEffect(mapStyle, filteredVehicles) {
+    LaunchedEffect(mapStyle, vehicles, selectedTypes, selectedLines) {
         val style = mapStyle ?: return@LaunchedEffect
+        val current = vehicles.filter { it.vehicleType in selectedTypes && (selectedLines.isEmpty() || it.lineName in selectedLines) }
 
-        // Register circle body + arrow icons (once per unique line)
+        // Register circle body + dot + arrow icons (once per unique line)
         if (style.getImage("no_arrow") == null)
             style.addImage("no_arrow", Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888))
 
-        filteredVehicles.forEach { v ->
+        current.forEach { v ->
             val iconId  = "v_${v.lineName.replace(Regex("[^A-Za-z0-9]"), "_")}"
+            val dotId   = "vd_${v.lineName.replace(Regex("[^A-Za-z0-9]"), "_")}"
             val arrowId = "va_${v.lineName.replace(Regex("[^A-Za-z0-9]"), "_")}"
             if (style.getImage(iconId)  == null) style.addImage(iconId,  vehicleMarkerBitmap(v.lineName))
+            if (style.getImage(dotId)   == null) style.addImage(dotId,   vehicleDotBitmap(v.lineName))
             if (style.getImage(arrowId) == null) style.addImage(arrowId, bearingArrowBitmap(v.lineName))
         }
 
-        val features = filteredVehicles.map { v ->
+        val features = current.map { v ->
             val animated = vm.animatedVehicleFor(v.id)
             val nowSec   = System.currentTimeMillis() / 1000.0
             val coord    = animated?.currentInterpolatedCoordinate(nowSec) ?: v.coordinate
             val bearing  = animated?.currentInterpolatedBearing(nowSec) ?: v.bearing
             val iconId   = "v_${v.lineName.replace(Regex("[^A-Za-z0-9]"), "_")}"
+            val dotId    = "vd_${v.lineName.replace(Regex("[^A-Za-z0-9]"), "_")}"
             val arrowId  = "va_${v.lineName.replace(Regex("[^A-Za-z0-9]"), "_")}"
-            // Orbit offset: place the arrow at orbit radius in the bearing direction.
-            // [orbit·sin θ, −orbit·cos θ] in screen-space dp (x=right, y=down).
-            val orbitDp  = 24f
-            val θRad     = Math.toRadians(bearing)
-            val arrowOffset = JsonArray().apply {
-                add((orbitDp * Math.sin(θRad)).toFloat())
-                add((-orbitDp * Math.cos(θRad)).toFloat())
-            }
             val props    = JsonObject().apply {
                 addProperty("id",          v.id)
                 addProperty("line",        v.lineName)
                 addProperty("destination", v.destination)
                 addProperty("icon",        iconId)
+                addProperty("dot_icon",    dotId)
                 addProperty("arrow_icon",  if (bearing != 0.0) arrowId else "no_arrow")
                 addProperty("bearing",     bearing.toFloat())
-                add("arrow_offset", arrowOffset)
             }
             Feature.fromGeometry(Point.fromLngLat(coord.longitude, coord.latitude), props)
         }
 
         if (style.getSource(VEHICLES_SRC) == null) {
             style.addSource(GeoJsonSource(VEHICLES_SRC, FeatureCollection.fromFeatures(features)))
-            // Layer 1 : corps cercle (sans rotation — texte reste lisible)
+            // Layer 1 : corps — point coloré en dezoom (< 13.5), marqueur complet en zoom
             style.addLayer(SymbolLayer(VEHICLES_LAYER, VEHICLES_SRC).withProperties(
-                PropertyFactory.iconImage(Expression.get("icon")),
+                PropertyFactory.iconImage(
+                    Expression.step(
+                        Expression.zoom(),
+                        Expression.get("dot_icon"),
+                        Expression.literal(13.5), Expression.get("icon")
+                    )
+                ),
                 PropertyFactory.iconAllowOverlap(true),
                 PropertyFactory.iconIgnorePlacement(true),
                 PropertyFactory.iconSize(1f)
             ))
-            // Layer 2 : flèche orbitale — offset pré-calculé par feature (orbit·sinθ, -orbit·cosθ)
+            // Layer 2 : flèche orbitale — masquée en dezoom (< 13.5), comme iOS simplified mode
             style.addLayer(SymbolLayer(VEHICLES_ARROW_LAYER, VEHICLES_SRC).withProperties(
-                PropertyFactory.iconImage(Expression.get("arrow_icon")),
+                PropertyFactory.iconImage(
+                    Expression.step(
+                        Expression.zoom(),
+                        Expression.literal("no_arrow"),
+                        Expression.literal(13.5), Expression.get("arrow_icon")
+                    )
+                ),
                 PropertyFactory.iconRotate(Expression.toNumber(Expression.get("bearing"))),
-                PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_VIEWPORT),
-                PropertyFactory.iconOffset(Expression.get("arrow_offset")),
+                PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+                PropertyFactory.iconOffset(arrayOf(0f, -24f)),
                 PropertyFactory.iconAllowOverlap(true),
                 PropertyFactory.iconIgnorePlacement(true),
                 PropertyFactory.iconSize(1f)
@@ -572,51 +647,67 @@ fun LiveMapScreen() {
     LaunchedEffect(mapStyle, stopsVisible, showBadges, visibleClusters) {
         val style = mapStyle ?: return@LaunchedEffect
 
-        // Enregistrer l'ic\u00f4ne compacte une seule fois par style
-        if (style.getImage(STOPS_COMPACT_KEY) == null) {
-            style.addImage(STOPS_COMPACT_KEY, stopCompactBitmap())
-        }
-
-        // Construire les features (arr\u00eats individuels seulement — pas de clusters \u00e0 ce zoom)
+        // Construire les features (arrêts individuels seulement — pas de clusters à ce zoom)
         val features = if (!stopsVisible) emptyList()
         else visibleClusters.filter { it.count == 1 }.map { cl ->
-            val s = cl.items.first()
-            val props = JsonObject().apply { addProperty("id", s.id) }
-            if (showBadges) {
-                val visibleLines = s.lines.filter { !it.startsWith("JD", ignoreCase = true) }
-                if (visibleLines.isNotEmpty()) {
-                    val iconKey = "stop_" + visibleLines.take(4).joinToString("_")
-                    if (style.getImage(iconKey) == null) {
-                        style.addImage(iconKey, stopBadgeBitmap(visibleLines))
-                    }
-                    props.addProperty("icon", iconKey)
-                } else {
-                    props.addProperty("icon", STOPS_COMPACT_KEY)
-                }
+            val s            = cl.items.first()
+            val visibleLines = s.lines.filter { !it.startsWith("JD", ignoreCase = true) }
+            val tier         = StopTier.from(visibleLines)
+            val primaryLine  = StopTier.primaryLine(visibleLines)
+            val fillHex      = if (tier == StopTier.METRO && primaryLine != null)
+                LineColors.backgroundHex(primaryLine) else tier.fillHex
+
+            val props = JsonObject().apply {
+                addProperty("id",         s.id)
+                addProperty("fill_color", fillHex)
+                addProperty("circle_r",   tier.compactR)
+                addProperty("stroke_w",   tier.compactSW)
             }
+
+            if (showBadges) {
+                val dotKey  = "stop_dot_${tier.name}_${primaryLine ?: ""}"
+                val iconKey = if (visibleLines.isNotEmpty())
+                    "stop_${tier.name}_${primaryLine ?: ""}_" + visibleLines.take(4).joinToString("_")
+                else dotKey
+                if (style.getImage(iconKey) == null) {
+                    style.addImage(iconKey,
+                        if (visibleLines.isNotEmpty()) stopBadgeBitmap(visibleLines, tier, primaryLine)
+                        else stopCompactBitmap(tier, primaryLine))
+                }
+                props.addProperty("icon", iconKey)
+            }
+
             Feature.fromGeometry(Point.fromLngLat(s.coordinate.longitude, s.coordinate.latitude), props)
         }
 
         if (style.getSource(STOPS_SRC) == null) {
             style.addSource(GeoJsonSource(STOPS_SRC, FeatureCollection.fromFeatures(features)))
 
-            // Layer 1 : disque compact (CircleLayer)
-            style.addLayer(CircleLayer(STOPS_LAYER, STOPS_SRC).withProperties(
-                PropertyFactory.circleColor("#FFFFFF"),
-                PropertyFactory.circleRadius(5f),
-                PropertyFactory.circleStrokeColor("#1976D2"),
-                PropertyFactory.circleStrokeWidth(2f)
-            ))
+            // Layer 1 : disque compact (CircleLayer) — couleur et rayon data-driven par tier
+            val stopCircleLayer = CircleLayer(STOPS_LAYER, STOPS_SRC).withProperties(
+                PropertyFactory.circleColor(Expression.get("fill_color")),
+                PropertyFactory.circleStrokeColor("#FFFFFF"),
+                PropertyFactory.circleRadius(Expression.toNumber(Expression.get("circle_r"))),
+                PropertyFactory.circleStrokeWidth(Expression.toNumber(Expression.get("stroke_w")))
+            )
+            if (style.getLayer(VEHICLES_LAYER) != null)
+                style.addLayerBelow(stopCircleLayer, VEHICLES_LAYER)
+            else
+                style.addLayer(stopCircleLayer)
 
             // Layer 2 : badges de ligne (SymbolLayer, visible seulement en mode badge)
             // ICON_ANCHOR_CENTER : le bitmap est conçu pour que le centre du dot
             // coïncide avec le centre vertical du bitmap (via top padding = badgeH + gap)
-            style.addLayer(SymbolLayer(STOPS_BADGE_LAYER, STOPS_SRC).withProperties(
+            val stopBadgeLayer = SymbolLayer(STOPS_BADGE_LAYER, STOPS_SRC).withProperties(
                 PropertyFactory.iconImage(Expression.get("icon")),
                 PropertyFactory.iconAllowOverlap(true),
                 PropertyFactory.iconIgnorePlacement(true),
                 PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
-            ))
+            )
+            if (style.getLayer(VEHICLES_LAYER) != null)
+                style.addLayerBelow(stopBadgeLayer, VEHICLES_LAYER)
+            else
+                style.addLayer(stopBadgeLayer)
         } else {
             style.getSourceAs<GeoJsonSource>(STOPS_SRC)?.setGeoJson(FeatureCollection.fromFeatures(features))
         }
@@ -629,8 +720,8 @@ fun LiveMapScreen() {
 
     // ── Bottom sheets ───────────────────────────────────────────────────
 
-    selectedVehicle.value?.let { v ->
-        ModalBottomSheet(onDismissRequest = { selectedVehicle.value = null }, sheetState = rememberModalBottomSheetState()) {
+    filteredVehicles.find { it.id == selectedVehicleId.value }?.let { v ->
+        ModalBottomSheet(onDismissRequest = { selectedVehicleId.value = null }, sheetState = rememberModalBottomSheetState()) {
             VehicleDetailSheet(v)
         }
     }
@@ -847,10 +938,10 @@ private fun VehicleDetailSheet(v: Vehicle) {
                             }
                             val arrivalEpoch = ns.aimedArrivalTimeEpoch ?: ns.aimedDepartureTimeEpoch
                             if (arrivalEpoch != null) {
-                                val time = java.time.Instant.ofEpochMilli(arrivalEpoch)
+                                val time = java.time.Instant.ofEpochSecond(arrivalEpoch)
                                     .atZone(java.time.ZoneId.systemDefault())
                                 val timeStr = java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(time)
-                                val minsUntil = (arrivalEpoch - System.currentTimeMillis()) / 60000L
+                                val minsUntil = (arrivalEpoch - System.currentTimeMillis() / 1000L) / 60L
                                 Column(
                                     horizontalAlignment = Alignment.End,
                                     verticalArrangement = Arrangement.spacedBy(1.dp)
@@ -880,7 +971,7 @@ private fun VehicleDetailSheet(v: Vehicle) {
         // ── Footer mis à jour ──
         v.recordedAtEpoch?.let { epoch ->
             val timeStr = java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(
-                java.time.Instant.ofEpochMilli(epoch).atZone(java.time.ZoneId.systemDefault())
+                java.time.Instant.ofEpochSecond(epoch).atZone(java.time.ZoneId.systemDefault())
             )
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -918,6 +1009,11 @@ private data class LineDirectionKey(val line: String, val direction: String)
 
 @Composable
 private fun StopDetailSheet(stop: TransitStop) {
+    val context = LocalContext.current
+    val widgetStore = remember { com.alertetcl.android.data.FavoritesStore(context) }
+    val widgetStops by widgetStore.widgetStops.collectAsState(initial = emptyList())
+    val isInWidget = stop.id in widgetStops
+    val scope = rememberCoroutineScope()
     val passages = produceState<List<Passage>?>(initialValue = null, stop.id) {
         value = runCatching { TransitStopService.shared.fetchPassagesForStop(stop.id) }.getOrNull() ?: emptyList()
     }
@@ -971,7 +1067,34 @@ private fun StopDetailSheet(stop: TransitStop) {
                 }
             }
         }
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(12.dp))
+
+        // ── Ajouter au widget ──
+        Button(
+            onClick = {
+                scope.launch {
+                    if (isInWidget) widgetStore.removeWidgetStop(stop.id)
+                    else widgetStore.addWidgetStop(stop.id)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (isInWidget) Color(0xFF34C759) else Color(0xFF007AFF)
+            )
+        ) {
+            Icon(
+                if (isInWidget) Icons.Filled.CheckCircle else Icons.Filled.AddCircle,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                if (isInWidget) "Dans le widget" else "Ajouter au widget",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp
+            )
+        }
+        Spacer(Modifier.height(16.dp))
 
         // Passages section
         Row(
@@ -1270,7 +1393,7 @@ private fun FilterSheet(
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, top = 16.dp, bottom = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, top = 16.dp, end = 20.dp, bottom = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1450,6 +1573,24 @@ private fun LineFilterRow(
     }
 }
 
+private fun enableLocationComponent(context: android.content.Context, map: MapLibreMap, style: Style) {
+    val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+        context, Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+    if (!granted) return
+    @Suppress("MissingPermission")
+    map.locationComponent.run {
+        activateLocationComponent(
+            LocationComponentActivationOptions.builder(context, style)
+                .useDefaultLocationEngine(true)
+                .build()
+        )
+        isLocationComponentEnabled = true
+        renderMode = RenderMode.COMPASS
+        cameraMode  = CameraMode.NONE
+    }
+}
+
 private fun recenterOnUser(context: android.content.Context, map: MapLibreMap?) {
     val m = map ?: return
     val lm = context.getSystemService(android.content.Context.LOCATION_SERVICE) as? LocationManager ?: return
@@ -1526,41 +1667,100 @@ private fun bearingArrowBitmap(line: String): Bitmap {
 }
 
 /**
- * Disque compact pour un arrêt (mode dezoom, latitudeDelta > 0.005).
- * Équivalent iOS : MergedStopAnnotationView.setCompact() — dot 9pt blanc + contour bleu.
+ * Point dezoom — disque plat 12dp, couleur de ligne, sans texte ni bordure.
+ * Miroir exact du mode simplifié iOS (latitudeDelta > 0.05 → 12pt dot).
  */
-private fun stopCompactBitmap(): Bitmap {
-    val density = 3f
-    val size    = (9 * density).toInt()
-    val bmp     = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-    val canvas  = Canvas(bmp)
-    val cx = size / 2f; val cy = size / 2f; val r = size / 2f - density
-    canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.WHITE; style = Paint.Style.FILL
-    })
-    canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.parseColor("#1976D2"); style = Paint.Style.STROKE; strokeWidth = density
+private fun vehicleDotBitmap(line: String): Bitmap {
+    val density = android.content.res.Resources.getSystem().displayMetrics.density
+    val bg = parseAndroidColor(LineColors.backgroundHex(line))
+    val size = (12 * density).toInt().coerceAtLeast(1)
+    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val cx = size / 2f
+    Canvas(bmp).drawCircle(cx, cx, cx, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = bg; style = Paint.Style.FILL
     })
     return bmp
 }
 
 /**
- * Disque (11pt) + rangée de capsules de ligne colorées (mode zoom serré, latitudeDelta ≤ 0.005).
+ * Hiérarchie visuelle des arrêts — miroir exact de l'enum Swift `StopTier`.
+ *   compactR  = rayon du cercle intérieur coloré en mode compact (dp)
+ *   compactSW = épaisseur de l'anneau blanc en mode compact (dp)
+ *   badgeDp   = diamètre total du dot en mode badges (dp)
+ *   badgeSW   = épaisseur de l'anneau blanc en mode badges (dp)
+ *   fillHex   = couleur de remplissage intérieure (vide pour METRO → couleur de ligne)
+ */
+private enum class StopTier(
+    val compactR:  Float,
+    val compactSW: Float,
+    val badgeDp:   Int,
+    val badgeSW:   Float,
+    val fillHex:   String
+) {
+    METRO   (6.0f, 3.0f, 20, 3.0f, ""),
+    TRAMWAY (5.5f, 2.5f, 17, 2.5f, "#663399"),
+    BUS_C   (4.7f, 2.2f, 15, 2.2f, "#1A338C"),
+    BUS     (3.75f, 2.0f, 13, 2.0f, "#808C9E");
+
+    companion object {
+        fun from(lines: List<String>): StopTier {
+            val modes = lines.map { TransportMode.detectFromLine(it) }
+            return when {
+                TransportMode.METRO   in modes -> METRO
+                TransportMode.TRAMWAY in modes -> TRAMWAY
+                TransportMode.BUS_C   in modes -> BUS_C
+                else                           -> BUS
+            }
+        }
+        fun primaryLine(lines: List<String>): String? =
+            lines.minByOrNull { TransportMode.detectFromLine(it).sortOrder }
+    }
+}
+
+/**
+ * Disque arrêt tier-aware : anneau blanc extérieur + noyau coloré selon la hiérarchie.
+ * Utilisé comme fallback en mode badges (arrêts sans ligne visible).
+ */
+private fun stopCompactBitmap(tier: StopTier, primaryLine: String?): Bitmap {
+    val density   = 3f
+    val outerDp   = tier.badgeDp.toFloat()
+    val outerPx   = (outerDp * density).toInt().coerceAtLeast(1)
+    val strokePx  = tier.badgeSW * density
+    val bmp       = Bitmap.createBitmap(outerPx, outerPx, Bitmap.Config.ARGB_8888)
+    val canvas    = Canvas(bmp)
+    val cx = outerPx / 2f; val cy = outerPx / 2f; val rOuter = outerPx / 2f - density * 0.3f
+    // Anneau blanc extérieur
+    canvas.drawCircle(cx, cy, rOuter, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE; style = Paint.Style.FILL
+    })
+    // Noyau coloré
+    val fillColor = if (tier == StopTier.METRO && primaryLine != null)
+        parseAndroidColor(LineColors.backgroundHex(primaryLine))
+    else parseAndroidColor(tier.fillHex)
+    canvas.drawCircle(cx, cy, rOuter - strokePx, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = fillColor; style = Paint.Style.FILL
+    })
+    return bmp
+}
+
+/**
+ * Dot tier-aware + capsules de ligne colorées (mode zoom serré).
  * Équivalent iOS : MergedStopAnnotationView.setBadges()
  *
- * Layout (bitmap en pixels @3x) :
- *   ●           ← dot 11pt centré horizontalement
- *   gap 2pt
- *   [C26][T1]…  ← badges (hauteur 11pt, police 7.5pt bold, max 4 lignes)
+ * Layout :  ●  (dot centré horizontalement, taille selon tier)
+ *           gap 2pt
+ *           [C26][T1]…  badges hauteur 11pt
+ * Le centre du dot coincide avec le centre vertical du bitmap → ICON_ANCHOR_CENTER.
  */
-private fun stopBadgeBitmap(lines: List<String>): Bitmap {
+private fun stopBadgeBitmap(lines: List<String>, tier: StopTier, primaryLine: String?): Bitmap {
     val density    = 3f
-    val dotSizePx  = (11 * density).toInt()
-    val badgeH     = (11 * density).toInt()
-    val gapPx      = (2  * density).toInt()
-    val hPadPx     = (3  * density).toInt()
+    val dotSizePx  = (tier.badgeDp * density).toInt()
+    val strokePx   = tier.badgeSW * density
+    val badgeH     = (14 * density).toInt()
+    val gapPx      = (3  * density).toInt()
+    val hPadPx     = (4  * density).toInt()
     val spacingPx  = (2  * density).toInt()
-    val textSizePx = 7.5f * density
+    val textSizePx = 9.5f * density
     val cornerR    = badgeH / 2f
 
     val capped     = lines.take(4)
@@ -1585,12 +1785,17 @@ private fun stopBadgeBitmap(lines: List<String>): Bitmap {
     val dotX = (totalW - dotSizePx) / 2f
     val cx   = dotX + dotSizePx / 2f
     val cy   = topPad + dotSizePx / 2f
-    val r    = dotSizePx / 2f - density
-    canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    val rOuter = dotSizePx / 2f - density * 0.3f
+    // Anneau blanc extérieur
+    canvas.drawCircle(cx, cy, rOuter, Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.WHITE; style = Paint.Style.FILL
     })
-    canvas.drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.parseColor("#1976D2"); style = Paint.Style.STROKE; strokeWidth = density
+    // Noyau coloré
+    val dotFill = if (tier == StopTier.METRO && primaryLine != null)
+        parseAndroidColor(LineColors.backgroundHex(primaryLine))
+    else parseAndroidColor(tier.fillHex)
+    canvas.drawCircle(cx, cy, rOuter - strokePx, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = dotFill; style = Paint.Style.FILL
     })
 
     // ── Badges ────────────────────────────────────────────────────────────

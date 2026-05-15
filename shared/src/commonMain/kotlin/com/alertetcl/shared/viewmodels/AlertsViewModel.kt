@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
 
 class AlertsViewModel(
     private val service: TclApiService = TclApiService.shared,
@@ -29,6 +30,9 @@ class AlertsViewModel(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    private val _lastUpdate = MutableStateFlow<Long?>(null)
+    val lastUpdate: StateFlow<Long?> = _lastUpdate.asStateFlow()
 
     private var pollingJob: Job? = null
 
@@ -52,6 +56,7 @@ class AlertsViewModel(
             _isLoading.value = true
             try {
                 _alerts.value = service.fetchAlerts()
+                _lastUpdate.value = Clock.System.now().epochSeconds
                 _errorMessage.value = null
             } catch (e: Throwable) {
                 AppLogger.error("AlertsViewModel error", e)

@@ -120,10 +120,14 @@ class ParkingService {
         if (coord.size < 2) return null
         val p = feature.properties
         val gid = p.gid ?: return null
-        val capacity = p.capacite ?: 0
-        val avail = p.nb_place_dispo ?: 0
-        val state = ParkingState.parse(p.etat)
-        val isRealtime = type == ParkingType.CAR
+        val capacity = when (type) {
+            ParkingType.CAR          -> p.nb_places ?: 0
+            ParkingType.BIKE         -> p.capacite ?: ((p.nbarceaux ?: 0) * 2)
+            ParkingType.MOTORIZED_2W -> p.longueur?.toInt() ?: 0
+        }
+        val avail = if (type == ParkingType.CAR) (p.places_disponibles ?: 0) else capacity
+        val state = if (type == ParkingType.CAR) ParkingState.parse(p.etat) else ParkingState.OUVERT
+        val isRealtime = true
         val rawId = "${type.iconKey}-$gid"
         return Parking(
             id = rawId,

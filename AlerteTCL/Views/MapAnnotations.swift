@@ -173,11 +173,11 @@ final class MergedStopAnnotationView: MKAnnotationView {
 
     private enum L {
         // Badges
-        static let badgeH:   CGFloat = 11
-        static let gap:      CGFloat = 2
-        static let hPad:     CGFloat = 3
+        static let badgeH:   CGFloat = 14
+        static let gap:      CGFloat = 3
+        static let hPad:     CGFloat = 4
         static let spacing:  CGFloat = 2
-        static let font = UIFont.systemFont(ofSize: 7.5, weight: .bold)
+        static let font = UIFont.systemFont(ofSize: 9.5, weight: .bold)
         static let maxBadges = 4
     }
 
@@ -317,12 +317,12 @@ final class MergedStopAnnotationView: MKAnnotationView {
             let txt = CATextLayer()
             txt.string         = item.text
             txt.font           = L.font
-            txt.fontSize       = 7.5
+            txt.fontSize       = 9.5
             txt.foregroundColor = txtColor.cgColor
             txt.alignmentMode  = .center
             txt.contentsScale  = UIScreen.main.scale
             // Centrer verticalement le texte dans le badge
-            let textH: CGFloat = 9
+            let textH: CGFloat = 12
             txt.frame          = CGRect(x: L.hPad,
                                         y: (L.badgeH - textH) / 2,
                                         width: bw - 2 * L.hPad,

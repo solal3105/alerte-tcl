@@ -31,6 +31,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Construction
 import androidx.compose.material.icons.filled.DirectionsBike
@@ -38,6 +40,7 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Plumbing
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Traffic
@@ -56,6 +59,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -80,6 +84,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.alertetcl.shared.models.Travaux
 import com.alertetcl.shared.models.TravauxAvancement
 import com.alertetcl.shared.models.TravauxImportance
+import com.alertetcl.shared.models.TravauxNatureChantier
 import com.alertetcl.shared.models.TravauxType
 import com.alertetcl.shared.viewmodels.TravauxViewModel
 import com.google.gson.JsonObject
@@ -154,18 +159,18 @@ fun TravauxScreen() {
     var showFilterSheet by remember { mutableStateOf(false) }
 
     // Local filter state (shared VM ne porte pas les filtres)
-    var selectedImportances by remember { mutableStateOf(TravauxImportance.entries.toSet()) }
-    var selectedTypes by remember { mutableStateOf(TravauxType.entries.toSet()) }
-    var selectedAvancements by remember { mutableStateOf(TravauxAvancement.entries.toSet()) }
-    val hasActiveFilters = selectedImportances.size != TravauxImportance.entries.size ||
-            selectedTypes.size != TravauxType.entries.size ||
-            selectedAvancements.size != TravauxAvancement.entries.size
+    var selectedNatureChantiers by remember { mutableStateOf(TravauxNatureChantier.entries.toSet()) }
+    var searchText by remember { mutableStateOf("") }
+    val hasActiveFilters = selectedNatureChantiers.size != TravauxNatureChantier.entries.size || searchText.isNotEmpty()
 
-    val filteredTravaux = remember(travaux, selectedImportances, selectedTypes, selectedAvancements) {
-        travaux.filter {
-            it.importance in selectedImportances &&
-            it.type in selectedTypes &&
-            it.avancement in selectedAvancements
+    val filteredTravaux = remember(travaux, selectedNatureChantiers, searchText) {
+        travaux.filter { t ->
+            t.natureChantier in selectedNatureChantiers &&
+            (searchText.isEmpty() ||
+             t.nom.contains(searchText, ignoreCase = true) ||
+             t.nomChantier.contains(searchText, ignoreCase = true) ||
+             t.commune.contains(searchText, ignoreCase = true) ||
+             t.intervenant.contains(searchText, ignoreCase = true))
         }
     }
 
@@ -378,26 +383,20 @@ fun TravauxScreen() {
             sheetState = rememberModalBottomSheetState()
         ) {
             TravauxFiltersSheet(
-                selectedImportances = selectedImportances,
-                onToggleImportance = { imp ->
-                    val s = selectedImportances.toMutableSet()
-                    if (!s.add(imp)) s.remove(imp); selectedImportances = s
+                searchText = searchText,
+                onSearchChange = { searchText = it },
+                selectedNatureChantiers = selectedNatureChantiers,
+                onToggleNature = { n ->
+                    val s = selectedNatureChantiers.toMutableSet()
+                    if (n in s) { if (s.size > 1) s.remove(n) } else s.add(n)
+                    selectedNatureChantiers = s
                 },
-                selectedTypes = selectedTypes,
-                onToggleType = { t ->
-                    val s = selectedTypes.toMutableSet()
-                    if (!s.add(t)) s.remove(t); selectedTypes = s
-                },
-                selectedAvancements = selectedAvancements,
-                onToggleAvancement = { a ->
-                    val s = selectedAvancements.toMutableSet()
-                    if (!s.add(a)) s.remove(a); selectedAvancements = s
-                },
+                filteredCount = filteredTravaux.size,
                 onReset = {
-                    selectedImportances = TravauxImportance.entries.toSet()
-                    selectedTypes = TravauxType.entries.toSet()
-                    selectedAvancements = TravauxAvancement.entries.toSet()
-                }
+                    selectedNatureChantiers = TravauxNatureChantier.entries.toSet()
+                    searchText = ""
+                },
+                onDismiss = { showFilterSheet = false }
             )
         }
     }
@@ -430,65 +429,89 @@ private fun TravauxCircleFab(
 
 @Composable
 private fun TravauxFiltersSheet(
-    selectedImportances: Set<TravauxImportance>,
-    onToggleImportance: (TravauxImportance) -> Unit,
-    selectedTypes: Set<TravauxType>,
-    onToggleType: (TravauxType) -> Unit,
-    selectedAvancements: Set<TravauxAvancement>,
-    onToggleAvancement: (TravauxAvancement) -> Unit,
-    onReset: () -> Unit
+    searchText: String,
+    onSearchChange: (String) -> Unit,
+    selectedNatureChantiers: Set<TravauxNatureChantier>,
+    onToggleNature: (TravauxNatureChantier) -> Unit,
+    filteredCount: Int,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
             Text("Filtres", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            TextButton(onClick = onReset) { Text("Réinitialiser") }
+            TextButton(onClick = onDismiss) { Text("Terminé", fontWeight = FontWeight.SemiBold) }
         }
 
-        Text("Importance", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93))
-        Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            TravauxImportance.entries.forEach { imp ->
-                FilterChip(
-                    selected = imp in selectedImportances,
-                    onClick = { onToggleImportance(imp) },
-                    label = { Text(imp.displayName, fontSize = 12.sp) }
+        OutlinedTextField(
+            value = searchText,
+            onValueChange = onSearchChange,
+            placeholder = { Text("Rechercher...", color = Color(0xFF8E8E93)) },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            shape = RoundedCornerShape(12.dp),
+            singleLine = true
+        )
+
+        HorizontalDivider()
+        Text(
+            "Type de chantier",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(0xFF8E8E93),
+            modifier = Modifier.padding(vertical = 10.dp)
+        )
+
+        TravauxNatureChantier.entries.forEach { nature ->
+            val color = Color(AndroidColor.parseColor(nature.colorHex))
+            val selected = nature in selectedNatureChantiers
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggleNature(nature) }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(shape = CircleShape, color = color.copy(alpha = 0.15f), modifier = Modifier.size(34.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(natureChantierIcon(nature), contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+                    }
+                }
+                Text(nature.displayName, modifier = Modifier.weight(1f), fontSize = 15.sp)
+                Icon(
+                    if (selected) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
+                    contentDescription = null,
+                    tint = if (selected) Color(0xFF007AFF) else Color(0xFF8E8E93),
+                    modifier = Modifier.size(22.dp)
                 )
             }
+            HorizontalDivider()
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Chantiers affichés", fontSize = 14.sp, color = Color(0xFF8E8E93))
+            Text("$filteredCount", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
 
         HorizontalDivider()
-        Text("Type de chantier", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93))
-        Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            TravauxType.entries.forEach { t ->
-                FilterChip(
-                    selected = t in selectedTypes,
-                    onClick = { onToggleType(t) },
-                    label = { Text(t.displayName, fontSize = 12.sp) }
-                )
-            }
-        }
-
-        HorizontalDivider()
-        Text("Avancement", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93))
-        Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            TravauxAvancement.entries.forEach { a ->
-                FilterChip(
-                    selected = a in selectedAvancements,
-                    onClick = { onToggleAvancement(a) },
-                    label = { Text(a.displayName, fontSize = 12.sp) }
-                )
-            }
+        TextButton(onClick = onReset, modifier = Modifier.fillMaxWidth()) {
+            Text("Réinitialiser les filtres", color = Color(0xFFE53935), fontWeight = FontWeight.SemiBold)
         }
         Spacer(Modifier.height(8.dp))
     }
+}
+
+private fun natureChantierIcon(nc: TravauxNatureChantier): ImageVector = when (nc) {
+    TravauxNatureChantier.TRANSPORTS_COMMUN -> Icons.Filled.Tram
+    TravauxNatureChantier.CYCLAB            -> Icons.Filled.DirectionsBike
+    TravauxNatureChantier.ESPACE_PUBLIC     -> Icons.Filled.Business
+    TravauxNatureChantier.CARREFOUR         -> Icons.Filled.Traffic
+    TravauxNatureChantier.ASSAINISSEMENT    -> Icons.Filled.WaterDrop
+    TravauxNatureChantier.AUTRE             -> Icons.Filled.Construction
 }
 
 private fun recenterMapOnUser(context: android.content.Context, map: MapLibreMap?) {
