@@ -102,7 +102,9 @@ import com.alertetcl.android.ui.colorFromHex
 import com.alertetcl.shared.models.BusLine
 import com.alertetcl.shared.models.ClusteringEngine
 import com.alertetcl.shared.models.LineColors
+import com.alertetcl.shared.models.MergedStop
 import com.alertetcl.shared.models.Passage
+import com.alertetcl.shared.models.StopMergingEngine
 import com.alertetcl.shared.models.TransitLine
 import com.alertetcl.shared.models.TransportMode
 import com.alertetcl.shared.models.TransitStop
@@ -277,10 +279,10 @@ fun LiveMapScreen() {
     var visibleBounds by remember { mutableStateOf<LatLngBounds?>(null) }
 
     // Stable mutable refs readable from non-composable callbacks
-    val vehiclesRef = remember { mutableStateOf<List<Vehicle>>(emptyList()) }
-    val stopsRef    = remember { mutableStateOf<List<TransitStop>>(emptyList()) }
-    vehiclesRef.value = filteredVehicles
-    stopsRef.value    = stops.value
+    val vehiclesRef     = remember { mutableStateOf<List<Vehicle>>(emptyList()) }
+    val mergedStopsRef  = remember { mutableStateOf<List<MergedStop>>(emptyList()) }
+    vehiclesRef.value    = filteredVehicles
+    mergedStopsRef.value = remember(stops.value) { StopMergingEngine.merge(stops.value) }
 
     // Parité iOS exacte :
     //   stopsZoomThreshold   = 0.018  → afficher les arrêts
@@ -303,11 +305,11 @@ fun LiveMapScreen() {
                     val ne = bounds.northEast; val sw = bounds.southWest
                     val latBuf = (ne.latitude  - sw.latitude)  * 0.3
                     val lonBuf = (ne.longitude - sw.longitude) * 0.3
-                    stopsRef.value.filter { s ->
+                    mergedStopsRef.value.filter { s ->
                         s.latitude  in (sw.latitude  - latBuf)..(ne.latitude  + latBuf) &&
                         s.longitude in (sw.longitude - lonBuf)..(ne.longitude + lonBuf)
                     }
-                } else stopsRef.value
+                } else mergedStopsRef.value
                 ClusteringEngine.cluster(filtered, max(0.001, 80.0 / 2.0.pow(currentZoom)))
             }
         }
@@ -315,7 +317,7 @@ fun LiveMapScreen() {
 
     // Selection state
     val selectedVehicleId = remember { mutableStateOf<String?>(null) }
-    val selectedStop      = remember { mutableStateOf<TransitStop?>(null) }
+    val selectedStop      = remember { mutableStateOf<MergedStop?>(null) }
 
     // Bottom sheet flags
     var showAlertsSheet by remember { mutableStateOf(false) }
@@ -374,8 +376,8 @@ fun LiveMapScreen() {
                             }
                             val sf = map.queryRenderedFeatures(pt, STOPS_LAYER, STOPS_BADGE_LAYER)
                             if (sf.isNotEmpty()) {
-                                val sid = sf[0].getNumberProperty("id")?.toInt()
-                                selectedStop.value = stopsRef.value.find { it.id == sid }
+                                val sid = sf[0].getStringProperty("id")
+                                selectedStop.value = mergedStopsRef.value.find { it.id == sid }
                                 return@addOnMapClickListener true
                             }
                             false
@@ -651,7 +653,7 @@ fun LiveMapScreen() {
         val features = if (!stopsVisible) emptyList()
         else visibleClusters.filter { it.count == 1 }.map { cl ->
             val s            = cl.items.first()
-            val visibleLines = s.lines.filter { !it.startsWith("JD", ignoreCase = true) }
+            val visibleLines = s.allLines.filter { !it.startsWith("JD", ignoreCase = true) }
             val tier         = StopTier.from(visibleLines)
             val primaryLine  = StopTier.primaryLine(visibleLines)
             val fillHex      = if (tier == StopTier.METRO && primaryLine != null)
@@ -727,7 +729,7 @@ fun LiveMapScreen() {
     }
     selectedStop.value?.let { stop ->
         ModalBottomSheet(onDismissRequest = { selectedStop.value = null }, sheetState = rememberModalBottomSheetState()) {
-            StopDetailSheet(stop)
+            MergedStopDetailSheet(stop)
         }
     }
     if (showAlertsSheet) {
@@ -1008,14 +1010,17 @@ private fun CircleFab(icon: androidx.compose.ui.graphics.vector.ImageVector, con
 private data class LineDirectionKey(val line: String, val direction: String)
 
 @Composable
-private fun StopDetailSheet(stop: TransitStop) {
+private fun MergedStopDetailSheet(stop: MergedStop) {
     val context = LocalContext.current
     val widgetStore = remember { com.alertetcl.android.data.FavoritesStore(context) }
     val widgetStops by widgetStore.widgetStops.collectAsState(initial = emptyList())
-    val isInWidget = stop.id in widgetStops
+    val isInWidget = stop.stops.any { it.id in widgetStops }
     val scope = rememberCoroutineScope()
     val passages = produceState<List<Passage>?>(initialValue = null, stop.id) {
-        value = runCatching { TransitStopService.shared.fetchPassagesForStop(stop.id) }.getOrNull() ?: emptyList()
+        val all = stop.stops.flatMap { member ->
+            runCatching { TransitStopService.shared.fetchPassagesForStop(member.id) }.getOrDefault(emptyList())
+        }.sortedBy { it.heurepassage }
+        value = all
     }
     val groupedPassages = remember(passages.value) {
         val list = passages.value ?: return@remember emptyList<Pair<LineDirectionKey, List<Passage>>>()
@@ -1048,12 +1053,12 @@ private fun StopDetailSheet(stop: TransitStop) {
                 if (stop.commune.isNotEmpty())
                     Text(stop.commune, fontSize = 13.sp, color = Color(0xFF8E8E93))
 
-                if (stop.lines.isNotEmpty()) {
+                if (stop.allLines.isNotEmpty()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        stop.lines.take(6).forEach { line ->
+                        stop.allLines.take(6).forEach { line ->
                             com.alertetcl.android.ui.alerts.LineBadge(line, size = 28.dp, fontSize = 12.sp)
                         }
-                        if (stop.lines.size > 6) Text("+${stop.lines.size - 6}", fontSize = 11.sp,
+                        if (stop.allLines.size > 6) Text("+${stop.allLines.size - 6}", fontSize = 11.sp,
                             color = Color(0xFF8E8E93), modifier = Modifier.padding(start = 4.dp))
                     }
                 }
@@ -1073,8 +1078,8 @@ private fun StopDetailSheet(stop: TransitStop) {
         Button(
             onClick = {
                 scope.launch {
-                    if (isInWidget) widgetStore.removeWidgetStop(stop.id)
-                    else widgetStore.addWidgetStop(stop.id)
+                    if (isInWidget) stop.stops.forEach { widgetStore.removeWidgetStop(it.id) }
+                    else stop.stops.firstOrNull()?.let { widgetStore.addWidgetStop(it.id) }
                 }
             },
             modifier = Modifier.fillMaxWidth(),

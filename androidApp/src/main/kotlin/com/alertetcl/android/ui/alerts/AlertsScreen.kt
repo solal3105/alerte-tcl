@@ -55,7 +55,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -74,14 +73,10 @@ import androidx.compose.ui.unit.sp
 import com.alertetcl.android.data.FavoritesStore
 import com.alertetcl.android.ui.colorFromHex
 import com.alertetcl.shared.models.AlertSeverity
-import com.alertetcl.shared.models.BusLine
 import com.alertetcl.shared.models.LineColors
 import com.alertetcl.shared.models.TCLAlert
-import com.alertetcl.shared.models.TransitLine
 import com.alertetcl.shared.models.TransportLine
 import com.alertetcl.shared.models.TransportMode
-import com.alertetcl.shared.services.BusLineService
-import com.alertetcl.shared.services.TransitLineService
 import com.alertetcl.shared.viewmodels.AlertsViewModel
 import kotlinx.coroutines.launch
 
@@ -111,23 +106,7 @@ fun AlertsScreen() {
     val scope = rememberCoroutineScope()
     val favorites by store.favoriteLines.collectAsState(initial = emptySet())
 
-    val transitLines = produceState<List<TransitLine>>(initialValue = emptyList()) {
-        value = runCatching { TransitLineService.shared.fetchTransitLines() }.getOrDefault(emptyList())
-    }
-    val busLines = produceState<List<BusLine>>(initialValue = emptyList()) {
-        value = runCatching { BusLineService.shared.fetchBusLines() }.getOrDefault(emptyList())
-    }
-    val allLines: List<TransportLine> = remember(transitLines.value, busLines.value) {
-        val tl = transitLines.value.map {
-            // Utiliser familyTransport (Grand Lyon) plutôt que detectFromLine(name) :
-            // les lignes TB11, RX, TS ont un nom qui ne matche pas les patterns ≤ 3 chars.
-            TransportLine.create(it.name, it.name, TransportMode.fromString(it.familyTransport))
-        }
-        val bl = busLines.value.map {
-            TransportLine.create(it.name, it.name, TransportMode.detectFromLine(it.name))
-        }
-        (tl + bl).distinctBy { it.ligneCom }
-    }
+    val allLines: List<TransportLine> = TransportLine.allPredefinedLines
 
     val subscribedLines = remember(allLines, favorites) {
         allLines.filter { it.ligneCom in favorites }

@@ -171,6 +171,11 @@ fun ParkingScreen() {
     val isCarSelected = ParkingType.CAR in selectedTypes
     val currentRegion = remember { mutableStateOf<GeoRegion?>(null) }
 
+    // Recharger immédiatement quand le type ou les filtres changent
+    LaunchedEffect(selectedTypes, showParcRelais, showRealtimeParkings) {
+        currentRegion.value?.let { vm.loadInRegion(it) }
+    }
+
     // Countdown auto-refresh 60s (voitures seulement, comme iOS)
     var secondsUntilRefresh by remember { mutableIntStateOf(60) }
     LaunchedEffect(isCarSelected) {

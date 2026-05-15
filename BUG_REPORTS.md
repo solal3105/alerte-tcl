@@ -14,23 +14,23 @@
 **3. Tracés de lignes** ✅ *Corrigé le 15/05 (Android)*
 - ~~Toutes les lignes sont tracées même quand une seule est sélectionnée dans les filtres~~ — `LaunchedEffect` des tracés ne dépendait pas de `selectedLines` ; ajout de `selectedLines` comme clé + filtre `line.name !in selectedLines` quand non vide
 
-**4. Données SIRI / passages**
-- Tramways : position non mise à jour en temps réel → horaires "prochain passage" incorrects
-- Métro B (Debourg) : aucun passage affiché direction Charpennes
-- Métro D (Vieux Lyon) : aucun passage affiché direction Gare de Vaise
-- Funiculaires : les données d'arrivées (terminus) s'affichent au lieu des seuls départs (Vieux Lyon, Fourvière, Saint-Just)
+**4. Données SIRI / passages** *(problème côté API TCL — non corrigeable)*
+- Tramways : position non mise à jour en temps réel → horaires "prochain passage" incorrects — même comportement sur iOS, données TCL
+- Métro B (Debourg) : aucun passage affiché direction Charpennes — données absentes dans l'API SIRI
+- Métro D (Vieux Lyon) : aucun passage affiché direction Gare de Vaise — même cause
+- Funiculaires : les données d'arrivées (terminus) s'affichent au lieu des seuls départs — même cause
 
 ---
 
 ## Bugs mineurs
 
-**5. Favoris info trafic**
-- Impossible d'ajouter une ligne de bus classique en favoris depuis l'onglet "Info trafic"
+**5. Favoris info trafic** ✅ *Corrigé (Android)*
+- ~~Impossible d'ajouter une ligne de bus classique en favoris depuis l'onglet "Info trafic"~~ — `allLines` était construite depuis l'API (metro/funi/tram + Bus C seulement) ; remplacée par `TransportLine.allPredefinedLines` (liste statique complète, parité iOS)
 
-**6. Parking**
-- Temps de chargement long entre les onglets Vélo et 2 roues
+**6. Parking** ✅ *Corrigé (Android)*
+- ~~Temps de chargement long entre les onglets Vélo et 2 roues~~ — aucun `LaunchedEffect` ne déclenchait `loadInRegion` lors du changement de type ; ajout d'un `LaunchedEffect(selectedTypes, showParcRelais, showRealtimeParkings)` pour recharger immédiatement
 
-**7. Erreurs de chargement occasionnelles** (non reproductibles précisément)
+**7. Erreurs de chargement occasionnelles** *(non reproductible — skip)*
 
 ---
 
@@ -52,11 +52,11 @@
 
 ## Suggestions d'amélioration
 
-**12. Horaires théoriques tramway**
-- Au clic sur "prochain arrêt", afficher les horaires théoriques pour tous les arrêts suivants de la ligne
+**12. Horaires théoriques tramway** *(pas de données — skip)*
+- Nécessiterait les IDs d'arrêt par séquence dans `TransitLine` ; le modèle actuel ne contient que la géométrie
 
-**13. Regroupement des arrêts (ex: Debourg)**
-- Un seul point cliquable par station ouvrant un menu à deux colonnes (une par direction)
+**13. Regroupement des arrêts (ex: Debourg)** ✅ *Corrigé (Android)*
+- ~~Un seul point cliquable par station ouvrant un menu à deux colonnes (une par direction)~~ — `StopMergingEngine` porté en KMP shared (grille 55m + Union-Find, fusion à < 30m si mêmes lignes, parité iOS). `ClusteringEngine` consomme désormais des `MergedStop`. Fiche arrêt agrège les passages de tous les sous-arrêts fusionnés.
 
-**14. Funiculaire F1 (Minimes – Théâtres Romains)**
-- Fusionner les départs en un seul point (direction alternée, non critique pour l'usager)
+**14. Funiculaire F1 (Minimes – Théâtres Romains)** ✅ *Corrigé (Android)*
+- ~~Fusionner les départs en un seul point (direction alternée, non critique pour l'usager)~~ — même fix que #13 ; les deux quais du funiculaire sont fusionnés par `StopMergingEngine`
