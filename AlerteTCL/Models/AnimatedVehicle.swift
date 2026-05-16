@@ -15,7 +15,7 @@ final class AnimatedVehicle: Identifiable {
     private var sourceBearing: Double
     private var targetBearing: Double
     private var startTime: CFTimeInterval = 0
-    private var duration: TimeInterval = 10.0
+    private var duration: TimeInterval = 5.0
 
     /// Dernier objet Vehicle reçu de l'API (permet de réinjecter les véhicules en période de grâce).
     private(set) var lastVehicle: Vehicle
@@ -23,8 +23,8 @@ final class AnimatedVehicle: Identifiable {
     var lastSeenAt: Date = Date()
     var isActive: Bool = true
 
-    /// Suppression après ~2 cycles sans données (API publie toutes les ~30 s, on poll toutes les 15 s).
-    /// 25 s = 1 cycle API manqué sans qu'un fantôme reste trop longtemps à l'écran.
+    /// Suppression après ~2 cycles sans données (API publie toutes les ~15 s, on poll toutes les 15 s).
+    /// 25 s = 1 cycle manqué sans qu'un fantôme reste trop longtemps à l'écran.
     static let gracePeriod: TimeInterval = 25.0
 
     var shouldBeRemoved: Bool {

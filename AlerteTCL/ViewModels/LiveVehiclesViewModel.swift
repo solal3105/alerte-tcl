@@ -59,9 +59,9 @@ final class LiveVehiclesViewModel: ObservableObject {
     private var regionUpdateTask: Task<Void, Never>?
     private var consecutiveErrors = 0
     /// L'API SIRI Lite TCL publie de nouvelles positions toutes les ~30 s.
-    /// On fetch à 15 s pour aligner avec le TTL du cache Cloudflare (15 s) et
-    /// réduire le décalage worst-case de 45 s → 30 s. Les requêtes supplémentaires
-    /// sont absorbées par le cache serveur (Grand Lyon reçoit toujours ≤ 1 req/15 s).
+    /// L'API SIRI Lite TCL publie de nouvelles positions toutes les ~15 s.
+    /// On fetch à 15 s pour aligner avec le TTL du cache Cloudflare (15 s) :
+    /// chaque requête retourne des données fraîches. Grand Lyon reçoit ≤ 1 req/15 s.
     private let baseInterval: TimeInterval = 15
     private let maxInterval: TimeInterval = 60
     private var cancellables = Set<AnyCancellable>()
@@ -280,7 +280,7 @@ final class LiveVehiclesViewModel: ObservableObject {
         
         for vehicle in newVehicles {
             if let existing = animatedVehicles[vehicle.id] {
-                existing.updateTarget(vehicle: vehicle, duration: baseInterval, currentTime: now, reduceMotion: reduceMotion)
+                existing.updateTarget(vehicle: vehicle, duration: 5.0, currentTime: now, reduceMotion: reduceMotion)
                 existing.lastSeenAt = Date()
                 existing.isActive = true
                 updated[vehicle.id] = existing

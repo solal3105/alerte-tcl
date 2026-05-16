@@ -1,6 +1,8 @@
 package com.alertetcl.android.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
@@ -9,9 +11,11 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalSize
+import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -55,7 +59,8 @@ class TCLBoardGlanceWidget : GlanceAppWidget() {
         val config = appWidgetId?.let { WidgetConfigStore.load(context, it) }
 
         if (config == null) {
-            provideContent { BoardNotConfigured() }
+            val widId = appWidgetId ?: AppWidgetManager.INVALID_APPWIDGET_ID
+            provideContent { BoardNotConfigured(context, widId) }
             return
         }
 
@@ -83,11 +88,17 @@ class TCLBoardGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
 // ── Not configured ────────────────────────────────────────────────────────────
 
 @Composable
-private fun BoardNotConfigured() {
+private fun BoardNotConfigured(context: Context, widgetId: Int) {
+    val clickAction = actionStartActivity(
+        Intent(context, WidgetConfigActivity::class.java)
+            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    )
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(ColorProvider(boardBg)),
+            .background(ColorProvider(boardBg))
+            .clickable(clickAction),
         verticalAlignment = Alignment.CenterVertically,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -102,7 +113,7 @@ private fun BoardNotConfigured() {
         )
         Spacer(GlanceModifier.height(4.dp))
         Text(
-            "Maintenir pour configurer",
+            "Appuyer pour configurer",
             style = TextStyle(
                 color = ColorProvider(ledGreen.copy(alpha = 0.45f)),
                 fontSize = 8.sp,

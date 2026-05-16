@@ -42,6 +42,7 @@ data class Vehicle(
     val lineName: String,
     val vehicleType: VehicleType,
     val destination: String,
+    val direction: String = "",
     val delay: Int,
     val status: String? = null,
     val recordedAtEpoch: Long? = null,

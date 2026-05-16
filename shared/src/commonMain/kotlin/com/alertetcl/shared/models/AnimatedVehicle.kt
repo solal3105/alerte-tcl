@@ -11,11 +11,11 @@ import kotlinx.datetime.Clock
  *
  * - Distance > 500m : téléportation immédiate
  * - Distance < 1m : pas d'animation (bruit GPS)
- * - Sinon : interpolation easeOutQuad sur durée de transition
+ * - Sinon : interpolation easeOutQuad sur 5 s (chaque fetch API → nouvelle transition)
  */
 class AnimatedVehicle(
     initial: Vehicle,
-    var transitionDuration: Double = 1.5,
+    var transitionDuration: Double = 5.0,
     var teleportDistanceMeters: Double = 500.0,
     var noiseDistanceMeters: Double = 1.0,
     var gracePeriodSeconds: Double = 45.0
@@ -30,7 +30,23 @@ class AnimatedVehicle(
     private var transitionStartedAt: Double = nowSeconds()
     private var lastUpdateAt: Double = nowSeconds()
 
+    // Deltas pré-calculés à chaque updateWith pour éviter les soustractions répétées à 10 Hz.
+    private var latDelta: Double = 0.0
+    private var lngDelta: Double = 0.0
+    private var bearingDelta: Double = 0.0
+    private var transitionDurationInv: Double = 1.0 / transitionDuration
+
     private fun nowSeconds(): Double = Clock.System.now().toEpochMilliseconds() / 1000.0
+
+    private fun recomputeDeltas() {
+        latDelta = targetCoord.latitude  - sourceCoord.latitude
+        lngDelta = targetCoord.longitude - sourceCoord.longitude
+        var bd   = targetBearing - sourceBearing
+        if (bd >  180) bd -= 360
+        if (bd < -180) bd += 360
+        bearingDelta         = bd
+        transitionDurationInv = 1.0 / transitionDuration
+    }
 
     fun updateWith(newVehicle: Vehicle) {
         val now = nowSeconds()
@@ -52,6 +68,7 @@ class AnimatedVehicle(
                 currentVehicle = newVehicle
                 transitionStartedAt = now
                 lastUpdateAt = now
+                recomputeDeltas()
             }
             else -> {
                 sourceCoord = currentInterpolatedCoordinate(now)
@@ -61,6 +78,7 @@ class AnimatedVehicle(
                 currentVehicle = newVehicle
                 transitionStartedAt = now
                 lastUpdateAt = now
+                recomputeDeltas()
             }
         }
     }
@@ -68,22 +86,18 @@ class AnimatedVehicle(
     fun currentInterpolatedCoordinate(now: Double = nowSeconds()): LatLng {
         val elapsed = now - transitionStartedAt
         if (elapsed >= transitionDuration) return targetCoord
-        val t = easeOutQuad(elapsed / transitionDuration)
+        val t = easeOutQuad(elapsed * transitionDurationInv)
         return LatLng(
-            sourceCoord.latitude  + (targetCoord.latitude  - sourceCoord.latitude)  * t,
-            sourceCoord.longitude + (targetCoord.longitude - sourceCoord.longitude) * t
+            sourceCoord.latitude  + latDelta * t,
+            sourceCoord.longitude + lngDelta * t
         )
     }
 
     fun currentInterpolatedBearing(now: Double = nowSeconds()): Double {
         val elapsed = now - transitionStartedAt
         if (elapsed >= transitionDuration) return targetBearing
-        val t = easeOutQuad(elapsed / transitionDuration)
-        // Interpolation circulaire (modulo 360)
-        var diff = targetBearing - sourceBearing
-        if (diff > 180) diff -= 360
-        if (diff < -180) diff += 360
-        var v = sourceBearing + diff * t
+        val t = easeOutQuad(elapsed * transitionDurationInv)
+        var v = sourceBearing + bearingDelta * t
         if (v < 0) v += 360
         if (v >= 360) v -= 360
         return v

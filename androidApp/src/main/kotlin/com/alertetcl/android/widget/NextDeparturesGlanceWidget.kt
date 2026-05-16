@@ -1,6 +1,8 @@
 package com.alertetcl.android.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
@@ -9,9 +11,11 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalSize
+import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -46,7 +50,8 @@ class NextDeparturesGlanceWidget : GlanceAppWidget() {
         val config = appWidgetId?.let { WidgetConfigStore.load(context, it) }
 
         if (config == null) {
-            provideContent { NotConfiguredContent("") }
+            val widId = appWidgetId ?: AppWidgetManager.INVALID_APPWIDGET_ID
+            provideContent { NotConfiguredContent("", context, widId) }
             return
         }
 
@@ -87,14 +92,20 @@ class NextDeparturesGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
 // ── Not-configured state ──────────────────────────────────────────────────────
 
 @Composable
-private fun NotConfiguredContent(lineName: String) {
+private fun NotConfiguredContent(lineName: String, context: Context, widgetId: Int) {
     val lineColor = if (lineName.isNotEmpty()) LineColorHelper.backgroundColor(lineName)
                    else Color(0xFF1565C0)
+    val clickAction = actionStartActivity(
+        Intent(context, WidgetConfigActivity::class.java)
+            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    )
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
             .background(ColorProvider(Color(0xFFF5F5F5)))
-            .padding(16.dp),
+            .padding(16.dp)
+            .clickable(clickAction),
         verticalAlignment = Alignment.CenterVertically,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -103,7 +114,7 @@ private fun NotConfiguredContent(lineName: String) {
             Spacer(GlanceModifier.height(8.dp))
         }
         Text(
-            "Maintenir pour configurer",
+            "Appuyer pour configurer",
             style = TextStyle(
                 color = ColorProvider(Color(0xFF888888)),
                 fontSize = 11.sp,

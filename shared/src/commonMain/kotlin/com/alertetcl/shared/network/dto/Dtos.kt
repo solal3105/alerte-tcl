@@ -219,6 +219,7 @@ data class VehicleActivity(
 @Serializable
 data class MonitoredVehicleJourney(
     @SerialName("LineRef") val LineRef: SiriValue? = null,
+    @SerialName("DirectionRef") val DirectionRef: SiriValue? = null,
     @SerialName("VehicleRef") val VehicleRef: SiriValue? = null,
     @SerialName("DestinationRef") val DestinationRef: SiriValue? = null,
     @SerialName("VehicleLocation") val VehicleLocation: VehicleLocation? = null,

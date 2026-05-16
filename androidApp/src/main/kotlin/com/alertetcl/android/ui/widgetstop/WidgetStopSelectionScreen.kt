@@ -47,17 +47,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alertetcl.android.data.FavoritesStore
+import com.alertetcl.android.data.WidgetSelection
 import com.alertetcl.android.ui.alerts.LineBadge
+import com.alertetcl.android.widget.NextDeparturesGlanceWidgetReceiver
 import com.alertetcl.shared.models.TransitStop
+import com.alertetcl.shared.services.SiriLiteService
 import com.alertetcl.shared.services.TransitStopService
 import com.alertetcl.android.ui.theme.StatusSuccess
-import com.alertetcl.android.ui.theme.StatusError
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,7 +71,8 @@ fun WidgetStopSelectionScreen() {
     val context = LocalContext.current
     val store = remember { FavoritesStore(context) }
     val scope = rememberCoroutineScope()
-    val widgetStops by store.widgetStops.collectAsState(initial = emptyList())
+    val widgetSelections by store.widgetSelections.collectAsState(initial = emptyList())
+    val widgetStopIds = remember(widgetSelections) { widgetSelections.map { it.stopId }.toSet() }
 
     val allStops = produceState<List<TransitStop>>(initialValue = emptyList()) {
         value = runCatching { TransitStopService.shared.fetchStops() }.getOrDefault(emptyList())
@@ -82,9 +88,6 @@ fun WidgetStopSelectionScreen() {
             .filter { it.nom.contains(q, ignoreCase = true) || it.commune.contains(q, ignoreCase = true) }
             .take(40)
             .toList()
-    }
-    val selectedStops = remember(allStops.value, widgetStops) {
-        allStops.value.filter { it.id in widgetStops }
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -107,19 +110,18 @@ fun WidgetStopSelectionScreen() {
             contentPadding = PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            if (selectedStops.isNotEmpty()) {
+            if (widgetSelections.isNotEmpty()) {
                 item {
                     Text(
-                        "Arrêts ajoutés (${selectedStops.size})",
+                        "Sélections widget (${widgetSelections.size})",
                         style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 6.dp, top = 4.dp, bottom = 4.dp)
                     )
                 }
-                items(selectedStops, key = { "sel_${it.id}" }) { stop ->
-                    WidgetStopRow(
-                        stop = stop, isSelected = true,
-                        onTap = { showAddSheet = stop },
-                        onRemove = { scope.launch { store.removeWidgetStop(stop.id) } }
+                items(widgetSelections, key = { "sel_${it.id}" }) { sel ->
+                    WidgetSelectionRow(
+                        sel = sel,
+                        onRemove = { scope.launch { store.removeWidgetSelection(sel.id) } }
                     )
                 }
                 item {
@@ -136,7 +138,7 @@ fun WidgetStopSelectionScreen() {
                 }
                 items(filtered, key = { "search_${it.id}" }) { stop ->
                     WidgetStopRow(
-                        stop = stop, isSelected = stop.id in widgetStops,
+                        stop = stop, isSelected = stop.id in widgetStopIds,
                         onTap = { showAddSheet = stop }, onRemove = null
                     )
                 }
@@ -158,9 +160,16 @@ fun WidgetStopSelectionScreen() {
         ) {
             AddToWidgetSheet(
                 stop = stop,
-                isAlreadySaved = stop.id in widgetStops,
-                onAdd = {
-                    scope.launch { store.addWidgetStop(stop.id) }
+                isAlreadySaved = stop.id in widgetStopIds,
+                onAdd = { lineName, dirCode, destLabel ->
+                    val sel = WidgetSelection(
+                        id = "${stop.id}-$lineName-$dirCode",
+                        stopId = stop.id,
+                        stopName = stop.nom,
+                        lineName = lineName,
+                        direction = destLabel,
+                    )
+                    scope.launch { store.addWidgetSelection(sel) }
                 },
                 onDismiss = { showAddSheet = null }
             )
@@ -229,17 +238,52 @@ private fun WidgetStopRow(
     }
 }
 
+// ─── Selection row (saved widget entries) ────────────────────────────────
+
+@Composable
+private fun WidgetSelectionRow(sel: WidgetSelection, onRemove: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            LineBadge(sel.lineName, size = 36.dp, fontSize = 14.sp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(sel.stopName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text("→ ${formatDirection(sel.direction)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
+            IconButton(onClick = onRemove) {
+                Icon(Icons.Filled.Delete, "Retirer", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
 // ─── Add-to-widget sheet (iOS parity) ────────────────────────────────────
 
 @Composable
 private fun AddToWidgetSheet(
     stop: TransitStop,
     isAlreadySaved: Boolean,
-    onAdd: () -> Unit,
+    onAdd: (lineName: String, directionCode: String, destinationLabel: String) -> Unit,
     onDismiss: () -> Unit
 ) {
     var selectedLineDirection by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showConfirmation by remember { mutableStateOf(isAlreadySaved) }
+
+    val destinationMap = produceState<Map<String, String>>(initialValue = emptyMap(), stop) {
+        value = runCatching {
+            SiriLiteService.shared.fetchVehicles()
+                .associate { "${it.lineName}|${it.direction}" to it.destination }
+                .filterValues { it.isNotBlank() }
+        }.getOrDefault(emptyMap())
+    }
 
     val lineDirections = remember(stop) {
         val items = stop.desserte.split(",").mapNotNull {
@@ -284,6 +328,7 @@ private fun AddToWidgetSheet(
                     val isSel = selectedLineDirection?.first == line && selectedLineDirection?.second == direction
                     LineDirectionRow(
                         line = line, direction = direction,
+                        destinationName = destinationMap.value["${line}|${direction}"] ?: "",
                         isSelected = isSel, isAlreadySaved = isAlreadySaved,
                         onClick = { selectedLineDirection = line to direction }
                     )
@@ -293,7 +338,9 @@ private fun AddToWidgetSheet(
             if (selectedLineDirection != null) {
                 Button(
                     onClick = {
-                        onAdd()
+                        val (line, dirCode) = selectedLineDirection!!
+                        val destLabel = destinationMap.value["${line}|${dirCode}"] ?: formatDirection(dirCode)
+                        onAdd(line, dirCode, destLabel)
                         showConfirmation = true
                     },
                     modifier = Modifier.fillMaxWidth().padding(20.dp).height(50.dp),
@@ -315,6 +362,7 @@ private fun AddToWidgetSheet(
 @Composable
 private fun LineDirectionRow(
     line: String, direction: String,
+    destinationName: String = "",
     isSelected: Boolean, isAlreadySaved: Boolean, onClick: () -> Unit
 ) {
     val borderColor = when {
@@ -339,7 +387,7 @@ private fun LineDirectionRow(
             LineBadge(line, size = 36.dp, fontSize = 14.sp)
             Column(modifier = Modifier.weight(1f)) {
                 Text("Direction", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(direction, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 2)
+                Text(destinationName.ifBlank { formatDirection(direction) }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 2)
             }
             when {
                 isAlreadySaved -> Icon(Icons.Filled.CheckCircle, null,
@@ -355,6 +403,7 @@ private fun LineDirectionRow(
 
 @Composable
 private fun ConfirmationOverlay(onDismiss: () -> Unit) {
+    val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)),
         contentAlignment = Alignment.Center) {
         Surface(
@@ -374,20 +423,36 @@ private fun ConfirmationOverlay(onDismiss: () -> Unit) {
                 ) {
                     Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(40.dp))
                 }
-                Text("Ajouté au widget !", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text("Arrêt enregistré !", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Text(
-                    "Maintenez appuyé sur votre écran d'accueil pour ajouter le widget « Prochains passages »",
+                    "Appuyez ci-dessous pour placer le widget « Prochains passages » sur votre écran d'accueil.",
                     fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
                 Button(
-                    onClick = onDismiss,
+                    onClick = {
+                        val manager = AppWidgetManager.getInstance(context)
+                        val provider = ComponentName(context, NextDeparturesGlanceWidgetReceiver::class.java)
+                        if (manager.isRequestPinAppWidgetSupported) {
+                            manager.requestPinAppWidget(provider, null, null)
+                        }
+                        onDismiss()
+                    },
                     modifier = Modifier.fillMaxWidth().height(46.dp),
                     shape = MaterialTheme.shapes.medium
                 ) {
-                    Text("Compris", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text("Ajouter le widget", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Plus tard", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
     }
+}
+
+private fun formatDirection(d: String): String = when (d.trim().uppercase()) {
+    "A" -> "Aller"
+    "R" -> "Retour"
+    else -> d
 }

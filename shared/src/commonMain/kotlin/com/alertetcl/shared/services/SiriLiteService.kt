@@ -79,6 +79,7 @@ class SiriLiteService {
             val lineName = extractLineName(lineRef)
             val type = detectVehicleType(lineName)
             val destination = extractDestination(journey.DestinationRef?.value)
+            val direction = journey.DirectionRef?.value?.trim()?.uppercase() ?: ""
             val delay = parseDurationSeconds(journey.Delay)
             val nextStop = parseMonitoredCall(journey.MonitoredCall)
 
@@ -91,6 +92,7 @@ class SiriLiteService {
                 lineName = lineName,
                 vehicleType = type,
                 destination = destination,
+                direction = direction,
                 delay = delay,
                 status = journey.VehicleStatus,
                 recordedAtEpoch = parseIsoEpoch(activity.RecordedAtTime),
