@@ -9,13 +9,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.alertetcl.android.ui.AlerteTCLApp
+import com.alertetcl.android.ui.theme.AlerteTCLTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val initialRoute = intent?.getStringExtra(EXTRA_INITIAL_ROUTE)
         setContent {
-            MaterialTheme {
+            AlerteTCLTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     AlerteTCLApp(initialRoute = initialRoute)
                 }

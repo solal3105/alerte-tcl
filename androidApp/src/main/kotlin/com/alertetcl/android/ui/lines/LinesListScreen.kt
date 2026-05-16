@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -57,8 +58,7 @@ import com.alertetcl.shared.models.TCLAlert
 import com.alertetcl.shared.models.TransportMode
 import kotlinx.coroutines.launch
 
-private val secondary = Color(0xFF8E8E93)
-private val groupedBg = Color(0xFFF2F2F7)
+
 
 /**
  * Vue liste des lignes équivalente à `LinesListView.swift` (iOS) :
@@ -97,12 +97,12 @@ fun LinesListScreen(
             .mapValues { (_, list) -> list.sortedBy { it.first } }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(groupedBg)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // Search bar (parité iOS .searchable)
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            placeholder = { Text("Rechercher une ligne", fontSize = 14.sp) },
+            placeholder = { Text("Rechercher une ligne", style = MaterialTheme.typography.bodyMedium) },
             leadingIcon = { Icon(Icons.Filled.Search, null, modifier = Modifier.size(18.dp)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
@@ -232,7 +232,7 @@ fun LinesListScreen(
 private fun ModeFilterPill(title: String, icon: ImageVector, isSelected: Boolean, onClick: () -> Unit) {
     Surface(
         shape = RoundedCornerShape(50),
-        color = if (isSelected) Color.Black else Color(0xFFE5E5EA),
+        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
         shadowElevation = 2.dp,
         modifier = Modifier.clickable { onClick() }
     ) {
@@ -242,9 +242,9 @@ private fun ModeFilterPill(title: String, icon: ImageVector, isSelected: Boolean
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Icon(icon, null,
-                tint = if (isSelected) Color.White else Color.Black, modifier = Modifier.size(12.dp))
+                tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(12.dp))
             Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                color = if (isSelected) Color.White else Color.Black)
+                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
         }
     }
 }
@@ -252,12 +252,12 @@ private fun ModeFilterPill(title: String, icon: ImageVector, isSelected: Boolean
 @Composable
 private fun LineCard(line: String, alertCount: Int, isSubscribed: Boolean, onClick: () -> Unit) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = Color.White,
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
         modifier = Modifier
             .fillMaxWidth()
             .height(100.dp)
-            .shadow(4.dp, RoundedCornerShape(16.dp))
+            .shadow(4.dp, MaterialTheme.shapes.large)
             .clickable { onClick() }
     ) {
         Box(modifier = Modifier.fillMaxSize().padding(14.dp)) {
@@ -267,16 +267,16 @@ private fun LineCard(line: String, alertCount: Int, isSubscribed: Boolean, onCli
             ) {
                 Text(
                     line,
-                    fontSize = 28.sp,
+                    style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Black,
-                    color = Color.Black,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     modifier = Modifier.weight(1f)
                 )
                 Icon(
                     if (isSubscribed) Icons.Filled.Notifications else Icons.Outlined.Notifications,
                     null,
-                    tint = Color.Black,
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -284,10 +284,10 @@ private fun LineCard(line: String, alertCount: Int, isSubscribed: Boolean, onCli
                 if (alertCount > 0) {
                     Text(
                         "$alertCount alerte${if (alertCount > 1) "s" else ""}",
-                        fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color.Black
+                        style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface
                     )
                 } else {
-                    Text("RAS", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = secondary)
+                    Text("RAS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

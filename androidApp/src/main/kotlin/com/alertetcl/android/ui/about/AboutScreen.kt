@@ -2,11 +2,6 @@ package com.alertetcl.android.ui.about
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import com.alertetcl.android.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Forum
@@ -41,22 +35,33 @@ import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.outlined.OpenInNew
+import androidx.compose.material3.Button
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alertetcl.android.R
+import com.alertetcl.android.ui.theme.StatusSuccess
+import com.alertetcl.android.ui.theme.StatusWarning
 
 @Composable
 fun AboutScreen() {
@@ -70,8 +75,8 @@ fun AboutScreen() {
             .fillMaxSize()
             .statusBarsPadding()
             .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 120.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item { HeroSection() }
         item { ManifestoCard() }
@@ -82,50 +87,94 @@ fun AboutScreen() {
         item { ContactCard() }
         item { LinksFooter() }
         item { VersionFooter(versionName, versionCode) }
-        item { Spacer(Modifier.height(20.dp)) }
     }
 }
 
 @Composable
 private fun HeroSection() {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Image(
             painter = painterResource(id = R.mipmap.ic_launcher),
             contentDescription = "App icon",
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .size(96.dp)
-                .clip(RoundedCornerShape(22.dp))
-                .shadow(elevation = 8.dp, shape = RoundedCornerShape(22.dp))
+                .size(88.dp)
+                .clip(MaterialTheme.shapes.extraLarge)
         )
-        Text("Lyon Pocket", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        Text(
-            "Les transports lyonnais, en direct.",
-            fontSize = 14.sp,
-            color = Color.Gray,
-            textAlign = TextAlign.Center
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                "Lyon Pocket",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Les transports lyonnais, en direct.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
 @Composable
-private fun ManifestoCard() = Card {
-    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Badge(Icons.Filled.CheckCircle, Color(0xFF43A047))
-            Text("Respectueuse, par conception", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+private fun ManifestoCard() {
+    ElevatedCard(
+        shape = MaterialTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            ListItem(
+                headlineContent = {
+                    Text("Respectueuse, par conception", style = MaterialTheme.typography.titleMedium)
+                },
+                leadingContent = { SectionIcon(Icons.Filled.CheckCircle, StatusSuccess) },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+            )
+            Text(
+                "Lyon Pocket est gratuit, sans publicité, sans compte. Aucune donnée personnelle n'est collectée. C'est tout.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp)
+            )
+            Row(
+                modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                SuggestionChip(onClick = {}, label = { Text("Gratuit") })
+                SuggestionChip(onClick = {}, label = { Text("Sans pub") })
+                SuggestionChip(onClick = {}, label = { Text("Sans tracking") })
+            }
         }
-        Text(
-            "Lyon Pocket est gratuit, sans publicité, sans compte. Aucune donnée personnelle n'est collectée. C'est tout.",
-            fontSize = 14.sp
+    }
+}
+
+@Composable
+private fun CreatorCard() {
+    ElevatedCard(
+        shape = MaterialTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        ListItem(
+            headlineContent = { Text("Derrière Lyon Pocket", style = MaterialTheme.typography.titleMedium) },
+            leadingContent = { SectionIcon(Icons.Filled.Person, MaterialTheme.colorScheme.primary) },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Pill("Gratuit"); Pill("Sans pub"); Pill("Sans tracking")
-        }
+        Text(
+            "Solal Gendrin, conseiller métropolitain à Lyon. Lyon Pocket est un projet personnel, né d'un usage quotidien des TCL.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+        )
     }
 }
 
@@ -154,16 +203,16 @@ private fun OpenProjetsCard() {
                 ) { Icon(Icons.Filled.Map, null, tint = Color.White, modifier = Modifier.size(19.dp)) }
                 Column {
                     Text("Open Projets by Vazy", fontWeight = FontWeight.SemiBold, color = Color.White, fontSize = 15.sp)
-                    Text("Mon autre projet", fontSize = 12.sp, color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.Medium)
+                    Text("Mon autre projet", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.Medium)
                 }
             }
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     "Vous travaillez dans une collectivité ou vous êtes élu ?",
-                    fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp
+                    fontWeight = FontWeight.Bold, color = Color.White, style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
-                    "Avec Vazy, société à mission villeurbannaise, on a construit Open Projets : une carte interactive que chaque commune peut déployer pour informer ses habitants sur ses chantiers et projets d’aménagement.",
+                    "Avec Vazy, société à mission villeurbannaise, on a construit Open Projets : une carte interactive que chaque commune peut déployer pour informer ses habitants sur ses chantiers et projets d'aménagement.",
                     color = Color.White.copy(alpha = 0.88f), fontSize = 13.sp, lineHeight = 18.sp
                 )
                 Text(
@@ -184,7 +233,7 @@ private fun OpenProjetsCard() {
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Découvrir Open Projets", color = Color(0xFF1F3399), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text("Découvrir Open Projets", color = Color(0xFF1F3399), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
                         Spacer(Modifier.width(6.dp))
                         Icon(Icons.Outlined.OpenInNew, null, tint = Color(0xFF1F3399), modifier = Modifier.size(14.dp))
                     }
@@ -201,7 +250,7 @@ private fun OpenProjetsCard() {
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Voir la carte de la Métropole de Lyon", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text("Voir la carte de la Métropole de Lyon", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyMedium)
                         Spacer(Modifier.width(6.dp))
                         Icon(Icons.Outlined.OpenInNew, null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(14.dp))
                     }
@@ -218,9 +267,7 @@ private fun OpenDataTribute() {
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                brush = Brush.linearGradient(
-                    listOf(Color(0xFF0A8D4D), Color(0xFF0F6B8C))
-                ),
+                brush = Brush.linearGradient(listOf(Color(0xFF0A8D4D), Color(0xFF0F6B8C))),
                 shape = RoundedCornerShape(20.dp)
             )
             .padding(20.dp)
@@ -228,7 +275,9 @@ private fun OpenDataTribute() {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box(
-                    modifier = Modifier.size(36.dp).background(Color.White.copy(alpha = 0.18f), CircleShape),
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(Color.White.copy(alpha = 0.18f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) { Icon(Icons.Filled.Favorite, null, tint = Color.White, modifier = Modifier.size(18.dp)) }
                 Text("Merci à l'Open Data du Grand Lyon", fontWeight = FontWeight.SemiBold, color = Color.White, fontSize = 15.sp)
@@ -259,44 +308,31 @@ private fun OpenDataTribute() {
 }
 
 @Composable
-private fun SourcesCard() = Card {
-    Column {
-        Row(
-            modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Badge(Icons.Filled.Wifi, Color(0xFF1E88E5))
-            Text("Sources de données", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-        }
-        SourceRow("Position des véhicules", "SIRI-Lite, temps réel", Icons.Filled.LocationOn, Color(0xFF43A047))
-        Sep()
-        SourceRow("Arrêts, lignes, horaires", "GTFS", Icons.Filled.Tram, Color(0xFF3F51B5))
-        Sep()
-        SourceRow("Alertes & perturbations", "Flux officiel TCL", Icons.Filled.Warning, Color(0xFFFB8C00))
-        Sep()
-        SourceRow("Travaux", "Chantiers du réseau et de la voirie", Icons.Filled.Build, Color(0xFFFFC107))
-        Sep()
-        SourceRow("Parkings P+R", "Occupation en temps réel", Icons.Filled.DirectionsCar, Color(0xFF8E24AA))
+private fun SourcesCard() {
+    ElevatedCard(
+        shape = MaterialTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        ListItem(
+            headlineContent = { Text("Sources de données", style = MaterialTheme.typography.titleMedium) },
+            leadingContent = { SectionIcon(Icons.Filled.Wifi, MaterialTheme.colorScheme.primary) },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+        )
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        SourceItem("Position des véhicules", "SIRI-Lite, temps réel", Icons.Filled.LocationOn, StatusSuccess)
+        HorizontalDivider(modifier = Modifier.padding(start = 72.dp, end = 16.dp))
+        SourceItem("Arrêts, lignes, horaires", "GTFS", Icons.Filled.Tram, MaterialTheme.colorScheme.primary)
+        HorizontalDivider(modifier = Modifier.padding(start = 72.dp, end = 16.dp))
+        SourceItem("Alertes & perturbations", "Flux officiel TCL", Icons.Filled.Warning, StatusWarning)
+        HorizontalDivider(modifier = Modifier.padding(start = 72.dp, end = 16.dp))
+        SourceItem("Travaux", "Chantiers du réseau et de la voirie", Icons.Filled.Build, StatusWarning)
+        HorizontalDivider(modifier = Modifier.padding(start = 72.dp, end = 16.dp))
+        SourceItem("Parkings P+R", "Occupation en temps réel", Icons.Filled.DirectionsCar, MaterialTheme.colorScheme.tertiary)
         Text(
             "Toutes les données sont publiées par le Grand Lyon sous licence ouverte (Etalab / ODbL).",
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
-            fontSize = 11.sp,
-            color = Color.Gray
-        )
-    }
-}
-
-@Composable
-private fun CreatorCard() = Card {
-    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Badge(Icons.Filled.Person, Color(0xFF3F51B5))
-            Text("Derrière Lyon Pocket", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-        }
-        Text(
-            "Solal Gendrin, conseiller métropolitain à Lyon. Lyon Pocket est un projet personnel, né d'un usage quotidien des TCL.",
-            fontSize = 14.sp
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -304,38 +340,32 @@ private fun CreatorCard() = Card {
 @Composable
 private fun ContactCard() {
     val context = LocalContext.current
-    Card {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Badge(Icons.Filled.Forum, Color(0xFFE91E63))
-                Text("Une idée ? Un bug ?", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-            }
+    ElevatedCard(
+        shape = MaterialTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(bottom = 16.dp)) {
+            ListItem(
+                headlineContent = { Text("Une idée ? Un bug ?", style = MaterialTheme.typography.titleMedium) },
+                leadingContent = { SectionIcon(Icons.Filled.Forum, MaterialTheme.colorScheme.error) },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+            )
             Text(
                 "Suggestions, retours, propositions d'évolution : écrivez-moi sur LinkedIn, je lis tout.",
-                fontSize = 14.sp
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp)
             )
-            Surface(
-                shape = RoundedCornerShape(12.dp),
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = { openUrl(context, "https://www.linkedin.com/in/solal-gendrin/") },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { openUrl(context, "https://www.linkedin.com/in/solal-gendrin/") },
-                color = Color.Transparent
+                    .padding(horizontal = 16.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            brush = Brush.horizontalGradient(listOf(Color(0xFF1976D2), Color(0xFF3F51B5))),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Send, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Text("Me contacter sur LinkedIn", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    }
-                }
+                Icon(Icons.Filled.Send, null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Me contacter sur LinkedIn")
             }
         }
     }
@@ -344,105 +374,104 @@ private fun ContactCard() {
 @Composable
 private fun LinksFooter() {
     val context = LocalContext.current
-    Card {
-        Column {
-            FooterLink(
-                "Site officiel", "lyon-pocket.netlify.app", Icons.Filled.Public, Color(0xFF26A69A)
-            ) { openUrl(context, "https://lyon-pocket.netlify.app/") }
-            Sep()
-            FooterLink(
-                "Politique de confidentialité", "Aucune donnée personnelle collectée",
-                Icons.Filled.Lock, Color.Gray
-            ) { openUrl(context, "https://solalgendrin.github.io/alerte-tcl/privacy") }
-        }
+    ElevatedCard(
+        shape = MaterialTheme.shapes.large,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        LinkItem(
+            title = "Site officiel",
+            subtitle = "lyon-pocket.netlify.app",
+            icon = Icons.Filled.Public,
+            tint = MaterialTheme.colorScheme.secondary,
+            onClick = { openUrl(context, "https://lyon-pocket.netlify.app/") }
+        )
+        HorizontalDivider(modifier = Modifier.padding(start = 72.dp, end = 16.dp))
+        LinkItem(
+            title = "Politique de confidentialité",
+            subtitle = "Aucune donnée personnelle collectée",
+            icon = Icons.Filled.Lock,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            onClick = { openUrl(context, "https://solalgendrin.github.io/alerte-tcl/privacy") }
+        )
     }
 }
 
 @Composable
 private fun VersionFooter(version: String, build: String) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
-            "Lyon Pocket $version" + if (build.isNotEmpty()) " ($build)" else "",
-            fontSize = 11.sp,
-            color = Color.Gray
+            "Lyon Pocket " + if (build.isNotEmpty()) " ()" else "",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Text("Fait à Villeurbanne, avec ♥", fontSize = 10.sp, color = Color.LightGray)
+        Text(
+            "Fait à Villeurbanne, avec ♥",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.outline
+        )
     }
 }
 
-// ── helpers ────────────────────────────────────────────────────────────────
+// ── helpers ────────────────────────────────────────────────────────
 
 @Composable
-private fun Card(content: @Composable () -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth()
-    ) { content() }
-}
-
-@Composable
-private fun Sep() = HorizontalDivider(modifier = Modifier.padding(start = 60.dp), color = Color(0xFFE0E0E0))
-
-@Composable
-private fun Badge(icon: ImageVector, tint: Color) {
+private fun SectionIcon(icon: ImageVector, tint: Color) {
     Box(
         modifier = Modifier
-            .size(30.dp)
-            .background(tint.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+            .size(36.dp)
+            .background(tint.copy(alpha = 0.12f), CircleShape),
         contentAlignment = Alignment.Center
-    ) { Icon(icon, null, tint = tint, modifier = Modifier.size(14.dp)) }
-}
-
-@Composable
-private fun Pill(text: String) {
-    Surface(shape = RoundedCornerShape(50), color = Color(0xFFEEEEEE)) {
-        Text(text, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp), fontSize = 11.sp, color = Color.DarkGray)
-    }
-}
-
-@Composable
-private fun SourceRow(title: String, subtitle: String, icon: ImageVector, tint: Color) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Box(
-            modifier = Modifier.size(36.dp).background(tint.copy(alpha = 0.15f), RoundedCornerShape(9.dp)),
-            contentAlignment = Alignment.Center
-        ) { Icon(icon, null, tint = tint, modifier = Modifier.size(15.dp)) }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Text(subtitle, fontSize = 11.sp, color = Color.Gray)
-        }
+        Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
     }
 }
 
 @Composable
-private fun FooterLink(title: String, subtitle: String, icon: ImageVector, tint: Color, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(horizontal = 18.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Box(
-            modifier = Modifier.size(36.dp).background(tint.copy(alpha = 0.15f), RoundedCornerShape(9.dp)),
-            contentAlignment = Alignment.Center
-        ) { Icon(icon, null, tint = tint, modifier = Modifier.size(15.dp)) }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Text(subtitle, fontSize = 11.sp, color = Color.Gray)
-        }
-        Icon(Icons.Outlined.OpenInNew, null, tint = Color.Gray, modifier = Modifier.size(14.dp))
-    }
+private fun SourceItem(title: String, subtitle: String, icon: ImageVector, tint: Color) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(subtitle) },
+        leadingContent = {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(tint.copy(alpha = 0.12f), MaterialTheme.shapes.small),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = tint, modifier = Modifier.size(16.dp))
+            }
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+    )
+}
+
+@Composable
+private fun LinkItem(title: String, subtitle: String, icon: ImageVector, tint: Color, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(subtitle) },
+        leadingContent = {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(tint.copy(alpha = 0.12f), MaterialTheme.shapes.small),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = tint, modifier = Modifier.size(16.dp))
+            }
+        },
+        trailingContent = {
+            Icon(Icons.Outlined.OpenInNew, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+        },
+        modifier = Modifier.clickable { onClick() },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+    )
 }
 
 private fun openUrl(context: android.content.Context, url: String) {

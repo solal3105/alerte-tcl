@@ -102,6 +102,9 @@ class SiriLiteService {
 
     private fun parseMonitoredCall(c: MonitoredCallDto?): StopInfo? {
         val ref = c?.StopPointRef?.value ?: return null
+        // MonitoredCall = dernier arrêt surveillé, pas forcément le prochain.
+        // Si le bus a déjà quitté cet arrêt, on ne l'affiche pas.
+        if (c.DepartureStatus == "departed") return null
         return StopInfo(
             id = ref,
             stopRef = ref,

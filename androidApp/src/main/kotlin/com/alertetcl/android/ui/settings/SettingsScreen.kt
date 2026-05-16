@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.NorthEast
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -46,10 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val groupedBg = Color(0xFFF2F2F7)
-private val secondary = Color(0xFF8E8E93)
-private val iOSBlue   = Color(0xFF007AFF)
-private val iOSPurple = Color(0xFFAF52DE)
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,13 +59,13 @@ fun SettingsScreen(onOpenWidgetStops: () -> Unit = {}) {
     var showWidgetHelp by remember { mutableStateOf(false) }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(groupedBg),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp)
     ) {
         // Header / titre principal
         item {
             Text("Paramètres",
-                fontSize = 32.sp, fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
         }
 
@@ -77,7 +75,7 @@ fun SettingsScreen(onOpenWidgetStops: () -> Unit = {}) {
             SettingsCard {
                 SettingsRow(
                     icon = Icons.Filled.HelpOutline,
-                    iconTint = iOSBlue,
+                    iconTint = MaterialTheme.colorScheme.primary,
                     title = "Comment configurer le widget",
                     subtitle = "Guide étape par étape",
                     onClick = { showWidgetHelp = true }
@@ -85,7 +83,7 @@ fun SettingsScreen(onOpenWidgetStops: () -> Unit = {}) {
                 Divider()
                 SettingsRow(
                     icon = Icons.Filled.Tram,
-                    iconTint = iOSPurple,
+                    iconTint = MaterialTheme.colorScheme.tertiary,
                     title = "Mes arrêts widget",
                     subtitle = "Gérer les arrêts sauvegardés",
                     onClick = onOpenWidgetStops
@@ -106,7 +104,7 @@ fun SettingsScreen(onOpenWidgetStops: () -> Unit = {}) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("Version", fontSize = 15.sp, modifier = Modifier.weight(1f))
-                    Text(versionName, fontSize = 15.sp, color = secondary)
+                    Text(versionName, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Divider()
                 LinkRow(
@@ -142,8 +140,8 @@ fun SettingsScreen(onOpenWidgetStops: () -> Unit = {}) {
 @Composable
 private fun SectionHeader(text: String) {
     Text(
-        text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-        color = secondary,
+        text, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 32.dp, top = 24.dp, bottom = 6.dp)
     )
 }
@@ -151,7 +149,7 @@ private fun SectionHeader(text: String) {
 @Composable
 private fun SectionFooter(text: String) {
     Text(
-        text, fontSize = 12.sp, color = secondary,
+        text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 6.dp)
     )
 }
@@ -159,7 +157,7 @@ private fun SectionFooter(text: String) {
 @Composable
 private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
     Surface(
-        shape = RoundedCornerShape(10.dp), color = Color.White,
+        shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.surface,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
     ) { Column(content = content) }
 }
@@ -171,7 +169,7 @@ private fun Divider() {
             .fillMaxWidth()
             .padding(start = 56.dp)
             .height(0.5.dp)
-            .background(Color(0xFFC6C6C8).copy(alpha = 0.5f))
+            .background(MaterialTheme.colorScheme.outlineVariant)
     )
 }
 
@@ -197,9 +195,9 @@ private fun SettingsRow(
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            if (subtitle != null) Text(subtitle, fontSize = 12.sp, color = secondary)
+            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Icon(Icons.Filled.ChevronRight, null, tint = secondary, modifier = Modifier.size(14.dp))
+        Icon(Icons.Filled.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
     }
 }
 
@@ -214,10 +212,10 @@ private fun LinkRow(title: String, trailing: String?, onClick: () -> Unit) {
     ) {
         Text(title, fontSize = 15.sp, modifier = Modifier.weight(1f))
         if (trailing != null) {
-            Text(trailing, fontSize = 15.sp, color = secondary)
+            Text(trailing, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.width(6.dp))
         }
-        Icon(Icons.Filled.NorthEast, null, tint = secondary, modifier = Modifier.size(12.dp))
+        Icon(Icons.Filled.NorthEast, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(12.dp))
     }
 }
 
@@ -230,11 +228,11 @@ private fun WidgetHelpView() {
             .padding(horizontal = 24.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Text("Configurer le widget", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text("Configurer le widget", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(
             "Ajoutez le widget « Prochains Passages » sur votre écran d'accueil pour " +
             "voir vos arrêts favoris en un coup d'œil.",
-            fontSize = 14.sp, color = secondary
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         StepRow(
@@ -265,14 +263,14 @@ private fun WidgetHelpView() {
 private fun StepRow(number: Int, title: String, description: String) {
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         Box(
-            modifier = Modifier.size(28.dp).clip(CircleShape).background(iOSBlue),
+            modifier = Modifier.size(28.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
             contentAlignment = Alignment.Center
         ) {
-            Text("$number", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text("$number", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
         }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text(description, fontSize = 13.sp, color = secondary)
+            Text(description, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

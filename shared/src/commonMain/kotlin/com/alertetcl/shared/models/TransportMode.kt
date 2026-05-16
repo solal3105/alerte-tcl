@@ -21,6 +21,7 @@ enum class TransportMode(val displayName: String, val iconKey: String, val sortO
             val u = line.uppercase()
             return when {
                 u.startsWith("M") && u.length <= 3 -> METRO
+                u in setOf("A", "B", "C", "D") -> METRO
                 u.startsWith("T") && u.length <= 3 -> TRAMWAY
                 u.startsWith("F") && u.length <= 3 -> FUNICULAR
                 u.startsWith("C") && u.length <= 3 -> BUS_C

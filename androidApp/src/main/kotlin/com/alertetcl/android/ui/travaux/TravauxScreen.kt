@@ -12,6 +12,7 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import android.location.LocationManager
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -58,6 +60,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -76,6 +80,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -83,6 +88,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.alertetcl.shared.models.Travaux
 import com.alertetcl.shared.models.TravauxAvancement
+import com.alertetcl.android.ui.theme.StatusError
+import com.alertetcl.android.ui.theme.StatusWarning
+import com.alertetcl.android.ui.theme.StatusSuccess
 import com.alertetcl.shared.models.TravauxImportance
 import com.alertetcl.shared.models.TravauxNatureChantier
 import com.alertetcl.shared.models.TravauxType
@@ -91,6 +99,9 @@ import com.google.gson.JsonObject
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.location.LocationComponentActivationOptions
+import org.maplibre.android.location.modes.CameraMode
+import org.maplibre.android.location.modes.RenderMode
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
@@ -106,7 +117,8 @@ import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 import org.maplibre.geojson.Polygon
 
-private const val STYLE_URL    = "https://tiles.openfreemap.org/styles/liberty"
+private const val STYLE_URL      = "https://tiles.openfreemap.org/styles/liberty"
+private const val STYLE_URL_DARK = "https://tiles.openfreemap.org/styles/dark"
 private const val STYLE_JSON_SATELLITE = """{
   "version": 8,
   "sources": {
@@ -155,6 +167,7 @@ fun TravauxScreen() {
     var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
     var mapStyle by remember { mutableStateOf<Style?>(null) }
     var currentZoom by remember { mutableDoubleStateOf(12.5) }
+    val isDark = isSystemInDarkTheme()
     var isSatellite by remember { mutableStateOf(false) }
     var showFilterSheet by remember { mutableStateOf(false) }
 
@@ -189,8 +202,9 @@ fun TravauxScreen() {
                 mapView.also { mv ->
                     mv.getMapAsync { map ->
                         mapLibreMap = map
-                        map.uiSettings.isLogoEnabled = false
+                        map.uiSettings.isLogoEnabled        = false
                         map.uiSettings.isAttributionEnabled = false
+                        map.uiSettings.isCompassEnabled     = false
                         map.cameraPosition = CameraPosition.Builder()
                             .target(LatLng(45.764043, 4.835659))
                             .zoom(12.5)
@@ -206,7 +220,10 @@ fun TravauxScreen() {
                                 true
                             } else false
                         }
-                        map.setStyle(STYLE_URL) { style -> mapStyle = style }
+                        map.setStyle(if (isDark) STYLE_URL_DARK else STYLE_URL) { style ->
+                            mapStyle = style
+                            enableLocationComponent(context, map, style)
+                        }
                     }
                 }
             },
@@ -214,19 +231,23 @@ fun TravauxScreen() {
         )
 
         // Switch base style on satellite toggle
-        LaunchedEffect(isSatellite) {
+        LaunchedEffect(isSatellite, isDark) {
             val map = mapLibreMap ?: return@LaunchedEffect
             val builder = if (isSatellite) Style.Builder().fromJson(STYLE_JSON_SATELLITE)
+                          else if (isDark)  Style.Builder().fromUri(STYLE_URL_DARK)
                           else              Style.Builder().fromUri(STYLE_URL)
             mapStyle = null
-            map.setStyle(builder) { style -> mapStyle = style }
+            map.setStyle(builder) { style ->
+                mapStyle = style
+                enableLocationComponent(context, map, style)
+            }
         }
 
         // Center loading overlay (only when empty)
         if (isLoading && travaux.isEmpty()) {
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = Color.White.copy(alpha = 0.94f),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
                 shadowElevation = 8.dp,
                 modifier = Modifier.align(Alignment.Center).padding(24.dp)
             ) {
@@ -236,7 +257,7 @@ fun TravauxScreen() {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     CircularProgressIndicator()
-                    Text("Chargement des travaux…", fontSize = 14.sp, color = Color(0xFF6E6E73))
+                    Text("Chargement des travaux…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -244,7 +265,7 @@ fun TravauxScreen() {
         if (errorMsg != null && travaux.isEmpty() && !isLoading) {
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = Color.White.copy(alpha = 0.96f),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
                 shadowElevation = 8.dp,
                 modifier = Modifier.align(Alignment.Center).padding(24.dp)
             ) {
@@ -253,11 +274,11 @@ fun TravauxScreen() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(Icons.Filled.CloudOff, null, tint = Color(0xFFFF9500), modifier = Modifier.size(40.dp))
+                    Icon(Icons.Filled.CloudOff, null, tint = StatusWarning, modifier = Modifier.size(40.dp))
                     Text("Données temporairement indisponibles", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Text(
                         errorMsg ?: "Erreur",
-                        fontSize = 12.sp, color = Color(0xFF6E6E73),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     TextButton(onClick = { vm.refresh(force = true) }) { Text("Réessayer") }
@@ -267,23 +288,26 @@ fun TravauxScreen() {
 
         // Bottom-right FABs (3) — parité iOS
         Column(
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(bottom = 96.dp, end = 16.dp),
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             TravauxCircleFab(
                 icon = Icons.Filled.Public, contentDesc = "Vue satellite",
-                tint = if (isSatellite) Color(0xFFFF9500) else Color(0xFF1C1C1E),
+                tint = if (isSatellite) StatusWarning else MaterialTheme.colorScheme.onSurface,
                 onClick = { isSatellite = !isSatellite }
             )
             TravauxCircleFab(
                 icon = Icons.Filled.FilterList, contentDesc = "Filtres",
-                tint = if (hasActiveFilters) Color(0xFFFF9500) else Color(0xFF1C1C1E),
+                tint = if (hasActiveFilters) StatusWarning else MaterialTheme.colorScheme.onSurface,
                 onClick = { showFilterSheet = true }
             )
             TravauxCircleFab(
                 icon = Icons.Filled.MyLocation, contentDesc = "Ma position",
-                tint = Color(0xFF007AFF),
+                tint = MaterialTheme.colorScheme.primary,
                 onClick = {
                     val granted = androidx.core.content.ContextCompat.checkSelfPermission(
                         context, Manifest.permission.ACCESS_FINE_LOCATION
@@ -416,14 +440,13 @@ private fun TravauxCircleFab(
     tint: Color,
     onClick: () -> Unit
 ) {
-    Surface(
-        shape = CircleShape, color = Color.White.copy(alpha = 0.95f),
-        tonalElevation = 6.dp, shadowElevation = 6.dp,
-        modifier = Modifier.size(50.dp)
+    SmallFloatingActionButton(
+        onClick = onClick,
+        shape = CircleShape,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = tint,
     ) {
-        IconButton(onClick = onClick, modifier = Modifier.fillMaxSize()) {
-            Icon(icon, contentDesc, tint = tint, modifier = Modifier.size(22.dp))
-        }
+        Icon(icon, contentDesc, modifier = Modifier.size(22.dp))
     }
 }
 
@@ -446,9 +469,9 @@ private fun TravauxFiltersSheet(
         OutlinedTextField(
             value = searchText,
             onValueChange = onSearchChange,
-            placeholder = { Text("Rechercher...", color = Color(0xFF8E8E93)) },
+            placeholder = { Text("Rechercher...", color = MaterialTheme.colorScheme.onSurfaceVariant) },
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-            shape = RoundedCornerShape(12.dp),
+            shape = MaterialTheme.shapes.medium,
             singleLine = true
         )
 
@@ -457,7 +480,7 @@ private fun TravauxFiltersSheet(
             "Type de chantier",
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
-            color = Color(0xFF8E8E93),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(vertical = 10.dp)
         )
 
@@ -481,7 +504,7 @@ private fun TravauxFiltersSheet(
                 Icon(
                     if (selected) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
                     contentDescription = null,
-                    tint = if (selected) Color(0xFF007AFF) else Color(0xFF8E8E93),
+                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -493,13 +516,13 @@ private fun TravauxFiltersSheet(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Chantiers affichés", fontSize = 14.sp, color = Color(0xFF8E8E93))
-            Text("$filteredCount", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text("Chantiers affichés", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("$filteredCount", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
         }
 
         HorizontalDivider()
         TextButton(onClick = onReset, modifier = Modifier.fillMaxWidth()) {
-            Text("Réinitialiser les filtres", color = Color(0xFFE53935), fontWeight = FontWeight.SemiBold)
+            Text("Réinitialiser les filtres", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
         }
         Spacer(Modifier.height(8.dp))
     }
@@ -512,6 +535,24 @@ private fun natureChantierIcon(nc: TravauxNatureChantier): ImageVector = when (n
     TravauxNatureChantier.CARREFOUR         -> Icons.Filled.Traffic
     TravauxNatureChantier.ASSAINISSEMENT    -> Icons.Filled.WaterDrop
     TravauxNatureChantier.AUTRE             -> Icons.Filled.Construction
+}
+
+private fun enableLocationComponent(context: android.content.Context, map: MapLibreMap, style: Style) {
+    val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+        context, Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+    if (!granted) return
+    @Suppress("MissingPermission")
+    map.locationComponent.run {
+        activateLocationComponent(
+            LocationComponentActivationOptions.builder(context, style)
+                .useDefaultLocationEngine(true)
+                .build()
+        )
+        isLocationComponentEnabled = true
+        renderMode = RenderMode.COMPASS
+        cameraMode  = CameraMode.NONE
+    }
 }
 
 private fun recenterMapOnUser(context: android.content.Context, map: MapLibreMap?) {
@@ -574,7 +615,7 @@ private fun TravauxDetailSheet(t: Travaux) {
                     fontWeight = FontWeight.Bold,
                     color = pColor
                 )
-                Text("Réalisé", fontSize = 12.sp, color = Color(0xFF8E8E93))
+                Text("Réalisé", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
@@ -583,16 +624,16 @@ private fun TravauxDetailSheet(t: Travaux) {
             Surface(color = pColor, shape = RoundedCornerShape(50)) {
                 Text(
                     t.avancement.displayName,
-                    color = Color.White,
+                    color = if (pColor.luminance() > 0.179f) Color(0xFF1B1B1F) else Color.White,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp
+                    style = MaterialTheme.typography.bodyMedium
                 )
             }
         }
 
         // Type card
-        Surface(color = pColor.copy(alpha = 0.08f), shape = RoundedCornerShape(16.dp)) {
+        Surface(color = pColor.copy(alpha = 0.08f), shape = MaterialTheme.shapes.large) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -609,22 +650,22 @@ private fun TravauxDetailSheet(t: Travaux) {
                     }
                 }
                 Column {
-                    Text(t.type.displayName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    Text(t.natureChantier.displayName, fontSize = 12.sp, color = Color(0xFF8E8E93))
+                    Text(t.type.displayName, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                    Text(t.natureChantier.displayName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
 
         // Nom + commune
-        Surface(color = Color(0xFFF2F2F7), shape = RoundedCornerShape(16.dp)) {
+        Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.large) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(t.nomChantier.ifEmpty { t.nom }, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text(t.commune, fontSize = 13.sp, color = Color.Gray)
+                Text(t.nomChantier.ifEmpty { t.nom }, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                Text(t.commune, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (t.intervenant.isNotEmpty()) {
-                    Text(t.intervenant, fontSize = 12.sp, color = Color.Gray)
+                    Text(t.intervenant, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 t.precisionLocalisation?.let {
-                    Text(it, fontSize = 12.sp, color = Color.Gray)
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -632,18 +673,18 @@ private fun TravauxDetailSheet(t: Travaux) {
         ImportanceBadge(t.importance)
 
         // Perturbation
-        Surface(color = Color(0xFFF2F2F7), shape = RoundedCornerShape(12.dp)) {
+        Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
             Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Perturbation", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93))
+                Text("Perturbation", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(t.typePerturbation.raw, fontSize = 13.sp)
             }
         }
 
         // Description
         t.description?.let {
-            Surface(color = Color(0xFFF2F2F7), shape = RoundedCornerShape(12.dp)) {
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
                 Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Description", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93))
+                    Text("Description", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(it, fontSize = 13.sp)
                 }
             }
@@ -656,16 +697,16 @@ private fun TravauxDetailSheet(t: Travaux) {
 @Composable
 private fun ImportanceBadge(imp: TravauxImportance) {
     val (label, c) = when (imp) {
-        TravauxImportance.TRES_PERTURBANT -> "Très perturbant" to Color(0xFFE53935)
-        TravauxImportance.PERTURBANT      -> "Perturbant"      to Color(0xFFFB8C00)
-        TravauxImportance.PEU_PERTURBANT  -> "Peu perturbant"  to Color(0xFF43A047)
-        TravauxImportance.INCONNU         -> "Non défini"      to Color.Gray
+        TravauxImportance.TRES_PERTURBANT -> "Très perturbant" to StatusError
+        TravauxImportance.PERTURBANT      -> "Perturbant"      to StatusWarning
+        TravauxImportance.PEU_PERTURBANT  -> "Peu perturbant"  to StatusSuccess
+        TravauxImportance.INCONNU         -> "Non défini"      to MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Surface(color = c.copy(alpha = 0.18f), shape = RoundedCornerShape(8.dp)) {
+    Surface(color = c.copy(alpha = 0.18f), shape = MaterialTheme.shapes.small) {
         Text(
             label,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
             color = c
         )

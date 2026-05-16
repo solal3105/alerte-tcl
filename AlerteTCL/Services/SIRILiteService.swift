@@ -163,7 +163,11 @@ actor SIRILiteService {
               let stopRef = call.StopPointRef?.value else {
             return nil
         }
-        
+
+        // MonitoredCall = dernier arrêt surveillé, pas forcément le prochain.
+        // Si le bus a déjà quitté cet arrêt, on ne l'affiche pas.
+        if call.DepartureStatus == "departed" { return nil }
+
         return StopInfo(
             id: stopRef,
             stopRef: stopRef,

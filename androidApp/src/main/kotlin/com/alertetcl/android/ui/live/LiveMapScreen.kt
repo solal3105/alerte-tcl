@@ -11,11 +11,17 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +36,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -57,6 +64,7 @@ import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
@@ -64,12 +72,14 @@ import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import com.alertetcl.shared.models.VehicleType
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -109,7 +119,8 @@ import com.alertetcl.shared.models.TransitLine
 import com.alertetcl.shared.models.TransportMode
 import com.alertetcl.shared.models.TransitStop
 import com.alertetcl.shared.models.Vehicle
-import com.alertetcl.shared.models.VehicleType
+import com.alertetcl.android.ui.theme.StatusWarning
+import com.alertetcl.android.ui.theme.StatusSuccess
 import com.alertetcl.shared.services.BusLineService
 import com.alertetcl.shared.services.TransitLineService
 import com.alertetcl.shared.services.TransitStopService
@@ -140,6 +151,7 @@ import kotlin.math.pow
 
 // Tuiles OpenFreeMap — 100% gratuit, sans clé API
 private const val STYLE_URL_LIBERTY = "https://tiles.openfreemap.org/styles/liberty"
+private const val STYLE_URL_DARK    = "https://tiles.openfreemap.org/styles/dark"
 
 // Style satellite via raster ESRI World Imagery (free, no key)
 private const val STYLE_JSON_SATELLITE = """{
@@ -155,11 +167,15 @@ private const val STYLE_JSON_SATELLITE = """{
   "layers": [{"id": "satellite", "type": "raster", "source": "satellite"}]
 }"""
 
-private const val TRANSIT_SRC     = "transit-src"
+private const val METRO_SRC       = "metro-src"
+private const val TRAM_SRC        = "tram-src"
+private const val BUS_C_SRC       = "bus-c-src"
 private const val BUS_SRC         = "bus-src"
 private const val VEHICLES_SRC    = "vehicles-src"
 private const val STOPS_SRC       = "stops-src"
-private const val TRANSIT_LAYER   = "transit-layer"
+private const val METRO_LAYER     = "metro-layer"
+private const val TRAM_LAYER      = "tram-layer"
+private const val BUS_C_LAYER     = "bus-c-layer"
 private const val BUS_LAYER       = "bus-layer"
 private const val VEHICLES_LAYER  = "vehicles-layer"
 private const val VEHICLES_ARROW_LAYER = "vehicles-arrow-layer"
@@ -243,6 +259,7 @@ fun LiveMapScreen() {
     }
 
     var showLineTraces by remember { mutableStateOf(true) }
+    val isDark = isSystemInDarkTheme()
     var isSatellite    by remember { mutableStateOf(false) }
     var bannerCollapsed by remember { mutableStateOf(false) }
 
@@ -382,7 +399,7 @@ fun LiveMapScreen() {
                             }
                             false
                         }
-                        map.setStyle(Style.Builder().fromUri(STYLE_URL_LIBERTY)) { style ->
+                        map.setStyle(Style.Builder().fromUri(if (isDark) STYLE_URL_DARK else STYLE_URL_LIBERTY)) { style ->
                             visibleBounds = map.projection.visibleRegion.latLngBounds
                             enableLocationComponent(context, map, style)
                             mapStyle = style
@@ -394,9 +411,10 @@ fun LiveMapScreen() {
         )
 
         // Switch base style when satellite toggled (re-applies layers via mapStyle observer)
-        LaunchedEffect(isSatellite) {
+        LaunchedEffect(isSatellite, isDark) {
             val map = mapLibreMap ?: return@LaunchedEffect
             val builder = if (isSatellite) Style.Builder().fromJson(STYLE_JSON_SATELLITE)
+                          else if (isDark)  Style.Builder().fromUri(STYLE_URL_DARK)
                           else              Style.Builder().fromUri(STYLE_URL_LIBERTY)
             mapStyle = null
             map.setStyle(builder) { style ->
@@ -444,7 +462,7 @@ fun LiveMapScreen() {
                     .statusBarsPadding()
                     .padding(top = 8.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(Color.White.copy(alpha = 0.92f))
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f))
                     .clickable { bannerCollapsed = false }
                     .padding(horizontal = 14.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center
@@ -452,20 +470,23 @@ fun LiveMapScreen() {
                 Icon(
                     Icons.Filled.KeyboardArrowDown, null,
                     modifier = Modifier.size(20.dp),
-                    tint = Color(0xFF6E6E73)
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
 
         // ── Bottom-left: Live Indicator ──────────────────────────────────
         Column(
-            modifier = Modifier.align(Alignment.BottomStart).padding(16.dp),
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .navigationBarsPadding()
+                .padding(bottom = 96.dp, start = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (vehiclesError != null || alertsError != null) {
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = Color(0xFFFFF4E5),
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
                     shadowElevation = 4.dp,
                     modifier = Modifier.clickable { showErrorsSheet = true }
                 ) {
@@ -474,9 +495,9 @@ fun LiveMapScreen() {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(Icons.Filled.Warning, null, tint = Color(0xFFFF9500), modifier = Modifier.size(14.dp))
+                        Icon(Icons.Filled.Warning, null, tint = StatusWarning, modifier = Modifier.size(14.dp))
                         val n = (if (vehiclesError != null) 1 else 0) + (if (alertsError != null) 1 else 0)
-                        Text("$n source${if (n > 1) "s" else ""} en erreur", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Text("$n source${if (n > 1) "s" else ""} en erreur", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -492,23 +513,26 @@ fun LiveMapScreen() {
 
         // ── Bottom-right: 3 FABs (satellite, filters, location) ─────────
         Column(
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(bottom = 96.dp, end = 16.dp),
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             CircleFab(
                 icon = Icons.Filled.Public, contentDesc = "Vue satellite",
-                tint = if (isSatellite) Color(0xFFFF9500) else Color(0xFF1C1C1E),
+                tint = if (isSatellite) StatusWarning else MaterialTheme.colorScheme.onSurface,
                 onClick = { isSatellite = !isSatellite }
             )
             CircleFab(
                 icon = Icons.Filled.FilterList, contentDesc = "Filtres",
-                tint = if (hasActiveFilters) Color(0xFF007AFF) else Color(0xFF1C1C1E),
+                tint = if (hasActiveFilters) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 onClick = { showFilterSheet = true }
             )
             CircleFab(
                 icon = Icons.Filled.MyLocation, contentDesc = "Ma position",
-                tint = Color(0xFF007AFF),
+                tint = MaterialTheme.colorScheme.primary,
                 onClick = {
                     val granted = androidx.core.content.ContextCompat.checkSelfPermission(
                         context, Manifest.permission.ACCESS_FINE_LOCATION
@@ -522,51 +546,49 @@ fun LiveMapScreen() {
 
     // ── Map update effects ──────────────────────────────────────────────
 
-    // Line traces (transit + bus)
+    // Line traces — z-order bottom → top: bus → Bus C → tram → métro/funi
     LaunchedEffect(mapStyle, showLineTraces, transitLines.value, busLines.value, selectedLines) {
         val style = mapStyle ?: return@LaunchedEffect
 
-        val transitFeatures = if (showLineTraces) transitLines.value.mapNotNull { line ->
-            if (selectedLines.isNotEmpty() && line.name !in selectedLines) return@mapNotNull null
+        fun toTransitFeature(line: TransitLine): Feature? {
+            if (selectedLines.isNotEmpty() && line.name !in selectedLines) return null
             val pts = line.coordinates.mapNotNull { c -> if (c.size < 2) null else Point.fromLngLat(c[0], c[1]) }
-            if (pts.size < 2) null else {
-                val props = JsonObject().apply { addProperty("color", toMapColor(line.strokeColorHex)) }
-                Feature.fromGeometry(LineString.fromLngLats(pts), props)
-            }
-        } else emptyList()
-
-        val busFeatures = if (showLineTraces) busLines.value.mapNotNull { line ->
-            if (selectedLines.isNotEmpty() && line.name !in selectedLines) return@mapNotNull null
-            val pts = line.coordinates.mapNotNull { c -> if (c.size < 2) null else Point.fromLngLat(c[0], c[1]) }
-            if (pts.size < 2) null else {
-                val props = JsonObject().apply { addProperty("color", toMapColor(LineColors.routeStrokeHex(line.name))) }
-                Feature.fromGeometry(LineString.fromLngLats(pts), props)
-            }
-        } else emptyList()
-
-        if (style.getSource(TRANSIT_SRC) == null) {
-            style.addSource(GeoJsonSource(TRANSIT_SRC, FeatureCollection.fromFeatures(transitFeatures)))
-            style.addLayer(LineLayer(TRANSIT_LAYER, TRANSIT_SRC).withProperties(
-                PropertyFactory.lineColor(Expression.get("color")),
-                PropertyFactory.lineWidth(8f),
-                PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
-            ))
-        } else {
-            style.getSourceAs<GeoJsonSource>(TRANSIT_SRC)?.setGeoJson(FeatureCollection.fromFeatures(transitFeatures))
+            if (pts.size < 2) return null
+            return Feature.fromGeometry(LineString.fromLngLats(pts),
+                JsonObject().apply { addProperty("color", toMapColor(line.strokeColorHex)) })
         }
 
-        if (style.getSource(BUS_SRC) == null) {
-            style.addSource(GeoJsonSource(BUS_SRC, FeatureCollection.fromFeatures(busFeatures)))
-            style.addLayer(LineLayer(BUS_LAYER, BUS_SRC).withProperties(
-                PropertyFactory.lineColor(Expression.get("color")),
-                PropertyFactory.lineWidth(4f),
-                PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
-            ))
-        } else {
-            style.getSourceAs<GeoJsonSource>(BUS_SRC)?.setGeoJson(FeatureCollection.fromFeatures(busFeatures))
+        fun toBusFeature(line: BusLine): Feature? {
+            if (selectedLines.isNotEmpty() && line.name !in selectedLines) return null
+            val pts = line.coordinates.mapNotNull { c -> if (c.size < 2) null else Point.fromLngLat(c[0], c[1]) }
+            if (pts.size < 2) return null
+            return Feature.fromGeometry(LineString.fromLngLats(pts),
+                JsonObject().apply { addProperty("color", toMapColor(LineColors.routeStrokeHex(line.name))) })
         }
+
+        fun addOrUpdate(src: String, layer: String, features: List<Feature>, width: Float) {
+            if (style.getSource(src) == null) {
+                style.addSource(GeoJsonSource(src, FeatureCollection.fromFeatures(features)))
+                style.addLayer(LineLayer(layer, src).withProperties(
+                    PropertyFactory.lineColor(Expression.get("color")),
+                    PropertyFactory.lineWidth(width),
+                    PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                    PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                ))
+            } else {
+                style.getSourceAs<GeoJsonSource>(src)?.setGeoJson(FeatureCollection.fromFeatures(features))
+            }
+        }
+
+        val busFeatures   = if (showLineTraces) busLines.value.filter { !it.name.startsWith("C") }.mapNotNull(::toBusFeature)   else emptyList()
+        val busCFeatures  = if (showLineTraces) busLines.value.filter {  it.name.startsWith("C") }.mapNotNull(::toBusFeature)   else emptyList()
+        val tramFeatures  = if (showLineTraces) transitLines.value.filter {  it.familyTransport.contains("tram", ignoreCase = true) }.mapNotNull(::toTransitFeature) else emptyList()
+        val metroFeatures = if (showLineTraces) transitLines.value.filter { !it.familyTransport.contains("tram", ignoreCase = true) }.mapNotNull(::toTransitFeature) else emptyList()
+
+        addOrUpdate(BUS_SRC,   BUS_LAYER,   busFeatures,   4f)
+        addOrUpdate(BUS_C_SRC, BUS_C_LAYER, busCFeatures,  4f)
+        addOrUpdate(TRAM_SRC,  TRAM_LAYER,  tramFeatures,  8f)
+        addOrUpdate(METRO_SRC, METRO_LAYER, metroFeatures, 8f)
     }
 
     // Vehicle markers
@@ -798,7 +820,7 @@ private fun VehicleDetailSheet(v: Vehicle) {
         // ── Header card ──
         Surface(
             shape = RoundedCornerShape(20.dp),
-            color = Color.White,
+            color = accentColor,
             shadowElevation = 3.dp,
             modifier = Modifier
                 .fillMaxWidth()
@@ -811,7 +833,7 @@ private fun VehicleDetailSheet(v: Vehicle) {
             ) {
                 // Icône colorée 64×64
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = MaterialTheme.shapes.large,
                     color = accentColor,
                     shadowElevation = 4.dp,
                     modifier = Modifier.size(64.dp)
@@ -845,7 +867,7 @@ private fun VehicleDetailSheet(v: Vehicle) {
                     Text(
                         text = v.vehicleType.displayName.uppercase(),
                         color = accentColor,
-                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 0.5.sp
                     )
@@ -855,15 +877,15 @@ private fun VehicleDetailSheet(v: Vehicle) {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
-                            Icon(Icons.Filled.ArrowForward, null, tint = Color(0xFF8E8E93), modifier = Modifier.size(12.dp))
-                            Text(cleanDest, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Icon(Icons.Filled.ArrowForward, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(12.dp))
+                            Text(cleanDest, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
                     }
                     // Pastille retard
                     val delayColor = when {
-                        v.isDelayed -> Color(0xFFFF9500)
-                        v.isEarly   -> Color(0xFF007AFF)
-                        else        -> Color(0xFF34C759)
+                        v.isDelayed -> StatusWarning
+                        v.isEarly   -> MaterialTheme.colorScheme.primary
+                        else        -> StatusSuccess
                     }
                     Surface(shape = RoundedCornerShape(50), color = delayColor.copy(alpha = 0.12f)) {
                         Row(
@@ -872,7 +894,7 @@ private fun VehicleDetailSheet(v: Vehicle) {
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Icon(Icons.Filled.AccessTime, null, tint = delayColor, modifier = Modifier.size(11.dp))
-                            Text(v.delayFormatted, color = delayColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text(v.delayFormatted, color = delayColor, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -883,7 +905,7 @@ private fun VehicleDetailSheet(v: Vehicle) {
         v.nextStop?.let { ns ->
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 3.dp,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -892,9 +914,9 @@ private fun VehicleDetailSheet(v: Vehicle) {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
                     Text(
                         text = "PROCHAIN ARRÊT",
-                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF8E8E93),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         letterSpacing = 0.5.sp
                     )
                     Spacer(Modifier.height(12.dp))
@@ -980,9 +1002,9 @@ private fun VehicleDetailSheet(v: Vehicle) {
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Filled.Public, null, tint = Color(0xFFAEAEB2), modifier = Modifier.size(11.dp))
+                Icon(Icons.Filled.Public, null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(11.dp))
                 Spacer(Modifier.width(5.dp))
-                Text("Mis à jour à $timeStr", fontSize = 10.sp, color = Color(0xFFAEAEB2))
+                Text("Mis à jour à $timeStr", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
             }
         }
     }
@@ -998,12 +1020,13 @@ private fun vehicleTypeIcon(type: VehicleType): androidx.compose.ui.graphics.vec
 @Composable
 private fun CircleFab(icon: androidx.compose.ui.graphics.vector.ImageVector, contentDesc: String,
                      tint: Color, onClick: () -> Unit) {
-    Surface(shape = CircleShape, color = Color.White.copy(alpha = 0.95f),
-        tonalElevation = 6.dp, shadowElevation = 6.dp,
-        modifier = Modifier.size(50.dp)) {
-        IconButton(onClick = onClick, modifier = Modifier.fillMaxSize()) {
-            Icon(icon, contentDesc, tint = tint, modifier = Modifier.size(22.dp))
-        }
+    SmallFloatingActionButton(
+        onClick = onClick,
+        shape = CircleShape,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = tint,
+    ) {
+        Icon(icon, contentDesc, modifier = Modifier.size(22.dp))
     }
 }
 
@@ -1043,31 +1066,31 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(
                     modifier = Modifier.size(60.dp).clip(CircleShape)
-                        .background(Color(0xFF007AFF).copy(alpha = 0.15f)),
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Filled.Tram, null, tint = Color(0xFF007AFF), modifier = Modifier.size(28.dp))
+                    Icon(Icons.Filled.Tram, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(28.dp))
                 }
                 Text(stop.nom, fontWeight = FontWeight.Bold, fontSize = 19.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 if (stop.commune.isNotEmpty())
-                    Text(stop.commune, fontSize = 13.sp, color = Color(0xFF8E8E93))
+                    Text(stop.commune, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 if (stop.allLines.isNotEmpty()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         stop.allLines.take(6).forEach { line ->
                             com.alertetcl.android.ui.alerts.LineBadge(line, size = 28.dp, fontSize = 12.sp)
                         }
-                        if (stop.allLines.size > 6) Text("+${stop.allLines.size - 6}", fontSize = 11.sp,
-                            color = Color(0xFF8E8E93), modifier = Modifier.padding(start = 4.dp))
+                        if (stop.allLines.size > 6) Text("+${stop.allLines.size - 6}", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
                     }
                 }
                 if (stop.pmr) {
                     Row(verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Filled.Accessible, null, tint = Color(0xFF007AFF),
+                        Icon(Icons.Filled.Accessible, null, tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(14.dp))
-                        Text("Accessible PMR", fontSize = 11.sp, color = Color(0xFF007AFF))
+                        Text("Accessible PMR", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -1084,7 +1107,7 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
             },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (isInWidget) Color(0xFF34C759) else Color(0xFF007AFF)
+                containerColor = if (isInWidget) StatusSuccess else MaterialTheme.colorScheme.primary
             )
         ) {
             Icon(
@@ -1096,7 +1119,7 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
             Text(
                 if (isInWidget) "Dans le widget" else "Ajouter au widget",
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp
+                style = MaterialTheme.typography.bodyMedium
             )
         }
         Spacer(Modifier.height(16.dp))
@@ -1108,10 +1131,10 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
         ) {
             Icon(
                 Icons.Filled.AccessTime, null,
-                tint = Color(0xFF007AFF), modifier = Modifier.size(15.dp)
+                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp)
             )
             Text("Prochains passages", fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
-                color = Color(0xFF007AFF))
+                color = MaterialTheme.colorScheme.primary)
         }
         Spacer(Modifier.height(12.dp))
         when {
@@ -1122,7 +1145,7 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         androidx.compose.material3.CircularProgressIndicator(
                             modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
-                        Text("Chargement des passages…", fontSize = 12.sp, color = Color(0xFF8E8E93))
+                        Text("Chargement des passages…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -1133,12 +1156,12 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(
                             Icons.Filled.AccessTime, null,
-                            tint = Color(0xFF8E8E93), modifier = Modifier.size(36.dp)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(36.dp)
                         )
-                        Text("Aucun passage prévu", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF8E8E93))
+                        Text("Aucun passage prévu", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
                             "Les horaires seront affichés quand des véhicules seront en approche",
-                            fontSize = 11.sp, color = Color(0xFF8E8E93),
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
@@ -1158,7 +1181,7 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
 
 @Composable
 private fun LinePassagesCard(line: String, direction: String, passages: List<Passage>) {
-    Surface(shape = RoundedCornerShape(14.dp), color = Color.White,
+    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp, shadowElevation = 1.dp,
         modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1166,7 +1189,7 @@ private fun LinePassagesCard(line: String, direction: String, passages: List<Pas
                 horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 com.alertetcl.android.ui.alerts.LineBadge(line, size = 32.dp, fontSize = 13.sp)
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Direction", fontSize = 10.sp, color = Color(0xFF8E8E93))
+                    Text("Direction", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(direction, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 2)
                 }
             }
@@ -1180,14 +1203,14 @@ private fun LinePassagesCard(line: String, direction: String, passages: List<Pas
 
 @Composable
 private fun PassageChip(p: Passage) {
-    val bg = if (p.isRealTime) Color(0xFF34C759).copy(alpha = 0.14f) else Color(0xFFF2F2F7)
-    val accent = if (p.isRealTime) Color(0xFF34C759) else Color(0xFF8E8E93)
+    val bg = if (p.isRealTime) StatusSuccess.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant
+    val accent = if (p.isRealTime) StatusSuccess else MaterialTheme.colorScheme.onSurfaceVariant
     Surface(shape = RoundedCornerShape(10.dp), color = bg) {
         Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally) {
             Text(p.delaipassage.ifBlank { "--" }, fontSize = 13.sp,
                 fontWeight = FontWeight.Bold, color = accent)
-            Text(p.formattedTime, fontSize = 9.sp, color = Color(0xFF8E8E93))
+            Text(p.formattedTime, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -1195,10 +1218,10 @@ private fun PassageChip(p: Passage) {
 @Composable
 private fun LineBadgeMap(line: String) {
     Box(
-        modifier = Modifier.size(width = 38.dp, height = 22.dp).clip(RoundedCornerShape(4.dp))
+        modifier = Modifier.size(width = 38.dp, height = 22.dp).clip(MaterialTheme.shapes.extraSmall)
             .background(colorFromHex(LineColors.backgroundHex(line))),
         contentAlignment = Alignment.Center
-    ) { Text(line, color = colorFromHex(LineColors.textHex(line)), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+    ) { Text(line, color = colorFromHex(LineColors.textHex(line)), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold) }
 }
 
 // ── Traffic Banner / Live Indicator / Filter Sheet ──────────────────────
@@ -1222,31 +1245,31 @@ private fun TrafficBanner(
 
     val (bg, fg, icon, title, subtitle) = when {
         hasError -> Quintuple(
-            Color(0xFFFFF4E5), Color(0xFFFF9500),
+            MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.tertiary,
             Icons.Filled.Warning,
             "Données partielles",
             "Certaines sources sont indisponibles"
         )
         mySubMajor > 0 -> Quintuple(
-            Color(0xFFFFEBEE), Color(0xFFFF3B30),
+            MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.error,
             Icons.Filled.Warning,
             "$mySubMajor perturbation${if (mySubMajor > 1) "s" else ""} majeure${if (mySubMajor > 1) "s" else ""}",
             "Sur vos lignes abonnées"
         )
         mySubAlerts.isNotEmpty() -> Quintuple(
-            Color(0xFFFFF8E1), Color(0xFFFF9500),
+            MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.tertiary,
             Icons.Filled.NotificationsActive,
             "${mySubAlerts.size} info${if (mySubAlerts.size > 1) "s" else ""} trafic",
             "Sur vos lignes abonnées"
         )
         majorOnNetwork > 0 -> Quintuple(
-            Color(0xFFFFF4E5), Color(0xFFFF9500),
+            MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.tertiary,
             Icons.Filled.Warning,
             "$majorOnNetwork perturbation${if (majorOnNetwork > 1) "s" else ""} majeure${if (majorOnNetwork > 1) "s" else ""}",
             "Sur le réseau TCL"
         )
         else -> Quintuple(
-            Color(0xFFE8F5E9), Color(0xFF34C759),
+            MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.primary,
             Icons.Filled.CheckCircle,
             "Réseau fluide",
             "Aucune perturbation majeure"
@@ -1269,8 +1292,8 @@ private fun TrafficBanner(
                 contentAlignment = Alignment.Center
             ) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(18.dp)) }
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1C1C1E))
-                Text(subtitle, fontSize = 11.sp, color = Color(0xFF6E6E73))
+                Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -1278,6 +1301,7 @@ private fun TrafficBanner(
 
 private data class Quintuple<A,B,C,D,E>(val a: A, val b: B, val c: C, val d: D, val e: E)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LiveIndicator(
     isLive: Boolean,
@@ -1287,34 +1311,64 @@ private fun LiveIndicator(
     hasError: Boolean,
     onTap: () -> Unit
 ) {
-    val dotColor = if (hasError) Color(0xFFFF9500) else Color(0xFF34C759)
-    val labelColor = if (!isLive) Color(0xFF8E8E93) else if (hasError) Color(0xFFFF9500) else Color(0xFF34C759)
+    val dotColor = when {
+        !isLive  -> MaterialTheme.colorScheme.onSurfaceVariant
+        hasError -> StatusWarning
+        else     -> StatusSuccess
+    }
+    val labelColor = dotColor
+
+    // Surface toujours opaque — les tokens M3 surfaceContainer* sont des couleurs pleines
+    val containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+
+    val infiniteTransition = rememberInfiniteTransition(label = "livePulse")
+    val dotAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.25f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(700),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "dotAlpha"
+    )
+
     Surface(
-        shape = RoundedCornerShape(50),
-        color = Color.White.copy(alpha = 0.92f),
-        shadowElevation = 4.dp,
-        modifier = Modifier.clickable { onTap() }
+        onClick = onTap,
+        shape = CircleShape,
+        color = containerColor,
+        shadowElevation = 3.dp,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
         ) {
-            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(dotColor))
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(dotColor.copy(alpha = if (isLive && !isLoading && !hasError) dotAlpha else 1f))
+            )
             Text(
                 if (isLive) "LIVE" else "PAUSE",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Black,
-                color = labelColor
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = labelColor,
+                letterSpacing = 0.8.sp
             )
             if (isLoading) {
                 androidx.compose.material3.CircularProgressIndicator(
                     modifier = Modifier.size(12.dp),
-                    strokeWidth = 1.5.dp
+                    strokeWidth = 1.5.dp,
+                    color = dotColor
                 )
-            } else if (lastUpdateMs != null) {
+            } else if (lastUpdateMs != null && isLive) {
                 val secs = ((15_000L - (nowMs - lastUpdateMs)).coerceAtLeast(0) / 1000L).toInt()
-                Text("${secs}s", fontSize = 11.sp, color = Color(0xFF8E8E93))
+                Text(
+                    "${secs}s",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -1331,12 +1385,12 @@ private fun RefreshInfoSheet(lastUpdateMs: Long?) {
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
-                modifier = Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF34C759).copy(alpha = 0.15f)),
+                modifier = Modifier.size(44.dp).clip(CircleShape).background(StatusSuccess.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
-            ) { Icon(Icons.Filled.NotificationsActive, null, tint = Color(0xFF34C759), modifier = Modifier.size(20.dp)) }
+            ) { Icon(Icons.Filled.NotificationsActive, null, tint = StatusSuccess, modifier = Modifier.size(20.dp)) }
             Column(modifier = Modifier.weight(1f)) {
                 Text("Temps réel", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text("Positions TCL en direct", fontSize = 12.sp, color = Color(0xFF8E8E93))
+                Text("Positions TCL en direct", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         HorizontalDivider()
@@ -1345,8 +1399,8 @@ private fun RefreshInfoSheet(lastUpdateMs: Long?) {
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("15s", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF34C759))
-                Text("intervalle", fontSize = 11.sp, color = Color(0xFF8E8E93))
+                Text("15s", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = StatusSuccess)
+                Text("intervalle", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Column(
                 modifier = Modifier.weight(1f),
@@ -1360,13 +1414,13 @@ private fun RefreshInfoSheet(lastUpdateMs: Long?) {
                         else -> "il y a ${s / 60}min"
                     }
                 } ?: "—"
-                Text(txt, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Text("dernière maj", fontSize = 11.sp, color = Color(0xFF8E8E93))
+                Text(txt, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text("dernière maj", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         HorizontalDivider()
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(Icons.Filled.CheckCircle, null, tint = Color(0xFF34C759), modifier = Modifier.size(16.dp))
+            Icon(Icons.Filled.CheckCircle, null, tint = StatusSuccess, modifier = Modifier.size(16.dp))
             Text("Inutile de rafraîchir manuellement", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
         Spacer(Modifier.height(8.dp))
@@ -1416,8 +1470,8 @@ private fun FilterSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Filled.Refresh, null, tint = Color(0xFFFF3B30), modifier = Modifier.size(18.dp))
-                        Text("Réinitialiser les filtres", color = Color(0xFFFF3B30), fontSize = 15.sp)
+                        Icon(Icons.Filled.Refresh, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                        Text("Réinitialiser les filtres", color = MaterialTheme.colorScheme.error, fontSize = 15.sp)
                     }
                     HorizontalDivider()
                 }
@@ -1425,7 +1479,7 @@ private fun FilterSheet(
             item {
                 Text(
                     "TYPE DE VÉHICULE",
-                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93),
+                    style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 4.dp)
                 )
             }
@@ -1451,9 +1505,9 @@ private fun FilterSheet(
                         )
                     }
                     Text(type.displayName, modifier = Modifier.weight(1f), fontSize = 15.sp)
-                    Text("$count", color = Color(0xFF8E8E93), fontSize = 14.sp)
+                    Text("$count", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
                     if (type in selectedTypes) {
-                        Icon(Icons.Filled.CheckCircle, null, tint = Color(0xFF007AFF), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                     }
                 }
                 HorizontalDivider(modifier = Modifier.padding(start = 60.dp))
@@ -1476,7 +1530,7 @@ private fun FilterSheet(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(Icons.Filled.Star, null, tint = Color(0xFFFFCC00), modifier = Modifier.size(13.dp))
-                            Text("FAVORIS", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93))
+                            Text("FAVORIS", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     items(favoriteLines, key = { "fav_$it" }) { line ->
@@ -1488,7 +1542,7 @@ private fun FilterSheet(
                     item {
                         Text(
                             "TOUTES LES LIGNES",
-                            fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93),
+                            style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 20.dp, top = 8.dp, bottom = 4.dp)
                         )
                     }
@@ -1506,7 +1560,7 @@ private fun FilterSheet(
                             ) {
                                 Text(
                                     "Afficher toutes les lignes (${otherLines.size})",
-                                    color = Color(0xFF007AFF), fontSize = 14.sp
+                                    color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium
                                 )
                             }
                         }
@@ -1516,17 +1570,17 @@ private fun FilterSheet(
             item {
                 Text(
                     "AFFICHAGE",
-                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8E8E93),
+                    style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 8.dp)
                 )
-                Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFF2F2F7), modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Tracés des lignes", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            Text("Affiche les itinéraires des lignes", fontSize = 11.sp, color = Color(0xFF8E8E93))
+                            Text("Tracés des lignes", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                            Text("Affiche les itinéraires des lignes", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = showLineTraces, onCheckedChange = { onToggleTraces() })
                     }
@@ -1553,7 +1607,7 @@ private fun LineFilterRow(
     ) {
         Box(
             modifier = Modifier.size(30.dp)
-                .background(colorFromHex(LineColors.backgroundHex(line)), RoundedCornerShape(8.dp)),
+                .background(colorFromHex(LineColors.backgroundHex(line)), MaterialTheme.shapes.small),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -1568,12 +1622,12 @@ private fun LineFilterRow(
             Icon(
                 if (isFavorite) Icons.Filled.Star else Icons.Outlined.Star,
                 null,
-                tint = if (isFavorite) Color(0xFFFFCC00) else Color(0xFF8E8E93),
+                tint = if (isFavorite) Color(0xFFFFCC00) else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp)
             )
         }
         if (isSelected) {
-            Icon(Icons.Filled.CheckCircle, null, tint = Color(0xFF007AFF), modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
         }
     }
 }

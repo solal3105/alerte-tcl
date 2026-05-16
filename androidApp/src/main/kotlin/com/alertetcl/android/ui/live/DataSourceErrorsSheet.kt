@@ -15,10 +15,10 @@ import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,7 +53,7 @@ fun DataSourceErrorsSheet(
     Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
         // Header
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Warning, null, tint = Color(0xFFFF9800), modifier = Modifier.size(24.dp))
+            Icon(Icons.Filled.Warning, null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(24.dp))
             Spacer(Modifier.width(10.dp))
             Text("Erreurs de chargement", fontWeight = FontWeight.Bold, fontSize = 18.sp)
         }
@@ -66,7 +66,7 @@ fun DataSourceErrorsSheet(
                 else
                     "Ces erreurs sont généralement temporaires. Réessayez dans quelques instants."
             },
-            fontSize = 12.sp, color = Color.Gray
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(16.dp))
         HorizontalDivider()
@@ -75,7 +75,7 @@ fun DataSourceErrorsSheet(
         if (alertsError != null) {
             ErrorRow(
                 icon = Icons.Filled.Warning,
-                iconTint = Color(0xFFE53935),
+                iconTint = MaterialTheme.colorScheme.error,
                 title = "Alertes TCL",
                 error = alertsError,
                 isRetrying = isRetrying
@@ -92,7 +92,7 @@ fun DataSourceErrorsSheet(
         if (vehiclesError != null) {
             ErrorRow(
                 icon = Icons.Filled.DirectionsBus,
-                iconTint = Color(0xFF1976D2),
+                iconTint = MaterialTheme.colorScheme.primary,
                 title = "Véhicules en temps réel",
                 error = vehiclesError,
                 isRetrying = isRetrying
@@ -122,10 +122,9 @@ fun DataSourceErrorsSheet(
             },
             enabled = !isRetrying,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2))
         ) {
             if (isRetrying) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
                 Spacer(Modifier.width(8.dp))
             } else {
                 Icon(Icons.Filled.Refresh, null, modifier = Modifier.size(16.dp))
@@ -150,15 +149,15 @@ private fun ErrorRow(
     isRetrying: Boolean,
     onRetry: () -> Unit
 ) {
-    Surface(color = Color(0xFFFFF3E0), tonalElevation = 0.dp, modifier = Modifier.fillMaxWidth()) {
+    Surface(color = MaterialTheme.colorScheme.errorContainer, tonalElevation = 0.dp, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, null, tint = iconTint, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Text(title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
             }
             Spacer(Modifier.height(4.dp))
-            Text(error, fontSize = 12.sp, color = Color.DarkGray)
+            Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
             Spacer(Modifier.height(8.dp))
             TextButton(
                 onClick = onRetry,
@@ -168,7 +167,7 @@ private fun ErrorRow(
                     CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
                     Spacer(Modifier.width(6.dp))
                 }
-                Text("Réessayer", fontSize = 12.sp)
+                Text("Réessayer", style = MaterialTheme.typography.bodySmall)
             }
         }
     }

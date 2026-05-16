@@ -1,6 +1,15 @@
 package com.alertetcl.android.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.DirectionsCar
@@ -77,29 +86,42 @@ fun AlerteTCLApp(initialRoute: String? = null) {
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                tabs.forEach { tab ->
-                    NavigationBarItem(
-                        selected = currentRoute == tab.route ||
-                                   backStackEntry?.destination?.hierarchy?.any { it.route == tab.route } == true,
-                        onClick = {
-                            nav.navigate(tab.route) {
-                                launchSingleTop = true
-                                restoreState = true
-                                popUpTo(nav.graph.startDestinationId) { saveState = true }
-                            }
-                        },
-                        icon = { Icon(tab.icon, contentDescription = tab.label) },
-                        label = { Text(tab.label) }
-                    )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                NavigationBar(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(elevation = 6.dp, shape = RoundedCornerShape(28.dp))
+                        .clip(RoundedCornerShape(28.dp)),
+                    windowInsets = WindowInsets(0),
+                ) {
+                    tabs.forEach { tab ->
+                        NavigationBarItem(
+                            selected = currentRoute == tab.route ||
+                                       backStackEntry?.destination?.hierarchy?.any { it.route == tab.route } == true,
+                            onClick = {
+                                nav.navigate(tab.route) {
+                                    launchSingleTop = true
+                                    restoreState = true
+                                    popUpTo(nav.graph.startDestinationId) { saveState = true }
+                                }
+                            },
+                            icon = { Icon(tab.icon, contentDescription = tab.label) },
+                            label = { Text(tab.label) }
+                        )
+                    }
                 }
             }
         }
-    ) { padding ->
+    ) { _ ->
         NavHost(
             navController = nav,
             startDestination = "live",
-            modifier = Modifier.padding(bottom = padding.calculateBottomPadding())
+            modifier = Modifier.fillMaxSize()
         ) {
             composable("live")    { LiveMapScreen() }
             composable("travaux") { TravauxScreen() }

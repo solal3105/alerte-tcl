@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.add
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -71,7 +75,17 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alertetcl.android.data.FavoritesStore
+import androidx.compose.material3.MaterialTheme
 import com.alertetcl.android.ui.colorFromHex
+import com.alertetcl.android.ui.theme.ModeMetro
+import com.alertetcl.android.ui.theme.ModeTramway
+import com.alertetcl.android.ui.theme.ModeFunicular
+import com.alertetcl.android.ui.theme.ModeBusC
+import com.alertetcl.android.ui.theme.ModeBus
+import com.alertetcl.android.ui.theme.ModeNavette
+import com.alertetcl.android.ui.theme.StatusError
+import com.alertetcl.android.ui.theme.StatusWarning
+import com.alertetcl.android.ui.theme.StatusSuccess
 import com.alertetcl.shared.models.AlertSeverity
 import com.alertetcl.shared.models.LineColors
 import com.alertetcl.shared.models.TCLAlert
@@ -80,13 +94,7 @@ import com.alertetcl.shared.models.TransportMode
 import com.alertetcl.shared.viewmodels.AlertsViewModel
 import kotlinx.coroutines.launch
 
-// Couleurs iOS — alignées sur les system colors
-private val iOSRed    = Color(0xFFFF3B30)
-private val iOSOrange = Color(0xFFFF9500)
-private val iOSGreen  = Color(0xFF34C759)
-private val iOSBlue   = Color(0xFF007AFF)
-private val secondary = Color(0xFF8E8E93)
-private val groupedBg = Color(0xFFF2F2F7)
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -144,7 +152,7 @@ fun AlertsScreen() {
             refreshing = true
             viewModel.refresh()
         },
-        modifier = Modifier.fillMaxSize().background(groupedBg)
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
     ) {
         LaunchedEffect(isLoading) { if (!isLoading) refreshing = false }
 
@@ -162,7 +170,9 @@ fun AlertsScreen() {
             else -> {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 40.dp)
+                    contentPadding = WindowInsets.navigationBars
+                        .add(WindowInsets(bottom = 96.dp))
+                        .asPaddingValues()
                 ) {
                     if (subscribedLines.isNotEmpty()) {
                         item {
@@ -192,7 +202,7 @@ fun AlertsScreen() {
                                 .padding(horizontal = 16.dp)
                                 .padding(top = 32.dp)
                                 .height(0.5.dp)
-                                .background(Color(0xFFC6C6C8).copy(alpha = 0.5f))
+                                .background(MaterialTheme.colorScheme.outlineVariant)
                         )
                     }
                     item { AllLinesHeader(modifier = Modifier.padding(top = 24.dp)) }
@@ -267,7 +277,7 @@ private fun StatusSummaryBanner(
     val hasMajor = subscribedLines.any { line ->
         alertsByLine[line.ligneCom]?.any { it.severity == AlertSeverity.MAJOR } == true
     }
-    val color = when { hasMajor -> iOSRed; totalAlerts > 0 -> iOSOrange; else -> iOSGreen }
+    val color = when { hasMajor -> StatusError; totalAlerts > 0 -> StatusWarning; else -> StatusSuccess }
     val icon: ImageVector = when {
         hasMajor -> Icons.Filled.Warning
         totalAlerts > 0 -> Icons.Filled.NotificationsActive
@@ -284,9 +294,9 @@ private fun StatusSummaryBanner(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(MaterialTheme.shapes.large)
             .background(color.copy(alpha = 0.10f))
-            .border(1.dp, color.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+            .border(1.dp, color.copy(alpha = 0.25f), MaterialTheme.shapes.large)
             .padding(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -297,15 +307,15 @@ private fun StatusSummaryBanner(
 
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 if (totalAlerts == 0) {
-                    Text("Toutes vos lignes sont normales", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Toutes vos lignes sont normales", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 } else {
                     Text(
                         "$totalAlerts perturbation${if (totalAlerts > 1) "s" else ""} sur vos lignes",
-                        fontSize = 14.sp, fontWeight = FontWeight.SemiBold
+                        style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold
                     )
                 }
                 if (updateText != null) {
-                    Text("Mis à jour $updateText", fontSize = 11.sp, color = secondary)
+                    Text("Mis à jour $updateText", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -340,18 +350,18 @@ private fun MyLinesSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Mes lignes", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Mes lignes", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 if (subscribedLines.isNotEmpty()) {
                     Text(
                         "${subscribedLines.size} abonnement${if (subscribedLines.size > 1) "s" else ""}",
-                        fontSize = 12.sp, color = secondary
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             IconButton(
                 onClick = onAdd,
                 modifier = Modifier.size(30.dp),
-                colors = IconButtonDefaults.iconButtonColors(containerColor = iOSBlue, contentColor = Color.White)
+                colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
             ) { Icon(Icons.Filled.Add, "Ajouter une ligne", modifier = Modifier.size(16.dp)) }
         }
 
@@ -388,7 +398,7 @@ private fun MyLinesSection(
                                 .padding(horizontal = 3.dp)
                                 .size(if (isCurrent) 8.dp else 6.dp)
                                 .clip(CircleShape)
-                                .background(if (isCurrent) iOSBlue else Color(0xFFC6C6C8))
+                                .background(if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
                         )
                     }
                 }
@@ -410,21 +420,21 @@ private fun EmptySubscriptionsView(onAdd: () -> Unit) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Box(
-                modifier = Modifier.size(72.dp).clip(CircleShape).background(iOSBlue.copy(alpha = 0.10f)),
+                modifier = Modifier.size(72.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Filled.NotificationAdd, null, tint = iOSBlue, modifier = Modifier.size(30.dp))
+                Icon(Icons.Filled.NotificationAdd, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Suivez vos lignes", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("Suivez vos lignes", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Recevez des alertes en temps réel pour les lignes qui vous importent",
-                    fontSize = 13.sp, color = secondary, textAlign = TextAlign.Center
+                    fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Filled.Add, null, tint = iOSBlue, modifier = Modifier.size(16.dp))
-                Text("S'abonner à une ligne", fontSize = 13.sp, color = iOSBlue, fontWeight = FontWeight.SemiBold)
+                Icon(Icons.Filled.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                Text("S'abonner à une ligne", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -439,16 +449,16 @@ private fun LineStatusCard(
 ) {
     val highestSeverity = alerts.minByOrNull { it.severity.sortOrder }?.severity
     val statusColor = when (highestSeverity) {
-        AlertSeverity.MAJOR -> iOSRed
-        AlertSeverity.DISRUPTION -> iOSOrange
-        AlertSeverity.INFO -> iOSBlue
-        null -> iOSGreen
+        AlertSeverity.MAJOR -> StatusError
+        AlertSeverity.DISRUPTION -> StatusWarning
+        AlertSeverity.INFO -> MaterialTheme.colorScheme.primary
+        null -> StatusSuccess
     }
     val modeColor = transportModeColor(line.mode)
 
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = Color.White,
+        color = MaterialTheme.colorScheme.surface,
         shadowElevation = 6.dp,
         border = androidx.compose.foundation.BorderStroke(1.dp, statusColor.copy(alpha = 0.18f)),
         modifier = modifier.clickable { onClick() }
@@ -468,14 +478,14 @@ private fun LineStatusCard(
                             .background(modeColor.copy(alpha = 0.12f))
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
-                        Text(line.mode.displayName, fontSize = 11.sp,
+                        Text(line.mode.displayName, style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold, color = modeColor)
                     }
                     Text("Ligne ${line.displayName}", fontSize = 17.sp, fontWeight = FontWeight.Bold)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(statusColor))
                         if (alerts.isEmpty()) {
-                            Text("Service normal", fontSize = 13.sp, color = secondary)
+                            Text("Service normal", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         } else {
                             Text(
                                 "${alerts.size} perturbation${if (alerts.size > 1) "s" else ""}",
@@ -486,12 +496,12 @@ private fun LineStatusCard(
                 }
                 if (alerts.isNotEmpty()) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("${alerts.size}", fontSize = 28.sp, fontWeight = FontWeight.Black, color = statusColor)
+                        Text("${alerts.size}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = statusColor)
                         Text(if (alerts.size > 1) "alertes" else "alerte",
                             fontSize = 10.sp, fontWeight = FontWeight.Bold, color = statusColor.copy(alpha = 0.65f))
                     }
                 } else {
-                    Icon(Icons.Filled.CheckCircle, null, tint = iOSGreen, modifier = Modifier.size(28.dp))
+                    Icon(Icons.Filled.CheckCircle, null, tint = StatusSuccess, modifier = Modifier.size(28.dp))
                 }
             }
         }
@@ -502,7 +512,7 @@ private fun LineStatusCard(
 @Composable
 private fun AllLinesHeader(modifier: Modifier = Modifier) {
     Row(modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Text("Toutes les lignes", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text("Toutes les lignes", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -530,7 +540,8 @@ private fun ModeFilterTabs(
         modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        ModeChip(label = "Tout", icon = Icons.Filled.Apps, color = secondary,
+        ModeChip(label = "Tout", icon = Icons.Filled.Apps, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            onColor = MaterialTheme.colorScheme.surface,
             badgeCount = totalAlerts,
             isSelected = selected == null) { onSelect(null) }
         availableModes.forEach { mode ->
@@ -538,6 +549,7 @@ private fun ModeFilterTabs(
                 label = mode.displayName,
                 icon = transportModeIcon(mode),
                 color = transportModeColor(mode),
+                onColor = transportModeOnColor(mode),
                 badgeCount = countByMode[mode] ?: 0,
                 isSelected = selected == mode
             ) { onSelect(mode) }
@@ -546,7 +558,7 @@ private fun ModeFilterTabs(
 }
 
 @Composable
-private fun ModeChip(label: String, icon: ImageVector, color: Color, badgeCount: Int = 0, isSelected: Boolean, onClick: () -> Unit) {
+private fun ModeChip(label: String, icon: ImageVector, color: Color, onColor: Color = Color.White, badgeCount: Int = 0, isSelected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
@@ -555,18 +567,18 @@ private fun ModeChip(label: String, icon: ImageVector, color: Color, badgeCount:
             .padding(horizontal = 12.dp, vertical = 7.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            Icon(icon, null, tint = if (isSelected) Color.White else color, modifier = Modifier.size(11.dp))
-            Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                color = if (isSelected) Color.White else color)
+            Icon(icon, null, tint = if (isSelected) onColor else color, modifier = Modifier.size(11.dp))
+            Text(label, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold,
+                color = if (isSelected) onColor else color)
             if (badgeCount > 0) {
                 Box(
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(if (isSelected) Color.White else color)
+                        .background(if (isSelected) onColor else color)
                         .padding(horizontal = 6.dp, vertical = 1.dp)
                 ) {
                     Text("$badgeCount", fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                        color = if (isSelected) color else Color.White)
+                        color = if (isSelected) color else onColor)
                 }
             }
         }
@@ -624,10 +636,15 @@ private fun LineGridCell(
 ) {
     val modeColor = transportModeColor(line.mode)
     val badgeColor = when (highestSeverity) {
-        AlertSeverity.MAJOR -> iOSRed
-        AlertSeverity.DISRUPTION -> iOSOrange
-        AlertSeverity.INFO -> iOSBlue
-        null -> iOSRed
+        AlertSeverity.MAJOR -> StatusError
+        AlertSeverity.DISRUPTION -> StatusWarning
+        AlertSeverity.INFO -> MaterialTheme.colorScheme.primary
+        null -> StatusError
+    }
+    val badgeOnColor = when (highestSeverity) {
+        AlertSeverity.DISRUPTION -> Color(0xFF1B1B1F)
+        AlertSeverity.INFO       -> MaterialTheme.colorScheme.onPrimary
+        else                     -> Color.White
     }
     Box(
         modifier = Modifier
@@ -648,7 +665,7 @@ private fun LineGridCell(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             LineBadge(line.ligneCom, size = 50.dp, fontSize = 16.sp)
-            Text(line.displayName, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(line.displayName, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, maxLines = 1)
         }
         if (alertCount > 0) {
             Box(
@@ -659,7 +676,7 @@ private fun LineGridCell(
                     .background(badgeColor)
                     .padding(horizontal = 5.dp, vertical = 2.dp)
             ) {
-                Text("$alertCount", fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White)
+                Text("$alertCount", fontSize = 10.sp, fontWeight = FontWeight.Black, color = badgeOnColor)
             }
         } else if (isSubscribed) {
             Box(
@@ -668,10 +685,10 @@ private fun LineGridCell(
                     .padding(end = 4.dp)
                     .size(18.dp)
                     .clip(CircleShape)
-                    .background(iOSBlue),
+                    .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Filled.Notifications, null, tint = Color.White, modifier = Modifier.size(9.dp))
+                Icon(Icons.Filled.Notifications, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(9.dp))
             }
         }
     }
@@ -717,7 +734,7 @@ private fun SubscribeLineSheet(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (subscribed) iOSBlue.copy(alpha = 0.18f) else groupedBg)
+                        .background(if (subscribed) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
                         .clickable { onToggle(line) }
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
@@ -725,7 +742,7 @@ private fun SubscribeLineSheet(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         LineBadge(line.ligneCom, size = 32.dp, fontSize = 11.sp)
                         if (subscribed) {
-                            Icon(Icons.Filled.CheckCircle, null, tint = iOSBlue, modifier = Modifier.size(12.dp))
+                            Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(12.dp))
                         }
                     }
                 }
@@ -761,16 +778,16 @@ private fun LineDetailSheet(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(if (isSubscribed) iOSBlue else groupedBg)
+                    .background(if (isSubscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
                     .clickable { onToggleSubscription() }
                     .padding(horizontal = 14.dp, vertical = 8.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(Icons.Filled.Notifications, null,
-                        tint = if (isSubscribed) Color.White else iOSBlue, modifier = Modifier.size(14.dp))
+                        tint = if (isSubscribed) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
                     Text(if (isSubscribed) "Abonné" else "S'abonner",
                         fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                        color = if (isSubscribed) Color.White else iOSBlue)
+                        color = if (isSubscribed) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -778,16 +795,16 @@ private fun LineDetailSheet(
         if (ongoingAlerts.isEmpty() && upcomingAlerts.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Filled.CheckCircle, null, tint = iOSGreen, modifier = Modifier.size(48.dp))
-                    Text("Service normal", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Aucune perturbation en cours sur cette ligne", fontSize = 13.sp, color = secondary)
+                    Icon(Icons.Filled.CheckCircle, null, tint = StatusSuccess, modifier = Modifier.size(48.dp))
+                    Text("Service normal", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                    Text("Aucune perturbation en cours sur cette ligne", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
             if (ongoingAlerts.isNotEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Filled.Warning, null, tint = iOSOrange, modifier = Modifier.size(14.dp))
-                    Text("En cours", fontSize = 13.sp, color = iOSOrange, fontWeight = FontWeight.SemiBold)
+                    Icon(Icons.Filled.Warning, null, tint = StatusWarning, modifier = Modifier.size(14.dp))
+                    Text("En cours", fontSize = 13.sp, color = StatusWarning, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.height(8.dp))
                 ongoingAlerts.forEach { alert ->
@@ -798,8 +815,8 @@ private fun LineDetailSheet(
             if (upcomingAlerts.isNotEmpty()) {
                 if (ongoingAlerts.isNotEmpty()) Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Filled.Notifications, null, tint = secondary, modifier = Modifier.size(14.dp))
-                    Text("À venir", fontSize = 13.sp, color = secondary, fontWeight = FontWeight.SemiBold)
+                    Icon(Icons.Filled.Notifications, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                    Text("À venir", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.height(8.dp))
                 upcomingAlerts.forEach { alert ->
@@ -815,22 +832,22 @@ private fun LineDetailSheet(
 @Composable
 private fun AlertDetailRow(alert: TCLAlert) {
     val color = when (alert.severity) {
-        AlertSeverity.MAJOR -> iOSRed
-        AlertSeverity.DISRUPTION -> iOSOrange
-        AlertSeverity.INFO -> iOSBlue
+        AlertSeverity.MAJOR -> StatusError
+        AlertSeverity.DISRUPTION -> StatusWarning
+        AlertSeverity.INFO -> MaterialTheme.colorScheme.primary
     }
     Surface(shape = RoundedCornerShape(14.dp), color = color.copy(alpha = 0.08f),
         modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
-                Text(alert.severity.displayName, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color)
+                Text(alert.severity.displayName, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = color)
             }
             Spacer(Modifier.height(4.dp))
-            Text(alert.titre, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(alert.titre, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
             if (alert.message.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
-                Text(alert.message, fontSize = 12.sp, color = Color.DarkGray)
+                Text(alert.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -848,12 +865,18 @@ internal fun LineBadge(line: String, size: Dp, fontSize: TextUnit = 14.sp) {
 }
 
 internal fun transportModeColor(mode: TransportMode): Color = when (mode) {
-    TransportMode.METRO     -> Color(0xFFFF9500)  // iOS .orange
-    TransportMode.TRAMWAY   -> Color(0xFF007AFF)  // iOS .blue
-    TransportMode.FUNICULAR -> Color(0xFF34C759)  // iOS .green
-    TransportMode.BUS_C     -> Color(0xFFAF52DE)  // iOS .purple
-    TransportMode.BUS       -> Color(0xFF5856D6)  // iOS .indigo
-    TransportMode.NAVETTE   -> Color(0xFF32ADE6)  // iOS .cyan
+    TransportMode.METRO     -> ModeMetro
+    TransportMode.TRAMWAY   -> ModeTramway
+    TransportMode.FUNICULAR -> ModeFunicular
+    TransportMode.BUS_C     -> ModeBusC
+    TransportMode.BUS       -> ModeBus
+    TransportMode.NAVETTE   -> ModeNavette
+}
+
+internal fun transportModeOnColor(mode: TransportMode): Color = when (mode) {
+    TransportMode.METRO   -> Color(0xFF1B1B1F)
+    TransportMode.NAVETTE -> Color(0xFF1B1B1F)
+    else                  -> Color.White
 }
 
 internal fun transportModeIcon(mode: TransportMode): ImageVector = when (mode) {

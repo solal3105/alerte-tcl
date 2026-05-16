@@ -24,8 +24,8 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -47,77 +46,87 @@ fun LocationPermissionView(onDismiss: () -> Unit) {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { onDismiss() }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 32.dp, vertical = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Spacer(Modifier.height(16.dp))
-
-        // Icon hero
-        Box(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
             modifier = Modifier
-                .size(120.dp)
-                .shadow(12.dp, CircleShape)
-                .clip(CircleShape)
-                .background(Brush.radialGradient(listOf(Color(0xFF42A5F5), Color(0xFF1565C0)))),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 32.dp)
+                .padding(top = 24.dp, bottom = 160.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(Icons.Filled.MyLocation, null, tint = Color.White, modifier = Modifier.size(52.dp))
+            Spacer(Modifier.height(16.dp))
+
+            // Icon hero
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .shadow(12.dp, CircleShape)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.MyLocation, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(52.dp))
+            }
+
+            Spacer(Modifier.height(32.dp))
+
+            Text("Trouvez-vous facilement", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Centrez automatiquement la carte sur votre position pour voir les transports autour de vous",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center
+            )
+
+            Spacer(Modifier.height(32.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                PermissionFeatureRow(
+                    icon = Icons.Filled.MyLocation, color = MaterialTheme.colorScheme.primary,
+                    title = "Centrage automatique",
+                    description = "La carte se centre sur votre position actuelle"
+                )
+                PermissionFeatureRow(
+                    icon = Icons.Filled.Map, color = MaterialTheme.colorScheme.secondary,
+                    title = "Transports à proximité",
+                    description = "Visualisez les véhicules autour de vous en temps réel"
+                )
+                PermissionFeatureRow(
+                    icon = Icons.Filled.Lock, color = MaterialTheme.colorScheme.tertiary,
+                    title = "Confidentialité",
+                    description = "Votre position n'est jamais partagée ni stockée"
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
         }
 
-        Spacer(Modifier.height(32.dp))
-
-        Text("Trouvez-vous facilement", fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(10.dp))
-        Text(
-            "Centrez automatiquement la carte sur votre position pour voir les transports autour de vous",
-            fontSize = 14.sp, color = Color.Gray, textAlign = TextAlign.Center
-        )
-
-        Spacer(Modifier.height(32.dp))
-
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            PermissionFeatureRow(
-                icon = Icons.Filled.MyLocation, color = Color(0xFF1976D2),
-                title = "Centrage automatique",
-                description = "La carte se centre sur votre position actuelle"
-            )
-            PermissionFeatureRow(
-                icon = Icons.Filled.Map, color = Color(0xFF43A047),
-                title = "Transports à proximité",
-                description = "Visualisez les véhicules autour de vous en temps réel"
-            )
-            PermissionFeatureRow(
-                icon = Icons.Filled.Lock, color = Color(0xFFFB8C00),
-                title = "Confidentialité",
-                description = "Votre position n'est jamais partagée ni stockée"
-            )
-        }
-
-        Spacer(Modifier.height(32.dp))
-
-        Button(
-            onClick = {
-                launcher.launch(arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                ))
-            },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2))
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(horizontal = 32.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Activer la localisation", fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
-                modifier = Modifier.padding(vertical = 4.dp))
+            Button(
+                onClick = {
+                    launcher.launch(arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ))
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                Text("Activer la localisation", fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+                    modifier = Modifier.padding(vertical = 4.dp))
+            }
+            Spacer(Modifier.height(4.dp))
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Plus tard", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
-        Spacer(Modifier.height(8.dp))
-        TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-            Text("Plus tard", color = Color.Gray)
-        }
-        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -130,8 +139,8 @@ internal fun PermissionFeatureRow(icon: ImageVector, color: Color, title: String
         ) { Icon(icon, null, tint = color, modifier = Modifier.size(20.dp)) }
         Spacer(Modifier.width(14.dp))
         Column {
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text(description, fontSize = 12.sp, color = Color.Gray)
+            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
