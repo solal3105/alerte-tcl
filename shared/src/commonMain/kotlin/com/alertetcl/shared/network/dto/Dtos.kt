@@ -88,7 +88,9 @@ data class TransitLineFeature(
 @Serializable
 data class LineProperties(
     val ligne: String? = null,
-    @SerialName("famille_transport") val familleTransport: String? = null
+    @SerialName("famille_transport") val familleTransport: String? = null,
+    val sens: String? = null,
+    @SerialName("nom_destination") val nomDestination: String? = null
 )
 
 @Serializable

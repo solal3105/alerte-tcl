@@ -24,6 +24,7 @@ class BusLineService {
 
     private val mutex = Mutex()
     private var cache: Pair<List<BusLine>, Long>? = null
+    private var terminusCache: Pair<Map<String, String>, Long>? = null
     private val cacheValidity = 86_400L
 
     suspend fun fetchBusLines(): List<BusLine> {
@@ -51,6 +52,39 @@ class BusLineService {
         mutex.withLock { cache = lines to Clock.System.now().epochSeconds }
         AppLogger.debug("BusLineService: ${lines.size} segments")
         return lines
+    }
+
+    /** Returns a map of `"${ligne}|A"` / `"${ligne}|R"` → terminus name from the bus-lines API. */
+    suspend fun fetchLineTermini(): Map<String, String> {
+        mutex.withLock { terminusCache }?.let { (data, ts) ->
+            if (Clock.System.now().epochSeconds - ts < cacheValidity) return data
+        }
+        val url = "$baseURL?limit=5000&f=json"
+        val resp = try {
+            client.get(url) {
+                timeout { requestTimeoutMillis = NetworkConfiguration.SHARED_TIMEOUT_SECONDS * 1000 }
+            }
+        } catch (e: Throwable) { throw ApiError.NetworkError(e) }
+        if (resp.status != HttpStatusCode.OK) throw ApiError.HttpError(resp.status.value)
+        val body: BusLineResponse = try { resp.body() } catch (e: Throwable) { throw ApiError.DecodingError(e) }
+
+        val termini = body.features
+            .mapNotNull { feature ->
+                val ligne = feature.properties.ligne ?: return@mapNotNull null
+                val sens = feature.properties.sens?.trim()?.lowercase() ?: return@mapNotNull null
+                val dest = feature.properties.nomDestination ?: return@mapNotNull null
+                val direction = when (sens) {
+                    "aller"  -> "A"
+                    "retour" -> "R"
+                    else     -> return@mapNotNull null
+                }
+                "${ligne}|${direction}" to dest
+            }
+            .toMap()
+
+        mutex.withLock { terminusCache = termini to Clock.System.now().epochSeconds }
+        AppLogger.debug("BusLineService termini: ${termini.size} entries")
+        return termini
     }
 
     companion object { val shared = BusLineService() }

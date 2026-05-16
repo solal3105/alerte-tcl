@@ -210,7 +210,7 @@ struct SmallWidgetView: View {
         if let error = entry.error {
             ErrorStateView(error: error, lineName: entry.lineName)
         } else {
-            VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
 
                 // ── Header : ligne + direction
                 HStack(alignment: .top, spacing: 0) {
@@ -242,52 +242,44 @@ struct SmallWidgetView: View {
                             .padding(.top, 2)
                     }
                 }
-                .padding(.horizontal, 13)
-                .padding(.top, 12)
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .padding(.bottom, 4)
 
-                Spacer()
-
-                // ── Délai principal
-                if let next = entry.passages.first {
-                    VStack(spacing: 1) {
-                        Text(next.compactDelay)
-                            .font(.system(size: 38, weight: .bold, design: .rounded))
-                            .foregroundColor(next.urgencyColor(fallback: lineColor))
-                            .minimumScaleFactor(0.55)
-                            .lineLimit(1)
-
-                        if next.isRelativeDelay {
-                            Text(next.time)
-                                .font(.system(size: 12, weight: .regular))
-                                .foregroundColor(.secondary)
+                // ── Passages
+                VStack(spacing: 0) {
+                    ForEach(Array(entry.passages.prefix(3).enumerated()), id: \.offset) { index, passage in
+                        HStack(spacing: 6) {
+                            Text(passage.compactDelay)
+                                .font(.system(size: index == 0 ? 26 : 14, weight: index == 0 ? .bold : .semibold, design: .rounded))
+                                .foregroundColor(passage.urgencyColor(fallback: index == 0 ? lineColor : .primary))
+                                .minimumScaleFactor(0.6)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            if passage.isRelativeDelay {
+                                Text(passage.time)
+                                    .font(.system(size: index == 0 ? 11 : 9))
+                                    .foregroundColor(.secondary)
+                            }
                         }
-                    }
-
-                    // ── Prochain passage (secondaire)
-                    if entry.passages.count > 1 {
-                        let second = entry.passages[1]
-                        HStack(spacing: 5) {
-                            Text("puis")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                            Text(second.compactDelay)
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .foregroundColor(second.urgencyColor(fallback: .secondary))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, index == 0 ? 5 : 3)
+                        if index < min(entry.passages.count - 1, 2) {
+                            Divider().padding(.leading, 12)
                         }
-                        .padding(.top, 3)
                     }
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
 
                 // ── Footer : arrêt
                 Text(entry.stopName)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.primary)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 13)
-                    .padding(.bottom, 12)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 10)
             }
         }
     }
@@ -345,21 +337,19 @@ struct MediumWidgetView: View {
                     }
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 11)
+                .padding(.vertical, 8)
                 .background(lineColor.opacity(0.08))
 
                 // ── Passages
                 VStack(spacing: 0) {
-                    ForEach(Array(entry.passages.prefix(3).enumerated()), id: \.offset) { index, passage in
+                    ForEach(Array(entry.passages.prefix(4).enumerated()), id: \.offset) { index, passage in
                         MediumPassageRow(passage: passage, isFirst: index == 0, lineColor: lineColor)
-                        if index < min(entry.passages.count - 1, 2) {
+                        if index < min(entry.passages.count - 1, 3) {
                             Divider().padding(.leading, 14)
                         }
                     }
                 }
-                .padding(.vertical, 4)
-
-                Spacer(minLength: 0)
+                .padding(.vertical, 2)
             }
         }
     }
@@ -485,7 +475,7 @@ struct MediumPassageRow: View {
                 .frame(width: 6, height: 6)
 
             Text(passage.smartDelay)
-                .font(.system(size: isFirst ? 19 : 14, weight: isFirst ? .bold : .semibold, design: .rounded))
+                .font(.system(size: isFirst ? 17 : 14, weight: isFirst ? .bold : .semibold, design: .rounded))
                 .foregroundColor(passage.urgencyColor(fallback: isFirst ? lineColor : .primary))
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
@@ -494,12 +484,12 @@ struct MediumPassageRow: View {
 
             if passage.isRelativeDelay {
                 Text(passage.time)
-                    .font(.system(size: isFirst ? 13 : 11, weight: .regular))
+                    .font(.system(size: isFirst ? 12 : 11, weight: .regular))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
             }
         }
-        .padding(.vertical, isFirst ? 9 : 7)
+        .padding(.vertical, isFirst ? 7 : 6)
         .padding(.horizontal, 14)
     }
 }

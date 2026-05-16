@@ -60,7 +60,7 @@ import com.alertetcl.android.data.WidgetSelection
 import com.alertetcl.android.ui.alerts.LineBadge
 import com.alertetcl.android.widget.NextDeparturesGlanceWidgetReceiver
 import com.alertetcl.shared.models.TransitStop
-import com.alertetcl.shared.services.SiriLiteService
+import com.alertetcl.shared.services.BusLineService
 import com.alertetcl.shared.services.TransitStopService
 import com.alertetcl.android.ui.theme.StatusSuccess
 import kotlinx.coroutines.launch
@@ -279,9 +279,7 @@ private fun AddToWidgetSheet(
 
     val destinationMap = produceState<Map<String, String>>(initialValue = emptyMap(), stop) {
         value = runCatching {
-            SiriLiteService.shared.fetchVehicles()
-                .associate { "${it.lineName}|${it.direction}" to it.destination }
-                .filterValues { it.isNotBlank() }
+            BusLineService.shared.fetchLineTermini()
         }.getOrDefault(emptyMap())
     }
 

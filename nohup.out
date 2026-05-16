@@ -113,3 +113,11 @@ INFO         | Warning: QObject::connect:  (receiver name: 'ToolControls') (:0, 
 INFO         | Created extended window in 206.342ms
 INFO         | Boot completed in 20172 ms
 INFO         | Increasing screen off timeout, logcat buffer size to 2M.
+INFO         | Wait for emulator (pid 33638) 20 seconds to shutdown gracefully before kill;you can set environment variable ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL(in seconds) to change the default value (20 seconds)
+
+INFO         | Saving with gfxstream=1
+INFO         | Saving snapshot 'default_boot' using 2682 ms
+INFO         | GPU Vendor=[Google (Google Inc. (Google))]
+INFO         | GPU Renderer=[Android Emulator OpenGL ES Translator (ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver-5.0.0))]
+INFO         | GPU Version=[OpenGL ES 3.0 (OpenGL ES 3.1.0 (ANGLE 2.1.1 git hash: fbf66f49c7cc))]
+WARNING      | Netsim Wifi localhost:54959 is gone due to CANCELLED
