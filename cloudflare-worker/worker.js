@@ -11,6 +11,7 @@
  *   GET /stops?<params>              → GeoServer tclarret/items
  *   GET /parc-relais                 → GeoServer tclparcrelaisst/items (statique)
  *   GET /parc-relais-tr              → GeoServer tclparcrelaistr/items (temps réel)
+ *   GET /velov                       → GeoServer jcdvelov/items (stations + temps réel)
  *
  * Les credentials Grand Lyon sont stockés en secrets Cloudflare chiffrés.
  * Aucune credential n'est dans le code ni dans le binaire iOS.
@@ -42,6 +43,7 @@ const GEO_COLLECTIONS = {
   "stops":            "sytral:tcl_sytral.tclarret",
   "parc-relais":      "sytral:tcl_sytral.tclparcrelaisst",
   "parc-relais-tr":   "sytral:tcl_sytral.tclparcrelaistr",
+  "velov":            "metropole-de-lyon:jcd_jcdecaux.jcdvelov",
 };
 
 // TTL (secondes) par route — fréquence de rafraîchissement côté serveur.
@@ -52,6 +54,7 @@ const ROUTE_TTL = {
   "/parc-relais-tr": 30,   // occupation P+R temps réel
   "/alerts":         60,   // alertes trafic
   "/parc-relais":    3600, // données P+R statiques
+  "/velov":          30,   // dispo vélos/bornettes temps réel (collection unique)
 };
 const GEO_TTL = 86400; // lignes, arrêts — données quasi-statiques
 

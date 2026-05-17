@@ -71,6 +71,10 @@
 		AAA00039 /* LocationPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00031 /* LocationPermissionView.swift */; };
 		AD087F1B2F9E0CC6002CBA68 /* ParcRelaisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD087F1A2F9E0CC6002CBA68 /* ParcRelaisService.swift */; };
 		AD087F1D2F9E0D30002CBA68 /* ParcRelais.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD087F1C2F9E0D30002CBA68 /* ParcRelais.swift */; };
+		B1000011 /* VelovStation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000010 /* VelovStation.swift */; };
+		B1000013 /* VelovService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000012 /* VelovService.swift */; };
+		B1000015 /* SoftMobilityViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000014 /* SoftMobilityViewModel.swift */; };
+		B1000017 /* SoftMobilityMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000016 /* SoftMobilityMapView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -179,6 +183,10 @@
 		AAA00031 /* LocationPermissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPermissionView.swift; sourceTree = "<group>"; };
 		AD087F1A2F9E0CC6002CBA68 /* ParcRelaisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParcRelaisService.swift; sourceTree = "<group>"; };
 		AD087F1C2F9E0D30002CBA68 /* ParcRelais.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParcRelais.swift; sourceTree = "<group>"; };
+		B1000010 /* VelovStation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VelovStation.swift; sourceTree = "<group>"; };
+		B1000012 /* VelovService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VelovService.swift; sourceTree = "<group>"; };
+		B1000014 /* SoftMobilityViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftMobilityViewModel.swift; sourceTree = "<group>"; };
+		B1000016 /* SoftMobilityMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftMobilityMapView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -258,6 +266,7 @@
 				4F38BD252F159CCA00E05786 /* MetroLine.swift */,
 				4F38BD1F2F1591C000E05786 /* BusLine.swift */,
 				4F9DFF9C2F1457E200E01BFB /* Parking.swift */,
+				B1000010 /* VelovStation.swift */,
 				AAA00014 /* Alert.swift */,
 				AAA00015 /* TransportLine.swift */,
 				AAA00025 /* Vehicle.swift */,
@@ -270,6 +279,7 @@
 			isa = PBXGroup;
 			children = (
 				AD087F1A2F9E0CC6002CBA68 /* ParcRelaisService.swift */,
+				B1000012 /* VelovService.swift */,
 				4FD3050A2F1E686900EAFA92 /* WidgetStopStorage.swift */,
 				4F39DE022F1BABC200F24E3D /* NetworkConfiguration.swift */,
 				4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */,
@@ -293,6 +303,7 @@
 			children = (
 				4F38BD2D2F15B0E200E05786 /* TravauxViewModel.swift */,
 				4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */,
+				B1000014 /* SoftMobilityViewModel.swift */,
 				AAA00019 /* AlertViewModel.swift */,
 				AAA00029 /* LiveVehiclesViewModel.swift */,
 			);
@@ -309,6 +320,7 @@
 				4F9DFFBA2F146D4B00E01BFB /* SettingsView.swift */,
 				4FAB0E1F2F500000000AB001 /* AboutView.swift */,
 				4F9DFF992F14577200E01BFB /* ParkingMapView.swift */,
+				B1000016 /* SoftMobilityMapView.swift */,
 				AAA00012 /* ContentView.swift */,
 				AAA0001A /* AlertsView.swift */,
 				AAA0001B /* LinesListView.swift */,
@@ -535,6 +547,10 @@
 				4FD305012F1E5FC300EAFA92 /* TaskTimeout.swift in Sources */,
 				4F38BD222F1591C900E05786 /* BusLineService.swift in Sources */,
 				4F9DFFA32F1457F900E01BFB /* ParkingViewModel.swift in Sources */,
+				B1000011 /* VelovStation.swift in Sources */,
+				B1000013 /* VelovService.swift in Sources */,
+				B1000015 /* SoftMobilityViewModel.swift in Sources */,
+				B1000017 /* SoftMobilityMapView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
