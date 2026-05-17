@@ -15,23 +15,29 @@ struct ContentView: View {
                 .tag(0)
                 .environmentObject(viewModel)
             
-            TravauxMapView()
+            SoftMobilityMapView()
                 .tabItem {
-                    Label("Travaux", systemImage: "hammer.fill")
+                    Label("Mobilités", systemImage: "bicycle")
                 }
                 .tag(1)
-            
+
             ParkingMapView(selectedParkingId: $selectedParkingId)
                 .tabItem {
                     Label("Parkings", systemImage: "car.fill")
                 }
                 .tag(2)
 
+            TravauxMapView()
+                .tabItem {
+                    Label("Travaux", systemImage: "hammer.fill")
+                }
+                .tag(3)
+
             AboutView()
                 .tabItem {
                     Label("Info", systemImage: "info.circle.fill")
                 }
-                .tag(3)
+                .tag(4)
         }
         .tint(.primary)
         .tabViewStyle(.automatic)

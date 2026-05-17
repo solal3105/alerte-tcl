@@ -11,6 +11,8 @@
  *   GET /stops?<params>              → GeoServer tclarret/items
  *   GET /parc-relais                 → GeoServer tclparcrelaisst/items (statique)
  *   GET /parc-relais-tr              → GeoServer tclparcrelaistr/items (temps réel)
+ *   GET /velov                       → GeoServer jcdvelov/items (stations + temps réel)
+ *   GET /dott-vehicles               → Dott GBFS free_bike_status (trottinettes Lyon)
  *
  * Les credentials Grand Lyon sont stockés en secrets Cloudflare chiffrés.
  * Aucune credential n'est dans le code ni dans le binaire iOS.
@@ -28,6 +30,7 @@
 const DATA_BASE     = "https://data.grandlyon.com";
 const DOWNLOAD_BASE = "https://download.data.grandlyon.com/ws/rdata";
 const GEO_BASE      = `${DATA_BASE}/geoserver/ogc/features/v1/collections`;
+const DOTT_BASE     = "https://gbfs.api.ridedott.com/public/v2/lyon";
 
 const ALERTS_URL    = `${DOWNLOAD_BASE}/tcl_sytral.tclalertetrafic_2/all.json`;
 const PASSAGES_URL  = `${DOWNLOAD_BASE}/tcl_sytral.tclpassagearret/all.json`;
@@ -42,6 +45,7 @@ const GEO_COLLECTIONS = {
   "stops":            "sytral:tcl_sytral.tclarret",
   "parc-relais":      "sytral:tcl_sytral.tclparcrelaisst",
   "parc-relais-tr":   "sytral:tcl_sytral.tclparcrelaistr",
+  "velov":            "metropole-de-lyon:jcd_jcdecaux.jcdvelov",
 };
 
 // TTL (secondes) par route — fréquence de rafraîchissement côté serveur.
@@ -52,6 +56,8 @@ const ROUTE_TTL = {
   "/parc-relais-tr": 30,   // occupation P+R temps réel
   "/alerts":         60,   // alertes trafic
   "/parc-relais":    3600, // données P+R statiques
+  "/velov":          30,   // dispo vélos/bornettes temps réel (collection unique)
+  "/dott-vehicles":  60,   // trottinettes Dott (GBFS recommande 300 s, on garde frais)
 };
 const GEO_TTL = 86400; // lignes, arrêts — données quasi-statiques
 
@@ -190,6 +196,24 @@ export default {
     // ── /vehicles ───────────────────────────────────────────────────────────
     if (pathname === "/vehicles") {
       return cachedProxyFetch(cacheKeyURL, VEHICLES_URL, authHeaders, ctx, ROUTE_TTL["/vehicles"]);
+    }
+
+    // ── /dott-vehicles ──────────────────────────────────────────────────────
+    // GBFS public Dott : pas d'auth, juste un Accept/User-Agent propre.
+    // Le flux upstream est volumineux (~3500 véhicules) — caching agressif au
+    // worker pour ne pas marteler Dott et limiter la bande passante app.
+    if (pathname === "/dott-vehicles") {
+      const dottHeaders = {
+        Accept: "application/json",
+        "User-Agent": "AlerteTCL-Proxy/1.0",
+      };
+      return cachedProxyFetch(
+        cacheKeyURL,
+        `${DOTT_BASE}/free_bike_status.json`,
+        dottHeaders,
+        ctx,
+        ROUTE_TTL["/dott-vehicles"]
+      );
     }
 
     // ── /metro-funi-lines | /tram-lines | /bus-lines | /stops ───────────────
