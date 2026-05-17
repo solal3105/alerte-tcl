@@ -2,12 +2,13 @@ import SwiftUI
 import MapKit
 import CoreLocation
 
-/// Onglet "Mobilités douces" — carte des stations Vélo'v (et plus tard Dott, …).
+/// Onglet "Mobilités douces" - bascule entre stations Vélo'v et trottinettes Dott.
 struct SoftMobilityMapView: View {
     @StateObject private var viewModel = SoftMobilityViewModel()
     @ObservedObject private var locationService = LocationService.shared
 
-    @State private var selectedStation: VelovStation?
+    @State private var selectedVelov: VelovStation?
+    @State private var selectedDott: DottVehicle?
     @State private var showSearch = false
     @State private var mapCameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -23,16 +24,22 @@ struct SoftMobilityMapView: View {
         ZStack {
             mapContent
 
-            VStack {
+            VStack(spacing: 8) {
+                serviceSelector
                 filterBar
                 Spacer()
             }
 
             overlayControls
         }
-        .sheet(item: $selectedStation) { station in
+        .sheet(item: $selectedVelov) { station in
             VelovStationDetailSheet(station: station)
                 .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $selectedDott) { vehicle in
+            DottVehicleDetailSheet(vehicle: vehicle)
+                .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showSearch) {
@@ -52,7 +59,7 @@ struct SoftMobilityMapView: View {
                         )
                     }
                     try? await Task.sleep(for: .milliseconds(400))
-                    selectedStation = station
+                    selectedVelov = station
                 }
             }
             .presentationDetents([.large])
@@ -70,16 +77,46 @@ struct SoftMobilityMapView: View {
 
     private var mapContent: some View {
         Map(position: $mapCameraPosition) {
-            ForEach(viewModel.velovStations) { station in
-                Annotation(station.displayName, coordinate: station.coordinate) {
-                    VelovStationMarker(
-                        station: station,
-                        count: viewModel.count(for: station, filter: viewModel.filter),
-                        colorKind: viewModel.color(for: station, filter: viewModel.filter)
-                    )
-                    .onTapGesture { selectedStation = station }
+            switch viewModel.activeService {
+            case .velov:
+                ForEach(viewModel.velovStations) { station in
+                    Annotation(station.displayName, coordinate: station.coordinate) {
+                        VelovStationMarker(
+                            station: station,
+                            count: viewModel.count(for: station, filter: viewModel.velovFilter),
+                            colorKind: viewModel.color(for: station, filter: viewModel.velovFilter)
+                        )
+                        .onTapGesture { selectedVelov = station }
+                    }
+                    .annotationTitles(.hidden)
                 }
-                .annotationTitles(.hidden)
+            case .dott:
+                let (clusters, individuals) = viewModel.dottClustering
+                ForEach(clusters, id: \.id) { cluster in
+                    Annotation("", coordinate: cluster.coordinate) {
+                        DottClusterMarker(cluster: cluster)
+                            .onTapGesture {
+                                withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                                    let factor = 0.4
+                                    mapCameraPosition = .region(
+                                        MKCoordinateRegion(
+                                            center: cluster.coordinate,
+                                            span: MKCoordinateSpan(
+                                                latitudeDelta: max(viewModel.currentZoomLevel * factor, 0.005),
+                                                longitudeDelta: max(viewModel.currentZoomLevel * factor, 0.005)
+                                            )
+                                        )
+                                    )
+                                }
+                            }
+                    }
+                }
+                ForEach(individuals) { vehicle in
+                    Annotation("", coordinate: vehicle.coordinate) {
+                        DottVehicleMarker(vehicle: vehicle)
+                            .onTapGesture { selectedDott = vehicle }
+                    }
+                }
             }
 
             if locationService.currentLocation != nil {
@@ -89,18 +126,72 @@ struct SoftMobilityMapView: View {
         .mapStyle(isSatellite ? .imagery(elevation: .realistic) : .standard(pointsOfInterest: .excludingAll))
         .mapControlVisibility(.hidden)
         .ignoresSafeArea(edges: .top)
+        .onMapCameraChange { context in
+            viewModel.updateZoom(context.region.span)
+            viewModel.updateVisibleRegion(context.region)
+        }
+    }
+
+    // MARK: - Service selector
+
+    private var serviceSelector: some View {
+        HStack(spacing: 6) {
+            ForEach(SoftMobilityViewModel.Service.allCases) { service in
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        viewModel.activeService = service
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: service.icon)
+                            .font(.system(size: 12, weight: .semibold))
+                        Text(service.rawValue)
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .foregroundStyle(viewModel.activeService == service ? .white : .primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background {
+                        if viewModel.activeService == service {
+                            Capsule().fill(serviceColor(service))
+                                .shadow(color: serviceColor(service).opacity(0.35), radius: 4, x: 0, y: 2)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(.ultraThinMaterial, in: Capsule())
+        .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 2)
+        .padding(.top, 8)
+    }
+
+    private func serviceColor(_ service: SoftMobilityViewModel.Service) -> Color {
+        switch service {
+        case .velov: return .green
+        case .dott:  return .blue
+        }
     }
 
     // MARK: - Filter bar
 
+    @ViewBuilder
     private var filterBar: some View {
+        switch viewModel.activeService {
+        case .velov: velovFilterBar
+        case .dott:  dottFilterBar
+        }
+    }
+
+    private var velovFilterBar: some View {
         HStack(spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(SoftMobilityViewModel.StationFilter.allCases) { filter in
+                    ForEach(SoftMobilityViewModel.VelovStationFilter.allCases) { filter in
                         Button {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                                viewModel.filter = filter
+                                viewModel.velovFilter = filter
                             }
                         } label: {
                             HStack(spacing: 6) {
@@ -109,11 +200,11 @@ struct SoftMobilityMapView: View {
                                 Text(filter.rawValue)
                                     .font(.system(size: 13, weight: .semibold))
                             }
-                            .foregroundStyle(viewModel.filter == filter ? .white : .primary)
+                            .foregroundStyle(viewModel.velovFilter == filter ? .white : .primary)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 9)
                             .background {
-                                if viewModel.filter == filter {
+                                if viewModel.velovFilter == filter {
                                     Capsule().fill(Color.green)
                                         .shadow(color: .green.opacity(0.35), radius: 4, x: 0, y: 2)
                                 } else {
@@ -141,7 +232,38 @@ struct SoftMobilityMapView: View {
             .buttonStyle(.plain)
             .padding(.trailing, 16)
         }
-        .padding(.top, 8)
+    }
+
+    private var dottFilterBar: some View {
+        HStack(spacing: 8) {
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                    viewModel.dottHideLowBattery.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: viewModel.dottHideLowBattery ? "battery.100" : "battery.25")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(viewModel.dottHideLowBattery ? "Batterie OK" : "Toutes batteries")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .foregroundStyle(viewModel.dottHideLowBattery ? .white : .primary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background {
+                    if viewModel.dottHideLowBattery {
+                        Capsule().fill(Color.blue)
+                            .shadow(color: .blue.opacity(0.35), radius: 4, x: 0, y: 2)
+                    } else {
+                        Capsule().fill(.ultraThinMaterial)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
     }
 
     // MARK: - Overlay controls
@@ -214,8 +336,7 @@ struct SoftMobilityMapView: View {
                     .foregroundStyle(viewModel.error != nil ? .orange : .green)
 
                 if viewModel.isLoading {
-                    ProgressView()
-                        .scaleEffect(0.5)
+                    ProgressView().scaleEffect(0.5)
                 } else if let last = viewModel.lastUpdate {
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         let remaining = max(0, Int(viewModel.refreshInterval) - Int(ctx.date.timeIntervalSince(last)))
@@ -240,116 +361,141 @@ struct SoftMobilityMapView: View {
         }
     }
 
+    @ViewBuilder
     private var refreshInfoPopover: some View {
+        switch viewModel.activeService {
+        case .velov: velovRefreshPopover
+        case .dott:  dottRefreshPopover
+        }
+    }
+
+    private var velovRefreshPopover: some View {
         VStack(spacing: 0) {
-            // Header
             HStack(spacing: 12) {
                 ZStack {
-                    Circle()
-                        .fill(Color.green.opacity(0.15))
-                        .frame(width: 44, height: 44)
+                    Circle().fill(Color.green.opacity(0.15)).frame(width: 44, height: 44)
                     Image(systemName: "bicycle")
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(.green)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Vélo'v en direct")
-                        .font(.system(size: 15, weight: .semibold))
+                    Text("Vélo'v en direct").font(.system(size: 15, weight: .semibold))
                     Text("\(viewModel.openStationsCount) stations actives")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
                 }
                 Spacer()
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+            .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 12)
 
             Divider().padding(.horizontal, 16)
 
-            // Totaux réseau
             HStack(spacing: 0) {
-                VStack(spacing: 3) {
-                    Text("\(viewModel.totalAvailableBikes)")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(.green)
-                        .monospacedDigit()
-                    Text("vélos dispo")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-
+                statColumn(value: "\(viewModel.totalAvailableBikes)", label: "vélos dispo", color: .green)
                 Divider().frame(height: 36)
-
-                VStack(spacing: 3) {
-                    Text("\(viewModel.totalAvailableStands)")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(.blue)
-                        .monospacedDigit()
-                    Text("places libres")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
+                statColumn(value: "\(viewModel.totalAvailableStands)", label: "places libres", color: .blue)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 16).padding(.vertical, 14)
 
             Divider().padding(.horizontal, 16)
 
-            // Intervalle + dernière maj
             HStack(spacing: 0) {
-                VStack(spacing: 3) {
-                    Text("\(Int(viewModel.refreshInterval))s")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(.green)
-                    Text("intervalle")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-
+                statColumn(value: "\(Int(viewModel.velovRefreshInterval))s", label: "intervalle", color: .green)
                 Divider().frame(height: 36)
-
-                VStack(spacing: 3) {
-                    if let lastUpdate = viewModel.lastUpdate {
-                        Text(lastUpdate, style: .relative)
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.primary)
-                            .minimumScaleFactor(0.7)
-                    } else {
-                        Text("—")
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                    }
-                    Text("dernière maj")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
+                lastUpdateColumn(date: viewModel.velovLastUpdate)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 16).padding(.vertical, 14)
 
             Divider().padding(.horizontal, 16)
 
             HStack(spacing: 10) {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .font(.system(size: 15))
+                    .foregroundStyle(.green).font(.system(size: 15))
                 Text("Inutile de rafraîchir manuellement")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.primary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 16).padding(.vertical, 12)
         }
+    }
+
+    private var dottRefreshPopover: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle().fill(Color.blue.opacity(0.15)).frame(width: 44, height: 44)
+                    Image(systemName: "scooter")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.blue)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Dott en direct").font(.system(size: 15, weight: .semibold))
+                    Text("\(viewModel.dottAvailableCount) trottinettes disponibles")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 12)
+
+            Divider().padding(.horizontal, 16)
+
+            HStack(spacing: 0) {
+                statColumn(value: "\(viewModel.dottVehicles.count)", label: "total réseau", color: .blue)
+                Divider().frame(height: 36)
+                statColumn(value: "\(viewModel.dottLowBatteryCount)", label: "batterie faible", color: .red)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+
+            Divider().padding(.horizontal, 16)
+
+            HStack(spacing: 0) {
+                statColumn(value: "\(Int(viewModel.dottRefreshInterval))s", label: "intervalle", color: .blue)
+                Divider().frame(height: 36)
+                lastUpdateColumn(date: viewModel.dottLastUpdate)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+
+            Divider().padding(.horizontal, 16)
+
+            HStack(spacing: 10) {
+                Image(systemName: "info.circle.fill")
+                    .foregroundStyle(.blue).font(.system(size: 15))
+                Text("Touchez une trottinette pour ouvrir Dott")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16).padding(.vertical, 12)
+        }
+    }
+
+    private func statColumn(value: String, label: String, color: Color) -> some View {
+        VStack(spacing: 3) {
+            Text(value)
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundStyle(color)
+                .monospacedDigit()
+            Text(label).font(.system(size: 11)).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func lastUpdateColumn(date: Date?) -> some View {
+        VStack(spacing: 3) {
+            if let date {
+                Text(date, style: .relative)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .minimumScaleFactor(0.7)
+            } else {
+                Text("—")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+            Text("dernière maj").font(.system(size: 11)).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
-// MARK: - Marker
+// MARK: - Vélo'v marker
 
 private struct VelovStationMarker: View {
     let station: VelovStation
@@ -363,9 +509,7 @@ private struct VelovStationMarker: View {
                 .frame(width: 28, height: 28)
                 .shadow(color: colorKind.color.opacity(0.4), radius: 4, x: 0, y: 2)
 
-            Circle()
-                .strokeBorder(.white, lineWidth: 2)
-                .frame(width: 28, height: 28)
+            Circle().strokeBorder(.white, lineWidth: 2).frame(width: 28, height: 28)
 
             if colorKind == .closed {
                 Image(systemName: "xmark")
@@ -383,7 +527,63 @@ private struct VelovStationMarker: View {
     }
 }
 
-// MARK: - Search sheet
+// MARK: - Dott markers
+
+private struct DottVehicleMarker: View {
+    let vehicle: DottVehicle
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(vehicle.batteryLevel.color)
+                .frame(width: 22, height: 22)
+                .shadow(color: vehicle.batteryLevel.color.opacity(0.4), radius: 3, x: 0, y: 2)
+
+            Circle().strokeBorder(.white, lineWidth: 1.5).frame(width: 22, height: 22)
+
+            Image(systemName: vehicle.kind.icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+    }
+}
+
+private struct DottClusterMarker: View {
+    let cluster: MapCluster<DottVehicle>
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(cluster.dominantColor)
+                .frame(width: badgeSize, height: badgeSize)
+                .shadow(color: cluster.dominantColor.opacity(0.4), radius: 5, x: 0, y: 3)
+
+            Circle().strokeBorder(.white, lineWidth: 2).frame(width: badgeSize, height: badgeSize)
+
+            Text("\(cluster.count)")
+                .font(.system(size: countFontSize, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+                .padding(.horizontal, 4)
+        }
+    }
+
+    private var badgeSize: CGFloat {
+        switch cluster.count {
+        case 0..<10:   return 32
+        case 10..<50:  return 38
+        case 50..<150: return 44
+        default:       return 50
+        }
+    }
+
+    private var countFontSize: CGFloat {
+        cluster.count >= 100 ? 13 : 14
+    }
+}
+
+// MARK: - Search sheet (Vélo'v only)
 
 struct VelovStationSearchSheet: View {
     @ObservedObject var viewModel: SoftMobilityViewModel
@@ -401,9 +601,7 @@ struct VelovStationSearchSheet: View {
         NavigationStack {
             List {
                 ForEach(results) { station in
-                    Button {
-                        onSelect(station)
-                    } label: {
+                    Button { onSelect(station) } label: {
                         VelovStationRow(station: station, userLocation: userLocation)
                     }
                     .buttonStyle(.plain)
@@ -435,34 +633,27 @@ private struct VelovStationRow: View {
         guard let userLocation else { return nil }
         let stationLocation = CLLocation(latitude: station.coordinate.latitude, longitude: station.coordinate.longitude)
         let meters = userLocation.distance(from: stationLocation)
-        if meters < 1000 {
-            return "\(Int(meters)) m"
-        }
+        if meters < 1000 { return "\(Int(meters)) m" }
         return String(format: "%.1f km", meters / 1000)
     }
 
     var body: some View {
         HStack(spacing: 12) {
-            statusDot
-                .frame(width: 10, height: 10)
+            Circle().fill(dotColor).frame(width: 10, height: 10)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(station.displayName)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
                     .lineLimit(1)
 
                 HStack(spacing: 8) {
                     Label("\(station.availableBikes)", systemImage: "bicycle")
-                        .font(.caption)
-                        .foregroundStyle(.green)
+                        .font(.caption).foregroundStyle(.green)
                     Label("\(station.availableStands)", systemImage: "parkingsign")
-                        .font(.caption)
-                        .foregroundStyle(.blue)
+                        .font(.caption).foregroundStyle(.blue)
                     if station.availableElectricalBikes > 0 {
                         Label("\(station.availableElectricalBikes)", systemImage: "bolt.fill")
-                            .font(.caption)
-                            .foregroundStyle(.yellow)
+                            .font(.caption).foregroundStyle(.yellow)
                     }
                 }
             }
@@ -470,21 +661,13 @@ private struct VelovStationRow: View {
             Spacer()
 
             if let d = distanceText {
-                Text(d)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                Text(d).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
             Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
+                .font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
-    }
-
-    private var statusDot: some View {
-        Circle()
-            .fill(dotColor)
     }
 
     private var dotColor: Color {
@@ -496,7 +679,7 @@ private struct VelovStationRow: View {
     }
 }
 
-// MARK: - Detail sheet
+// MARK: - Vélo'v detail sheet
 
 struct VelovStationDetailSheet: View {
     let station: VelovStation
@@ -541,8 +724,6 @@ struct VelovStationDetailSheet: View {
         }
     }
 
-    // MARK: header
-
     private var header: some View {
         HStack(spacing: 14) {
             ZStack {
@@ -557,15 +738,11 @@ struct VelovStationDetailSheet: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text("STATION #\(station.id)")
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.secondary)
-                    .tracking(0.5)
-
+                    .font(.caption2).fontWeight(.bold)
+                    .foregroundStyle(.secondary).tracking(0.5)
                 Text(station.displayName)
                     .font(.title3.weight(.semibold))
                     .lineLimit(2)
-
                 statusPill
             }
             Spacer(minLength: 0)
@@ -594,18 +771,13 @@ struct VelovStationDetailSheet: View {
             return (.green, "Disponible", "checkmark.circle.fill")
         }()
         return HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.caption2.weight(.semibold))
-            Text(label)
-                .font(.caption.weight(.semibold))
+            Image(systemName: icon).font(.caption2.weight(.semibold))
+            Text(label).font(.caption.weight(.semibold))
         }
         .foregroundStyle(color)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 10).padding(.vertical, 4)
         .background(color.opacity(0.15), in: Capsule())
     }
-
-    // MARK: capacity bar (visual fill)
 
     private var capacityBar: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -613,8 +785,7 @@ struct VelovStationDetailSheet: View {
                 Text("Occupation")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .tracking(0.4)
+                    .textCase(.uppercase).tracking(0.4)
                 Spacer()
                 Text("\(station.availableBikes) / \(station.totalCapacity)")
                     .font(.caption.weight(.semibold))
@@ -629,16 +800,10 @@ struct VelovStationDetailSheet: View {
                 let elec = CGFloat(station.availableElectricalBikes) / CGFloat(capacity) * totalWidth
 
                 ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color(.systemGray5))
-
+                    Capsule().fill(Color(.systemGray5))
                     HStack(spacing: 0) {
-                        Capsule()
-                            .fill(Color.green)
-                            .frame(width: max(0, mech))
-                        Capsule()
-                            .fill(Color.yellow)
-                            .frame(width: max(0, elec))
+                        Capsule().fill(Color.green).frame(width: max(0, mech))
+                        Capsule().fill(Color.yellow).frame(width: max(0, elec))
                     }
                 }
             }
@@ -649,8 +814,7 @@ struct VelovStationDetailSheet: View {
                 legend(color: .yellow, label: "Électriques")
                 legend(color: Color(.systemGray5), label: "Bornettes libres")
             }
-            .font(.caption2)
-            .foregroundStyle(.secondary)
+            .font(.caption2).foregroundStyle(.secondary)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -665,23 +829,11 @@ struct VelovStationDetailSheet: View {
         }
     }
 
-    // MARK: bike breakdown — big numbers
-
     private var bikeBreakdownCard: some View {
         HStack(spacing: 0) {
-            bigStat(
-                value: station.availableMechanicalBikes,
-                label: "Mécaniques",
-                icon: "bicycle",
-                tint: .green
-            )
+            bigStat(value: station.availableMechanicalBikes, label: "Mécaniques", icon: "bicycle", tint: .green)
             Divider().frame(height: 56)
-            bigStat(
-                value: station.availableElectricalBikes,
-                label: "Électriques",
-                icon: "bolt.fill",
-                tint: .yellow
-            )
+            bigStat(value: station.availableElectricalBikes, label: "Électriques", icon: "bolt.fill", tint: .yellow)
         }
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity)
@@ -696,17 +848,11 @@ struct VelovStationDetailSheet: View {
                 .foregroundStyle(tint)
             Text("\(value)")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
                 .monospacedDigit()
-                .contentTransition(.numericText())
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text(label).font(.caption).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
     }
-
-    // MARK: secondary stats
 
     private var secondaryStats: some View {
         HStack(spacing: 0) {
@@ -723,33 +869,22 @@ struct VelovStationDetailSheet: View {
     private func secondaryStat(value: Int, label: String, icon: String, tint: Color) -> some View {
         VStack(spacing: 4) {
             HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(tint)
-                Text("\(value)")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .monospacedDigit()
+                Image(systemName: icon).font(.system(size: 13, weight: .semibold)).foregroundStyle(tint)
+                Text("\(value)").font(.system(size: 22, weight: .bold, design: .rounded)).monospacedDigit()
             }
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            Text(label).font(.caption2).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: features
-
     private var featuresCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             if station.banking {
-                Label("Paiement par carte bancaire", systemImage: "creditcard.fill")
-                    .font(.subheadline)
+                Label("Paiement par carte bancaire", systemImage: "creditcard.fill").font(.subheadline)
             }
             if station.bonus {
-                Label("Station bonus — +15 min à la restitution", systemImage: "star.fill")
-                    .font(.subheadline)
-                    .foregroundStyle(.orange)
+                Label("Station bonus, +15 min à la restitution", systemImage: "star.fill")
+                    .font(.subheadline).foregroundStyle(.orange)
             }
         }
         .padding(14)
@@ -760,15 +895,11 @@ struct VelovStationDetailSheet: View {
 
     private func addressCard(address: String) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: "mappin.and.ellipse")
-                .foregroundStyle(.secondary)
+            Image(systemName: "mappin.and.ellipse").foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 2) {
-                Text(address)
-                    .font(.subheadline)
+                Text(address).font(.subheadline)
                 if let commune = station.commune {
-                    Text(commune)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(commune).font(.caption).foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 0)
@@ -779,13 +910,9 @@ struct VelovStationDetailSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    // MARK: action buttons
-
     private var actionButtons: some View {
         HStack(spacing: 10) {
-            Button {
-                openInMaps(mode: .walking)
-            } label: {
+            Button { openInMaps(mode: MKLaunchOptionsDirectionsModeWalking) } label: {
                 Label("À pied", systemImage: "figure.walk")
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity)
@@ -795,9 +922,7 @@ struct VelovStationDetailSheet: View {
             }
             .buttonStyle(.plain)
 
-            Button {
-                openInMaps(mode: .transit)
-            } label: {
+            Button { openInMaps(mode: MKLaunchOptionsDirectionsModeTransit) } label: {
                 Label("Itinéraire", systemImage: "tram.fill")
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity)
@@ -809,14 +934,184 @@ struct VelovStationDetailSheet: View {
         }
     }
 
-    private enum DirectionMode { case walking, transit }
-
-    private func openInMaps(mode: DirectionMode) {
+    private func openInMaps(mode: String) {
         let placemark = MKPlacemark(coordinate: station.coordinate)
         let item = MKMapItem(placemark: placemark)
         item.name = station.displayName
-        let key: String = (mode == .walking) ? MKLaunchOptionsDirectionsModeWalking : MKLaunchOptionsDirectionsModeTransit
-        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: key])
+        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: mode])
+    }
+}
+
+// MARK: - Dott detail sheet
+
+struct DottVehicleDetailSheet: View {
+    let vehicle: DottVehicle
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 14) {
+                    header
+                    batteryCard
+                    statsCard
+                    actionButtons
+                    if let last = vehicle.lastReported {
+                        HStack(spacing: 4) {
+                            Image(systemName: "antenna.radiowaves.left.and.right").font(.caption2)
+                            Text("Position mise à jour ") + Text(last, style: .relative)
+                        }
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 24)
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fermer") { dismiss() }.fontWeight(.medium)
+                }
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(vehicle.batteryLevel.color)
+                    .frame(width: 64, height: 64)
+                Image(systemName: vehicle.kind.icon)
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .shadow(color: vehicle.batteryLevel.color.opacity(0.35), radius: 6, x: 0, y: 3)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("DOTT").font(.caption2).fontWeight(.bold)
+                    .foregroundStyle(.secondary).tracking(0.5)
+                Text(vehicle.kind.label)
+                    .font(.title3.weight(.semibold))
+                HStack(spacing: 4) {
+                    Image(systemName: "battery.\(vehicle.batteryPercentInt < 25 ? "25" : (vehicle.batteryPercentInt < 75 ? "50" : "100"))")
+                        .font(.caption2.weight(.semibold))
+                    Text(vehicle.batteryLevel.label)
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(vehicle.batteryLevel.color)
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(vehicle.batteryLevel.color.opacity(0.15), in: Capsule())
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.top, 12)
+    }
+
+    private var batteryCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Batterie")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase).tracking(0.4)
+                Spacer()
+                Text("\(vehicle.batteryPercentInt) %")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color(.systemGray5))
+                    Capsule()
+                        .fill(vehicle.batteryLevel.color)
+                        .frame(width: max(0, geo.size.width * CGFloat(vehicle.batteryPercent)))
+                }
+            }
+            .frame(height: 10)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var statsCard: some View {
+        HStack(spacing: 0) {
+            bigStat(
+                value: String(format: "%.1f km", vehicle.rangeKm),
+                label: "Autonomie",
+                icon: "road.lanes",
+                tint: .blue
+            )
+            Divider().frame(height: 56)
+            bigStat(
+                value: "\(vehicle.batteryPercentInt) %",
+                label: "Batterie",
+                icon: "bolt.fill",
+                tint: vehicle.batteryLevel.color
+            )
+        }
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func bigStat(value: String, label: String, icon: String, tint: Color) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(tint)
+            Text(value)
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .minimumScaleFactor(0.7).lineLimit(1)
+            Text(label).font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 8)
+    }
+
+    private var actionButtons: some View {
+        VStack(spacing: 10) {
+            if let rentalURL = vehicle.rentalURL {
+                Button {
+                    openURL(rentalURL)
+                } label: {
+                    Label("Ouvrir dans Dott", systemImage: "arrow.up.forward.app.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(.blue, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button {
+                let placemark = MKPlacemark(coordinate: vehicle.coordinate)
+                let item = MKMapItem(placemark: placemark)
+                item.name = vehicle.kind.label
+                item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
+            } label: {
+                Label("Y aller à pied", systemImage: "figure.walk")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(.green.opacity(0.15), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .foregroundStyle(.green)
+            }
+            .buttonStyle(.plain)
+        }
     }
 }
 
