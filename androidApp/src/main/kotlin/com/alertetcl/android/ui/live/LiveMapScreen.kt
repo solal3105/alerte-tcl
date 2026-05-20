@@ -361,9 +361,6 @@ fun LiveMapScreen() {
                             .target(LatLng(45.764043, 4.835659))
                             .zoom(12.5)
                             .build()
-                        // Visibilité des couches d'arrêts gérée par withMinZoom sur les layers —
-                        // aucune mise à jour de state Compose requise sur idle caméra.
-                        map.addOnCameraIdleListener { }
                         map.addOnMapClickListener { latLng ->
                             val screen = map.projection.toScreenLocation(latLng)
                             val pt = PointF(screen.x, screen.y)
@@ -2049,14 +2046,6 @@ private fun vehicleDotBitmap(line: String): Bitmap {
     return bmp
 }
 
-/**
- * Hiérarchie visuelle des arrêts — miroir exact de l'enum Swift `StopTier`.
- *   compactR  = rayon du cercle intérieur coloré en mode compact (dp)
- *   compactSW = épaisseur de l'anneau blanc en mode compact (dp)
- *   badgeDp   = diamètre total du dot en mode badges (dp)
- *   badgeSW   = épaisseur de l'anneau blanc en mode badges (dp)
- *   fillHex   = couleur de remplissage intérieure (vide pour METRO → couleur de ligne)
- */
 /** Données de rendu précalculées pour un arrêt — partagées entre les deux étapes du LaunchedEffect. */
 private data class StopEntry(
     val id: String, val lon: Double, val lat: Double,
@@ -2065,6 +2054,14 @@ private data class StopEntry(
     val tier: StopTier, val primaryLine: String?
 )
 
+/**
+ * Hiérarchie visuelle des arrêts — miroir exact de l'enum Swift `StopTier`.
+ *   compactR  = rayon du cercle intérieur coloré en mode compact (dp)
+ *   compactSW = épaisseur de l'anneau blanc en mode compact (dp)
+ *   badgeDp   = diamètre total du dot en mode badges (dp)
+ *   badgeSW   = épaisseur de l'anneau blanc en mode badges (dp)
+ *   fillHex   = couleur de remplissage intérieure (vide pour METRO → couleur de ligne)
+ */
 private enum class StopTier(
     val compactR:  Float,
     val compactSW: Float,
