@@ -10,7 +10,7 @@ data class AlertsApiResponse(val values: List<AlertDto> = emptyList())
 
 @Serializable
 data class AlertDto(
-    val id: String? = null,
+    val n: Int? = null,
     val type: String? = null,
     val cause: String? = null,
     val debut: String? = null,
@@ -20,7 +20,7 @@ data class AlertDto(
     @SerialName("ligne_cli") val ligneCli: String? = null,
     val titre: String? = null,
     val message: String? = null,
-    @SerialName("niveau_severite") val niveauSeverite: Int? = null
+    @SerialName("niveauseverite") val niveauSeverite: Int? = null
 )
 
 // ─── Stops ───────────────────────────────────────────────────────────────────

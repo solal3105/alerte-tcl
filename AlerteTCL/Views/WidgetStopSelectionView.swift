@@ -16,6 +16,7 @@ struct WidgetLineDirection: Identifiable {
     let stopId: Int
     let line: String
     let direction: String
+    let terminusName: String
     var id: String { "\(stopId)-\(line)-\(direction)" }
 }
 
@@ -53,6 +54,7 @@ struct AddToWidgetSheet: View {
                                 LineDirectionRow(
                                     line: item.line,
                                     direction: item.direction,
+                                    terminusName: item.terminusName,
                                     isSelected: selectedLineDirection?.id == item.id,
                                     isAlreadySaved: widgetStorage.hasSelection(stopId: item.stopId, line: item.line, direction: item.direction)
                                 ) {
@@ -154,7 +156,7 @@ struct AddToWidgetSheet: View {
     
     private func addToWidget() {
         guard let selected = selectedLineDirection else { return }
-        let selection = WidgetStopSelection(stopId: selected.stopId, stopName: stopName, line: selected.line, direction: selected.direction)
+        let selection = WidgetStopSelection(stopId: selected.stopId, stopName: stopName, line: selected.line, direction: selected.direction, terminusName: selected.terminusName)
         widgetStorage.addSelection(selection)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { showConfirmation = true }
         feedbackTrigger.toggle()
@@ -166,6 +168,7 @@ struct AddToWidgetSheet: View {
 struct LineDirectionRow: View {
     let line: String
     let direction: String
+    let terminusName: String
     let isSelected: Bool
     let isAlreadySaved: Bool
     let onTap: () -> Void
@@ -184,7 +187,8 @@ struct LineDirectionRow: View {
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Direction").font(.caption2).foregroundStyle(.secondary)
-                    Text(direction).font(.subheadline).fontWeight(.medium).lineLimit(1)
+                    Text(terminusName.isEmpty ? "—" : terminusName)
+                        .font(.subheadline).fontWeight(.medium).lineLimit(1)
                 }
                 
                 Spacer()

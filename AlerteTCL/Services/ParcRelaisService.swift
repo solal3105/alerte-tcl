@@ -113,8 +113,8 @@ actor ParcRelaisService {
     // MARK: - Private helpers
 
     private func fetchStatic() async throws -> [Parking] {
-        guard let url = URL(string: staticURL) else { throw ParcRelaisError.invalidURL }
-        let (data, _) = try await NetworkConfiguration.shared.data(for: NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.sharedTimeout))
+        guard let url = URL(string: staticURL) else { throw ServiceError.invalidURL }
+        let (data, _) = try await NetworkConfiguration.session.data(for: NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.sharedTimeout))
         let resp = try JSONDecoder().decode(ParcRelaisStaticResponse.self, from: data)
         return resp.features.compactMap { feature -> Parking? in
             guard let coord = feature.geometry.coordinate else { return nil }
@@ -133,8 +133,8 @@ actor ParcRelaisService {
     }
 
     private func fetchRealtimeMap() async throws -> [String: Int] {
-        guard let url = URL(string: realtimeURL) else { throw ParcRelaisError.invalidURL }
-        let (data, _) = try await NetworkConfiguration.shared.data(for: NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.sharedTimeout))
+        guard let url = URL(string: realtimeURL) else { throw ServiceError.invalidURL }
+        let (data, _) = try await NetworkConfiguration.session.data(for: NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.sharedTimeout))
         let resp = try JSONDecoder().decode(ParcRelaisRealtimeResponse.self, from: data)
         var map: [String: Int] = [:]
         for feature in resp.features {
@@ -146,7 +146,3 @@ actor ParcRelaisService {
     }
 }
 
-enum ParcRelaisError: LocalizedError {
-    case invalidURL
-    var errorDescription: String? { "URL invalide" }
-}

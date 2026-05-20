@@ -37,7 +37,7 @@ actor TransitStopService {
         }
         
         guard let url = URL(string: urlString) else {
-            throw APIError.invalidURL
+            throw ServiceError.invalidURL
         }
         
         AppLogger.debug("🌐 TransitStopService: Chargement des arrêts...")
@@ -47,10 +47,10 @@ actor TransitStopService {
         request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
         AppLogger.debug("🚀 Arrêts: Début requête (timeout: \(NetworkConfiguration.heavyTimeout)s)")
         
-        let (data, response) = try await NetworkConfiguration.heavy.data(for: request)
+        let (data, response) = try await NetworkConfiguration.session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw APIError.invalidResponse
+            throw ServiceError.invalidResponse
         }
         
         let decoder = JSONDecoder()
@@ -78,14 +78,6 @@ actor TransitStopService {
         return stops
     }
     
-    // MARK: - Fetch All Stops
-    
-    func fetchAllStops(in region: MKCoordinateRegion? = nil) async throws -> [TransitStop] {
-        let stops = try await fetchStops(in: region)
-        AppLogger.debug("📊 TransitStopService: \(stops.count) arrêts chargés")
-        return stops
-    }
-    
     // MARK: - Fetch Passages for Specific Stop (Detail View)
     
     private static let passageDateFormatter: DateFormatter = {
@@ -102,17 +94,17 @@ actor TransitStopService {
         // Cette approche est ultra-optimisée car l'API filtre côté serveur
         let urlString = "\(passagesEndpoint)?id=\(stopId)&sortby=heurepassage&sortorder=asc"
         guard let url = URL(string: urlString) else {
-            throw APIError.invalidURL
+            throw ServiceError.invalidURL
         }
         
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.heavyTimeout)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
         
-        let (data, response) = try await NetworkConfiguration.heavy.data(for: request)
+        let (data, response) = try await NetworkConfiguration.session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw APIError.invalidResponse
+            throw ServiceError.invalidResponse
         }
         
         let decoder = JSONDecoder()

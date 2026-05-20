@@ -16,9 +16,9 @@ object LineColors {
             u == "MC" || u == "C" -> "#F99D1D"            // Métro C
             u == "MD" || u == "D" -> "#00AC4D"            // Métro D
             u == "RX" || u.contains("RHONEXPRESS") -> "#C92B21"
-            u.startsWith("T") && u.length <= 3 -> "#673877"   // Tramways
             u.startsWith("TB") -> "#FFCC00"                  // Trolley
-            u.startsWith("F") && u.length <= 3 -> "#F99D1D"  // Funiculaire (orange)
+            u.startsWith("T") && u.length <= 3 -> "#8C368C"  // Tramways
+            u.startsWith("F") && u.length <= 3 -> "#8BC752"  // Funiculaire
             u.startsWith("C") && u.length <= 4 -> "#6E6E73"  // Bus C (gris)
             u.startsWith("JD") -> "#2A2475"                  // Bus JD
             else -> "#FFFFFF"                                // Bus standard
@@ -37,7 +37,7 @@ object LineColors {
             u == "RX" || u.contains("RHONEXPRESS") -> "#FFFFFF"
             u.startsWith("N") -> "#DC7921"
             u.endsWith("E") -> "#5E3A18"
-            else -> "#FF0000"
+            else -> "#1A1A1A"
         }
     }
 

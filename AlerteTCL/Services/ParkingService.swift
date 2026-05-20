@@ -136,7 +136,7 @@ actor ParkingService {
         
         guard let url = URL(string: urlString) else {
             AppLogger.debug("❌ ParkingService: URL invalide")
-            throw ParkingServiceError.invalidURL
+            throw ServiceError.invalidURL
         }
         
         AppLogger.debug("🌐 ParkingService: \(type.rawValue) URL: \(url.absoluteString.prefix(120))...")
@@ -147,15 +147,15 @@ actor ParkingService {
         request.setValue("gzip, deflate", forHTTPHeaderField: "Accept-Encoding")
         request.cachePolicy = .reloadIgnoringLocalCacheData
         
-        let (data, response) = try await NetworkConfiguration.shared.data(for: request)
+        let (data, response) = try await NetworkConfiguration.session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw ParkingServiceError.invalidResponse
+            throw ServiceError.invalidResponse
         }
         
         guard httpResponse.statusCode == 200 else {
             AppLogger.debug("❌ ParkingService: HTTP \(httpResponse.statusCode)")
-            throw ParkingServiceError.httpError(httpResponse.statusCode)
+            throw ServiceError.httpError(httpResponse.statusCode)
         }
         
         // Log taille des données pour monitoring
@@ -186,28 +186,9 @@ actor ParkingService {
             return parkings
         } catch let decodingError as DecodingError {
             AppLogger.debug("❌ ParkingService: Erreur décodage: \(decodingError.localizedDescription)")
-            throw ParkingServiceError.decodingError(decodingError)
+            throw ServiceError.decodingError(decodingError)
         }
     }
     
 }
 
-enum ParkingServiceError: LocalizedError {
-    case invalidURL
-    case invalidResponse
-    case httpError(Int)
-    case decodingError(Error)
-    
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL:
-            return "URL invalide"
-        case .invalidResponse:
-            return "Réponse invalide du serveur"
-        case .httpError(let code):
-            return "Erreur HTTP: \(code)"
-        case .decodingError(let error):
-            return "Erreur de décodage: \(error.localizedDescription)"
-        }
-    }
-}

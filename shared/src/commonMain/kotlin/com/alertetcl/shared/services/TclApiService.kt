@@ -1,6 +1,5 @@
 package com.alertetcl.shared.services
 
-import com.alertetcl.shared.models.AlertSeverity
 import com.alertetcl.shared.models.TCLAlert
 import com.alertetcl.shared.models.TransportMode
 import com.alertetcl.shared.network.ApiError
@@ -10,7 +9,6 @@ import com.alertetcl.shared.network.dto.AlertsApiResponse
 import com.alertetcl.shared.util.AppLogger
 import com.alertetcl.shared.util.parseIsoEpoch
 import io.ktor.client.call.body
-import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
@@ -49,7 +47,7 @@ class TclApiService {
 
         val now = Clock.System.now().epochSeconds
         val alerts = body.values.mapNotNull { dto ->
-            val id = dto.id ?: return@mapNotNull null
+            val id = "${dto.n ?: 0}-${dto.ligneCom.orEmpty()}-${dto.ligneCli.orEmpty()}"
             TCLAlert(
                 id = id,
                 type = dto.type ?: "Information",

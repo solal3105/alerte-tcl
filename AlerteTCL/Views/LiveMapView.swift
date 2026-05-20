@@ -3,6 +3,7 @@ import MapKit
 
 struct LiveMapView: View {
     @StateObject private var viewModel = LiveVehiclesViewModel()
+    @StateObject private var stopsViewModel = TransitStopViewModel()
     @EnvironmentObject var alertViewModel: AlertViewModel
     @ObservedObject private var locationService = LocationService.shared
     @Environment(\.scenePhase) private var scenePhase
@@ -34,6 +35,7 @@ struct LiveMapView: View {
         ZStack {
             LiveMapRepresentable(
                 viewModel: viewModel,
+                stopsViewModel: stopsViewModel,
                 locationService: locationService,
                 region: $mapRegion,
                 selectedVehicle: $selectedVehicle,
@@ -51,7 +53,7 @@ struct LiveMapView: View {
                 .presentationDragIndicator(.visible)
         }
         .sheet(item: $selectedMergedStop) { mergedStop in
-            MergedStopDetailSheet(mergedStop: mergedStop, viewModel: viewModel)
+            MergedStopDetailSheet(mergedStop: mergedStop, stopsVM: stopsViewModel)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
@@ -161,7 +163,7 @@ struct LiveMapView: View {
                 await self.viewModel.loadTransitLines() 
             }
             async let stopsTask: () = loadInBackground("Arrêts") { 
-                await self.viewModel.loadTransitStops() 
+                await stopsViewModel.loadTransitStops() 
             }
             
             // Attendre que tout soit terminé (mais chacun gère ses erreurs)
@@ -501,9 +503,53 @@ struct VehicleTypeChip: View {
     }
 }
 
+// URL est Identifiable via absoluteString pour .sheet(item:)
+extension URL: @retroactive Identifiable {
+    public var id: String { absoluteString }
+}
+
+// MARK: - Visionneuse photo plein écran
+
+private struct PhotoFullscreenSheet: View {
+    let url: URL
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            GeometryReader { geo in
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: geo.size.width, height: geo.size.height)
+                    case .failure:
+                        ContentUnavailableView("Photo indisponible", systemImage: "photo.slash")
+                    default:
+                        ProgressView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+            }
+            .background(Color.black)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fermer") { dismiss() }
+                        .fontWeight(.medium)
+                }
+            }
+        }
+    }
+}
+
 struct VehicleDetailSheet: View {
     let vehicle: Vehicle
     @Environment(\.dismiss) private var dismiss
+    @State private var vehicleModel: String?
+    @State private var vehiclePhotos: [URL] = []
+    @State private var selectedPhoto: URL?
 
     private var accentColor: Color { vehicle.vehicleType.clusterColor }
 
@@ -528,6 +574,7 @@ struct VehicleDetailSheet: View {
                     if !stopsToShow.isEmpty {
                         timelineSection
                     }
+                    fleetInfoSection
                     footerSection
                 }
                 .padding(.bottom, 32)
@@ -539,6 +586,16 @@ struct VehicleDetailSheet: View {
                     Button("Fermer") { dismiss() }
                         .fontWeight(.medium)
                 }
+            }
+            .task {
+                guard let fleet = vehicle.fleetNumber else { return }
+                vehicleModel = await BusTrackerService.fetchVehicleModel(fleetNumber: fleet)
+                if let model = vehicleModel {
+                    vehiclePhotos = await WikimediaService.fetchPhotos(for: model)
+                }
+            }
+            .sheet(item: $selectedPhoto) { url in
+                PhotoFullscreenSheet(url: url)
             }
         }
     }
@@ -605,6 +662,131 @@ struct VehicleDetailSheet: View {
         .padding(.top, 16)
     }
 
+    @ViewBuilder
+    private var fleetInfoSection: some View {
+        if let fleet = vehicle.fleetNumber {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Véhicule")
+                        .font(.footnote)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+                        .tracking(0.4)
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 24)
+                .padding(.bottom, 12)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 14) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(accentColor.opacity(0.12))
+                                .frame(width: 40, height: 40)
+                            Image(systemName: vehicle.vehicleType.icon)
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(accentColor)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Numéro de parc")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                            Text(fleet)
+                                .font(.headline)
+                            if let model = vehicleModel {
+                                Text(model)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    if vehicleModel != nil {
+                        if !vehiclePhotos.isEmpty {
+                            Divider().padding(.leading, 70)
+                            VStack(alignment: .leading, spacing: 6) {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    LazyHStack(spacing: 8) {
+                                        ForEach(vehiclePhotos, id: \.self) { url in
+                                            AsyncImage(url: url) { phase in
+                                                switch phase {
+                                                case .success(let image):
+                                                    image
+                                                        .resizable()
+                                                        .aspectRatio(contentMode: .fill)
+                                                case .failure:
+                                                    Color(.systemFill)
+                                                        .overlay {
+                                                            Image(systemName: "photo")
+                                                                .foregroundStyle(.tertiary)
+                                                        }
+                                                default:
+                                                    Color(.systemFill)
+                                                        .overlay { ProgressView() }
+                                                }
+                                            }
+                                            .frame(width: 180, height: 112)
+                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                            .onTapGesture { selectedPhoto = url }
+                                        }
+                                    }
+                                    .padding(.horizontal, 16)
+                                }
+                                Text("Source : Wikimedia Commons (CC-BY-SA)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                                    .padding(.horizontal, 16)
+                            }
+                            .padding(.vertical, 12)
+                        }
+                        Divider().padding(.leading, 70)
+                        Link(destination: URL(string: "https://bus-tracker.fr")!) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "safari")
+                                    .font(.caption.weight(.medium))
+                                Text("Voir sur Bus Tracker")
+                                    .font(.caption.weight(.medium))
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                                    .font(.caption2)
+                            }
+                            .foregroundStyle(.tint)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 11)
+                        }
+                        if vehiclePhotos.isEmpty,
+                           let model = vehicleModel,
+                           let encodedQuery = "\(model) TCL SYTRAL".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+                           let photosURL = URL(string: "https://www.google.com/search?q=\(encodedQuery)&tbm=isch") {
+                            Divider().padding(.leading, 70)
+                            Link(destination: photosURL) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "photo.on.rectangle")
+                                        .font(.caption.weight(.medium))
+                                    Text("Photos de ce véhicule")
+                                        .font(.caption.weight(.medium))
+                                    Spacer()
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.caption2)
+                                }
+                                .foregroundStyle(.tint)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 11)
+                            }
+                        }
+                    }
+                }
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .padding(.horizontal, 16)
+            }
+        }
+    }
+
     private var delayPill: some View {
         let color: Color = vehicle.isDelayed ? .orange : (vehicle.isEarly ? .blue : .green)
         let icon = vehicle.isDelayed ? "clock.badge.exclamationmark.fill" : "clock.fill"
@@ -625,7 +807,7 @@ struct VehicleDetailSheet: View {
     private var timelineSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                Text(stopsToShow.count > 1 ? "Prochains arrêts" : "Prochain arrêt")
+                Text("Dernier arrêt")
                     .font(.footnote)
                     .fontWeight(.semibold)
                     .foregroundStyle(.secondary)
@@ -645,18 +827,6 @@ struct VehicleDetailSheet: View {
                         isLast: index == stopsToShow.count - 1
                     )
                 }
-
-                // End cap
-                HStack(spacing: 0) {
-                    // Aligner avec la ligne verticale
-                    Color.clear.frame(width: 20 + 10) // leading padding + demi-largeur du trait
-                    Circle()
-                        .fill(Color(.tertiaryLabel))
-                        .frame(width: 6, height: 6)
-                    Spacer()
-                }
-                .padding(.leading, 20)
-                .padding(.bottom, 8)
             }
             .padding(.horizontal, 16)
             .background(Color(.secondarySystemGroupedBackground))
@@ -712,13 +882,6 @@ struct VehicleDetailSheet: View {
                         .font(isNext ? .subheadline.weight(.semibold) : .subheadline)
                         .foregroundStyle(isNext ? .primary : .secondary)
                         .lineLimit(1)
-
-                    if isNext {
-                        Text("Prochain arrêt")
-                            .font(.caption2)
-                            .foregroundStyle(accentColor)
-                            .fontWeight(.medium)
-                    }
                 }
 
                 Spacer()

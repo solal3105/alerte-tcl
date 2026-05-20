@@ -12,7 +12,7 @@ actor TCLAPIService {
     func fetchAlerts() async throws -> [TCLAlert] {
         guard let url = URL(string: alertsEndpoint) else {
             AppLogger.debug("❌ TCLAPIService: URL invalide")
-            throw APIError.invalidURL
+            throw ServiceError.invalidURL
         }
         
         AppLogger.debug("🌐 TCLAPIService: Chargement des alertes depuis le proxy")
@@ -24,11 +24,11 @@ actor TCLAPIService {
         
         // Pas d'auth côté app — le proxy Cloudflare gère les credentials
         
-        let (data, response) = try await NetworkConfiguration.fast.data(for: request)
+        let (data, response) = try await NetworkConfiguration.session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             AppLogger.debug("❌ TCLAPIService: Réponse invalide")
-            throw APIError.invalidResponse
+            throw ServiceError.invalidResponse
         }
         
         AppLogger.debug("📡 TCLAPIService: Status code: \(httpResponse.statusCode)")
@@ -36,10 +36,10 @@ actor TCLAPIService {
         guard httpResponse.statusCode == 200 else {
             if httpResponse.statusCode == 401 {
                 AppLogger.debug("❌ TCLAPIService: Authentification échouée")
-                throw APIError.unauthorized
+                throw ServiceError.unauthorized
             }
             AppLogger.debug("❌ TCLAPIService: Erreur HTTP \(httpResponse.statusCode)")
-            throw APIError.serverError(httpResponse.statusCode)
+            throw ServiceError.httpError(httpResponse.statusCode)
         }
         
         do {
@@ -54,30 +54,8 @@ actor TCLAPIService {
             return activeAlerts
         } catch {
             AppLogger.debug("❌ TCLAPIService: Erreur de décodage: \(error)")
-            throw APIError.decodingError(error)
+            throw ServiceError.decodingError(error)
         }
     }
 }
 
-enum APIError: LocalizedError {
-    case invalidURL
-    case invalidResponse
-    case unauthorized
-    case serverError(Int)
-    case decodingError(Error)
-    
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL:
-            return "URL invalide"
-        case .invalidResponse:
-            return "Réponse invalide du serveur"
-        case .unauthorized:
-            return "Accès non autorisé - Clé API requise"
-        case .serverError(let code):
-            return "Erreur serveur (\(code))"
-        case .decodingError:
-            return "Erreur de décodage des données"
-        }
-    }
-}

@@ -50,4 +50,13 @@ struct BusLineGeometry: Codable {
 struct BusLineProperties: Codable {
     let ligne: String?
     let nom_trace: String?
+    let sens: String?
+    let nomDestination: String?
+
+    enum CodingKeys: String, CodingKey {
+        case ligne
+        case nom_trace
+        case sens
+        case nomDestination = "nom_destination"
+    }
 }

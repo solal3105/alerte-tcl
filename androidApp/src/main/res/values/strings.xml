@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Alerte TCL</string>
+    <string name="app_name">Lyon Pocket</string>
     <string name="widget_next_departures_desc">Prochains passages aux arrêts favoris</string>
     <string name="widget_tcl_board_desc">Style panneau d\'affichage TCL</string>
 </resources>

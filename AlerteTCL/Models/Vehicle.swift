@@ -48,7 +48,13 @@ struct Vehicle: Identifiable, Hashable {
     var isEarly: Bool {
         delay < -60
     }
-    
+
+    /// Numéro de parc extrait du VehicleRef SIRI (ex. "ActIV:Vehicle:Bus:1512:LOC" → "1512").
+    var fleetNumber: String? {
+        let parts = id.split(separator: ":")
+        guard parts.count > 3 else { return nil }
+        return String(parts[3])
+    }
 }
 
 struct StopInfo: Identifiable, Hashable {

@@ -391,7 +391,7 @@ private fun LinksFooter() {
             subtitle = "Aucune donnée personnelle collectée",
             icon = Icons.Filled.Lock,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            onClick = { openUrl(context, "https://solalgendrin.github.io/alerte-tcl/privacy") }
+            onClick = { openUrl(context, "https://lyon-pocket.netlify.app/privacy") }
         )
     }
 }

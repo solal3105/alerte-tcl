@@ -167,7 +167,8 @@ fun WidgetStopSelectionScreen() {
                         stopId = stop.id,
                         stopName = stop.nom,
                         lineName = lineName,
-                        direction = destLabel,
+                        direction = dirCode,
+                        destinationName = destLabel,
                     )
                     scope.launch { store.addWidgetSelection(sel) }
                 },
@@ -256,7 +257,7 @@ private fun WidgetSelectionRow(sel: WidgetSelection, onRemove: () -> Unit) {
             LineBadge(sel.lineName, size = 36.dp, fontSize = 14.sp)
             Column(modifier = Modifier.weight(1f)) {
                 Text(sel.stopName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                Text("→ ${formatDirection(sel.direction)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                Text("→ ${sel.destinationName.ifBlank { sel.direction }}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
             IconButton(onClick = onRemove) {
                 Icon(Icons.Filled.Delete, "Retirer", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
@@ -337,7 +338,7 @@ private fun AddToWidgetSheet(
                 Button(
                     onClick = {
                         val (line, dirCode) = selectedLineDirection!!
-                        val destLabel = destinationMap.value["${line}|${dirCode}"] ?: formatDirection(dirCode)
+                        val destLabel = destinationMap.value["${line}|${dirCode}"].orEmpty()
                         onAdd(line, dirCode, destLabel)
                         showConfirmation = true
                     },
@@ -385,7 +386,7 @@ private fun LineDirectionRow(
             LineBadge(line, size = 36.dp, fontSize = 14.sp)
             Column(modifier = Modifier.weight(1f)) {
                 Text("Direction", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(destinationName.ifBlank { formatDirection(direction) }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 2)
+                Text(destinationName.ifBlank { "—" }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 2)
             }
             when {
                 isAlreadySaved -> Icon(Icons.Filled.CheckCircle, null,
@@ -449,8 +450,4 @@ private fun ConfirmationOverlay(onDismiss: () -> Unit) {
     }
 }
 
-private fun formatDirection(d: String): String = when (d.trim().uppercase()) {
-    "A" -> "Aller"
-    "R" -> "Retour"
-    else -> d
-}
+

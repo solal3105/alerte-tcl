@@ -36,5 +36,14 @@
 		<key>UIImageName</key>
 		<string>LaunchIcon</string>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.alertetcl.alert-refresh</string>
+	</array>
 </dict>
 </plist>

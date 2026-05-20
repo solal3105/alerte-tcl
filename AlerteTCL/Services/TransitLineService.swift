@@ -14,13 +14,6 @@ actor TransitLineService {
     
     private init() {}
     
-    enum ServiceError: Error {
-        case invalidURL
-        case invalidResponse
-        case decodingError
-        case networkError(Error)
-    }
-    
     func fetchTransitLines() async throws -> [TransitLine] {
         // Vérifier le cache
         if let cached = cachedTransitLines,
@@ -84,7 +77,7 @@ actor TransitLineService {
         var request = NetworkConfiguration.request(url: finalURL, timeout: NetworkConfiguration.sharedTimeout)
         request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
         
-        let (data, response) = try await NetworkConfiguration.shared.data(for: request)
+        let (data, response) = try await NetworkConfiguration.session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ServiceError.invalidResponse

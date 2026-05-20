@@ -82,7 +82,7 @@ import com.alertetcl.android.ui.theme.ModeTramway
 import com.alertetcl.android.ui.theme.ModeFunicular
 import com.alertetcl.android.ui.theme.ModeBusC
 import com.alertetcl.android.ui.theme.ModeBus
-import com.alertetcl.android.ui.theme.ModeNavette
+import com.alertetcl.android.ui.theme.ModeNavigone
 import com.alertetcl.android.ui.theme.StatusError
 import com.alertetcl.android.ui.theme.StatusWarning
 import com.alertetcl.android.ui.theme.StatusSuccess
@@ -98,16 +98,18 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlertsScreen() {
-    val viewModel = remember { AlertsViewModel() }
-    DisposableEffect(Unit) {
-        viewModel.startPolling()
-        onDispose { viewModel.dispose() }
+fun AlertsScreen(viewModel: AlertsViewModel? = null) {
+    // Si un ViewModel est passé (depuis LiveMapScreen), on le réutilise sans le
+    // disposer à la fermeture de la sheet — miroir iOS @EnvironmentObject.
+    val vm = viewModel ?: remember { AlertsViewModel() }
+    DisposableEffect(vm) {
+        vm.startPolling()
+        onDispose { if (viewModel == null) vm.dispose() }
     }
-    val alerts by viewModel.alerts.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.errorMessage.collectAsState()
-    val lastUpdate by viewModel.lastUpdate.collectAsState()
+    val alerts by vm.alerts.collectAsState()
+    val isLoading by vm.isLoading.collectAsState()
+    val error by vm.errorMessage.collectAsState()
+    val lastUpdate by vm.lastUpdate.collectAsState()
 
     val context = LocalContext.current
     val store = remember { FavoritesStore(context) }
@@ -121,24 +123,10 @@ fun AlertsScreen() {
     }
     val alertsByLine: Map<String, List<TCLAlert>> = remember(alerts) {
         val now = System.currentTimeMillis() / 1000L
-        val active = alerts.filter { it.severity != AlertSeverity.INFO && it.isOngoing(now) }
-        buildMap<String, MutableList<TCLAlert>> {
-            active.forEach { a ->
-                getOrPut(a.ligneCom) { mutableListOf() }.add(a)
-                if (a.ligneCli.isNotBlank() && a.ligneCli != a.ligneCom)
-                    getOrPut(a.ligneCli) { mutableListOf() }.add(a)
-            }
-        }
+        alertsToLineMap(alerts.filter { it.severity != AlertSeverity.INFO && it.isOngoing(now) })
     }
     val allAlertsByLine: Map<String, List<TCLAlert>> = remember(alerts) {
-        val nonInfo = alerts.filter { it.severity != AlertSeverity.INFO }
-        buildMap<String, MutableList<TCLAlert>> {
-            nonInfo.forEach { a ->
-                getOrPut(a.ligneCom) { mutableListOf() }.add(a)
-                if (a.ligneCli.isNotBlank() && a.ligneCli != a.ligneCom)
-                    getOrPut(a.ligneCli) { mutableListOf() }.add(a)
-            }
-        }
+        alertsToLineMap(alerts.filter { it.severity != AlertSeverity.INFO })
     }
 
     var selectedModeFilter by remember { mutableStateOf<TransportMode?>(null) }
@@ -150,7 +138,7 @@ fun AlertsScreen() {
         isRefreshing = refreshing,
         onRefresh = {
             refreshing = true
-            viewModel.refresh()
+            vm.refresh()
         },
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
     ) {
@@ -258,12 +246,26 @@ fun AlertsScreen() {
     }
 }
 
-/** Tri naturel : préfixe alphabétique d'abord, puis suffixe numérique ("C10" après "C9"). */
+/** Tri naturel : préfixe alphabétique d'abord, puis suffixe numérique ("C10" après "C9").
+ *  Gère les suffixes non-numériques (ex. "6E", "C15E", "89D") en extrayant uniquement la
+ *  partie numérique de tête — le suffixe alphabétique final est ignoré pour le tri. */
 private fun naturalLineOrder(name: String): Pair<String, Int> {
     val idx = name.indexOfFirst { it.isDigit() }
-    return if (idx < 0) name to 0
-           else name.substring(0, idx) to (name.substring(idx).toIntOrNull() ?: 0)
+    if (idx < 0) return name to 0
+    val prefix = name.substring(0, idx)
+    val numStr = name.substring(idx).takeWhile { it.isDigit() }
+    return prefix to (numStr.toIntOrNull() ?: 0)
 }
+
+/** Indexes [alerts] by both ligneCom and ligneCli for O(1) per-line lookup. */
+private fun alertsToLineMap(alerts: List<TCLAlert>): Map<String, List<TCLAlert>> =
+    buildMap<String, MutableList<TCLAlert>> {
+        alerts.forEach { a ->
+            getOrPut(a.ligneCom) { mutableListOf() }.add(a)
+            if (a.ligneCli.isNotBlank() && a.ligneCli != a.ligneCom)
+                getOrPut(a.ligneCli) { mutableListOf() }.add(a)
+        }
+    }
 
 // ─── Status Summary Banner ───────────────────────────────────────────────
 @Composable
@@ -870,12 +872,12 @@ internal fun transportModeColor(mode: TransportMode): Color = when (mode) {
     TransportMode.FUNICULAR -> ModeFunicular
     TransportMode.BUS_C     -> ModeBusC
     TransportMode.BUS       -> ModeBus
-    TransportMode.NAVETTE   -> ModeNavette
+    TransportMode.NAVIGONE  -> ModeNavigone
 }
 
 internal fun transportModeOnColor(mode: TransportMode): Color = when (mode) {
     TransportMode.METRO   -> Color(0xFF1B1B1F)
-    TransportMode.NAVETTE -> Color(0xFF1B1B1F)
+    TransportMode.NAVIGONE -> Color(0xFF1B1B1F)
     else                  -> Color.White
 }
 
@@ -885,5 +887,5 @@ internal fun transportModeIcon(mode: TransportMode): ImageVector = when (mode) {
     TransportMode.FUNICULAR -> Icons.Filled.Train
     TransportMode.BUS_C     -> Icons.Filled.DirectionsBus
     TransportMode.BUS       -> Icons.Filled.DirectionsBus
-    TransportMode.NAVETTE   -> Icons.Filled.DirectionsBoat
+    TransportMode.NAVIGONE  -> Icons.Filled.DirectionsBoat
 }

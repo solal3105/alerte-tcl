@@ -20,6 +20,7 @@ import Combine
 
 struct LiveMapRepresentable: UIViewRepresentable {
     @ObservedObject var viewModel: LiveVehiclesViewModel
+    @ObservedObject var stopsViewModel: TransitStopViewModel
     @ObservedObject var locationService: LocationService
 
     @Binding var region: MKCoordinateRegion
@@ -83,7 +84,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
 
         // Diff des annotations et overlays
         coord.syncVehicleAnnotations(viewModel.displayVehicles, animated: viewModel.animatedVehicles)
-        coord.syncMergedStopAnnotations(viewModel.visibleMergedStops)
+        coord.syncMergedStopAnnotations(stopsViewModel.visibleMergedStops)
         coord.syncPolylineOverlays(
             busLines:     viewModel.showBusLines     ? viewModel.busLines     : [],
             transitLines: viewModel.showTransitLines ? viewModel.transitLines : []
@@ -435,6 +436,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
             // Remonte la région au ViewModel (clustering + viewport filter).
             owner.viewModel.updateZoomLevel(mapView.region.span)
             owner.viewModel.updateVisibleRegion(mapView.region)
+            owner.stopsViewModel.updateVisibleStops(zoom: mapView.region.span.latitudeDelta, region: mapView.region)
             refreshVehicleViews(for: mapView.region.span.latitudeDelta)
 
             // Remonte vers le binding SwiftUI uniquement si le mouvement vient

@@ -43,22 +43,15 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published var isInitialLoadComplete = false
     @Published var isLive = false
     
-    // Transit Stops
-    @Published var transitStops: [TransitStop] = []
-    @Published var mergedStops: [MergedStop] = [] // Arrêts fusionnés (< 30m)
-    @Published var isLoadingStops = false
-    
     // Cached computed properties for performance
     // `filteredVehicles` est un état interne : les vues lisent `displayVehicles`
     // (qui retourne `cachedUnclusteredVehicles`, lui-même @Published). Inutile
     // de déclencher une seconde publication par fetch.
     private(set) var filteredVehicles: [Vehicle] = []
-    @Published private(set) var visibleMergedStops: [MergedStop] = []
     
     private var streamTask: Task<Void, Never>?
     private var regionUpdateTask: Task<Void, Never>?
     private var consecutiveErrors = 0
-    /// L'API SIRI Lite TCL publie de nouvelles positions toutes les ~30 s.
     /// L'API SIRI Lite TCL publie de nouvelles positions toutes les ~15 s.
     /// On fetch à 15 s pour aligner avec le TTL du cache Cloudflare (15 s) :
     /// chaque requête retourne des données fraîches. Grand Lyon reçoit ≤ 1 req/15 s.
@@ -242,7 +235,7 @@ final class LiveVehiclesViewModel: ObservableObject {
                 // Mettre à jour les véhicules filtrés et clusters
                 updateFilteredVehicles()
                 return
-            } catch let siriError as SIRIError {
+            } catch let siriError as ServiceError {
                 lastError = siriError
                 AppLogger.debug("⚠️ Erreur SIRI tentative \(attempt)/\(attempts): \(siriError.errorDescription ?? "inconnue")")
             } catch is CancellationError {
@@ -264,7 +257,7 @@ final class LiveVehiclesViewModel: ObservableObject {
         }
         
         // Toutes les tentatives ont échoué
-        if let siriError = lastError as? SIRIError {
+        if let siriError = lastError as? ServiceError {
             self.error = siriError.errorDescription
         } else {
             self.error = lastError?.localizedDescription
@@ -390,7 +383,7 @@ final class LiveVehiclesViewModel: ObservableObject {
             consecutiveErrors += 1
             // Only surface error after 3 consecutive failures (transient tolerance)
             if consecutiveErrors >= 3 {
-                self.error = (error as? SIRIError)?.errorDescription ?? error.localizedDescription
+                self.error = (error as? ServiceError)?.errorDescription ?? error.localizedDescription
             }
             AppLogger.debug("⚠️ Stream fetch error (\(consecutiveErrors)): \(error.localizedDescription)")
         }
@@ -430,7 +423,6 @@ final class LiveVehiclesViewModel: ObservableObject {
             
             lastProcessedRegion = region
             updateFilteredVehicles()
-            updateVisibleStops()
         }
     }
     
@@ -448,107 +440,6 @@ final class LiveVehiclesViewModel: ObservableObject {
         selectedLine = nil
         selectedLines.removeAll()
         updateFilteredVehicles()
-    }
-    
-    // MARK: - Transit Stops
-    
-    /// Zoom threshold pour afficher les arrêts (~2 km de hauteur visible)
-    /// Plus le latitudeDelta est petit, plus on est zoomé
-    private let stopsZoomThreshold: Double = 0.018
-    
-    var shouldShowStops: Bool {
-        currentZoomLevel <= stopsZoomThreshold
-    }
-    
-    private func updateVisibleStops() {
-        guard shouldShowStops, let region = visibleRegion else {
-            visibleMergedStops = []
-            return
-        }
-        // Précalculer les bornes UNE fois (au lieu de 4 calculs par arrêt).
-        let halfLatSpan = region.span.latitudeDelta / 2
-        let halfLonSpan = region.span.longitudeDelta / 2
-        let minLat = region.center.latitude - halfLatSpan
-        let maxLat = region.center.latitude + halfLatSpan
-        let minLon = region.center.longitude - halfLonSpan
-        let maxLon = region.center.longitude + halfLonSpan
-        visibleMergedStops = mergedStops.filter { stop in
-            let lat = stop.coordinate.latitude
-            let lon = stop.coordinate.longitude
-            return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon
-        }
-    }
-    
-    func loadTransitStops() async {
-        guard !isLoadingStops else { return }
-        
-        await MainActor.run {
-            isLoadingStops = true
-        }
-        defer {
-            Task { @MainActor in
-                isLoadingStops = false
-            }
-        }
-        
-        do {
-            // Charger les arrêts avec timeout
-            let stops = try await Task.withTimeout(seconds: NetworkConfiguration.heavyTimeout) {
-                try await TransitStopService.shared.fetchAllStops()
-            }
-            
-            // ⚠️ CRITIQUE: Fusionner les arrêts HORS du MainActor (traitement lourd)
-            let merged = await Task.detached(priority: .userInitiated) {
-                StopMergingEngine.mergeNearbyStops(stops)
-            }.value
-            
-            AppLogger.debug("✅ ViewModel: \(stops.count) arrêts → \(merged.count) arrêts fusionnés")
-            
-            // Mettre à jour sur le MainActor
-            await MainActor.run {
-                transitStops = stops
-                mergedStops = merged
-                updateVisibleStops()
-            }
-        } catch is TaskTimeoutError {
-            AppLogger.debug("⏱️ Timeout arrêts (\(NetworkConfiguration.heavyTimeout)s)")
-        } catch {
-            AppLogger.debug("⚠️ Erreur arrêts (non-bloquante): \(error.localizedDescription)")
-        }
-    }
-    
-    func loadAllPassagesForStop(stopId: Int) async {
-        guard let index = transitStops.firstIndex(where: { $0.id == stopId }) else {
-            AppLogger.debug("⚠️ ViewModel: Arrêt \(stopId) non trouvé")
-            return
-        }
-        
-        guard !transitStops[index].isLoadingPassages else {
-            AppLogger.debug("⏳ ViewModel: Chargement déjà en cours pour arrêt \(stopId)")
-            return
-        }
-        
-        transitStops[index].isLoadingPassages = true
-        defer {
-            if transitStops.indices.contains(index) {
-                transitStops[index].isLoadingPassages = false
-            }
-        }
-        
-        do {
-            let passages = try await Task.withTimeout(seconds: NetworkConfiguration.fastTimeout) {
-                try await TransitStopService.shared.fetchPassagesForStop(stopId: stopId)
-            }
-            if transitStops.indices.contains(index) {
-                transitStops[index].passages = passages
-                transitStops[index].passagesLoaded = true
-            }
-            AppLogger.debug("✅ ViewModel: \(passages.count) passages chargés pour arrêt \(stopId)")
-        } catch is TaskTimeoutError {
-            AppLogger.debug("⏱️ Timeout passages arrêt \(stopId) (\(NetworkConfiguration.fastTimeout)s)")
-        } catch {
-            AppLogger.debug("⚠️ Erreur passages arrêt \(stopId) (non-bloquante): \(error.localizedDescription)")
-        }
     }
     
     deinit {

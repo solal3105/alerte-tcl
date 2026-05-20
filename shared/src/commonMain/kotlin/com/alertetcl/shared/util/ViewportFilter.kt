@@ -20,7 +20,7 @@ object ViewportFilter {
         filter(items, region, { coord(it).latitude }, { coord(it).longitude })
 }
 
-/** Easing utilisé pour les animations de véhicules (cubic ease-out). */
+/** Easing utilisé pour les animations de véhicules (quadratic ease-out). */
 fun easeOutQuad(t: Double): Double {
     val clamped = t.coerceIn(0.0, 1.0)
     return clamped * (2.0 - clamped)

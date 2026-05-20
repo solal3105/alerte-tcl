@@ -7,7 +7,7 @@ enum TransportMode: String, Codable, CaseIterable, Identifiable {
     case busC = "Bus C"
     case bus = "Bus"
     case funiculaire = "Funiculaire"
-    case navette = "Navette maritime/fluviale"
+    case navigone = "Navigone"
     
     var id: String { rawValue }
     
@@ -18,7 +18,7 @@ enum TransportMode: String, Codable, CaseIterable, Identifiable {
         case .busC: return "bus.fill"
         case .bus: return "bus.fill"
         case .funiculaire: return "cablecar.fill"
-        case .navette: return "ferry.fill"
+        case .navigone: return "ferry.fill"
         }
     }
     
@@ -29,7 +29,7 @@ enum TransportMode: String, Codable, CaseIterable, Identifiable {
         case .busC: return .purple
         case .bus: return .indigo
         case .funiculaire: return .green
-        case .navette: return .cyan
+        case .navigone: return .cyan
         }
     }
     
@@ -40,7 +40,18 @@ enum TransportMode: String, Codable, CaseIterable, Identifiable {
         case .tramway: return 2
         case .busC: return 3
         case .bus: return 4
-        case .navette: return 5
+        case .navigone: return 5
+        }
+    }
+
+    var shortName: String {
+        switch self {
+        case .metro: return "Métro"
+        case .tramway: return "Tram"
+        case .busC: return "Bus C"
+        case .bus: return "Bus"
+        case .funiculaire: return "Funi"
+        case .navigone: return "Navigone"
         }
     }
 }
@@ -82,6 +93,7 @@ extension TransportLine {
         TransportLine(ligneCom: "RX", ligneCli: "RX", mode: .tramway),
         TransportLine(ligneCom: "TS", ligneCli: "TS", mode: .tramway),
         TransportLine(ligneCom: "TB11", ligneCli: "TB11", mode: .tramway),
+        TransportLine(ligneCom: "TB12", ligneCli: "TB12", mode: .tramway),
     ]
     
     static let funicularLines: [TransportLine] = [
@@ -116,6 +128,13 @@ extension TransportLine {
         TransportLine(ligneCom: "C24", ligneCli: "C24", mode: .busC),
         TransportLine(ligneCom: "C25", ligneCli: "C25", mode: .busC),
         TransportLine(ligneCom: "C26", ligneCli: "C26", mode: .busC),
+        TransportLine(ligneCom: "C200", ligneCli: "C200", mode: .busC),
+        TransportLine(ligneCom: "C201", ligneCli: "C201", mode: .busC),
+        TransportLine(ligneCom: "C202", ligneCli: "C202", mode: .busC),
+        TransportLine(ligneCom: "C205", ligneCli: "C205", mode: .busC),
+        TransportLine(ligneCom: "C15E", ligneCli: "C15E", mode: .busC),
+        TransportLine(ligneCom: "C20E", ligneCli: "C20E", mode: .busC),
+        TransportLine(ligneCom: "C22E", ligneCli: "C22E", mode: .busC),
     ]
     
     static let busLines: [TransportLine] = [
@@ -200,11 +219,72 @@ extension TransportLine {
         TransportLine(ligneCom: "96", ligneCli: "96", mode: .bus),
         TransportLine(ligneCom: "98", ligneCli: "98", mode: .bus),
         TransportLine(ligneCom: "99", ligneCli: "99", mode: .bus),
+        // Lignes manquantes — ajout complet depuis le jeu de données Grand Lyon
+        // Bus numérotés absents
+        TransportLine(ligneCom: "5",   ligneCli: "5",   mode: .bus),
+        TransportLine(ligneCom: "6",   ligneCli: "6",   mode: .bus),
+        TransportLine(ligneCom: "6E",  ligneCli: "6E",  mode: .bus),
+        TransportLine(ligneCom: "7",   ligneCli: "7",   mode: .bus),
+        TransportLine(ligneCom: "10",  ligneCli: "10",  mode: .bus),
+        TransportLine(ligneCom: "10E", ligneCli: "10E", mode: .bus),
+        TransportLine(ligneCom: "11",  ligneCli: "11",  mode: .bus),
+        TransportLine(ligneCom: "12",  ligneCli: "12",  mode: .bus),
+        TransportLine(ligneCom: "14",  ligneCli: "14",  mode: .bus),
+        TransportLine(ligneCom: "15",  ligneCli: "15",  mode: .bus),
+        TransportLine(ligneCom: "15E", ligneCli: "15E", mode: .bus),
+        TransportLine(ligneCom: "16",  ligneCli: "16",  mode: .bus),
+        TransportLine(ligneCom: "18",  ligneCli: "18",  mode: .bus),
+        TransportLine(ligneCom: "30",  ligneCli: "30",  mode: .bus),
+        TransportLine(ligneCom: "32",  ligneCli: "32",  mode: .bus),
+        TransportLine(ligneCom: "50",  ligneCli: "50",  mode: .bus),
+        TransportLine(ligneCom: "52E", ligneCli: "52E", mode: .bus),
+        TransportLine(ligneCom: "82",  ligneCli: "82",  mode: .bus),
+        TransportLine(ligneCom: "86",  ligneCli: "86",  mode: .bus),
+        TransportLine(ligneCom: "87",  ligneCli: "87",  mode: .bus),
+        TransportLine(ligneCom: "88",  ligneCli: "88",  mode: .bus),
+        TransportLine(ligneCom: "89D", ligneCli: "89D", mode: .bus),
+        TransportLine(ligneCom: "95",  ligneCli: "95",  mode: .bus),
+        TransportLine(ligneCom: "97",  ligneCli: "97",  mode: .bus),
+        TransportLine(ligneCom: "98E", ligneCli: "98E", mode: .bus),
+        TransportLine(ligneCom: "128", ligneCli: "128", mode: .bus),
+        // S-bus — variantes et nouvelles lignes
+        TransportLine(ligneCom: "S4A", ligneCli: "S4A", mode: .bus),
+        TransportLine(ligneCom: "S4B", ligneCli: "S4B", mode: .bus),
+        TransportLine(ligneCom: "S14", ligneCli: "S14", mode: .bus),
+        TransportLine(ligneCom: "S15", ligneCli: "S15", mode: .bus),
+        // Lignes spéciales urbaines
+        TransportLine(ligneCom: "A32",  ligneCli: "A32",  mode: .bus),
+        TransportLine(ligneCom: "A71",  ligneCli: "A71",  mode: .bus),
+        TransportLine(ligneCom: "BR60", ligneCli: "BR60", mode: .bus),
+        TransportLine(ligneCom: "BRT6", ligneCli: "BRT6", mode: .bus),
+        TransportLine(ligneCom: "GE2",  ligneCli: "GE2",  mode: .bus),
+        TransportLine(ligneCom: "GE4",  ligneCli: "GE4",  mode: .bus),
+        TransportLine(ligneCom: "GE6",  ligneCli: "GE6",  mode: .bus),
+        TransportLine(ligneCom: "PL1",  ligneCli: "PL1",  mode: .bus),
+        TransportLine(ligneCom: "PL2",  ligneCli: "PL2",  mode: .bus),
+        TransportLine(ligneCom: "PL3",  ligneCli: "PL3",  mode: .bus),
+        TransportLine(ligneCom: "PL4",  ligneCli: "PL4",  mode: .bus),
+        TransportLine(ligneCom: "T36",  ligneCli: "T36",  mode: .bus),
+        TransportLine(ligneCom: "ZI1",  ligneCli: "ZI1",  mode: .bus),
+        TransportLine(ligneCom: "ZI2",  ligneCli: "ZI2",  mode: .bus),
+        TransportLine(ligneCom: "ZI3",  ligneCli: "ZI3",  mode: .bus),
+        TransportLine(ligneCom: "ZI4",  ligneCli: "ZI4",  mode: .bus),
+        TransportLine(ligneCom: "ZI5",  ligneCli: "ZI5",  mode: .bus),
+        TransportLine(ligneCom: "ZI8",  ligneCli: "ZI8",  mode: .bus),
+        // Noctambus (service de nuit)
+        TransportLine(ligneCom: "N20",  ligneCli: "N20",  mode: .bus),
+        TransportLine(ligneCom: "N80",  ligneCli: "N80",  mode: .bus),
+        TransportLine(ligneCom: "N81",  ligneCli: "N81",  mode: .bus),
+        TransportLine(ligneCom: "N82",  ligneCli: "N82",  mode: .bus),
+        TransportLine(ligneCom: "N83",  ligneCli: "N83",  mode: .bus),
+        TransportLine(ligneCom: "N84",  ligneCli: "N84",  mode: .bus),
+        TransportLine(ligneCom: "N100", ligneCli: "N100", mode: .bus),
+        TransportLine(ligneCom: "N189", ligneCli: "N189", mode: .bus),
     ]
     
-    static let navetteLines: [TransportLine] = [
-        TransportLine(ligneCom: "7601", ligneCli: "NAVI1", mode: .navette),
+    static let navigoneLines: [TransportLine] = [
+        TransportLine(ligneCom: "7601", ligneCli: "NAVI1", mode: .navigone),
     ]
     
-    static let allPredefinedLines: [TransportLine] = metroLines + funicularLines + tramwayLines + busCLines + busLines + navetteLines
+    static let allPredefinedLines: [TransportLine] = metroLines + funicularLines + tramwayLines + busCLines + busLines + navigoneLines
 }

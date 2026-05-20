@@ -1,4 +1,28 @@
 import SwiftUI
+import BackgroundTasks
+
+private let alertRefreshIdentifier = "com.alertetcl.alert-refresh"
+
+private func handleAlertRefresh(task: BGAppRefreshTask) {
+    scheduleAlertRefresh()
+    var expired = false
+    let work = Task {
+        let alerts = try? await TCLAPIService.shared.fetchAlerts()
+        if let alerts {
+            await NotificationService.shared.processNewAlerts(
+                alerts, subscriptionService: SubscriptionService.shared
+            )
+        }
+    }
+    task.expirationHandler = { expired = true; work.cancel() }
+    Task { await work.value; task.setTaskCompleted(success: !expired) }
+}
+
+private func scheduleAlertRefresh() {
+    let request = BGAppRefreshTaskRequest(identifier: alertRefreshIdentifier)
+    request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
+    try? BGTaskScheduler.shared.submit(request)
+}
 
 @main
 struct AlerteTCLApp: App {
@@ -8,8 +32,15 @@ struct AlerteTCLApp: App {
     @State private var showNotificationPrompt = false
     @State private var showLocationPrompt = false
     @State private var selectedParkingId: String?
-    
+    @Environment(\.scenePhase) private var scenePhase
+
     init() {
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: alertRefreshIdentifier,
+            using: nil
+        ) { task in
+            handleAlertRefresh(task: task as! BGAppRefreshTask)
+        }
         configureAppearance()
     }
     
@@ -38,6 +69,9 @@ struct AlerteTCLApp: App {
                 }
                 .onOpenURL { url in
                     handleDeepLink(url)
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { scheduleAlertRefresh() }
                 }
                 .sheet(isPresented: $showLocationPrompt) {
                     LocationPermissionView()

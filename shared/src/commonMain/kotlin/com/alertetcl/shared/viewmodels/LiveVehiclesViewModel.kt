@@ -17,10 +17,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlin.math.min
+import kotlin.math.pow
 
 class LiveVehiclesViewModel(
     private val service: SiriLiteService = SiriLiteService.shared,
-    private val pollIntervalMs: Long = 15_000L
+    private val pollIntervalMs: Long = 15_000L,
+    private val maxIntervalMs: Long  = 60_000L,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -48,6 +51,15 @@ class LiveVehiclesViewModel(
     private val animatedVehicles = mutableMapOf<String, AnimatedVehicle>()
 
     private var pollingJob: Job? = null
+    private var consecutiveErrors = 0
+
+    /**
+     * Intervalle adaptatif : nominal à 15 s (aligné TTL cache Cloudflare),
+     * backoff exponentiel sur erreurs consécutives, plafonné à 60 s.
+     */
+    private val adaptiveIntervalMs: Long
+        get() = if (consecutiveErrors == 0) pollIntervalMs
+                else min((pollIntervalMs * 1.5.pow(consecutiveErrors.toDouble())).toLong(), maxIntervalMs)
 
     val filteredVehicles: List<Vehicle>
         get() = _vehicles.value.filter { it.vehicleType in _selectedTypes.value }
@@ -63,8 +75,12 @@ class LiveVehiclesViewModel(
         _isLive.value = true
         pollingJob = scope.launch {
             while (isActive) {
-                refresh()
-                delay(pollIntervalMs)
+                val fetchStart = Clock.System.now().toEpochMilliseconds()
+                fetchOnce()
+                // Cycle net = adaptiveInterval : on soustrait la durée du fetch
+                // pour garder un intervalle total stable (parité iOS).
+                val fetchDuration = Clock.System.now().toEpochMilliseconds() - fetchStart
+                delay(maxOf(adaptiveIntervalMs - fetchDuration, 2_000L))
             }
         }
     }
@@ -73,38 +89,61 @@ class LiveVehiclesViewModel(
         pollingJob?.cancel()
         pollingJob = null
         _isLive.value = false
+        consecutiveErrors = 0
     }
 
+    /** Rafraîchissement manuel depuis l'UI. */
     fun refresh() {
-        scope.launch {
-            _isLoading.value = true
-            try {
-                val newList = service.fetchVehicles()
-                updateAnimated(newList)
-                _vehicles.value = newList
-                _errorMessage.value = null
-                _lastUpdateEpochMs.value = Clock.System.now().toEpochMilliseconds()
-            } catch (e: Throwable) {
-                AppLogger.error("LiveVehiclesViewModel error", e)
-                _errorMessage.value = e.message
-            } finally {
-                _isLoading.value = false
-            }
+        scope.launch { fetchOnce() }
+    }
+
+    private suspend fun fetchOnce() {
+        _isLoading.value = true
+        try {
+            val newList = service.fetchVehicles()
+            updateAnimated(newList)
+            _errorMessage.value = null
+            _lastUpdateEpochMs.value = Clock.System.now().toEpochMilliseconds()
+            consecutiveErrors = 0
+        } catch (e: Throwable) {
+            AppLogger.error("LiveVehiclesViewModel error", e)
+            _errorMessage.value = e.message
+            consecutiveErrors++
+        } finally {
+            _isLoading.value = false
         }
     }
 
     private fun updateAnimated(newList: List<Vehicle>) {
+        val nowSec = Clock.System.now().toEpochMilliseconds() / 1000.0
         val newIds = newList.map { it.id }.toHashSet()
-        // Remove stale
-        animatedVehicles.keys.retainAll { it in newIds }
+
+        // Mettre à jour ou créer les AnimatedVehicle pour les données fraîches.
         for (v in newList) {
             val existing = animatedVehicles[v.id]
             if (existing == null) animatedVehicles[v.id] = AnimatedVehicle(v)
             else existing.updateWith(v)
         }
+
+        // Supprimer uniquement les véhicules dont la grace period est expirée.
+        // Les absents récents (< gracePeriodSeconds) sont conservés pour éviter
+        // le clignotement au terminus (changement de trip ID).
+        animatedVehicles.entries.removeAll { (id, animated) ->
+            id !in newIds && animated.isStale(nowSec)
+        }
+
+        // Exposer : véhicules frais + véhicules en grace period.
+        val graceVehicles = animatedVehicles.values
+            .filter { it.currentVehicle.id !in newIds }
+            .map { it.currentVehicle }
+        _vehicles.value = newList + graceVehicles
     }
 
     fun animatedVehicleFor(id: String): AnimatedVehicle? = animatedVehicles[id]
+
+    /** True si au moins un véhicule a une transition d'animation encore active. */
+    fun hasAnyActiveTransition(nowSec: Double): Boolean =
+        animatedVehicles.values.any { it.hasActiveTransition(nowSec) }
 
     fun dispose() {
         stopPolling()

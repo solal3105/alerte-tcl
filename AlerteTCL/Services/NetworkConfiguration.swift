@@ -60,20 +60,11 @@ enum NetworkConfiguration {
         return config
     }
     
-    // MARK: - URLSessions
+    // MARK: - URLSession
     
-    /// URLSession pour les données légères (alertes, véhicules) - timeout très court
-    static let fast: URLSession = {
-        URLSession(configuration: baseConfig(timeout: fastTimeout))
-    }()
-    
-    /// URLSession partagée avec timeouts standards
-    static let shared: URLSession = {
-        URLSession(configuration: baseConfig(timeout: sharedTimeout))
-    }()
-    
-    /// URLSession pour les données lourdes (arrêts, lignes) - timeout plus long
-    static let heavy: URLSession = {
+    /// Session partagée unique — le timeout par requête est défini via URLRequest.timeoutInterval.
+    /// timeoutIntervalForResource = heavyTimeout + 10 couvre le pire cas (arrêts TCL).
+    static let session: URLSession = {
         URLSession(configuration: baseConfig(timeout: heavyTimeout))
     }()
     

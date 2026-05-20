@@ -52,7 +52,7 @@ actor SIRILiteService {
     
     func fetchVehiclePositions() async throws -> [Vehicle] {
         guard let url = URL(string: baseURL + vehicleMonitoringEndpoint) else {
-            throw SIRIError.invalidURL
+            throw ServiceError.invalidURL
         }
         
         var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.fastTimeout)
@@ -60,25 +60,25 @@ actor SIRILiteService {
         request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
         AppLogger.debug("🚀 SIRI: Début requête (timeout: \(NetworkConfiguration.fastTimeout)s)")
         
-        let (data, response) = try await NetworkConfiguration.fast.data(for: request)
+        let (data, response) = try await NetworkConfiguration.session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw SIRIError.invalidResponse
+            throw ServiceError.invalidResponse
         }
         
         switch httpResponse.statusCode {
         case 200:
             break
         case 401:
-            throw SIRIError.unauthorized
+            throw ServiceError.unauthorized
         case 403:
-            throw SIRIError.forbidden
+            throw ServiceError.forbidden
         case 404:
-            throw SIRIError.notFound
+            throw ServiceError.notFound
         case 500...599:
-            throw SIRIError.serverError(httpResponse.statusCode)
+            throw ServiceError.httpError(httpResponse.statusCode)
         default:
-            throw SIRIError.httpError(httpResponse.statusCode)
+            throw ServiceError.httpError(httpResponse.statusCode)
         }
         
         do {
@@ -100,7 +100,7 @@ actor SIRILiteService {
                 AppLogger.debug("Données reçues: \(dataString.prefix(500))")
             }
             #endif
-            throw SIRIError.decodingError(error)
+            throw ServiceError.decodingError(error)
         }
     }
     
@@ -266,34 +266,3 @@ actor SIRILiteService {
     }
 }
 
-enum SIRIError: LocalizedError {
-    case invalidURL
-    case invalidResponse
-    case unauthorized
-    case forbidden
-    case notFound
-    case serverError(Int)
-    case httpError(Int)
-    case decodingError(Error)
-    
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL:
-            return "URL invalide"
-        case .invalidResponse:
-            return "Réponse invalide du serveur"
-        case .unauthorized:
-            return "Authentification requise - Configurez vos identifiants Grand Lyon"
-        case .forbidden:
-            return "Accès refusé - Vérifiez vos identifiants"
-        case .notFound:
-            return "Service non trouvé"
-        case .serverError(let code):
-            return "Erreur serveur (\(code))"
-        case .httpError(let code):
-            return "Erreur HTTP (\(code))"
-        case .decodingError:
-            return "Erreur de décodage des données"
-        }
-    }
-}

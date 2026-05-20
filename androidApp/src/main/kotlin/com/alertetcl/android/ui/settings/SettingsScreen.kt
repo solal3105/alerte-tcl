@@ -120,7 +120,7 @@ fun SettingsScreen(onOpenWidgetStops: () -> Unit = {}) {
                     trailing = null,
                     onClick = {
                         context.startActivity(Intent(Intent.ACTION_VIEW,
-                            Uri.parse("https://solalgendrin.github.io/alerte-tcl/privacy")))
+                            Uri.parse("https://lyon-pocket.netlify.app/privacy")))
                     }
                 )
             }
@@ -247,8 +247,8 @@ private fun WidgetHelpView() {
         )
         StepRow(
             number = 3,
-            title = "Choisissez Alerte TCL",
-            description = "Recherchez « Alerte TCL », puis ajoutez le widget « Prochains Passages »."
+            title = "Choisissez Lyon Pocket",
+            description = "Recherchez « Lyon Pocket », puis ajoutez le widget « Prochains Passages »."
         )
         StepRow(
             number = 4,

@@ -4,18 +4,22 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.alertetcl.shared.models.AlertSeverity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 private val Context.favStore by preferencesDataStore(name = "favorites")
 
 data class WidgetSelection(
-    /** Stable key: "$stopId-$lineName-$direction" */
+    /** Stable key: "$stopId-$lineName-$directionCode" */
     val id: String,
     val stopId: Int,
     val stopName: String,
     val lineName: String,
+    /** Direction API code: "A" or "R" */
     val direction: String,
+    /** Human-readable terminus name for display */
+    val destinationName: String = "",
 )
 
 /**
@@ -26,6 +30,9 @@ class FavoritesStore(private val context: Context) {
 
     val favoriteLines: Flow<Set<String>> =
         context.favStore.data.map { p -> parse(p[KEY_FAV_LINES]) }
+
+    val lineSeverityPreferences: Flow<Map<String, Set<AlertSeverity>>> =
+        context.favStore.data.map { p -> parseSeverityPrefs(p[KEY_SEVERITY_PREFS]) }
 
     val widgetSelections: Flow<List<WidgetSelection>> =
         context.favStore.data.map { p -> deserializeSelections(p[KEY_WIDGET_SELECTIONS]) }
@@ -56,6 +63,14 @@ class FavoritesStore(private val context: Context) {
             val cur = parse(p[KEY_FAV_LINES]).toMutableSet()
             if (!cur.add(line)) cur.remove(line)
             p[KEY_FAV_LINES] = cur.joinToString(",")
+        }
+    }
+
+    suspend fun setLineSeverityPreferences(lineId: String, severities: Set<AlertSeverity>) {
+        context.favStore.edit { p ->
+            val current = parseSeverityPrefs(p[KEY_SEVERITY_PREFS]).toMutableMap()
+            if (severities.isEmpty()) current.remove(lineId) else current[lineId] = severities
+            p[KEY_SEVERITY_PREFS] = serializeSeverityPrefs(current)
         }
     }
 
@@ -96,17 +111,37 @@ class FavoritesStore(private val context: Context) {
     private fun parse(s: String?): Set<String> =
         s.orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
 
+    private fun parseSeverityPrefs(raw: String?): Map<String, Set<AlertSeverity>> {
+        if (raw.isNullOrBlank()) return emptyMap()
+        return raw.split("|").mapNotNull { part ->
+            val idx = part.indexOf('=')
+            if (idx < 0) return@mapNotNull null
+            val lineId = part.substring(0, idx)
+            val severities = part.substring(idx + 1).split("+")
+                .mapNotNull { s -> AlertSeverity.values().find { it.name == s } }
+                .toSet()
+            if (lineId.isBlank() || severities.isEmpty()) return@mapNotNull null
+            lineId to severities
+        }.toMap()
+    }
+
+    private fun serializeSeverityPrefs(prefs: Map<String, Set<AlertSeverity>>): String =
+        prefs.entries.joinToString("|") { (lineId, sevs) ->
+            "$lineId=${sevs.joinToString("+") { it.name }}"
+        }
+
     private fun serializeSelections(list: List<WidgetSelection>): String =
-        list.joinToString("\n") { "${it.stopId}$SEP${it.stopName}$SEP${it.lineName}$SEP${it.direction}" }
+        list.joinToString("\n") { "${it.stopId}$SEP${it.stopName}$SEP${it.lineName}$SEP${it.direction}$SEP${it.destinationName}" }
 
     private fun deserializeSelections(raw: String?): List<WidgetSelection> =
         raw.orEmpty().lines().mapNotNull { line ->
             if (line.isBlank()) return@mapNotNull null
-            val parts = line.split(SEP, limit = 4)
+            val parts = line.split(SEP, limit = 5)
             if (parts.size < 4) return@mapNotNull null
             val stopId = parts[0].toIntOrNull() ?: return@mapNotNull null
             val stopName = parts[1]; val lineName = parts[2]; val direction = parts[3]
-            WidgetSelection("$stopId-$lineName-$direction", stopId, stopName, lineName, direction)
+            val destinationName = if (parts.size >= 5) parts[4] else ""
+            WidgetSelection("$stopId-$lineName-$direction", stopId, stopName, lineName, direction, destinationName)
         }
 
     companion object {
@@ -116,5 +151,6 @@ class FavoritesStore(private val context: Context) {
         private val KEY_PREMIUM             = stringPreferencesKey("premium_active")
         private val KEY_ONBOARDING          = stringPreferencesKey("onboarding_done")
         private val KEY_SELECTED_LIVE_LINES = stringPreferencesKey("live_selected_lines")
+        private val KEY_SEVERITY_PREFS      = stringPreferencesKey("line_severity_prefs")
     }
 }

@@ -1,6 +1,10 @@
 package com.alertetcl.android
 
 import android.app.Application
+import android.content.Context
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.alertetcl.android.notifications.AlertWorkerScheduler
 import com.alertetcl.android.notifications.NotificationChannels
 import com.alertetcl.shared.platform.AndroidBundleSetup
@@ -9,7 +13,13 @@ import com.alertetcl.shared.services.SiriLiteService
 import org.json.JSONArray
 import org.maplibre.android.MapLibre
 
-class AlerteTCLApplication : Application() {
+class AlerteTCLApplication : Application(), SingletonImageLoader.Factory {
+
+    override fun newImageLoader(context: Context): ImageLoader =
+        ImageLoader.Builder(context)
+            .components { add(OkHttpNetworkFetcherFactory()) }
+            .build()
+
     override fun onCreate() {
         super.onCreate()
         MapLibre.getInstance(this)

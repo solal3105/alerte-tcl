@@ -5,9 +5,6 @@ ktor = "2.3.12"
 kotlinxCoroutines = "1.9.0"
 kotlinxSerialization = "1.7.3"
 kotlinxDatetime = "0.6.1"
-compose = "1.7.5"
-composeCompiler = "1.5.15"
-composeMaterial3 = "1.3.1"
 androidxActivity = "1.9.3"
 androidxLifecycle = "2.8.7"
 androidxNavigation = "2.8.4"
@@ -18,6 +15,7 @@ androidxDatastore = "1.1.4"
 androidxWorkManager = "2.9.1"
 billingClient = "7.1.1"
 glance = "1.1.1"
+coil = "3.2.0"
 maplibre = "11.8.1"
 
 [libraries]
@@ -62,6 +60,8 @@ billing-client = { module = "com.android.billingclient:billing-ktx", version.ref
 
 glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
 glance-material3 = { module = "androidx.glance:glance-material3", version.ref = "glance" }
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

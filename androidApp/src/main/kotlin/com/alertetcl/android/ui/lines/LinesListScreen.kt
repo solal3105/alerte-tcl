@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import com.alertetcl.android.data.FavoritesStore
 import com.alertetcl.android.ui.alerts.transportModeColor
 import com.alertetcl.android.ui.alerts.transportModeIcon
+import com.alertetcl.shared.models.AlertSeverity
 import com.alertetcl.shared.models.TCLAlert
 import com.alertetcl.shared.models.TransportMode
 import kotlinx.coroutines.launch
@@ -199,21 +200,34 @@ fun LinesListScreen(
             confirmButton = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = {
-                        scope.launch { store.toggleFavoriteLine(line) }
+                        scope.launch {
+                            store.toggleFavoriteLine(line)
+                            store.setLineSeverityPreferences(
+                                line, setOf(AlertSeverity.MAJOR, AlertSeverity.DISRUPTION, AlertSeverity.INFO)
+                            )
+                        }
                         if (android.os.Build.VERSION.SDK_INT >= 33) {
                             notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                         }
                         subscribeDialogLine = null
                     }) { Text("Toutes les alertes") }
                     TextButton(onClick = {
-                        scope.launch { store.toggleFavoriteLine(line) }
+                        scope.launch {
+                            store.toggleFavoriteLine(line)
+                            store.setLineSeverityPreferences(line, setOf(AlertSeverity.MAJOR))
+                        }
                         if (android.os.Build.VERSION.SDK_INT >= 33) {
                             notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                         }
                         subscribeDialogLine = null
                     }) { Text("Perturbations majeures uniquement") }
                     TextButton(onClick = {
-                        scope.launch { store.toggleFavoriteLine(line) }
+                        scope.launch {
+                            store.toggleFavoriteLine(line)
+                            store.setLineSeverityPreferences(
+                                line, setOf(AlertSeverity.MAJOR, AlertSeverity.DISRUPTION)
+                            )
+                        }
                         if (android.os.Build.VERSION.SDK_INT >= 33) {
                             notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                         }

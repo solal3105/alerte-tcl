@@ -10,7 +10,7 @@
 
     <application
         android:name=".AlerteTCLApplication"
-        android:label="Alerte TCL"
+        android:label="Lyon Pocket"
         android:theme="@style/Theme.AlerteTCL"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -19,7 +19,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="Alerte TCL"
+            android:label="Lyon Pocket"
             android:theme="@style/Theme.AlerteTCL"
             android:screenOrientation="portrait">
             <intent-filter>

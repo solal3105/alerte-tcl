@@ -74,7 +74,10 @@ struct WidgetPassageService {
             WidgetCache.store(fresh, stopId: stopId, line: line, direction: direction)
             return fresh
         } catch {
-            if let cached = WidgetCache.load(stopId: stopId, line: line, direction: direction) {
+            // Fallback cache sans limite d'âge stricte : après plusieurs jours d'inactivité
+            // iOS peut appeler timeline() très rarement ; mieux vaut afficher des données
+            // potentiellement périmées que montrer une erreur vide.
+            if let cached = WidgetCache.load(stopId: stopId, line: line, direction: direction, maxAge: 4 * 3600) {
                 AppLogger.debug("⚠️ Widget: réseau KO, fallback cache (\(cached.count) passages)")
                 return cached
             }

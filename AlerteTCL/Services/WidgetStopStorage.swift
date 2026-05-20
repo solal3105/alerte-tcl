@@ -9,19 +9,17 @@ struct WidgetStopSelection: Codable, Identifiable, Equatable {
     let stopName: String
     let line: String
     let direction: String
+    let terminusName: String
     let dateAdded: Date
     
-    init(stopId: Int, stopName: String, line: String, direction: String) {
+    init(stopId: Int, stopName: String, line: String, direction: String, terminusName: String = "") {
         self.id = "\(stopId)-\(line)-\(direction)"
         self.stopId = stopId
         self.stopName = stopName
         self.line = line
         self.direction = direction
+        self.terminusName = terminusName
         self.dateAdded = Date()
-    }
-    
-    var displayTitle: String {
-        "\(line) → \(direction)"
     }
     
     var displaySubtitle: String {
@@ -108,7 +106,7 @@ class WidgetStopStorage: ObservableObject {
                   let direction = dict["direction"] as? String else {
                 return nil
             }
-            return WidgetStopSelection(stopId: stopId, stopName: stopName, line: lineName, direction: direction)
+            return WidgetStopSelection(stopId: stopId, stopName: stopName, line: lineName, direction: direction, terminusName: dict["terminusName"] as? String ?? "")
         }
     }
     
@@ -120,6 +118,7 @@ class WidgetStopStorage: ObservableObject {
                 "stopName": selection.stopName,
                 "lineName": selection.line,
                 "direction": selection.direction,
+                "terminusName": selection.terminusName,
                 "addedAt": selection.dateAdded.timeIntervalSince1970
             ]
         }

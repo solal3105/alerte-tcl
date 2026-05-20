@@ -18,7 +18,7 @@ class AnimatedVehicle(
     var transitionDuration: Double = 5.0,
     var teleportDistanceMeters: Double = 500.0,
     var noiseDistanceMeters: Double = 1.0,
-    var gracePeriodSeconds: Double = 45.0
+    var gracePeriodSeconds: Double = 25.0
 ) {
     var currentVehicle: Vehicle = initial
         private set
@@ -102,6 +102,9 @@ class AnimatedVehicle(
         if (v >= 360) v -= 360
         return v
     }
+
+    /** True si la transition d'animation n'est pas encore terminée à l'instant [now]. */
+    fun hasActiveTransition(now: Double): Boolean = (now - transitionStartedAt) < transitionDuration
 
     /** Marque le véhicule comme expiré si pas de mise à jour depuis grace period. */
     fun isStale(now: Double = nowSeconds()): Boolean = (now - lastUpdateAt) > gracePeriodSeconds

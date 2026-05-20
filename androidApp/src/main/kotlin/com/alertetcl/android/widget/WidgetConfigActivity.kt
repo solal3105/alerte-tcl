@@ -42,9 +42,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.lifecycle.lifecycleScope
 import com.alertetcl.android.data.FavoritesStore
 import com.alertetcl.android.data.WidgetSelection
+import com.alertetcl.android.ui.colorFromHex
 import com.alertetcl.android.ui.theme.AlerteTCLTheme
+import com.alertetcl.shared.models.LineColors
+import kotlinx.coroutines.launch
 
 /**
  * Launched by the launcher when a widget is added to the home screen.
@@ -77,11 +82,25 @@ class WidgetConfigActivity : ComponentActivity() {
                 WidgetConfigFlow(
                     onConfirm = { config ->
                         WidgetConfigStore.save(this, appWidgetId, config)
-                        setResult(
-                            RESULT_OK,
-                            Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId),
-                        )
-                        finish()
+                        lifecycleScope.launch {
+                            val glanceManager = GlanceAppWidgetManager(this@WidgetConfigActivity)
+                            val glanceId = runCatching { glanceManager.getGlanceIdBy(appWidgetId) }.getOrNull()
+                            if (glanceId != null) {
+                                val info = AppWidgetManager.getInstance(this@WidgetConfigActivity)
+                                    .getAppWidgetInfo(appWidgetId)
+                                when (info?.provider?.className) {
+                                    NextDeparturesGlanceWidgetReceiver::class.java.name ->
+                                        NextDeparturesGlanceWidget().update(this@WidgetConfigActivity, glanceId)
+                                    TCLBoardGlanceWidgetReceiver::class.java.name ->
+                                        TCLBoardGlanceWidget().update(this@WidgetConfigActivity, glanceId)
+                                }
+                            }
+                            setResult(
+                                RESULT_OK,
+                                Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId),
+                            )
+                            finish()
+                        }
                     },
                     onCancel = { finish() },
                 )
@@ -135,10 +154,11 @@ private fun WidgetConfigFlow(
                         SelectionRow(sel) {
                             onConfirm(
                                 WidgetConfig(
-                                    stopId    = sel.stopId,
-                                    stopName  = sel.stopName,
-                                    lineName  = sel.lineName,
-                                    direction = sel.direction,
+                                    stopId          = sel.stopId,
+                                    stopName        = sel.stopName,
+                                    lineName        = sel.lineName,
+                                    direction       = sel.direction,
+                                    destinationName = sel.destinationName,
                                 )
                             )
                         }
@@ -173,8 +193,8 @@ private fun EmptySelectionsContent(modifier: Modifier = Modifier) {
 
 @Composable
 private fun SelectionRow(sel: WidgetSelection, onClick: () -> Unit) {
-    val bgColor   = LineColorHelper.backgroundColor(sel.lineName)
-    val textColor = LineColorHelper.textColor(sel.lineName)
+    val bgColor   = colorFromHex(LineColors.backgroundHex(sel.lineName))
+    val textColor = colorFromHex(LineColors.textHex(sel.lineName))
 
     Surface(
         shape = RoundedCornerShape(14.dp),
@@ -203,7 +223,7 @@ private fun SelectionRow(sel: WidgetSelection, onClick: () -> Unit) {
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(sel.stopName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("→ ${sel.direction}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("→ ${sel.destinationName.ifBlank { sel.direction }}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

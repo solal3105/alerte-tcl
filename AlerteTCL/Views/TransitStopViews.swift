@@ -10,14 +10,14 @@ import MapKit
 
 struct TransitStopDetailSheet: View {
     let stop: TransitStop
-    let viewModel: LiveVehiclesViewModel
+    let stopsVM: TransitStopViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var localStop: TransitStop
     @State private var isLoading = false
     
-    init(stop: TransitStop, viewModel: LiveVehiclesViewModel) {
+    init(stop: TransitStop, stopsVM: TransitStopViewModel) {
         self.stop = stop
-        self.viewModel = viewModel
+        self.stopsVM = stopsVM
         self._localStop = State(initialValue: stop)
     }
     
@@ -80,9 +80,9 @@ struct TransitStopDetailSheet: View {
             if localStop.passages.isEmpty && !localStop.isLoadingPassages {
                 isLoading = true
                 Task { @MainActor in
-                    await viewModel.loadAllPassagesForStop(stopId: stop.id)
+                    await stopsVM.loadAllPassagesForStop(stopId: stop.id)
                     // Récupérer l'arrêt mis à jour
-                    if let updatedStop = viewModel.transitStops.first(where: { $0.id == stop.id }) {
+                    if let updatedStop = stopsVM.transitStops.first(where: { $0.id == stop.id }) {
                         localStop = updatedStop
                     }
                     isLoading = false
@@ -312,11 +312,12 @@ struct PassageChip: View {
 
 struct MergedStopDetailSheet: View {
     let mergedStop: MergedStop
-    let viewModel: LiveVehiclesViewModel
+    let stopsVM: TransitStopViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var allPassages: [Passage] = []
     @State private var isLoading = false
     @State private var showWidgetSheet = false
+    @State private var terminusMap: [String: String] = [:]
     
     /// Clé unique pour grouper par ligne ET direction
     private struct LineDirectionKey: Hashable {
@@ -327,7 +328,8 @@ struct MergedStopDetailSheet: View {
     private var availableLineDirections: [WidgetLineDirection] {
         sortedLineDirections.map { key in
             let stopId = passagesByLineDirection[key]?.first?.stopId ?? mergedStop.stops[0].id
-            return WidgetLineDirection(stopId: stopId, line: key.line, direction: key.direction)
+            let terminus = terminusMap["\(key.line)|\(key.direction.uppercased())"] ?? ""
+            return WidgetLineDirection(stopId: stopId, line: key.line, direction: key.direction, terminusName: terminus)
         }
     }
     
@@ -391,15 +393,16 @@ struct MergedStopDetailSheet: View {
     private func loadAllPassages() {
         isLoading = true
         Task { @MainActor in
+            async let termini = (try? BusLineService.shared.fetchLineTermini()) ?? [:]
             // Charger les passages de TOUS les arrêts du groupe
             for stop in mergedStop.stops {
-                await viewModel.loadAllPassagesForStop(stopId: stop.id)
+                await stopsVM.loadAllPassagesForStop(stopId: stop.id)
             }
             
             // Collecter tous les passages
             var passages: [Passage] = []
             for stop in mergedStop.stops {
-                if let updatedStop = viewModel.transitStops.first(where: { $0.id == stop.id }) {
+                if let updatedStop = stopsVM.transitStops.first(where: { $0.id == stop.id }) {
                     passages.append(contentsOf: updatedStop.passages)
                 }
             }
@@ -409,6 +412,7 @@ struct MergedStopDetailSheet: View {
                 p1.heurepassage < p2.heurepassage
             }
             
+            terminusMap = await termini
             isLoading = false
         }
     }
@@ -548,7 +552,7 @@ struct MergedStopDetailSheet: View {
 // MARK: - Preview
 
 #Preview {
-    let vm = LiveVehiclesViewModel()
+    let vm = TransitStopViewModel()
     TransitStopDetailSheet(
         stop: TransitStop(
             id: 1,
@@ -559,6 +563,6 @@ struct MergedStopDetailSheet: View {
             desserte: "MA:A,MA:R,MD:A,MD:R,T1:A,T1:R",
             pmr: true
         ),
-        viewModel: vm
+        stopsVM: vm
     )
 }

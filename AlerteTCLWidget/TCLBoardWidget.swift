@@ -288,12 +288,12 @@ struct TCLBoardMediumView: View {
                         color: ledAmber
                     )
 
-                    // Ligne 3 — Dans (si disponible)
+                    // Ligne 3 — Suivant (si disponible)
                     if entry.passages.count > 2 {
                         boardSeparator
                         MediumBoardRow(
                             scheduledTime: nil,
-                            label: "Dans    ",
+                            label: "Suivant ",
                             passage: entry.passages[2],
                             icon: icon,
                             color: ledAmber.opacity(0.55)

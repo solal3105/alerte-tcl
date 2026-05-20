@@ -5,6 +5,9 @@ import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import com.alertetcl.android.ui.colorFromHex
+import com.alertetcl.shared.models.LineColors
+import com.alertetcl.shared.services.BusLineService
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,14 +58,24 @@ class NextDeparturesGlanceWidget : GlanceAppWidget() {
             return
         }
 
+        val terminusName = runCatching {
+            BusLineService.shared.fetchLineTermini()["${config.lineName}|${config.direction}"].orEmpty()
+        }.getOrDefault("")
+        val displayConfig = config.copy(destinationName = terminusName)
+
         val (passages, fetchError) = runCatching {
-            WidgetPassageService.fetchPassages(config.stopId, config.lineName, config.direction) to null
-        }.getOrElse { emptyList<WidgetPassage>() to WidgetError.NETWORK_ERROR }
+            WidgetPassageService.fetchPassages(context, config.stopId, config.lineName, config.direction) to null
+        }.getOrElse {
+            // réseau KO (Doze, App Standby RARE…) : fallback sur le cache jusqu'à 4 h
+            val cached = WidgetPassageCache.load(context, config.stopId, config.lineName, config.direction)
+            if (cached != null) cached to null
+            else emptyList<WidgetPassage>() to WidgetError.NETWORK_ERROR
+        }
 
         val effectiveError = fetchError
             ?: if (passages.isEmpty()) WidgetError.NO_PASSAGES else null
 
-        provideContent { WidgetContent(config, passages, effectiveError) }
+        provideContent { WidgetContent(displayConfig, passages, effectiveError) }
     }
 
     @Composable
@@ -83,6 +96,11 @@ class NextDeparturesGlanceWidget : GlanceAppWidget() {
 class NextDeparturesGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = NextDeparturesGlanceWidget()
 
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        WidgetRefreshScheduler.schedule(context)
+    }
+
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
         appWidgetIds.forEach { WidgetConfigStore.remove(context, it) }
@@ -93,7 +111,7 @@ class NextDeparturesGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
 
 @Composable
 private fun NotConfiguredContent(lineName: String, context: Context, widgetId: Int) {
-    val lineColor = if (lineName.isNotEmpty()) LineColorHelper.backgroundColor(lineName)
+    val lineColor = if (lineName.isNotEmpty()) colorFromHex(LineColors.backgroundHex(lineName))
                    else Color(0xFF1565C0)
     val clickAction = actionStartActivity(
         Intent(context, WidgetConfigActivity::class.java)
@@ -110,7 +128,7 @@ private fun NotConfiguredContent(lineName: String, context: Context, widgetId: I
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (lineName.isNotEmpty()) {
-            LineBadge(lineName, lineColor, LineColorHelper.textColor(lineName), 12.sp)
+            LineBadge(lineName, lineColor, colorFromHex(LineColors.textHex(lineName)), 12.sp)
             Spacer(GlanceModifier.height(8.dp))
         }
         Text(
@@ -132,8 +150,8 @@ private fun SmallContent(
     passages: List<WidgetPassage>,
     error: WidgetError?,
 ) {
-    val lineColor     = LineColorHelper.backgroundColor(config.lineName)
-    val lineTextColor = LineColorHelper.textColor(config.lineName)
+    val lineColor     = colorFromHex(LineColors.backgroundHex(config.lineName))
+    val lineTextColor = colorFromHex(LineColors.textHex(config.lineName))
 
     Column(
         modifier = GlanceModifier
@@ -149,7 +167,7 @@ private fun SmallContent(
             LineBadge(config.lineName, lineColor, lineTextColor, 11.sp)
             Spacer(GlanceModifier.width(6.dp))
             Text(
-                "→ ${config.direction}",
+                "→ ${config.directionDisplay}",
                 modifier = GlanceModifier.fillMaxWidth(),
                 style = TextStyle(color = ColorProvider(Color(0xFF666666)), fontSize = 9.sp),
                 maxLines = 2,
@@ -223,8 +241,8 @@ private fun MediumContent(
     passages: List<WidgetPassage>,
     error: WidgetError?,
 ) {
-    val lineColor     = LineColorHelper.backgroundColor(config.lineName)
-    val lineTextColor = LineColorHelper.textColor(config.lineName)
+    val lineColor     = colorFromHex(LineColors.backgroundHex(config.lineName))
+    val lineTextColor = colorFromHex(LineColors.textHex(config.lineName))
 
     Column(
         modifier = GlanceModifier
@@ -258,8 +276,8 @@ private fun LargeContent(
     passages: List<WidgetPassage>,
     error: WidgetError?,
 ) {
-    val lineColor     = LineColorHelper.backgroundColor(config.lineName)
-    val lineTextColor = LineColorHelper.textColor(config.lineName)
+    val lineColor     = colorFromHex(LineColors.backgroundHex(config.lineName))
+    val lineTextColor = colorFromHex(LineColors.textHex(config.lineName))
 
     Column(
         modifier = GlanceModifier
@@ -341,7 +359,7 @@ private fun WidgetHeader(
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "→ ${config.direction}",
+                    "→ ${config.directionDisplay}",
                     style = TextStyle(color = ColorProvider(Color(0xFF666666)), fontSize = 10.sp),
                     maxLines = 1,
                 )

@@ -39,12 +39,16 @@ struct NextDeparturesProvider: AppIntentTimelineProvider {
         let calendar = Calendar.current
         let now = Date()
         var entries: [NextDeparturesEntry] = []
-        for minuteOffset in 0..<15 {
+        for minuteOffset in 0..<60 {
             guard let entryDate = calendar.date(byAdding: .minute, value: minuteOffset, to: now) else { continue }
             let decayed = base.passages.compactMap { passage -> WidgetPassage? in
                 guard let minutes = passage.delayMinutes else { return passage }
                 let remaining = minutes - minuteOffset
-                guard remaining >= 0 else { return nil }
+                // Délai écoulé : bascule sur l'heure absolue pour que l'entrée
+                // ne soit jamais vide pendant un retard de rafraîchissement iOS.
+                if remaining < 0 {
+                    return WidgetPassage(delay: passage.time, time: passage.time, isRealTime: false)
+                }
                 return WidgetPassage(
                     delay: remaining == 0 ? "À l'approche" : "\(remaining) min",
                     time: passage.time,
@@ -61,7 +65,10 @@ struct NextDeparturesProvider: AppIntentTimelineProvider {
                 error: decayed.isEmpty && base.error == nil ? .noPassages : base.error
             ))
         }
-        let nextUpdate = now.addingTimeInterval(15 * 60)
+        // Refresh toutes les 5 min : adapté aux données temps-réel de transport.
+        // Le budget WidgetKit (~40-70 refreshes/jour) permet cette fréquence.
+        // Les 60 entrées (1 par minute) couvrent 1 heure si iOS retarde exceptionnellement.
+        let nextUpdate = now.addingTimeInterval(5 * 60)
         return Timeline(entries: entries, policy: .after(nextUpdate))
     }
     
@@ -82,6 +89,10 @@ struct NextDeparturesProvider: AppIntentTimelineProvider {
         let lineName = selectedStop.lineName
         let direction = selectedStop.direction
         let stopId = selectedStop.stopId
+
+        // Résoudre le nom du terminus depuis le stockage local (enregistré à l'ajout)
+        let terminusRaw = Self.terminusName(forStopId: stopId, lineName: lineName, direction: direction)
+        let directionDisplay = terminusRaw.isEmpty ? "—" : terminusRaw
         
         // Récupérer les passages
         do {
@@ -96,7 +107,7 @@ struct NextDeparturesProvider: AppIntentTimelineProvider {
                 configuration: configuration,
                 stopName: stopName,
                 lineName: lineName,
-                direction: direction,
+                direction: directionDisplay,
                 passages: passages,
                 error: passages.isEmpty ? .noPassages : nil
             )
@@ -106,11 +117,18 @@ struct NextDeparturesProvider: AppIntentTimelineProvider {
                 configuration: configuration,
                 stopName: stopName,
                 lineName: lineName,
-                direction: direction,
+                direction: directionDisplay,
                 passages: [],
                 error: .networkError
             )
         }
+    }
+
+    private static func terminusName(forStopId stopId: Int, lineName: String, direction: String) -> String {
+        let defaults = UserDefaults(suiteName: "group.com.solal.alertetcl")
+        let savedStops = defaults?.array(forKey: "widgetStops") as? [[String: Any]] ?? []
+        let id = "\(stopId)-\(lineName)-\(direction)"
+        return savedStops.first(where: { ($0["id"] as? String) == id })?["terminusName"] as? String ?? ""
     }
 }
 

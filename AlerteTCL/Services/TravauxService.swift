@@ -28,7 +28,7 @@ actor TravauxService {
         
         guard let url = URL(string: urlString) else {
             AppLogger.debug("❌ TravauxService: URL invalide")
-            throw TravauxServiceError.invalidURL
+            throw ServiceError.invalidURL
         }
         
         AppLogger.debug("🌐 TravauxService: Chargement...")
@@ -38,15 +38,15 @@ actor TravauxService {
         request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
         request.setValue("gzip, deflate", forHTTPHeaderField: "Accept-Encoding")
         
-        let (data, response) = try await NetworkConfiguration.shared.data(for: request)
+        let (data, response) = try await NetworkConfiguration.session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw TravauxServiceError.invalidResponse
+            throw ServiceError.invalidResponse
         }
         
         guard httpResponse.statusCode == 200 else {
             AppLogger.debug("❌ TravauxService: HTTP \(httpResponse.statusCode)")
-            throw TravauxServiceError.httpError(httpResponse.statusCode)
+            throw ServiceError.httpError(httpResponse.statusCode)
         }
         
         let decoder = JSONDecoder()
@@ -67,19 +67,3 @@ actor TravauxService {
     
 }
 
-enum TravauxServiceError: LocalizedError {
-    case invalidURL
-    case invalidResponse
-    case httpError(Int)
-    
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL:
-            return "URL invalide"
-        case .invalidResponse:
-            return "Réponse invalide du serveur"
-        case .httpError(let code):
-            return "Erreur HTTP: \(code)"
-        }
-    }
-}

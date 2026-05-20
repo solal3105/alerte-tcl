@@ -13,7 +13,7 @@ enum class TransportMode(val displayName: String, val iconKey: String, val sortO
     TRAMWAY("Tramway", "tram", 2),
     BUS_C("Bus C", "bus_c", 3),
     BUS("Bus", "bus", 4),
-    NAVETTE("Navette", "ferry", 5);
+    NAVIGONE("Navigone", "ferry", 5);
 
     companion object {
         /** Détection à partir du code ligne (M*, T*, F*, C*, JD*, etc.). */
@@ -26,16 +26,32 @@ enum class TransportMode(val displayName: String, val iconKey: String, val sortO
                 u.startsWith("F") && u.length <= 3 -> FUNICULAR
                 u.startsWith("C") && u.length <= 3 -> BUS_C
                 u == "RHONEXPRESS" -> TRAMWAY
+                u.startsWith("NAVI") || u == "7601" -> NAVIGONE
                 else -> BUS
             }
         }
+
+        /** Classifie la hiérarchie d'affichage d'un arrêt selon les lignes qui le desservent. */
+        fun classifyStopTier(lines: List<String>): TransportMode {
+            val modes = lines.map { detectFromLine(it) }
+            return when {
+                METRO   in modes -> METRO
+                TRAMWAY in modes -> TRAMWAY
+                BUS_C   in modes -> BUS_C
+                else             -> BUS
+            }
+        }
+
+        /** Première ligne de la hiérarchie la plus haute parmi [lines]. */
+        fun primaryStopLine(lines: List<String>): String? =
+            lines.minByOrNull { detectFromLine(it).sortOrder }
 
         fun fromString(s: String?): TransportMode = when (s) {
             "Métro" -> METRO
             "Tramway", "Trambus" -> TRAMWAY
             "Bus C" -> BUS_C
             "Funiculaire" -> FUNICULAR
-            "Navette maritime/fluviale" -> NAVETTE
+            "Navette maritime/fluviale", "Navette" -> NAVIGONE
             else -> BUS
         }
     }
@@ -72,6 +88,7 @@ data class TransportLine(
             create("RX",   "RX",   TransportMode.TRAMWAY),
             create("TS",   "TS",   TransportMode.TRAMWAY),
             create("TB11", "TB11", TransportMode.TRAMWAY),
+            create("TB12", "TB12", TransportMode.TRAMWAY),
         )
 
         val funicularLines: List<TransportLine> = listOf(
@@ -106,6 +123,13 @@ data class TransportLine(
             create("C24", "C24", TransportMode.BUS_C),
             create("C25", "C25", TransportMode.BUS_C),
             create("C26", "C26", TransportMode.BUS_C),
+            create("C200", "C200", TransportMode.BUS_C),
+            create("C201", "C201", TransportMode.BUS_C),
+            create("C202", "C202", TransportMode.BUS_C),
+            create("C205", "C205", TransportMode.BUS_C),
+            create("C15E", "C15E", TransportMode.BUS_C),
+            create("C20E", "C20E", TransportMode.BUS_C),
+            create("C22E", "C22E", TransportMode.BUS_C),
         )
 
         val regularBusLines: List<TransportLine> = listOf(
@@ -190,13 +214,74 @@ data class TransportLine(
             create("96",  "96",  TransportMode.BUS),
             create("98",  "98",  TransportMode.BUS),
             create("99",  "99",  TransportMode.BUS),
+            // Lignes manquantes — ajout complet depuis le jeu de données Grand Lyon
+            // Bus numérotés absents
+            create("5",   "5",   TransportMode.BUS),
+            create("6",   "6",   TransportMode.BUS),
+            create("6E",  "6E",  TransportMode.BUS),
+            create("7",   "7",   TransportMode.BUS),
+            create("10",  "10",  TransportMode.BUS),
+            create("10E", "10E", TransportMode.BUS),
+            create("11",  "11",  TransportMode.BUS),
+            create("12",  "12",  TransportMode.BUS),
+            create("14",  "14",  TransportMode.BUS),
+            create("15",  "15",  TransportMode.BUS),
+            create("15E", "15E", TransportMode.BUS),
+            create("16",  "16",  TransportMode.BUS),
+            create("18",  "18",  TransportMode.BUS),
+            create("30",  "30",  TransportMode.BUS),
+            create("32",  "32",  TransportMode.BUS),
+            create("50",  "50",  TransportMode.BUS),
+            create("52E", "52E", TransportMode.BUS),
+            create("82",  "82",  TransportMode.BUS),
+            create("86",  "86",  TransportMode.BUS),
+            create("87",  "87",  TransportMode.BUS),
+            create("88",  "88",  TransportMode.BUS),
+            create("89D", "89D", TransportMode.BUS),
+            create("95",  "95",  TransportMode.BUS),
+            create("97",  "97",  TransportMode.BUS),
+            create("98E", "98E", TransportMode.BUS),
+            create("128", "128", TransportMode.BUS),
+            // S-bus — variantes et nouvelles lignes
+            create("S4A", "S4A", TransportMode.BUS),
+            create("S4B", "S4B", TransportMode.BUS),
+            create("S14", "S14", TransportMode.BUS),
+            create("S15", "S15", TransportMode.BUS),
+            // Lignes spéciales urbaines
+            create("A32",  "A32",  TransportMode.BUS),
+            create("A71",  "A71",  TransportMode.BUS),
+            create("BR60", "BR60", TransportMode.BUS),
+            create("BRT6", "BRT6", TransportMode.BUS),
+            create("GE2",  "GE2",  TransportMode.BUS),
+            create("GE4",  "GE4",  TransportMode.BUS),
+            create("GE6",  "GE6",  TransportMode.BUS),
+            create("PL1",  "PL1",  TransportMode.BUS),
+            create("PL2",  "PL2",  TransportMode.BUS),
+            create("PL3",  "PL3",  TransportMode.BUS),
+            create("PL4",  "PL4",  TransportMode.BUS),
+            create("T36",  "T36",  TransportMode.BUS),
+            create("ZI1",  "ZI1",  TransportMode.BUS),
+            create("ZI2",  "ZI2",  TransportMode.BUS),
+            create("ZI3",  "ZI3",  TransportMode.BUS),
+            create("ZI4",  "ZI4",  TransportMode.BUS),
+            create("ZI5",  "ZI5",  TransportMode.BUS),
+            create("ZI8",  "ZI8",  TransportMode.BUS),
+            // Noctambus (service de nuit)
+            create("N20",  "N20",  TransportMode.BUS),
+            create("N80",  "N80",  TransportMode.BUS),
+            create("N81",  "N81",  TransportMode.BUS),
+            create("N82",  "N82",  TransportMode.BUS),
+            create("N83",  "N83",  TransportMode.BUS),
+            create("N84",  "N84",  TransportMode.BUS),
+            create("N100", "N100", TransportMode.BUS),
+            create("N189", "N189", TransportMode.BUS),
         )
 
-        val navetteLines: List<TransportLine> = listOf(
-            create("7601", "NAVI1", TransportMode.NAVETTE),
+        val navigoneLines: List<TransportLine> = listOf(
+            create("7601", "NAVI1", TransportMode.NAVIGONE),
         )
 
         val allPredefinedLines: List<TransportLine> =
-            metroLines + funicularLines + tramwayLines + busCLines + regularBusLines + navetteLines
+            metroLines + funicularLines + tramwayLines + busCLines + regularBusLines + navigoneLines
     }
 }

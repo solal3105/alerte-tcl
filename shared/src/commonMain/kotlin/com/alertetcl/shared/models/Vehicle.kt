@@ -51,6 +51,9 @@ data class Vehicle(
 ) {
     val coordinate: LatLng get() = LatLng(latitude, longitude)
 
+    /** Numéro de parc extrait du VehicleRef SIRI (ex. "ActIV:Vehicle:Bus:1512:LOC" → "1512"). */
+    val fleetNumber: String? get() = id.split(":").getOrNull(3)?.takeIf { it.isNotEmpty() }
+
     val delayFormatted: String get() = when {
         delay == 0  -> "À l'heure"
         delay > 0   -> {

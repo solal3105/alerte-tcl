@@ -37,6 +37,8 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import com.alertetcl.android.ui.colorFromHex
+import com.alertetcl.shared.models.LineColors
 
 // ── Board palette ─────────────────────────────────────────────────────────────
 
@@ -65,8 +67,11 @@ class TCLBoardGlanceWidget : GlanceAppWidget() {
         }
 
         val passages = runCatching {
-            WidgetPassageService.fetchPassages(config.stopId, config.lineName, config.direction)
-        }.getOrDefault(emptyList())
+            WidgetPassageService.fetchPassages(context, config.stopId, config.lineName, config.direction)
+        }.getOrElse {
+            // réseau KO (Doze, App Standby RARE…) : fallback sur le cache jusqu'à 4 h
+            WidgetPassageCache.load(context, config.stopId, config.lineName, config.direction).orEmpty()
+        }
 
         provideContent {
             val size = LocalSize.current
@@ -78,6 +83,11 @@ class TCLBoardGlanceWidget : GlanceAppWidget() {
 
 class TCLBoardGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = TCLBoardGlanceWidget()
+
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        WidgetRefreshScheduler.schedule(context)
+    }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
@@ -257,8 +267,8 @@ private fun BoardMediumView(config: WidgetConfig, passages: List<WidgetPassage>)
 
 @Composable
 private fun BoardLineBadge(lineName: String, size: androidx.compose.ui.unit.Dp) {
-    val bgColor   = LineColorHelper.backgroundColor(lineName)
-    val textColor = LineColorHelper.textColor(lineName)
+    val bgColor   = colorFromHex(LineColors.backgroundHex(lineName))
+    val textColor = colorFromHex(LineColors.textHex(lineName))
     Box(
         modifier = GlanceModifier
             .size(size)

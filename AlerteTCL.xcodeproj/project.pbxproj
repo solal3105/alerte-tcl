@@ -11,7 +11,7 @@
 		4F095CB22F16EA78001D059A /* ViewportFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F095CB02F16EA78001D059A /* ViewportFilter.swift */; };
 		4F38BD202F1591C000E05786 /* BusLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD1F2F1591C000E05786 /* BusLine.swift */; };
 		4F38BD222F1591C900E05786 /* BusLineService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD212F1591C900E05786 /* BusLineService.swift */; };
-		4F38BD242F159CBE00E05786 /* MetroLineService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD232F159CBE00E05786 /* MetroLineService.swift */; };
+		4F38BD242F159CBE00E05786 /* TransitLineService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD232F159CBE00E05786 /* TransitLineService.swift */; };
 		4F38BD262F159CCA00E05786 /* MetroLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD252F159CCA00E05786 /* MetroLine.swift */; };
 		4F38BD282F15B0AC00E05786 /* Travaux.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD272F15B0AC00E05786 /* Travaux.swift */; };
 		4F38BD2A2F15B0BB00E05786 /* TravauxService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD292F15B0BB00E05786 /* TravauxService.swift */; };
@@ -49,6 +49,9 @@
 		A1000030 /* MarkerImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000031 /* MarkerImageCache.swift */; };
 		A1000032 /* MapAnnotations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000033 /* MapAnnotations.swift */; };
 		A1000034 /* LiveMapRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000035 /* LiveMapRepresentable.swift */; };
+		A1000040 /* ServiceError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000041 /* ServiceError.swift */; };
+		A1000042 /* LineColorHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000043 /* LineColorHelper.swift */; };
+		A1000044 /* TransitStopViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000045 /* TransitStopViewModel.swift */; };
 		AAA00001 /* AlerteTCLApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00011 /* AlerteTCLApp.swift */; };
 		AAA00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00012 /* ContentView.swift */; };
 		AAA00003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AAA00013 /* Assets.xcassets */; };
@@ -70,7 +73,8 @@
 		AAA0002E /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA0002F /* LocationService.swift */; };
 		AAA00039 /* LocationPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00031 /* LocationPermissionView.swift */; };
 		AD087F1B2F9E0CC6002CBA68 /* ParcRelaisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD087F1A2F9E0CC6002CBA68 /* ParcRelaisService.swift */; };
-		AD087F1D2F9E0D30002CBA68 /* ParcRelais.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD087F1C2F9E0D30002CBA68 /* ParcRelais.swift */; };
+		ADF0821B2FBC542400809332 /* BusTrackerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF0821A2FBC542400809332 /* BusTrackerService.swift */; };
+		ADF0821C2FBC542400809333 /* WikimediaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF0821D2FBC542400809333 /* WikimediaService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -116,7 +120,7 @@
 		4F095CB02F16EA78001D059A /* ViewportFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewportFilter.swift; sourceTree = "<group>"; };
 		4F38BD1F2F1591C000E05786 /* BusLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusLine.swift; sourceTree = "<group>"; };
 		4F38BD212F1591C900E05786 /* BusLineService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusLineService.swift; sourceTree = "<group>"; };
-		4F38BD232F159CBE00E05786 /* MetroLineService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetroLineService.swift; sourceTree = "<group>"; };
+		4F38BD232F159CBE00E05786 /* TransitLineService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitLineService.swift; sourceTree = "<group>"; };
 		4F38BD252F159CCA00E05786 /* MetroLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetroLine.swift; sourceTree = "<group>"; };
 		4F38BD272F15B0AC00E05786 /* Travaux.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Travaux.swift; sourceTree = "<group>"; };
 		4F38BD292F15B0BB00E05786 /* TravauxService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravauxService.swift; sourceTree = "<group>"; };
@@ -155,6 +159,9 @@
 		A1000031 /* MarkerImageCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkerImageCache.swift; sourceTree = "<group>"; };
 		A1000033 /* MapAnnotations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapAnnotations.swift; sourceTree = "<group>"; };
 		A1000035 /* LiveMapRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMapRepresentable.swift; sourceTree = "<group>"; };
+		A1000041 /* ServiceError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceError.swift; sourceTree = "<group>"; };
+		A1000043 /* LineColorHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineColorHelper.swift; sourceTree = "<group>"; };
+		A1000045 /* TransitStopViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopViewModel.swift; sourceTree = "<group>"; };
 		AAA00010 /* AlerteTCL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AlerteTCL.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAA00011 /* AlerteTCLApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlerteTCLApp.swift; sourceTree = "<group>"; };
 		AAA00012 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -178,7 +185,8 @@
 		AAA0002F /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		AAA00031 /* LocationPermissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPermissionView.swift; sourceTree = "<group>"; };
 		AD087F1A2F9E0CC6002CBA68 /* ParcRelaisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParcRelaisService.swift; sourceTree = "<group>"; };
-		AD087F1C2F9E0D30002CBA68 /* ParcRelais.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParcRelais.swift; sourceTree = "<group>"; };
+		ADF0821A2FBC542400809332 /* BusTrackerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusTrackerService.swift; sourceTree = "<group>"; };
+		ADF0821D2FBC542400809333 /* WikimediaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WikimediaService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -219,6 +227,8 @@
 			isa = PBXGroup;
 			children = (
 				A1000011 /* AppLogger.swift */,
+				A1000041 /* ServiceError.swift */,
+				A1000043 /* LineColorHelper.swift */,
 				A1000021 /* AnimationClock.swift */,
 				A1000031 /* MarkerImageCache.swift */,
 				A1000012 /* SafeURL.swift */,
@@ -251,7 +261,6 @@
 		AAA00033 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				AD087F1C2F9E0D30002CBA68 /* ParcRelais.swift */,
 				4FCD05E02F17051200390BE1 /* TransitStop.swift */,
 				4F38BD272F15B0AC00E05786 /* Travaux.swift */,
 				4F095CAE2F16E92F001D059A /* UnifiedCluster.swift */,
@@ -269,12 +278,14 @@
 		AAA00034 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				ADF0821A2FBC542400809332 /* BusTrackerService.swift */,
+				ADF0821D2FBC542400809333 /* WikimediaService.swift */,
 				AD087F1A2F9E0CC6002CBA68 /* ParcRelaisService.swift */,
 				4FD3050A2F1E686900EAFA92 /* WidgetStopStorage.swift */,
 				4F39DE022F1BABC200F24E3D /* NetworkConfiguration.swift */,
 				4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */,
 				4F38BD292F15B0BB00E05786 /* TravauxService.swift */,
-				4F38BD232F159CBE00E05786 /* MetroLineService.swift */,
+				4F38BD232F159CBE00E05786 /* TransitLineService.swift */,
 				4F38BD212F1591C900E05786 /* BusLineService.swift */,
 				4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */,
 				4F9DFF9E2F1457EE00E01BFB /* FavoriteLinesService.swift */,
@@ -295,6 +306,7 @@
 				4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */,
 				AAA00019 /* AlertViewModel.swift */,
 				AAA00029 /* LiveVehiclesViewModel.swift */,
+				A1000045 /* TransitStopViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -496,7 +508,6 @@
 				4F38BD282F15B0AC00E05786 /* Travaux.swift in Sources */,
 				4F38BD2E2F15B0E200E05786 /* TravauxViewModel.swift in Sources */,
 				4FCD05DF2F1704F700390BE1 /* TransitStopService.swift in Sources */,
-				AD087F1D2F9E0D30002CBA68 /* ParcRelais.swift in Sources */,
 				4F38BD262F159CCA00E05786 /* MetroLine.swift in Sources */,
 				4F9DFF9D2F1457E200E01BFB /* Parking.swift in Sources */,
 				4FCD05E12F17051200390BE1 /* TransitStop.swift in Sources */,
@@ -510,23 +521,28 @@
 				4FCB1FC62F1EC6D90031B71E /* SpatialTileCache.swift in Sources */,
 				AAA0000C /* SubscriptionsView.swift in Sources */,
 				A1000001 /* AppLogger.swift in Sources */,
+				A1000040 /* ServiceError.swift in Sources */,
+				A1000042 /* LineColorHelper.swift in Sources */,
 				A1000020 /* AnimationClock.swift in Sources */,
 				A1000030 /* MarkerImageCache.swift in Sources */,
 				A1000032 /* MapAnnotations.swift in Sources */,
 				A1000034 /* LiveMapRepresentable.swift in Sources */,
 				A1000002 /* SafeURL.swift in Sources */,
 				A1000003 /* CoordinateParsing.swift in Sources */,
+				ADF0821B2FBC542400809332 /* BusTrackerService.swift in Sources */,
+				ADF0821C2FBC542400809333 /* WikimediaService.swift in Sources */,
 				4F39DE032F1BABC200F24E3D /* NetworkConfiguration.swift in Sources */,
 				4F9DFF9A2F14577200E01BFB /* ParkingMapView.swift in Sources */,
 				4FAUDIT012F1A000000000001 /* InitialLocationModifier.swift in Sources */,
 				AAA0000F /* NotificationPermissionView.swift in Sources */,
 				4F38BD2A2F15B0BB00E05786 /* TravauxService.swift in Sources */,
 				4FCD05E32F17056D00390BE1 /* TransitStopViews.swift in Sources */,
-				4F38BD242F159CBE00E05786 /* MetroLineService.swift in Sources */,
+				4F38BD242F159CBE00E05786 /* TransitLineService.swift in Sources */,
 				4FD3050D2F1E68CB00EAFA92 /* WidgetStopSelectionView.swift in Sources */,
 				AAA00024 /* Vehicle.swift in Sources */,
 				AAA00026 /* SIRILiteService.swift in Sources */,
 				AAA00028 /* LiveVehiclesViewModel.swift in Sources */,
+				A1000044 /* TransitStopViewModel.swift in Sources */,
 				4FD305052F1E60C600EAFA92 /* DataSourceErrorsSheet.swift in Sources */,
 				AAA0002A /* LiveMapView.swift in Sources */,
 				AAA0002C /* AnimatedVehicle.swift in Sources */,

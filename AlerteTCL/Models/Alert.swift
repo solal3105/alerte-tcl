@@ -57,6 +57,8 @@ struct TCLAlert: Codable, Identifiable, Hashable {
             } else {
                 self.mode = TransportMode(rawValue: modeString) ?? .bus
             }
+        } else if modeString == "Navette maritime/fluviale" || modeString == "Navette" {
+            self.mode = .navigone
         } else {
             self.mode = TransportMode(rawValue: modeString) ?? .bus
         }
@@ -186,5 +188,20 @@ enum AlertSeverity: String, CaseIterable, Identifiable {
 
 struct APIResponse: Codable {
     let values: [TCLAlert]
+}
+
+enum AlertNotificationPhase: String {
+    case announced
+    case active
+}
+
+extension TCLAlert {
+    func notificationKey(phase: AlertNotificationPhase) -> String {
+        var hash: UInt32 = 5381
+        for c in (titre + message).unicodeScalars {
+            hash = (hash &<< 5) &+ hash &+ c.value
+        }
+        return "\(id)|\(phase.rawValue)|\(hash)"
+    }
 }
 

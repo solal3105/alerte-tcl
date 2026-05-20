@@ -101,38 +101,16 @@ struct SubscriptionCard: View {
         }
     }
     
-    private var modeIcon: String {
-        switch line.mode {
-        case .metro: return "tram.fill"
-        case .tramway: return "tram"
-        case .busC: return "bus.fill"
-        case .bus: return "bus.fill"
-        case .funiculaire: return "cablecar.fill"
-        case .navette: return "ferry.fill"
-        }
-    }
-    
-    private var modePrefix: String {
-        switch line.mode {
-        case .metro: return "Métro"
-        case .tramway: return "Tram"
-        case .busC: return "Bus C"
-        case .bus: return "Bus"
-        case .funiculaire: return "Funi"
-        case .navette: return "Navette"
-        }
-    }
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 4) {
-                        Image(systemName: modeIcon)
+                        Image(systemName: line.mode.icon)
                             .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(.white.opacity(0.75))
                         
-                        Text(modePrefix.uppercased())
+                        Text(line.mode.shortName.uppercased())
                             .font(.system(size: 11, weight: .black))
                             .foregroundStyle(.white.opacity(0.75))
                             .tracking(0.5)

@@ -27,31 +27,7 @@ struct TransitLine: Identifiable, Codable {
     }
     
     var lineColor: Color {
-        switch name.uppercased() {
-        // Métro
-        case "A":
-            return Color(hex: "EE3898") // Rose/Fuchsia
-        case "B":
-            return Color(hex: "007DC5") // Bleu
-        case "C":
-            return Color(hex: "F99D1D") // Orange
-        case "D":
-            return Color(hex: "00AC4D") // Vert
-        // Funiculaires
-        case "F1", "F2":
-            return Color(hex: "8BC752") // Vert clair
-        // Tramways T1–T7 + TGS (Tram Grand Stade, même réseau)
-        case "T1", "T2", "T3", "T4", "T5", "T6", "T7", "TGS":
-            return Color(hex: "8C368C") // Violet/Mauve
-        // Trolleybus TB (TB11, TB12…) – jaune officiel TCL
-        case let s where s.hasPrefix("TB"):
-            return Color(hex: "FFCC00") // Jaune
-        // Rhônexpress
-        case "RHONEXPRESS", "RX":
-            return Color(hex: "C92B21") // Rouge
-        default:
-            return Color.gray
-        }
+        LineColorHelper.backgroundColor(for: name)
     }
 }
 

@@ -118,7 +118,7 @@ import org.maplibre.geojson.Point
 import kotlin.math.pow
 
 private const val STYLE_URL      = "https://tiles.openfreemap.org/styles/liberty"
-private const val STYLE_URL_DARK = "https://tiles.openfreemap.org/styles/dark"
+private const val STYLE_URL_DARK = "https://tiles.openfreemap.org/styles/fiord"
 private const val STYLE_JSON_SATELLITE = """{
   "version": 8,
   "sources": {

@@ -126,16 +126,7 @@ struct LinesListView: View {
     
     private var subscriptionDialogTitle: String {
         guard let line = selectedLineForSubscription else { return "" }
-        let modePrefix: String
-        switch line.mode {
-        case .metro: modePrefix = "Métro"
-        case .tramway: modePrefix = "Tram"
-        case .busC: modePrefix = "Bus C"
-        case .bus: modePrefix = "Bus"
-        case .funiculaire: modePrefix = "Funi"
-        case .navette: modePrefix = "Navette"
-        }
-        return "\(modePrefix) \(line.displayName)"
+        return "\(line.mode.shortName) \(line.displayName)"
     }
     
     private func subscribeWithTypes(line: TransportLine, types: Set<AlertSeverity>) {
