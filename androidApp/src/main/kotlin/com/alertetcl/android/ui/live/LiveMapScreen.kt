@@ -747,6 +747,7 @@ fun LiveMapScreen() {
                     PropertyFactory.circleStrokeWidth(Expression.toNumber(Expression.get("stroke_w")))
                 )
             circleLayer.setMinZoom(14f)
+            circleLayer.setMaxZoom(16f) // exclusif : masqué quand badgeLayer prend le relais
             val badgeLayer = SymbolLayer(STOPS_BADGE_LAYER, STOPS_SRC).withProperties(
                     PropertyFactory.iconImage(Expression.get("icon")),
                     PropertyFactory.iconAllowOverlap(true),
