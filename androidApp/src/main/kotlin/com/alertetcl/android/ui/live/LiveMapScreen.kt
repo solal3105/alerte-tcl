@@ -10,6 +10,7 @@ import android.graphics.Typeface
 import android.Manifest
 import android.content.pm.PackageManager
 import android.location.LocationManager
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -203,7 +204,14 @@ private fun rememberMapView(): MapView {
     // textureMode(true) : utilise TextureView au lieu de SurfaceView.
     // SurfaceView (défaut) utilise un "Z-order hole punch" qui crash sur Samsung One UI 4.x
     // (Android 12) à cause du compositor Samsung incompatible avec le rendu Compose.
-    val mapView = remember { MapView(context, MapLibreMapOptions.createFromAttributes(context).textureMode(true)) }
+    // Sur émulateur, la densité native (420 dpi → ratio ~2.6) rend MapLibre extrêmement lent
+    // car il charge ~7× plus de tuiles. On force 1.0 sur émulateur, densité réelle sur device.
+    val pixelRatio = if (Build.FINGERPRINT.startsWith("generic") ||
+                        Build.FINGERPRINT.contains("emulator") ||
+                        Build.MODEL.contains("Emulator") ||
+                        Build.MODEL.contains("Android SDK")) 1.0f
+                     else context.resources.displayMetrics.density
+    val mapView = remember { MapView(context, MapLibreMapOptions.createFromAttributes(context).textureMode(true).pixelRatio(pixelRatio)) }
     DisposableEffect(Unit) {
         mapView.onCreate(null)
         mapView.onStart()
