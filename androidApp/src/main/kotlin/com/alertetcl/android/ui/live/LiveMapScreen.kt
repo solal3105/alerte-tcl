@@ -62,8 +62,10 @@ import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -104,7 +106,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
+import coil3.compose.SubcomposeAsyncImage
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -1113,7 +1115,6 @@ private fun VehicleDetailSheet(v: Vehicle) {
                         }
                     }
                     if (vehiclePhotos.isNotEmpty()) {
-                        val context = LocalContext.current
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         Spacer(Modifier.height(8.dp))
                         LazyRow(
@@ -1121,15 +1122,28 @@ private fun VehicleDetailSheet(v: Vehicle) {
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(vehiclePhotos) { url ->
-                                AsyncImage(
-                                    model = ImageRequest.Builder(context).data(url).build(),
+                                val baseModifier = Modifier
+                                    .width(180.dp)
+                                    .height(112.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { selectedPhoto = url }
+                                SubcomposeAsyncImage(
+                                    model = url,
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .width(180.dp)
-                                        .height(112.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .clickable { selectedPhoto = url }
+                                    modifier = baseModifier,
+                                    loading = {
+                                        Box(
+                                            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                                            contentAlignment = Alignment.Center
+                                        ) { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) }
+                                    },
+                                    error = {
+                                        Box(
+                                            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                                            contentAlignment = Alignment.Center
+                                        ) { Icon(Icons.Filled.Photo, null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(24.dp)) }
+                                    }
                                 )
                             }
                         }
@@ -1177,7 +1191,7 @@ private fun VehicleDetailSheet(v: Vehicle) {
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(
-                    model = ImageRequest.Builder(context).data(url).build(),
+                    model = url,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxWidth()
