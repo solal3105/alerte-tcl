@@ -201,17 +201,22 @@ private val ICON_KEY_REGEX = Regex("[^A-Za-z0-9]")
 @Composable
 private fun rememberMapView(): MapView {
     val context = LocalContext.current
-    // textureMode(true) : utilise TextureView au lieu de SurfaceView.
-    // SurfaceView (défaut) utilise un "Z-order hole punch" qui crash sur Samsung One UI 4.x
-    // (Android 12) à cause du compositor Samsung incompatible avec le rendu Compose.
-    // Sur émulateur, la densité native (420 dpi → ratio ~2.6) rend MapLibre extrêmement lent
-    // car il charge ~7× plus de tuiles. On force 1.0 sur émulateur, densité réelle sur device.
-    val pixelRatio = if (Build.FINGERPRINT.startsWith("generic") ||
-                        Build.FINGERPRINT.contains("emulator") ||
-                        Build.MODEL.contains("Emulator") ||
-                        Build.MODEL.contains("Android SDK")) 1.0f
-                     else context.resources.displayMetrics.density
-    val mapView = remember { MapView(context, MapLibreMapOptions.createFromAttributes(context).textureMode(true).pixelRatio(pixelRatio)) }
+    // textureMode(true) = TextureView = obligatoire sur Samsung One UI 4.x (Android 12).
+    // Le compositor Samsung crash avec SurfaceView ("Z-order hole punch") dans Compose.
+    // Sur émulateur : pas de Samsung → SurfaceView (défaut, plus rapide, pas de GPU copy en trop).
+    // Sur émulateur : density 420 dpi → pixelRatio ~2.6 → MapLibre charge ~7× trop de tuiles.
+    //   On force pixelRatio=1.0 sur émulateur pour un rendu fluide.
+    val isEmulator = Build.FINGERPRINT.startsWith("generic") ||
+                     Build.FINGERPRINT.contains("emulator") ||
+                     Build.MODEL.contains("Emulator") ||
+                     Build.MODEL.contains("Android SDK")
+    val isSamsung = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
+    val pixelRatio = if (isEmulator) 1.0f else context.resources.displayMetrics.density
+    val mapView = remember {
+        MapView(context, MapLibreMapOptions.createFromAttributes(context)
+            .textureMode(!isEmulator && isSamsung)
+            .pixelRatio(pixelRatio))
+    }
     DisposableEffect(Unit) {
         mapView.onCreate(null)
         mapView.onStart()
