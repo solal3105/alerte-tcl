@@ -394,9 +394,14 @@ struct MergedStopDetailSheet: View {
         isLoading = true
         Task { @MainActor in
             async let termini = (try? BusLineService.shared.fetchLineTermini()) ?? [:]
-            // Charger les passages de TOUS les arrêts du groupe
-            for stop in mergedStop.stops {
-                await stopsVM.loadAllPassagesForStop(stopId: stop.id)
+            // Charger les passages de TOUS les arrêts du groupe en parallèle
+            await withTaskGroup(of: Void.self) { group in
+                for stop in mergedStop.stops {
+                    let stopId = stop.id
+                    group.addTask { @MainActor in
+                        await stopsVM.loadAllPassagesForStop(stopId: stopId)
+                    }
+                }
             }
             
             // Collecter tous les passages

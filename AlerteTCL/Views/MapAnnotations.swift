@@ -11,6 +11,10 @@ final class VehicleAnnotation: NSObject, MKAnnotation {
     let id: String
     var vehicle: Vehicle
     var bearing: Double
+    /// Cache direct de la vue UIKit associée — élimine le lookup `mapView.view(for:)`
+    /// dans la boucle d'animation (10 Hz × N véhicules). `weak` pour ne pas
+    /// bloquer le recyclage des vues par MapKit.
+    weak var annotationView: VehicleAnnotationView?
 
     init(vehicle: Vehicle, coordinate: CLLocationCoordinate2D, bearing: Double) {
         self.id = vehicle.id

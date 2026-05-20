@@ -180,11 +180,12 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 let newBearing = anim.bearingAt(time)
                 annotation.bearing = newBearing
 
-                if let view = mapView.view(for: annotation) as? VehicleAnnotationView {
-                    view.apply(vehicle: annotation.vehicle, bearing: newBearing,
-                               showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold,
-                               simplified: false)
-                }
+                annotation.annotationView?.apply(
+                    vehicle: annotation.vehicle,
+                    bearing: newBearing,
+                    showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold,
+                    simplified: false
+                )
             }
         }
 
@@ -199,7 +200,11 @@ struct LiveMapRepresentable: UIViewRepresentable {
             // Suppressions
             let toRemoveIDs = currentIDs.subtracting(incomingIDs)
             if !toRemoveIDs.isEmpty {
-                let toRemove = toRemoveIDs.compactMap { vehicleAnnotations.removeValue(forKey: $0) }
+                let toRemove = toRemoveIDs.compactMap { id -> VehicleAnnotation? in
+                    guard let a = vehicleAnnotations.removeValue(forKey: id) else { return nil }
+                    a.annotationView = nil
+                    return a
+                }
                 mapView.removeAnnotations(toRemove)
             }
 
@@ -214,11 +219,12 @@ struct LiveMapRepresentable: UIViewRepresentable {
                     existing.vehicle = vehicle
                     existing.coordinate = coord
                     existing.bearing = bearing
-                    if let view = mapView.view(for: existing) as? VehicleAnnotationView {
-                        view.apply(vehicle: vehicle, bearing: bearing,
-                                   showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold,
-                                   simplified: isSimplified)
-                    }
+                    existing.annotationView?.apply(
+                        vehicle: vehicle,
+                        bearing: bearing,
+                        showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold,
+                        simplified: isSimplified
+                    )
                 } else {
                     let annotation = VehicleAnnotation(vehicle: vehicle, coordinate: coord, bearing: bearing)
                     vehicleAnnotations[vehicle.id] = annotation
@@ -325,11 +331,12 @@ struct LiveMapRepresentable: UIViewRepresentable {
             let nextSimplified = zoom     > Self.simpleDotZoomThreshold
             if prevSimplified != nextSimplified {
                 for annotation in vehicleAnnotations.values {
-                    if let view = mapView.view(for: annotation) as? VehicleAnnotationView {
-                        view.apply(vehicle: annotation.vehicle, bearing: annotation.bearing,
-                                   showTooltip: zoom <= Self.punctualityZoomThreshold,
-                                   simplified: nextSimplified)
-                    }
+                    annotation.annotationView?.apply(
+                        vehicle: annotation.vehicle,
+                        bearing: annotation.bearing,
+                        showTooltip: zoom <= Self.punctualityZoomThreshold,
+                        simplified: nextSimplified
+                    )
                 }
             }
 
@@ -339,10 +346,12 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 let nextPunctuality = zoom     <= Self.punctualityZoomThreshold
                 if prevPunctuality != nextPunctuality {
                     for annotation in vehicleAnnotations.values {
-                        if let view = mapView.view(for: annotation) as? VehicleAnnotationView {
-                            view.apply(vehicle: annotation.vehicle, bearing: annotation.bearing,
-                                       showTooltip: nextPunctuality, simplified: false)
-                        }
+                        annotation.annotationView?.apply(
+                            vehicle: annotation.vehicle,
+                            bearing: annotation.bearing,
+                            showTooltip: nextPunctuality,
+                            simplified: false
+                        )
                     }
                 }
             }
@@ -382,6 +391,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 view.apply(vehicle: vehicle.vehicle, bearing: vehicle.bearing,
                            showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold,
                            simplified: currentZoomLevel > Self.simpleDotZoomThreshold)
+                vehicle.annotationView = view
                 return view
 
             case let stop as MergedStopAnnotation:

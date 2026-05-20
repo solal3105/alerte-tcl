@@ -152,9 +152,7 @@ struct LiveMapView: View {
             // 3. Démarrer le live stream APRÈS les chargements critiques
             self.viewModel.startLiveStream()
             
-            // 4. Charger les données secondaires avec décalage (réseau déjà "chaud")
-            try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
-            
+            // 4. Charger les données secondaires en parallèle (réseau déjà "chaud")
             // Lancer en parallèle mais dans des Tasks séparées
             async let busTask: () = loadInBackground("Lignes bus") { 
                 await self.viewModel.loadBusLines() 

@@ -99,6 +99,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import androidx.compose.ui.layout.ContentScale
@@ -227,7 +230,8 @@ private fun toMapColor(hex: String): String {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveMapScreen() {
-    val vm = remember { LiveVehiclesViewModel() }
+    val androidVm: LiveMapAndroidViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val vm = androidVm.vm
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -243,7 +247,7 @@ fun LiveMapScreen() {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            vm.dispose()
+            // vm.dispose() géré par LiveMapAndroidViewModel.onCleared()
         }
     }
     val vehicles     by vm.vehicles.collectAsState()
@@ -254,10 +258,13 @@ fun LiveMapScreen() {
     val lastUpdateMs by vm.lastUpdateEpochMs.collectAsState()
 
     // Alertes pour le bandeau trafic en haut
-    val alertsVm = remember { com.alertetcl.shared.viewmodels.AlertsViewModel() }
+    val alertsAndroidVm: AlertsAndroidViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val alertsVm = alertsAndroidVm.alertsVm
     DisposableEffect(Unit) {
         alertsVm.startPolling()
-        onDispose { alertsVm.dispose() }
+        onDispose {
+            // alertsVm.dispose() géré par AlertsAndroidViewModel.onCleared()
+        }
     }
     val alerts by alertsVm.alerts.collectAsState()
     val alertsError by alertsVm.errorMessage.collectAsState()
@@ -286,12 +293,6 @@ fun LiveMapScreen() {
     // Chargé une seule fois au démarrage (comme iOS), affichage contrôlé par zoom/toggle
     val stops = produceState<List<TransitStop>>(initialValue = emptyList()) {
         value = runCatching { TransitStopService.shared.fetchStops() }.getOrDefault(emptyList())
-    }
-
-    // Tick 1s pour le countdown LIVE
-    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) { kotlinx.coroutines.delay(1000); nowMs = System.currentTimeMillis() }
     }
 
     val filteredVehicles by remember {
@@ -482,7 +483,6 @@ fun LiveMapScreen() {
                 isLive = isLive,
                 isLoading = isLoading,
                 lastUpdateMs = lastUpdateMs,
-                nowMs = nowMs,
                 hasError = vehiclesError != null,
                 onTap = { showRefreshInfo = true }
             )
@@ -1228,9 +1228,11 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
         value = runCatching { BusLineService.shared.fetchLineTermini() }.getOrDefault(emptyMap())
     }
     val passages = produceState<List<Passage>?>(initialValue = null, stop.id) {
-        val all = stop.stops.flatMap { member ->
-            runCatching { TransitStopService.shared.fetchPassagesForStop(member.id) }.getOrDefault(emptyList())
-        }.sortedBy { it.heurepassage }
+        val all = coroutineScope {
+            stop.stops.map { member ->
+                async { runCatching { TransitStopService.shared.fetchPassagesForStop(member.id) }.getOrDefault(emptyList()) }
+            }.awaitAll()
+        }.flatten().sortedBy { it.heurepassage }
         value = all
     }
     val groupedPassages = remember(passages.value) {
@@ -1534,10 +1536,13 @@ private fun LiveIndicator(
     isLive: Boolean,
     isLoading: Boolean,
     lastUpdateMs: Long?,
-    nowMs: Long,
     hasError: Boolean,
     onTap: () -> Unit
 ) {
+    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) { kotlinx.coroutines.delay(1000); nowMs = System.currentTimeMillis() }
+    }
     val dotColor = when {
         !isLive  -> MaterialTheme.colorScheme.onSurfaceVariant
         hasError -> StatusWarning
