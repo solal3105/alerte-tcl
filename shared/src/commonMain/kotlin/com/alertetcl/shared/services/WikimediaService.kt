@@ -71,5 +71,18 @@ class WikimediaService {
     @Serializable
     private data class WikimediaImageInfo(val thumburl: String? = null)
 
+    /**
+     * Télécharge les bytes bruts d'une image via le client Ktor partagé.
+     * Utilisé par Android pour contourner le réseau Coil (qui échoue sur upload.wikimedia.org).
+     * iOS utilise URLSession directement via AsyncImage — comportement équivalent.
+     */
+    suspend fun fetchImageBytes(url: String): ByteArray? = try {
+        val resp = client.get(url) {
+            header("User-Agent", "AlerteTCL/1.0 (Android; contact@alertetcl.fr)")
+            timeout { requestTimeoutMillis = 10_000L }
+        }
+        if (resp.status != HttpStatusCode.OK) null else resp.body<ByteArray>()
+    } catch (_: Throwable) { null }
+
     companion object { val shared = WikimediaService() }
 }

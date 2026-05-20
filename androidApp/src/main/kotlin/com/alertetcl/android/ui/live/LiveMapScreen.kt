@@ -62,7 +62,6 @@ import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -106,7 +105,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import coil3.compose.AsyncImage
-import coil3.compose.SubcomposeAsyncImage
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -1122,28 +1123,13 @@ private fun VehicleDetailSheet(v: Vehicle) {
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(vehiclePhotos) { url ->
-                                val baseModifier = Modifier
-                                    .width(180.dp)
-                                    .height(112.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable { selectedPhoto = url }
-                                SubcomposeAsyncImage(
-                                    model = url,
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = baseModifier,
-                                    loading = {
-                                        Box(
-                                            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                                            contentAlignment = Alignment.Center
-                                        ) { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) }
-                                    },
-                                    error = {
-                                        Box(
-                                            Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                                            contentAlignment = Alignment.Center
-                                        ) { Icon(Icons.Filled.Photo, null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(24.dp)) }
-                                    }
+                                WikimediaPhoto(
+                                    url = url,
+                                    modifier = Modifier
+                                        .width(180.dp)
+                                        .height(112.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable { selectedPhoto = url }
                                 )
                             }
                         }
@@ -1215,6 +1201,39 @@ private fun VehicleDetailSheet(v: Vehicle) {
 private fun vehicleTypeIcon(type: VehicleType): androidx.compose.ui.graphics.vector.ImageVector = when (type) {
     VehicleType.BUS, VehicleType.TROLLEY -> Icons.Filled.DirectionsBus
     else -> Icons.Filled.Tram
+}
+
+/**
+ * Charge une image Wikimedia via le client Ktor partagé (même stack réseau que l'API).
+ * Coil échoue sur upload.wikimedia.org depuis Android — bypass complet du réseau Coil.
+ * iOS utilise URLSession directement via SwiftUI AsyncImage : comportement équivalent.
+ */
+@Composable
+private fun WikimediaPhoto(url: String, modifier: Modifier = Modifier) {
+    val bitmap by produceState<ImageBitmap?>(null, url) {
+        value = withContext(Dispatchers.IO) {
+            WikimediaService.shared.fetchImageBytes(url)
+                ?.let { bytes ->
+                    android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        ?.asImageBitmap()
+                }
+        }
+    }
+    Box(modifier, contentAlignment = Alignment.Center) {
+        if (bitmap == null) {
+            Box(
+                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                contentAlignment = Alignment.Center
+            ) { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) }
+        } else {
+            Image(
+                bitmap = bitmap!!,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
 }
 
 // ── Bottom-sheet helpers ─────────────────────────────────────────────────
