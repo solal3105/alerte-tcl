@@ -90,7 +90,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -121,7 +120,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.alertetcl.android.ui.colorFromHex
 import com.alertetcl.shared.models.BusLine
-import com.alertetcl.shared.models.ClusteringEngine
 import com.alertetcl.shared.models.LineColors
 import com.alertetcl.shared.models.MergedStop
 import com.alertetcl.shared.models.Passage
@@ -141,7 +139,6 @@ import com.alertetcl.shared.viewmodels.LiveVehiclesViewModel
 import com.google.gson.JsonObject
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.location.LocationComponentActivationOptions
 import org.maplibre.android.location.modes.CameraMode
 import org.maplibre.android.location.modes.RenderMode
@@ -160,8 +157,6 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
-import kotlin.math.max
-import kotlin.math.pow
 
 // Tuiles OpenFreeMap — 100% gratuit, sans clé API
 private const val STYLE_URL_LIBERTY = "https://tiles.openfreemap.org/styles/liberty"
@@ -304,52 +299,21 @@ fun LiveMapScreen() {
     }
 
     // MapLibre state
-    var mapLibreMap  by remember { mutableStateOf<MapLibreMap?>(null) }
-    var mapStyle     by remember { mutableStateOf<Style?>(null) }
-    var currentZoom  by remember { mutableDoubleStateOf(12.5) }
-    var visibleBounds by remember { mutableStateOf<LatLngBounds?>(null) }
+    var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
+    var mapStyle    by remember { mutableStateOf<Style?>(null) }
 
-    // Stable mutable refs readable from non-composable callbacks
-    val vehiclesRef     = remember { mutableStateOf<List<Vehicle>>(emptyList()) }
-    val mergedStopsRef  = remember { mutableStateOf<List<MergedStop>>(emptyList()) }
-    vehiclesRef.value    = filteredVehicles
-    mergedStopsRef.value = remember(stops.value) { StopMergingEngine.merge(stops.value) }
+    // Stable mutable refs lisibles depuis les callbacks non-composables (click handler)
+    val vehiclesRef    = remember { mutableStateOf<List<Vehicle>>(emptyList()) }
+    val mergedStopsRef = remember { mutableStateOf<List<MergedStop>>(emptyList()) }
+    vehiclesRef.value  = filteredVehicles
+    // StopMergingEngine.merge est mémoïsé — recalculé uniquement si stops.value change
+    val mergedStops = remember(stops.value) { StopMergingEngine.merge(stops.value) }
+    LaunchedEffect(mergedStops) { mergedStopsRef.value = mergedStops }
 
     // Caches pour la boucle tick 100 ms — zéro allocation Gson par tick
     val vehiclePropsCache = remember { HashMap<String, String>() }
     val vehicleArrowCache = remember { HashMap<String, String>() }
     val tickSb            = remember { StringBuilder(8192) }
-
-    // Parité iOS exacte :
-    //   stopsZoomThreshold   = 0.018  → afficher les arrêts
-    //   stopBadgeZoomThreshold = 0.005 → afficher les badges de ligne
-    // (iOS utilise latitudeDelta en degrés depuis MKCoordinateSpan)
-    val latitudeDelta by remember {
-        derivedStateOf {
-            visibleBounds?.let { it.northEast.latitude - it.southWest.latitude } ?: Double.MAX_VALUE
-        }
-    }
-    val stopsVisible by remember { derivedStateOf { latitudeDelta <= 0.018 } }
-    val showBadges   by remember { derivedStateOf { latitudeDelta <= 0.005 } }
-
-    val visibleClusters by remember {
-        derivedStateOf {
-            if (!stopsVisible) emptyList()
-            else {
-                val bounds = visibleBounds
-                val filtered = if (bounds != null) {
-                    val ne = bounds.northEast; val sw = bounds.southWest
-                    val latBuf = (ne.latitude  - sw.latitude)  * 0.3
-                    val lonBuf = (ne.longitude - sw.longitude) * 0.3
-                    mergedStopsRef.value.filter { s ->
-                        s.latitude  in (sw.latitude  - latBuf)..(ne.latitude  + latBuf) &&
-                        s.longitude in (sw.longitude - lonBuf)..(ne.longitude + lonBuf)
-                    }
-                } else mergedStopsRef.value
-                ClusteringEngine.cluster(filtered, max(0.001, 80.0 / 2.0.pow(currentZoom)))
-            }
-        }
-    }
 
     // Selection state
     val selectedVehicleId = remember { mutableStateOf<String?>(null) }
@@ -397,10 +361,9 @@ fun LiveMapScreen() {
                             .target(LatLng(45.764043, 4.835659))
                             .zoom(12.5)
                             .build()
-                        map.addOnCameraIdleListener {
-                            currentZoom = map.cameraPosition.zoom
-                            visibleBounds = map.projection.visibleRegion.latLngBounds
-                        }
+                        // Visibilité des couches d'arrêts gérée par withMinZoom sur les layers —
+                        // aucune mise à jour de state Compose requise sur idle caméra.
+                        map.addOnCameraIdleListener { }
                         map.addOnMapClickListener { latLng ->
                             val screen = map.projection.toScreenLocation(latLng)
                             val pt = PointF(screen.x, screen.y)
@@ -418,7 +381,6 @@ fun LiveMapScreen() {
                             false
                         }
                         map.setStyle(Style.Builder().fromUri(if (isDark) STYLE_URL_DARK else STYLE_URL_LIBERTY)) { style ->
-                            visibleBounds = map.projection.visibleRegion.latLngBounds
                             enableLocationComponent(context, map, style)
                             mapStyle = style
                         }
@@ -591,9 +553,10 @@ fun LiveMapScreen() {
                 JsonObject().apply { addProperty("color", toMapColor(LineColors.routeStrokeHex(line.name))) })
         }
 
-        fun addOrUpdate(src: String, layer: String, features: List<Feature>, width: Float) {
+        // Sérialisation GeoJSON incluse dans le withContext(Default) — aucun JSON sur Main
+        fun addOrUpdate(src: String, layer: String, geojson: String, width: Float) {
             if (style.getSource(src) == null) {
-                style.addSource(GeoJsonSource(src, FeatureCollection.fromFeatures(features)))
+                style.addSource(GeoJsonSource(src, geojson))
                 val lineLayer = LineLayer(layer, src).withProperties(
                     PropertyFactory.lineColor(Expression.get("color")),
                     PropertyFactory.lineWidth(width),
@@ -605,25 +568,24 @@ fun LiveMapScreen() {
                 else
                     style.addLayer(lineLayer)
             } else {
-                style.getSourceAs<GeoJsonSource>(src)?.setGeoJson(FeatureCollection.fromFeatures(features))
+                style.getSourceAs<GeoJsonSource>(src)?.setGeoJson(geojson)
             }
         }
 
-        // Construction des Features (Gson/GeoJSON) hors du Main thread — aucun appel natif
-        // MapLibre à l'intérieur. addOrUpdate() est appelé après le withContext, sur Main.
-        val allFeatures = withContext(Dispatchers.Default) {
+        // Construction des Features + sérialisation JSON sur Default — aucun appel MapLibre/JNI
+        val allGeoJsons = withContext(Dispatchers.Default) {
             listOf(
                 if (capturedTraces) capturedBus.filter { !it.name.startsWith("C") }.mapNotNull(::toBusFeature)   else emptyList(),
                 if (capturedTraces) capturedBus.filter {  it.name.startsWith("C") }.mapNotNull(::toBusFeature)   else emptyList(),
                 if (capturedTraces) capturedTransit.filter {  it.familyTransport.contains("tram", ignoreCase = true) }.mapNotNull(::toTransitFeature) else emptyList(),
                 if (capturedTraces) capturedTransit.filter { !it.familyTransport.contains("tram", ignoreCase = true) }.mapNotNull(::toTransitFeature) else emptyList()
-            )
+            ).map { features -> FeatureCollection.fromFeatures(features).toJson() }
         }
 
-        addOrUpdate(BUS_SRC,   BUS_LAYER,   allFeatures[0], 4f)
-        addOrUpdate(BUS_C_SRC, BUS_C_LAYER, allFeatures[1], 4f)
-        addOrUpdate(TRAM_SRC,  TRAM_LAYER,  allFeatures[2], 8f)
-        addOrUpdate(METRO_SRC, METRO_LAYER, allFeatures[3], 8f)
+        addOrUpdate(BUS_SRC,   BUS_LAYER,   allGeoJsons[0], 4f)
+        addOrUpdate(BUS_C_SRC, BUS_C_LAYER, allGeoJsons[1], 4f)
+        addOrUpdate(TRAM_SRC,  TRAM_LAYER,  allGeoJsons[2], 8f)
+        addOrUpdate(METRO_SRC, METRO_LAYER, allGeoJsons[3], 8f)
     }
 
     // Vehicle markers
@@ -726,91 +688,85 @@ fun LiveMapScreen() {
         }
     }
 
-    // Stops — parité iOS exacte
-    // - Compact (cercle blanc/bleu)  : stopsVisible && !showBadges
-    // - Badges  (dot + capsules)     : stopsVisible && showBadges
-    LaunchedEffect(mapStyle, stopsVisible, showBadges, visibleClusters) {
+    // Stops — chargés une seule fois par (mapStyle, données stops).
+    // La visibilité zoom est gérée nativement par withMinZoom sur les layers :
+    //   zoom ≥ 14 → cercles compacts (parité iOS latitudeDelta ≈ 0.018)
+    //   zoom ≥ 16 → badges de ligne  (parité iOS latitudeDelta ≈ 0.005)
+    // Les icônes sont pré-construites en un seul bloc sur Default — le cache GPU
+    // ne croît plus après le premier chargement (fini le freeze par accumulation).
+    LaunchedEffect(mapStyle, mergedStops) {
         val style = mapStyle ?: return@LaunchedEffect
+        if (mergedStops.isEmpty()) return@LaunchedEffect
 
-        // Pass 1 : construction des features + collecte des bitmaps manquants
-        // (style.getImage doit rester sur le Main thread)
-        val missingBadges = mutableListOf<Pair<String, () -> Bitmap>>()
-        val features = if (!stopsVisible) emptyList()
-        else visibleClusters.filter { it.count == 1 }.map { cl ->
-            val s            = cl.items.first()
-            val visibleLines = s.allLines.filter { !it.startsWith("JD", ignoreCase = true) }
-            val tier         = StopTier.from(visibleLines)
-            val primaryLine  = StopTier.primaryLine(visibleLines)
-            val fillHex      = if (tier == StopTier.METRO && primaryLine != null)
-                LineColors.backgroundHex(primaryLine) else tier.fillHex
-
-            val props = JsonObject().apply {
-                addProperty("id",         s.id)
-                addProperty("fill_color", fillHex)
-                addProperty("circle_r",   tier.compactR)
-                addProperty("stroke_w",   tier.compactSW)
+        // Étape 1 (Default) : toutes les métadonnées + GeoJSON complet en un seul passage
+        val (geojson, allEntries) = withContext(Dispatchers.Default) {
+            val entries = mergedStops.map { stop ->
+                val lines = stop.allLines.filter { !it.startsWith("JD", ignoreCase = true) }
+                val tier  = StopTier.from(lines)
+                val pl    = StopTier.primaryLine(lines)
+                val fill  = if (tier == StopTier.METRO && pl != null) LineColors.backgroundHex(pl) else tier.fillHex
+                val key   = if (lines.isNotEmpty())
+                    "stop_${tier.name}_${pl ?: ""}_" + lines.take(4).joinToString("_")
+                else "stop_dot_${tier.name}_${pl ?: ""}"
+                StopEntry(stop.id, stop.coordinate.longitude, stop.coordinate.latitude,
+                          fill, tier.compactR, tier.compactSW, key, lines, tier, pl)
             }
-
-            if (showBadges) {
-                val dotKey  = "stop_dot_${tier.name}_${primaryLine ?: ""}"
-                val iconKey = if (visibleLines.isNotEmpty())
-                    "stop_${tier.name}_${primaryLine ?: ""}_" + visibleLines.take(4).joinToString("_")
-                else dotKey
-                if (style.getImage(iconKey) == null)
-                    missingBadges += iconKey to {
-                        if (visibleLines.isNotEmpty()) stopBadgeBitmap(visibleLines, tier, primaryLine)
-                        else stopCompactBitmap(tier, primaryLine)
+            val json = FeatureCollection.fromFeatures(entries.map { e ->
+                Feature.fromGeometry(
+                    Point.fromLngLat(e.lon, e.lat),
+                    JsonObject().apply {
+                        addProperty("id",         e.id)
+                        addProperty("fill_color", e.fillHex)
+                        addProperty("circle_r",   e.circleR)
+                        addProperty("stroke_w",   e.strokeW)
+                        addProperty("icon",       e.iconKey)
                     }
-                props.addProperty("icon", iconKey)
-            }
-
-            Feature.fromGeometry(Point.fromLngLat(s.coordinate.longitude, s.coordinate.latitude), props)
+                )
+            }).toJson()
+            json to entries
         }
 
-        // Pass 2 : construction des bitmaps manquants hors Main, enregistrement sur Main
-        if (missingBadges.isNotEmpty()) {
-            val builtBitmaps = withContext(Dispatchers.Default) {
-                missingBadges.distinctBy { it.first }.associate { (key, build) -> key to build() }
+        // Étape 2 (Main) : enregistrement des bitmaps manquants — style.getImage exige Main
+        val missing = allEntries.distinctBy { it.iconKey }
+            .filter { style.getImage(it.iconKey) == null }
+        if (missing.isNotEmpty()) {
+            val built = withContext(Dispatchers.Default) {
+                missing.associate { e ->
+                    e.iconKey to if (e.visibleLines.isNotEmpty())
+                        stopBadgeBitmap(e.visibleLines, e.tier, e.primaryLine)
+                    else stopCompactBitmap(e.tier, e.primaryLine)
+                }
             }
-            builtBitmaps.forEach { (key, bmp) -> style.addImage(key, bmp) }
+            built.forEach { (key, bmp) -> style.addImage(key, bmp) }
         }
 
+        // Étape 3 (Main) : source + layers MapLibre
         if (style.getSource(STOPS_SRC) == null) {
-            style.addSource(GeoJsonSource(STOPS_SRC, FeatureCollection.fromFeatures(features)))
-
-            // Layer 1 : disque compact (CircleLayer) — couleur et rayon data-driven par tier
-            val stopCircleLayer = CircleLayer(STOPS_LAYER, STOPS_SRC).withProperties(
-                PropertyFactory.circleColor(Expression.get("fill_color")),
-                PropertyFactory.circleStrokeColor("#FFFFFF"),
-                PropertyFactory.circleRadius(Expression.toNumber(Expression.get("circle_r"))),
-                PropertyFactory.circleStrokeWidth(Expression.toNumber(Expression.get("stroke_w")))
-            )
-            if (style.getLayer(VEHICLES_LAYER) != null)
-                style.addLayerBelow(stopCircleLayer, VEHICLES_ARROW_LAYER)
-            else
-                style.addLayer(stopCircleLayer)
-
-            // Layer 2 : badges de ligne (SymbolLayer, visible seulement en mode badge)
-            // ICON_ANCHOR_CENTER : le bitmap est conçu pour que le centre du dot
-            // coïncide avec le centre vertical du bitmap (via top padding = badgeH + gap)
-            val stopBadgeLayer = SymbolLayer(STOPS_BADGE_LAYER, STOPS_SRC).withProperties(
-                PropertyFactory.iconImage(Expression.get("icon")),
-                PropertyFactory.iconAllowOverlap(true),
-                PropertyFactory.iconIgnorePlacement(true),
-                PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
-            )
-            if (style.getLayer(VEHICLES_LAYER) != null)
-                style.addLayerBelow(stopBadgeLayer, VEHICLES_ARROW_LAYER)
-            else
-                style.addLayer(stopBadgeLayer)
+            style.addSource(GeoJsonSource(STOPS_SRC, geojson))
+            val circleLayer = CircleLayer(STOPS_LAYER, STOPS_SRC).withProperties(
+                    PropertyFactory.circleColor(Expression.get("fill_color")),
+                    PropertyFactory.circleStrokeColor("#FFFFFF"),
+                    PropertyFactory.circleRadius(Expression.toNumber(Expression.get("circle_r"))),
+                    PropertyFactory.circleStrokeWidth(Expression.toNumber(Expression.get("stroke_w")))
+                )
+            circleLayer.setMinZoom(14f)
+            val badgeLayer = SymbolLayer(STOPS_BADGE_LAYER, STOPS_SRC).withProperties(
+                    PropertyFactory.iconImage(Expression.get("icon")),
+                    PropertyFactory.iconAllowOverlap(true),
+                    PropertyFactory.iconIgnorePlacement(true),
+                    PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
+                )
+            badgeLayer.setMinZoom(16f)
+            if (style.getLayer(VEHICLES_LAYER) != null) {
+                style.addLayerBelow(circleLayer, VEHICLES_ARROW_LAYER)
+                style.addLayerBelow(badgeLayer, VEHICLES_ARROW_LAYER)
+            } else {
+                style.addLayer(circleLayer)
+                style.addLayer(badgeLayer)
+            }
         } else {
-            style.getSourceAs<GeoJsonSource>(STOPS_SRC)?.setGeoJson(FeatureCollection.fromFeatures(features))
+            style.getSourceAs<GeoJsonSource>(STOPS_SRC)?.setGeoJson(geojson)
         }
-
-        val compactVis = if (stopsVisible && !showBadges) Property.VISIBLE else Property.NONE
-        val badgeVis   = if (stopsVisible && showBadges)  Property.VISIBLE else Property.NONE
-        style.getLayer(STOPS_LAYER)?.setProperties(PropertyFactory.visibility(compactVis))
-        style.getLayer(STOPS_BADGE_LAYER)?.setProperties(PropertyFactory.visibility(badgeVis))
     }
 
     // ── Bottom sheets ───────────────────────────────────────────────────
@@ -2101,6 +2057,14 @@ private fun vehicleDotBitmap(line: String): Bitmap {
  *   badgeSW   = épaisseur de l'anneau blanc en mode badges (dp)
  *   fillHex   = couleur de remplissage intérieure (vide pour METRO → couleur de ligne)
  */
+/** Données de rendu précalculées pour un arrêt — partagées entre les deux étapes du LaunchedEffect. */
+private data class StopEntry(
+    val id: String, val lon: Double, val lat: Double,
+    val fillHex: String, val circleR: Float, val strokeW: Float,
+    val iconKey: String, val visibleLines: List<String>,
+    val tier: StopTier, val primaryLine: String?
+)
+
 private enum class StopTier(
     val compactR:  Float,
     val compactSW: Float,
