@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalSize
 import androidx.glance.action.clickable
@@ -53,18 +54,18 @@ class TCLBoardGlanceWidget : GlanceAppWidget() {
 
     override val sizeMode = SizeMode.Responsive(
         setOf(
-            DpSize(110.dp, 110.dp), // small
-            DpSize(220.dp, 110.dp), // medium
+            DpSize(72.dp, 72.dp),   // 1×1: nano
+            DpSize(148.dp, 148.dp), // 2×2: small board
+            DpSize(222.dp, 148.dp), // 3×2: medium board
         )
     )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val appWidgetId = id.toAppWidgetId(context, TCLBoardGlanceWidgetReceiver::class.java)
-        val config = appWidgetId?.let { WidgetConfigStore.load(context, it) }
+        val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
+        val config = WidgetConfigStore.load(context, appWidgetId)
 
         if (config == null) {
-            val widId = appWidgetId ?: AppWidgetManager.INVALID_APPWIDGET_ID
-            provideContent { BoardNotConfigured(context, widId) }
+            provideContent { BoardNotConfigured(context, appWidgetId) }
             return
         }
 
@@ -84,8 +85,11 @@ class TCLBoardGlanceWidget : GlanceAppWidget() {
 
         provideContent {
             val size = LocalSize.current
-            if (size.width >= 180.dp) BoardMediumView(displayConfig, passages)
-            else BoardSmallView(displayConfig, passages)
+            when {
+                size.height <= 72.dp && size.width <= 72.dp -> BoardNanoView(displayConfig, passages)
+                size.width <= 148.dp                         -> BoardSmallView(displayConfig, passages)
+                else                                         -> BoardMediumView(displayConfig, passages)
+            }
         }
     }
 }
@@ -142,6 +146,45 @@ private fun BoardNotConfigured(context: Context, widgetId: Int) {
     }
 }
 
+// ── Nano board (1×1) ──────────────────────────────────────────────────────────
+
+@Composable
+private fun BoardNanoView(config: WidgetConfig, passages: List<WidgetPassage>) {
+    val next = passages.firstOrNull()
+    Column(
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .background(ColorProvider(boardBg))
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        BoardLineBadge(config.lineName, size = 24.dp)
+        Spacer(GlanceModifier.height(4.dp))
+        Text(
+            next?.compactDelay ?: "—",
+            style = TextStyle(
+                color = ColorProvider(if (next != null) ledGreen else ledGreen.copy(alpha = 0.25f)),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+            ),
+            maxLines = 1,
+        )
+        if (passages.size > 1) {
+            Text(
+                passages[1].compactDelay,
+                style = TextStyle(
+                    color = ColorProvider(ledAmber.copy(alpha = 0.70f)),
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                ),
+                maxLines = 1,
+            )
+        }
+    }
+}
+
 // ── Small board ───────────────────────────────────────────────────────────────
 
 @Composable
@@ -174,7 +217,7 @@ private fun BoardSmallView(config: WidgetConfig, passages: List<WidgetPassage>) 
                 Text(
                     config.stopName,
                     style = TextStyle(
-                        color = ColorProvider(Color(0xFF000000).copy(alpha = 0.55f)),
+                        color = ColorProvider(Color(0xFF1A1A1A)),
                         fontSize = 7.sp,
                     ),
                     maxLines = 1,
@@ -228,7 +271,7 @@ private fun BoardMediumView(config: WidgetConfig, passages: List<WidgetPassage>)
                 Text(
                     "arrêt ${config.stopName}",
                     style = TextStyle(
-                        color = ColorProvider(Color(0xFF000000).copy(alpha = 0.55f)),
+                        color = ColorProvider(Color(0xFF1A1A1A)),
                         fontSize = 8.sp,
                     ),
                     maxLines = 1,

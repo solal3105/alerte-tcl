@@ -46,7 +46,7 @@ internal object WidgetPassageService {
                 if (!matchLine || !matchDir) return@filter false
                 val epochMs = parsePassageEpoch(p.heurepassage)?.times(1000L)
                     ?: return@filter true
-                epochMs >= nowMs && (epochMs - nowMs) <= 90 * 60_000L
+                epochMs >= nowMs && (epochMs - nowMs) <= 120 * 60_000L
             }
             .sortedBy { parsePassageEpoch(it.heurepassage) ?: Long.MAX_VALUE }
             .take(6)

@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Color
 import com.alertetcl.android.ui.colorFromHex
 import com.alertetcl.shared.models.LineColors
 import com.alertetcl.shared.services.BusLineService
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import com.alertetcl.shared.services.TransitLineService
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -43,19 +44,20 @@ class NextDeparturesGlanceWidget : GlanceAppWidget() {
 
     override val sizeMode = SizeMode.Responsive(
         setOf(
-            DpSize(110.dp, 110.dp), // small
-            DpSize(220.dp, 110.dp), // medium
-            DpSize(220.dp, 220.dp), // large
+            DpSize(72.dp, 72.dp),   // 1×1: nano
+            DpSize(148.dp, 72.dp),  // 2×1: slim
+            DpSize(148.dp, 148.dp), // 2×2: standard
+            DpSize(222.dp, 148.dp), // 3×2: wide
+            DpSize(222.dp, 222.dp), // 3×3: large
         )
     )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val appWidgetId = id.toAppWidgetId(context, NextDeparturesGlanceWidgetReceiver::class.java)
-        val config = appWidgetId?.let { WidgetConfigStore.load(context, it) }
+        val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
+        val config = WidgetConfigStore.load(context, appWidgetId)
 
         if (config == null) {
-            val widId = appWidgetId ?: AppWidgetManager.INVALID_APPWIDGET_ID
-            provideContent { NotConfiguredContent("", context, widId) }
+            provideContent { NotConfiguredContent("", context, appWidgetId) }
             return
         }
 
@@ -89,9 +91,11 @@ class NextDeparturesGlanceWidget : GlanceAppWidget() {
     ) {
         val size = LocalSize.current
         when {
-            size.width < 180.dp  -> SmallContent(config, passages, error)
-            size.height < 180.dp -> MediumContent(config, passages, error)
-            else                 -> LargeContent(config, passages, error)
+            size.height <= 72.dp && size.width <= 72.dp -> NanoContent(config, passages, error)
+            size.height <= 72.dp                         -> SlimContent(config, passages, error)
+            size.width <= 148.dp                         -> StandardContent(config, passages, error)
+            size.height <= 148.dp                        -> WideContent(config, passages, error)
+            else                                         -> LargeContent(config, passages, error)
         }
     }
 }
@@ -137,7 +141,7 @@ private fun NotConfiguredContent(lineName: String, context: Context, widgetId: I
         Text(
             "Appuyer pour configurer",
             style = TextStyle(
-                color = ColorProvider(Color(0xFF888888)),
+                color = ColorProvider(Color(0xFF595959)),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
             ),
@@ -145,90 +149,43 @@ private fun NotConfiguredContent(lineName: String, context: Context, widgetId: I
     }
 }
 
-// ── Small layout ──────────────────────────────────────────────────────────────
+// ── Nano layout (1×1) ─────────────────────────────────────────────────────────
 
 @Composable
-private fun SmallContent(
+private fun NanoContent(
     config: WidgetConfig,
     passages: List<WidgetPassage>,
     error: WidgetError?,
 ) {
     val lineColor     = colorFromHex(LineColors.backgroundHex(config.lineName))
     val lineTextColor = colorFromHex(LineColors.textHex(config.lineName))
+    val next          = passages.firstOrNull()
 
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(ColorProvider(Color(0xFFF5F5F5))),
+            .background(ColorProvider(Color(0xFFF5F5F5)))
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(
-            modifier = GlanceModifier
-                .fillMaxWidth()
-                .padding(start = 12.dp, end = 8.dp, top = 11.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
-            LineBadge(config.lineName, lineColor, lineTextColor, 11.sp)
-            Spacer(GlanceModifier.width(6.dp))
-            Text(
-                "→ ${config.directionDisplay}",
-                modifier = GlanceModifier.fillMaxWidth(),
-                style = TextStyle(color = ColorProvider(Color(0xFF666666)), fontSize = 9.sp),
-                maxLines = 2,
-            )
-        }
-
+        LineBadge(config.lineName, lineColor, lineTextColor, 10.sp)
         Spacer(GlanceModifier.height(4.dp))
-
-        if (error != null) {
-            Box(
-                modifier = GlanceModifier.fillMaxSize().padding(12.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(errorLabel(error), style = errorTextStyle())
-            }
-        } else if (passages.isNotEmpty()) {
-            val next = passages.first()
-            Column(
-                modifier = GlanceModifier.fillMaxWidth().padding(horizontal = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    next.compactDelay,
-                    style = TextStyle(
-                        color = ColorProvider(next.urgencyColor(lineColor)),
-                        fontSize = 36.sp,
-                        fontWeight = FontWeight.Bold,
-                    ),
-                    maxLines = 1,
-                )
-                if (passages.size > 1) {
-                    val second = passages[1]
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "puis ",
-                            style = TextStyle(color = ColorProvider(Color(0xFF888888)), fontSize = 10.sp),
-                        )
-                        Text(
-                            second.compactDelay,
-                            style = TextStyle(
-                                color = ColorProvider(second.urgencyColor(Color(0xFF888888))),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                            ),
-                        )
-                    }
-                }
-            }
-
-            Spacer(GlanceModifier.height(4.dp))
-
+        Text(
+            if (error != null || next == null) "—" else next.compactDelay,
+            style = TextStyle(
+                color = ColorProvider(next?.urgencyColor(lineColor) ?: Color(0xFF595959)),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+            ),
+            maxLines = 1,
+        )
+        if (error == null && passages.size > 1) {
             Text(
-                config.stopName,
-                modifier = GlanceModifier.padding(start = 12.dp, bottom = 11.dp),
+                "puis ${passages[1].compactDelay}",
                 style = TextStyle(
-                    color = ColorProvider(Color(0xFF333333)),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
+                    color = ColorProvider(Color(0xFF595959)),
+                    fontSize = 9.sp,
                 ),
                 maxLines = 1,
             )
@@ -236,10 +193,66 @@ private fun SmallContent(
     }
 }
 
-// ── Medium layout ─────────────────────────────────────────────────────────────
+// ── Slim layout (2×1) ─────────────────────────────────────────────────────────
 
 @Composable
-private fun MediumContent(
+private fun SlimContent(
+    config: WidgetConfig,
+    passages: List<WidgetPassage>,
+    error: WidgetError?,
+) {
+    val lineColor     = colorFromHex(LineColors.backgroundHex(config.lineName))
+    val lineTextColor = colorFromHex(LineColors.textHex(config.lineName))
+
+    Row(
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .background(ColorProvider(Color(0xFFF5F5F5)))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        LineBadge(config.lineName, lineColor, lineTextColor, 11.sp)
+        Spacer(GlanceModifier.width(10.dp))
+        if (error != null) {
+            Text(errorLabel(error), style = errorTextStyle())
+        } else {
+            val next      = passages.getOrNull(0)
+            val following = passages.getOrNull(1)
+            Column(modifier = GlanceModifier.fillMaxWidth()) {
+                Text(
+                    config.stopName,
+                    style = TextStyle(color = ColorProvider(Color(0xFF666666)), fontSize = 9.sp),
+                    maxLines = 1,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        next?.compactDelay ?: "—",
+                        style = TextStyle(
+                            color = ColorProvider(next?.urgencyColor(lineColor) ?: Color(0xFF595959)),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                    )
+                    if (following != null) {
+                        Spacer(GlanceModifier.width(6.dp))
+                        Text(
+                            "puis ${following.compactDelay}",
+                            style = TextStyle(
+                                color = ColorProvider(Color(0xFF595959)),
+                                fontSize = 11.sp,
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Standard layout (2×2) ────────────────────────────────────────────────────
+
+@Composable
+private fun StandardContent(
     config: WidgetConfig,
     passages: List<WidgetPassage>,
     error: WidgetError?,
@@ -252,7 +265,88 @@ private fun MediumContent(
             .fillMaxSize()
             .background(ColorProvider(Color(0xFFF5F5F5))),
     ) {
-        WidgetHeader(config, lineColor, lineTextColor, passages.firstOrNull()?.isRealTime == true)
+        // Single-line compact header
+        Row(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .background(ColorProvider(lineColor.copy(alpha = 0.10f)))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            LineBadge(config.lineName, lineColor, lineTextColor, 11.sp)
+            Spacer(GlanceModifier.width(8.dp))
+            Text(
+                config.stopName,
+                modifier = GlanceModifier.fillMaxWidth(),
+                style = TextStyle(
+                    color = ColorProvider(Color(0xFF1A1A1A)),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                maxLines = 1,
+            )
+        }
+
+        if (error != null) {
+            Box(
+                modifier = GlanceModifier.fillMaxSize().padding(16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(errorLabel(error), style = errorTextStyle())
+            }
+        } else {
+            val rows = passages.take(3)
+            rows.forEachIndexed { i, passage ->
+                PassageRow(passage, isFirst = i == 0, lineColor = lineColor, compact = true)
+                if (i < rows.lastIndex) WidgetDivider()
+            }
+        }
+    }
+}
+
+// ── Wide layout (3×2) ─────────────────────────────────────────────────────────
+
+@Composable
+private fun WideContent(
+    config: WidgetConfig,
+    passages: List<WidgetPassage>,
+    error: WidgetError?,
+) {
+    val lineColor     = colorFromHex(LineColors.backgroundHex(config.lineName))
+    val lineTextColor = colorFromHex(LineColors.textHex(config.lineName))
+
+    Column(
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .background(ColorProvider(Color(0xFFF5F5F5))),
+    ) {
+        // Single-line header with stop + direction visible thanks to wider layout
+        Row(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .background(ColorProvider(lineColor.copy(alpha = 0.10f)))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            LineBadge(config.lineName, lineColor, lineTextColor, 11.sp)
+            Spacer(GlanceModifier.width(8.dp))
+            Text(
+                config.stopName,
+                style = TextStyle(
+                    color = ColorProvider(Color(0xFF1A1A1A)),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                maxLines = 1,
+            )
+            Spacer(GlanceModifier.width(4.dp))
+            Text(
+                "→ ${config.directionDisplay}",
+                modifier = GlanceModifier.fillMaxWidth(),
+                style = TextStyle(color = ColorProvider(Color(0xFF666666)), fontSize = 10.sp),
+                maxLines = 1,
+            )
+        }
 
         if (error != null) {
             Box(
@@ -271,7 +365,7 @@ private fun MediumContent(
     }
 }
 
-// ── Large layout ──────────────────────────────────────────────────────────────
+// ── Large layout (3×3) ────────────────────────────────────────────────────────
 
 @Composable
 private fun LargeContent(
@@ -315,22 +409,41 @@ internal fun LineBadge(
     textColor: Color,
     fontSize: androidx.compose.ui.unit.TextUnit,
 ) {
-    Box(
-        modifier = GlanceModifier
-            .background(ColorProvider(bgColor))
-            .cornerRadius(100.dp)
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-            .wrapContentWidth(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            name,
-            style = TextStyle(
-                color = ColorProvider(textColor),
-                fontSize = fontSize,
-                fontWeight = FontWeight.Bold,
-            ),
-        )
+    // Light-background badges (white for generic buses, yellow for TB trolleys…) need
+    // a 1dp border so the pill shape remains visible on the widget's near-white background.
+    // Simple linear approximation of luminance — close enough for this threshold check.
+    val isLight = (0.2126f * bgColor.red + 0.7152f * bgColor.green + 0.0722f * bgColor.blue) > 0.55f
+
+    val pillContent: @Composable () -> Unit = {
+        Box(
+            modifier = GlanceModifier
+                .background(ColorProvider(bgColor))
+                .cornerRadius(100.dp)
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .wrapContentWidth(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                name,
+                style = TextStyle(
+                    color = ColorProvider(textColor),
+                    fontSize = fontSize,
+                    fontWeight = FontWeight.Bold,
+                ),
+            )
+        }
+    }
+
+    if (isLight) {
+        Box(
+            modifier = GlanceModifier
+                .background(ColorProvider(Color(0xFFCCCCCC)))
+                .cornerRadius(100.dp)
+                .padding(1.dp)
+                .wrapContentWidth(),
+        ) { pillContent() }
+    } else {
+        pillContent()
     }
 }
 
@@ -371,7 +484,7 @@ private fun WidgetHeader(
                     Text(
                         "TR",
                         style = TextStyle(
-                            color = ColorProvider(Color(0xFF43A047)),
+                            color = ColorProvider(Color(0xFF2E7D32)),
                             fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
                         ),
@@ -388,11 +501,12 @@ private fun PassageRow(
     isFirst: Boolean,
     lineColor: Color,
     large: Boolean = false,
+    compact: Boolean = false,
 ) {
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = if (large) 10.dp else 8.dp),
+            .padding(horizontal = 14.dp, vertical = when { large -> 10.dp; compact -> 4.dp; else -> 8.dp }),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -408,7 +522,7 @@ private fun PassageRow(
         )
         Text(
             passage.time,
-            style = TextStyle(color = ColorProvider(Color(0xFF888888)), fontSize = 12.sp),
+            style = TextStyle(color = ColorProvider(Color(0xFF595959)), fontSize = 12.sp),
         )
     }
 }
@@ -429,6 +543,6 @@ private fun errorLabel(error: WidgetError) = when (error) {
 }
 
 private fun errorTextStyle() = TextStyle(
-    color = ColorProvider(Color(0xFF888888)),
+    color = ColorProvider(Color(0xFF595959)),
     fontSize = 12.sp,
 )

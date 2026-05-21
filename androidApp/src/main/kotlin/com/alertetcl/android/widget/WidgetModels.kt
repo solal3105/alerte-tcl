@@ -1,12 +1,7 @@
 package com.alertetcl.android.widget
 
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Context
 import androidx.compose.ui.graphics.Color
-import androidx.glance.GlanceId
-import androidx.glance.appwidget.GlanceAppWidgetManager
-import androidx.glance.appwidget.GlanceAppWidgetReceiver
 
 // ── Passage data ──────────────────────────────────────────────────────────────
 
@@ -29,12 +24,18 @@ data class WidgetPassage(
     val compactDelay: String
         get() = delayMinutes?.let { if (it == 0) "~0'" else "$it'" } ?: time
 
-    fun urgencyColor(fallback: Color): Color = when (val m = delayMinutes) {
-        null -> fallback
-        else -> when {
-            m <= 2 -> Color(0xFFE53935)
-            m <= 5 -> Color(0xFFFF6D00)
-            else   -> fallback
+    fun urgencyColor(fallback: Color): Color {
+        // TCL brand colors like white (#FFFFFF for generic buses), yellow (#FFCC00 TB),
+        // light orange (#F99D1D Metro C) and light green (#8BC752 Funiculaire) are
+        // illegible as text on the widget's light background. Use near-black instead.
+        val safeFallback = if (fallback.isReadableOnLight()) fallback else Color(0xFF1A1A1A)
+        return when (val m = delayMinutes) {
+            null -> safeFallback
+            else -> when {
+                m <= 2 -> Color(0xFFD32F2F)
+                m <= 5 -> Color(0xFFE65100)
+                else   -> safeFallback
+            }
         }
     }
 }
@@ -149,11 +150,18 @@ internal object WidgetPassageCache {
     }
 }
 
-// ── Helper: extract appWidgetId from an opaque GlanceId ──────────────────────
+// ── Contrast helpers ──────────────────────────────────────────────────────────
 
-internal fun GlanceId.toAppWidgetId(
-    context: Context,
-    receiverClass: Class<out GlanceAppWidgetReceiver>,
-): Int? = AppWidgetManager.getInstance(context)
-    .getAppWidgetIds(ComponentName(context, receiverClass))
-    .firstOrNull { wid -> GlanceAppWidgetManager(context).getGlanceIdBy(wid) == this }
+/**
+ * True if this color has at least 3:1 contrast ratio on Color(0xFFF5F5F5),
+ * the widget's light background. Uses the WCAG 2.1 relative luminance formula.
+ * Ratio ≥ 3:1 is the minimum for large/bold text per WCAG AA.
+ */
+private fun Color.isReadableOnLight(): Boolean {
+    @Suppress("MagicNumber")
+    fun linearize(c: Float) = if (c <= 0.04045f) c / 12.92f
+                              else Math.pow(((c + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
+    val l   = 0.2126f * linearize(red) + 0.7152f * linearize(green) + 0.0722f * linearize(blue)
+    val bgL = 0.9133f // luminance of Color(0xFFF5F5F5)
+    return (bgL + 0.05f) / (l + 0.05f) >= 3f
+}
