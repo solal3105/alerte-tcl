@@ -1518,36 +1518,41 @@ private fun TrafficBanner(
     }
     val mySubMajor = mySubAlerts.count { it.severity == com.alertetcl.shared.models.AlertSeverity.MAJOR }
 
-    val (bg, fg, icon, title, subtitle) = when {
+    val (bg, fg, icon, title, subtitle, onBg) = when {
         hasError -> BannerState(
             MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.tertiary,
             Icons.Filled.Warning,
             "Données partielles",
-            "Certaines sources sont indisponibles"
+            "Certaines sources sont indisponibles",
+            MaterialTheme.colorScheme.onTertiaryContainer
         )
         mySubMajor > 0 -> BannerState(
             MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.error,
             Icons.Filled.Warning,
             "$mySubMajor perturbation${if (mySubMajor > 1) "s" else ""} majeure${if (mySubMajor > 1) "s" else ""}",
-            "Sur vos lignes abonnées"
+            "Sur vos lignes abonnées",
+            MaterialTheme.colorScheme.onErrorContainer
         )
         mySubAlerts.isNotEmpty() -> BannerState(
             MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.tertiary,
             Icons.Filled.NotificationsActive,
             "${mySubAlerts.size} info${if (mySubAlerts.size > 1) "s" else ""} trafic",
-            "Sur vos lignes abonnées"
+            "Sur vos lignes abonnées",
+            MaterialTheme.colorScheme.onTertiaryContainer
         )
         majorOnNetwork > 0 -> BannerState(
             MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.tertiary,
             Icons.Filled.Warning,
             "$majorOnNetwork perturbation${if (majorOnNetwork > 1) "s" else ""} majeure${if (majorOnNetwork > 1) "s" else ""}",
-            "Sur le réseau TCL"
+            "Sur le réseau TCL",
+            MaterialTheme.colorScheme.onTertiaryContainer
         )
         else -> BannerState(
             MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.primary,
             Icons.Filled.CheckCircle,
             "Réseau fluide",
-            "Aucune perturbation majeure"
+            "Aucune perturbation majeure",
+            MaterialTheme.colorScheme.onPrimaryContainer
         )
     }
 
@@ -1567,14 +1572,14 @@ private fun TrafficBanner(
                 contentAlignment = Alignment.Center
             ) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(18.dp)) }
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = onBg)
+                Text(subtitle, style = MaterialTheme.typography.labelSmall, color = onBg.copy(alpha = 0.7f))
             }
         }
     }
 }
 
-private data class BannerState(val bg: Color, val fg: Color, val icon: ImageVector, val title: String, val subtitle: String)
+private data class BannerState(val bg: Color, val fg: Color, val icon: ImageVector, val title: String, val subtitle: String, val onBg: Color)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
