@@ -295,7 +295,7 @@ fun LiveMapScreen() {
             .sortedWith(compareBy({ it.vehicleType.sortOrder }, { it.lineName.toIntOrNull() ?: Int.MAX_VALUE }, { it.lineName }))
             .map { it.lineName }
     }
-    var showLineTraces by remember { mutableStateOf(true) }
+    val showLineTraces by store.showLineTraces.collectAsState(initial = false)
     val isDark = isSystemInDarkTheme()
     var isSatellite    by remember { mutableStateOf(false) }
     var bannerCollapsed by remember { mutableStateOf(false) }
@@ -820,7 +820,7 @@ fun LiveMapScreen() {
                 favorites = favorites,
                 onToggleFavorite = { scope.launch { store.toggleFavoriteLine(it) } },
                 showLineTraces = showLineTraces,
-                onToggleTraces = { showLineTraces = !showLineTraces },
+                onToggleTraces = { scope.launch { store.setShowLineTraces(!showLineTraces) } },
                 hasActiveFilters = hasActiveFilters,
                 onClearFilters = {
                     VehicleType.entries.filter { it != VehicleType.METRO && it !in vm.selectedTypes.value }.forEach { vm.toggleType(it) }
@@ -1756,6 +1756,26 @@ private fun FilterSheet(
             }
             item {
                 Text(
+                    "AFFICHAGE",
+                    style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp)
+                )
+                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Tracés des lignes", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                            Text("Affiche les itinéraires des lignes", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = showLineTraces, onCheckedChange = { onToggleTraces() })
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+            item {
+                Text(
                     "TYPE DE VÉHICULE",
                     style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 4.dp)
@@ -1844,26 +1864,6 @@ private fun FilterSheet(
                         }
                     }
                 }
-            }
-            item {
-                Text(
-                    "AFFICHAGE",
-                    style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 8.dp)
-                )
-                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Tracés des lignes", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                            Text("Affiche les itinéraires des lignes", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(checked = showLineTraces, onCheckedChange = { onToggleTraces() })
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
             }
         }
     }

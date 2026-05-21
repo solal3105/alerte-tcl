@@ -52,6 +52,14 @@ class FavoritesStore(private val context: Context) {
     val selectedLiveLines: Flow<Set<String>> =
         context.favStore.data.map { p -> parse(p[KEY_SELECTED_LIVE_LINES]) }
 
+    /** Tracés des lignes sur la carte live (false = désactivé par défaut). */
+    val showLineTraces: Flow<Boolean> =
+        context.favStore.data.map { p -> p[KEY_SHOW_LINE_TRACES] == "1" }
+
+    suspend fun setShowLineTraces(show: Boolean) {
+        context.favStore.edit { p -> p[KEY_SHOW_LINE_TRACES] = if (show) "1" else "0" }
+    }
+
     suspend fun setSelectedLiveLines(lines: Set<String>) {
         context.favStore.edit { p ->
             p[KEY_SELECTED_LIVE_LINES] = lines.joinToString(",")
@@ -152,5 +160,6 @@ class FavoritesStore(private val context: Context) {
         private val KEY_ONBOARDING          = stringPreferencesKey("onboarding_done")
         private val KEY_SELECTED_LIVE_LINES = stringPreferencesKey("live_selected_lines")
         private val KEY_SEVERITY_PREFS      = stringPreferencesKey("line_severity_prefs")
+        private val KEY_SHOW_LINE_TRACES     = stringPreferencesKey("show_line_traces")
     }
 }
