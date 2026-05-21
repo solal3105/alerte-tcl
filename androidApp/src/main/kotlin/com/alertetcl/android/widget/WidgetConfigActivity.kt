@@ -84,22 +84,17 @@ class WidgetConfigActivity : ComponentActivity() {
                     onConfirm = { config ->
                         WidgetConfigStore.save(this, appWidgetId, config)
                         lifecycleScope.launch {
-                            // Use the Intent overload: doesn't call getAppWidgetInfo, safe
-                            // for initial placement where the widget isn't committed yet.
-                            val glanceId = GlanceAppWidgetManager(this@WidgetConfigActivity)
-                                .getGlanceIdBy(intent)
-                            if (glanceId != null) {
-                                // Use getAppWidgetIds instead of getAppWidgetInfo: the latter
-                                // returns null during initial placement (widget not yet committed),
-                                // while getAppWidgetIds reliably returns the new ID right away.
-                                val wm = AppWidgetManager.getInstance(this@WidgetConfigActivity)
-                                val ctx = this@WidgetConfigActivity
-                                when {
-                                    appWidgetId in wm.getAppWidgetIds(ComponentName(ctx, NextDeparturesGlanceWidgetReceiver::class.java)) ->
-                                        NextDeparturesGlanceWidget().update(ctx, glanceId)
-                                    appWidgetId in wm.getAppWidgetIds(ComponentName(ctx, TCLBoardGlanceWidgetReceiver::class.java)) ->
-                                        TCLBoardGlanceWidget().update(ctx, glanceId)
-                                }
+                            val ctx = this@WidgetConfigActivity
+                            // getGlanceIdBy(Int) is non-nullable and doesn't require a datastore
+                            // lookup — safe for initial placement where Glance hasn't seen this
+                            // widget ID yet (unlike the Intent overload which returns null then).
+                            val glanceId = GlanceAppWidgetManager(ctx).getGlanceIdBy(appWidgetId)
+                            val wm = AppWidgetManager.getInstance(ctx)
+                            when {
+                                appWidgetId in wm.getAppWidgetIds(ComponentName(ctx, NextDeparturesGlanceWidgetReceiver::class.java)) ->
+                                    NextDeparturesGlanceWidget().update(ctx, glanceId)
+                                appWidgetId in wm.getAppWidgetIds(ComponentName(ctx, TCLBoardGlanceWidgetReceiver::class.java)) ->
+                                    TCLBoardGlanceWidget().update(ctx, glanceId)
                             }
                             setResult(
                                 RESULT_OK,
