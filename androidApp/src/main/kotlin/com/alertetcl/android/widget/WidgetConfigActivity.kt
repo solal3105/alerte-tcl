@@ -1,7 +1,6 @@
 package com.alertetcl.android.widget
 
 import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -85,17 +84,26 @@ class WidgetConfigActivity : ComponentActivity() {
                         WidgetConfigStore.save(this, appWidgetId, config)
                         lifecycleScope.launch {
                             val ctx = this@WidgetConfigActivity
-                            // getGlanceIdBy(Int) is non-nullable and doesn't require a datastore
-                            // lookup — safe for initial placement where Glance hasn't seen this
-                            // widget ID yet (unlike the Intent overload which returns null then).
-                            val glanceId = GlanceAppWidgetManager(ctx).getGlanceIdBy(appWidgetId)
-                            val wm = AppWidgetManager.getInstance(ctx)
-                            when {
-                                appWidgetId in wm.getAppWidgetIds(ComponentName(ctx, NextDeparturesGlanceWidgetReceiver::class.java)) ->
-                                    NextDeparturesGlanceWidget().update(ctx, glanceId)
-                                appWidgetId in wm.getAppWidgetIds(ComponentName(ctx, TCLBoardGlanceWidgetReceiver::class.java)) ->
-                                    TCLBoardGlanceWidget().update(ctx, glanceId)
+                            // getGlanceIdBy(intent) is safe for pending widgets: just extracts
+                            // EXTRA_APPWIDGET_ID without calling getAppWidgetInfo.
+                            val glanceId = GlanceAppWidgetManager(ctx).getGlanceIdBy(intent)
+                            if (glanceId != null) {
+                                // getAppWidgetIds() does NOT include pending (not yet committed)
+                                // widgets, so we use getAppWidgetInfo().provider instead —
+                                // which is non-null for any bound widget.
+                                val providerClass = AppWidgetManager.getInstance(ctx)
+                                    .getAppWidgetInfo(appWidgetId)?.provider?.className
+                                runCatching {
+                                    when (providerClass) {
+                                        NextDeparturesGlanceWidgetReceiver::class.java.name ->
+                                            NextDeparturesGlanceWidget().update(ctx, glanceId)
+                                        TCLBoardGlanceWidgetReceiver::class.java.name ->
+                                            TCLBoardGlanceWidget().update(ctx, glanceId)
+                                    }
+                                }
                             }
+                            // Always execute: Android does NOT call onUpdate() for initial
+                            // widget placement when a config activity is present.
                             setResult(
                                 RESULT_OK,
                                 Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId),
