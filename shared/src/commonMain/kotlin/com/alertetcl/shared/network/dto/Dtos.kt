@@ -75,6 +75,13 @@ data class BusLineFeature(
     val properties: LineProperties
 )
 
+/** Réponse allégée du endpoint /bus-termini — géométrie strippée côté proxy. */
+@Serializable
+data class BusTerminiResponse(val features: List<BusTerminiFeature> = emptyList())
+
+@Serializable
+data class BusTerminiFeature(val properties: LineProperties)
+
 @Serializable
 data class TransitLineResponse(val features: List<TransitLineFeature> = emptyList())
 

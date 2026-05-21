@@ -94,6 +94,51 @@ async function doRefresh(cacheKey, upstreamURL, authHeaders, cache) {
 }
 
 /**
+ * Variante de doRefresh pour /bus-termini :
+ * Fetche la collection bus-lines complète (22 MB) côté serveur,
+ * ne conserve que ligne/sens/nom_destination (≈50 KB), cache le résultat allégé.
+ */
+async function doRefreshBusTermini(cacheKey, authHeaders, cache) {
+  const upstreamURL = `${GEO_BASE}/${GEO_COLLECTIONS["bus-lines"]}/items?limit=5000&f=json&sortby=gid`;
+  const upstream = await fetch(upstreamURL, { method: "GET", headers: authHeaders });
+
+  if (!upstream.ok) {
+    const body = await upstream.arrayBuffer();
+    return new Response(body, {
+      status: upstream.status,
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    });
+  }
+
+  const data = await upstream.json();
+  const stripped = JSON.stringify({
+    features: data.features.map(f => ({
+      properties: {
+        ligne:           f.properties.ligne           ?? null,
+        sens:            f.properties.sens            ?? null,
+        nom_destination: f.properties.nom_destination ?? null,
+      },
+    })),
+  });
+
+  const buf = new TextEncoder().encode(stripped);
+  const toStore = new Response(buf, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=86400",
+      "X-Cached-At":  String(Date.now()),
+    },
+  });
+  await cache.put(cacheKey, toStore.clone());
+
+  return new Response(buf, {
+    status: 200,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
+}
+
+/**
  * Stratégie stale-while-revalidate :
  *  - Cache frais (age < ttl)  → réponse immédiate depuis le cache.
  *  - Cache périmé (age ≥ ttl) → réponse immédiate depuis le cache stale
@@ -190,6 +235,34 @@ export default {
     // ── /vehicles ───────────────────────────────────────────────────────────
     if (pathname === "/vehicles") {
       return cachedProxyFetch(cacheKeyURL, VEHICLES_URL, authHeaders, ctx, ROUTE_TTL["/vehicles"]);
+    }
+
+    // ── /bus-termini ─────────────────────────────────────────────────────────
+    // Retourne ligne+sens+nom_destination pour toutes les lignes bus (géométrie strippée).
+    // Payload : 22 MB côté GeoServer → ≈50 KB retourné au client.
+    if (pathname === "/bus-termini") {
+      const cache    = caches.default;
+      const cacheKey = new Request(request.url);
+
+      const cached = await cache.match(cacheKey);
+      if (cached) {
+        const cachedAt   = parseInt(cached.headers.get("X-Cached-At") ?? "0", 10);
+        const ageSeconds = (Date.now() - cachedAt) / 1000;
+        if (ageSeconds < GEO_TTL) {
+          const body = await cached.arrayBuffer();
+          return new Response(body, {
+            status:  cached.status,
+            headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+          });
+        }
+        ctx.waitUntil(doRefreshBusTermini(cacheKey, authHeaders, cache));
+        const body = await cached.arrayBuffer();
+        return new Response(body, {
+          status:  cached.status,
+          headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+        });
+      }
+      return doRefreshBusTermini(cacheKey, authHeaders, cache);
     }
 
     // ── /metro-funi-lines | /tram-lines | /bus-lines | /stops ───────────────

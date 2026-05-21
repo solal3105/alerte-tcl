@@ -6,6 +6,7 @@ import com.alertetcl.shared.network.ApiError
 import com.alertetcl.shared.network.HttpClientProvider
 import com.alertetcl.shared.network.NetworkConfiguration
 import com.alertetcl.shared.network.dto.BusLineResponse
+import com.alertetcl.shared.network.dto.BusTerminiResponse
 import com.alertetcl.shared.network.dto.TransitLineResponse
 import com.alertetcl.shared.util.AppLogger
 import io.ktor.client.call.body
@@ -54,31 +55,32 @@ class BusLineService {
         return lines
     }
 
-    /** Returns a map of `"${ligne}|A"` / `"${ligne}|R"` → terminus name from the bus-lines API. */
+    /** Returns a map of `"${ligne}|A"` / `"${ligne}|R"` → terminus name.
+     *  Uses the /bus-termini proxy endpoint (geometry-stripped, ≈50 KB vs 22 MB). */
     suspend fun fetchLineTermini(): Map<String, String> {
         mutex.withLock { terminusCache }?.let { (data, ts) ->
             if (Clock.System.now().epochSeconds - ts < cacheValidity) return data
         }
-        val url = "$baseURL?limit=5000&f=json"
+        val url = NetworkConfiguration.PROXY_BASE_URL + "/bus-termini"
         val resp = try {
             client.get(url) {
-                timeout { requestTimeoutMillis = NetworkConfiguration.SHARED_TIMEOUT_SECONDS * 1000 }
+                timeout { requestTimeoutMillis = NetworkConfiguration.HEAVY_TIMEOUT_SECONDS * 1000 }
             }
         } catch (e: Throwable) { throw ApiError.NetworkError(e) }
         if (resp.status != HttpStatusCode.OK) throw ApiError.HttpError(resp.status.value)
-        val body: BusLineResponse = try { resp.body() } catch (e: Throwable) { throw ApiError.DecodingError(e) }
+        val body: BusTerminiResponse = try { resp.body() } catch (e: Throwable) { throw ApiError.DecodingError(e) }
 
         val termini = body.features
             .mapNotNull { feature ->
                 val ligne = feature.properties.ligne ?: return@mapNotNull null
-                val sens = feature.properties.sens?.trim()?.lowercase() ?: return@mapNotNull null
-                val dest = feature.properties.nomDestination ?: return@mapNotNull null
-                val direction = when (sens) {
+                val sens  = feature.properties.sens?.trim()?.lowercase() ?: return@mapNotNull null
+                val dest  = feature.properties.nomDestination ?: return@mapNotNull null
+                val dir   = when (sens) {
                     "aller"  -> "A"
                     "retour" -> "R"
                     else     -> return@mapNotNull null
                 }
-                "${ligne}|${direction}" to dest
+                "${ligne}|${dir}" to dest
             }
             .toMap()
 
