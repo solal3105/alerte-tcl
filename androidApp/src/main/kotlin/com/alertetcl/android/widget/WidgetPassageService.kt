@@ -20,22 +20,22 @@ internal object WidgetPassageService {
         timeZone = TimeZone.getTimeZone("Europe/Paris")
     }
 
-    suspend fun fetchPassages(context: Context, stopId: Int, line: String, direction: String): List<WidgetPassage> {
+    suspend fun fetchPassages(context: Context, stopId: Int, line: String, directionName: String): List<WidgetPassage> {
         val result = TransitStopService.shared
             .fetchPassagesForStop(stopId)
-            .let { filterAndMap(it, line, direction) }
-        WidgetPassageCache.store(context, stopId, line, direction, result)
+            .let { filterAndMap(it, line, directionName) }
+        WidgetPassageCache.store(context, stopId, line, directionName, result)
         return result
     }
 
     private fun filterAndMap(
         passages: List<Passage>,
         line: String,
-        direction: String,
+        directionName: String,
     ): List<WidgetPassage> {
         val nowMs     = System.currentTimeMillis()
         val normLine  = line.uppercase().trim()
-        val normDir   = direction.lowercase().trim()
+        val normDir   = directionName.lowercase().trim()
         val dirPrefix = normDir.take(8)
 
         return passages

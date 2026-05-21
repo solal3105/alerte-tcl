@@ -40,8 +40,6 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.alertetcl.android.ui.colorFromHex
 import com.alertetcl.shared.models.LineColors
-import com.alertetcl.shared.services.BusLineService
-import com.alertetcl.shared.services.TransitLineService
 
 // ── Board palette ─────────────────────────────────────────────────────────────
 
@@ -69,19 +67,14 @@ class TCLBoardGlanceWidget : GlanceAppWidget() {
             return
         }
 
+        val displayConfig = config.withResolvedDestination()
+
         val passages = runCatching {
-            WidgetPassageService.fetchPassages(context, config.stopId, config.lineName, config.direction)
+            WidgetPassageService.fetchPassages(context, config.stopId, config.lineName, displayConfig.destinationName)
         }.getOrElse {
             // réseau KO (Doze, App Standby RARE…) : fallback sur le cache jusqu'à 4 h
-            WidgetPassageCache.load(context, config.stopId, config.lineName, config.direction).orEmpty()
+            WidgetPassageCache.load(context, config.stopId, config.lineName, displayConfig.destinationName).orEmpty()
         }
-
-        val terminusName = runCatching {
-            val bus     = BusLineService.shared.fetchLineTermini()
-            val transit = TransitLineService.shared.fetchLineTermini()
-            (bus + transit)["${config.lineName}|${config.direction}"].orEmpty()
-        }.getOrDefault("")
-        val displayConfig = config.copy(destinationName = terminusName)
 
         provideContent {
             val size = LocalSize.current

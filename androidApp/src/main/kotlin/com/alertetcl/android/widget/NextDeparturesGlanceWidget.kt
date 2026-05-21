@@ -7,9 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import com.alertetcl.android.ui.colorFromHex
 import com.alertetcl.shared.models.LineColors
-import com.alertetcl.shared.services.BusLineService
 import androidx.glance.appwidget.GlanceAppWidgetManager
-import com.alertetcl.shared.services.TransitLineService
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,18 +59,13 @@ class NextDeparturesGlanceWidget : GlanceAppWidget() {
             return
         }
 
-        val terminusName = runCatching {
-            val bus     = BusLineService.shared.fetchLineTermini()
-            val transit = TransitLineService.shared.fetchLineTermini()
-            (bus + transit)["${config.lineName}|${config.direction}"].orEmpty()
-        }.getOrDefault("")
-        val displayConfig = config.copy(destinationName = terminusName)
+        val displayConfig = config.withResolvedDestination()
 
         val (passages, fetchError) = runCatching {
-            WidgetPassageService.fetchPassages(context, config.stopId, config.lineName, config.direction) to null
+            WidgetPassageService.fetchPassages(context, config.stopId, config.lineName, displayConfig.destinationName) to null
         }.getOrElse {
             // réseau KO (Doze, App Standby RARE…) : fallback sur le cache jusqu'à 4 h
-            val cached = WidgetPassageCache.load(context, config.stopId, config.lineName, config.direction)
+            val cached = WidgetPassageCache.load(context, config.stopId, config.lineName, displayConfig.destinationName)
             if (cached != null) cached to null
             else emptyList<WidgetPassage>() to WidgetError.NETWORK_ERROR
         }

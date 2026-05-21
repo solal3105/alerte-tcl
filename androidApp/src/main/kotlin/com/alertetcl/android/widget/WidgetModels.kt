@@ -2,6 +2,8 @@ package com.alertetcl.android.widget
 
 import android.content.Context
 import androidx.compose.ui.graphics.Color
+import com.alertetcl.shared.services.BusLineService
+import com.alertetcl.shared.services.TransitLineService
 
 // ── Passage data ──────────────────────────────────────────────────────────────
 
@@ -108,10 +110,10 @@ internal object WidgetPassageCache {
     private const val PREFS_NAME = "widget_passage_cache"
     private const val MAX_AGE_MS = 4 * 3600 * 1000L // 4 heures
 
-    private fun key(stopId: Int, line: String, direction: String) =
-        "cache.$stopId.${line.uppercase()}.${direction.lowercase()}"
+    private fun key(stopId: Int, line: String, directionName: String) =
+        "cache.$stopId.${line.uppercase()}.${directionName.lowercase()}"
 
-    fun store(context: Context, stopId: Int, line: String, direction: String, passages: List<WidgetPassage>) {
+    fun store(context: Context, stopId: Int, line: String, directionName: String, passages: List<WidgetPassage>) {
         val arr = org.json.JSONArray()
         passages.forEach { p ->
             arr.put(
@@ -121,7 +123,7 @@ internal object WidgetPassageCache {
                     .put("realTime", p.isRealTime)
             )
         }
-        val k = key(stopId, line, direction)
+        val k = key(stopId, line, directionName)
         context.applicationContext
             .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
@@ -130,9 +132,9 @@ internal object WidgetPassageCache {
             .apply()
     }
 
-    fun load(context: Context, stopId: Int, line: String, direction: String): List<WidgetPassage>? {
+    fun load(context: Context, stopId: Int, line: String, directionName: String): List<WidgetPassage>? {
         val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val k = key(stopId, line, direction)
+        val k = key(stopId, line, directionName)
         val ts = prefs.getLong("$k.ts", 0L)
         if (System.currentTimeMillis() - ts > MAX_AGE_MS) return null
         val json = prefs.getString(k, null) ?: return null
@@ -148,6 +150,23 @@ internal object WidgetPassageCache {
             }
         }.getOrNull()
     }
+}
+
+// ── Display config resolution ───────────────────────────────────────────────────
+
+/**
+ * Resolves [WidgetConfig.destinationName] for filtering and display.
+ * Looks up the human-readable terminus from the combined bus+transit termini map
+ * using the stored direction code ("A"/"R") as key, then falls back to the
+ * already-stored [destinationName] if the fetch fails or returns nothing.
+ */
+internal suspend fun WidgetConfig.withResolvedDestination(): WidgetConfig {
+    val terminus = runCatching {
+        val bus     = BusLineService.shared.fetchLineTermini()
+        val transit = TransitLineService.shared.fetchLineTermini()
+        (bus + transit)["$lineName|$direction"].orEmpty()
+    }.getOrDefault("")
+    return copy(destinationName = terminus.ifBlank { destinationName })
 }
 
 // ── Contrast helpers ──────────────────────────────────────────────────────────
