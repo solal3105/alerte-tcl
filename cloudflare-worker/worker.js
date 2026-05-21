@@ -224,7 +224,7 @@ export default {
       if (!stopId) {
         return new Response("Bad Request: missing or invalid id", { status: 400 });
       }
-      let url = `${PASSAGES_URL}?field=id&value=${stopId}&compact=false`;
+      let url = `${PASSAGES_URL}?field=id&value=${stopId}&compact=false&maxfeatures=500`;
       const sortby = searchParams.get("sortby");
       const sortorder = searchParams.get("sortorder");
       if (sortby && ALLOWED_SORTBY.has(sortby))         url += `&sortby=${sortby}`;
