@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Color
 import com.alertetcl.android.ui.colorFromHex
 import com.alertetcl.shared.models.LineColors
 import com.alertetcl.shared.services.BusLineService
+import com.alertetcl.shared.services.TransitLineService
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,7 +60,9 @@ class NextDeparturesGlanceWidget : GlanceAppWidget() {
         }
 
         val terminusName = runCatching {
-            BusLineService.shared.fetchLineTermini()["${config.lineName}|${config.direction}"].orEmpty()
+            val bus     = BusLineService.shared.fetchLineTermini()
+            val transit = TransitLineService.shared.fetchLineTermini()
+            (bus + transit)["${config.lineName}|${config.direction}"].orEmpty()
         }.getOrDefault("")
         val displayConfig = config.copy(destinationName = terminusName)
 

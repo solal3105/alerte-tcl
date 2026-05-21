@@ -39,6 +39,8 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.alertetcl.android.ui.colorFromHex
 import com.alertetcl.shared.models.LineColors
+import com.alertetcl.shared.services.BusLineService
+import com.alertetcl.shared.services.TransitLineService
 
 // ── Board palette ─────────────────────────────────────────────────────────────
 
@@ -73,10 +75,17 @@ class TCLBoardGlanceWidget : GlanceAppWidget() {
             WidgetPassageCache.load(context, config.stopId, config.lineName, config.direction).orEmpty()
         }
 
+        val terminusName = runCatching {
+            val bus     = BusLineService.shared.fetchLineTermini()
+            val transit = TransitLineService.shared.fetchLineTermini()
+            (bus + transit)["${config.lineName}|${config.direction}"].orEmpty()
+        }.getOrDefault("")
+        val displayConfig = config.copy(destinationName = terminusName)
+
         provideContent {
             val size = LocalSize.current
-            if (size.width >= 180.dp) BoardMediumView(config, passages)
-            else BoardSmallView(config, passages)
+            if (size.width >= 180.dp) BoardMediumView(displayConfig, passages)
+            else BoardSmallView(displayConfig, passages)
         }
     }
 }
@@ -154,7 +163,7 @@ private fun BoardSmallView(config: WidgetConfig, passages: List<WidgetPassage>) 
             Spacer(GlanceModifier.width(7.dp))
             Column {
                 Text(
-                    config.direction,
+                    config.directionDisplay,
                     style = TextStyle(
                         color = ColorProvider(Color.Black),
                         fontSize = 9.sp,
@@ -208,7 +217,7 @@ private fun BoardMediumView(config: WidgetConfig, passages: List<WidgetPassage>)
             Spacer(GlanceModifier.width(9.dp))
             Column(modifier = GlanceModifier.fillMaxWidth()) {
                 Text(
-                    config.direction,
+                    config.directionDisplay,
                     style = TextStyle(
                         color = ColorProvider(Color.Black),
                         fontSize = 12.sp,

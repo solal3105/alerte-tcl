@@ -61,6 +61,7 @@ import com.alertetcl.android.ui.alerts.LineBadge
 import com.alertetcl.android.widget.NextDeparturesGlanceWidgetReceiver
 import com.alertetcl.shared.models.TransitStop
 import com.alertetcl.shared.services.BusLineService
+import com.alertetcl.shared.services.TransitLineService
 import com.alertetcl.shared.services.TransitStopService
 import com.alertetcl.android.ui.theme.StatusSuccess
 import kotlinx.coroutines.launch
@@ -279,9 +280,9 @@ private fun AddToWidgetSheet(
     var showConfirmation by remember { mutableStateOf(isAlreadySaved) }
 
     val destinationMap = produceState<Map<String, String>>(initialValue = emptyMap(), stop) {
-        value = runCatching {
-            BusLineService.shared.fetchLineTermini()
-        }.getOrDefault(emptyMap())
+        val bus     = runCatching { BusLineService.shared.fetchLineTermini() }.getOrDefault(emptyMap())
+        val transit = runCatching { TransitLineService.shared.fetchLineTermini() }.getOrDefault(emptyMap())
+        value = bus + transit
     }
 
     val lineDirections = remember(stop) {

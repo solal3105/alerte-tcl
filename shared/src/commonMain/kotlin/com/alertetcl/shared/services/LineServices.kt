@@ -97,6 +97,7 @@ class TransitLineService {
 
     private val mutex = Mutex()
     private var cache: Pair<List<TransitLine>, Long>? = null
+    private var terminusCache: Pair<Map<String, String>, Long>? = null
     private val cacheValidity = 86_400L
 
     /** Provider de fallback chargé depuis bundle natif (JSON). */
@@ -148,6 +149,47 @@ class TransitLineService {
             }
         }
         return lines
+    }
+
+    /** Returns a map of `"${ligne}|A"` / `"${ligne}|R"` → terminus name for metro, funi, and tram lines. */
+    suspend fun fetchLineTermini(): Map<String, String> {
+        mutex.withLock { terminusCache }?.let { (data, ts) ->
+            if (Clock.System.now().epochSeconds - ts < cacheValidity) return data
+        }
+        return try {
+            coroutineScope {
+                val mAsync = async { fetchTerminiSection(metroFuniUrl) }
+                val tAsync = async { fetchTerminiSection(tramUrl) }
+                val all = mAsync.await() + tAsync.await()
+                mutex.withLock { terminusCache = all to Clock.System.now().epochSeconds }
+                all
+            }
+        } catch (e: Throwable) {
+            AppLogger.warn("TransitLineService fetchLineTermini failed: ${e.message}")
+            emptyMap()
+        }
+    }
+
+    private suspend fun fetchTerminiSection(url: String): Map<String, String> {
+        val full = "$url?limit=100&f=json"
+        val resp = try {
+            client.get(full) {
+                timeout { requestTimeoutMillis = NetworkConfiguration.SHARED_TIMEOUT_SECONDS * 1000 }
+            }
+        } catch (e: Throwable) { return emptyMap() }
+        if (resp.status != HttpStatusCode.OK) return emptyMap()
+        val body: TransitLineResponse = try { resp.body() } catch (e: Throwable) { return emptyMap() }
+        return body.features.mapNotNull { feature ->
+            val ligne = feature.properties.ligne ?: return@mapNotNull null
+            val sens  = feature.properties.sens?.trim()?.lowercase() ?: return@mapNotNull null
+            val dest  = feature.properties.nomDestination ?: return@mapNotNull null
+            val dir   = when (sens) {
+                "aller"  -> "A"
+                "retour" -> "R"
+                else     -> return@mapNotNull null
+            }
+            "${ligne}|${dir}" to dest
+        }.toMap()
     }
 
     companion object { val shared = TransitLineService() }
