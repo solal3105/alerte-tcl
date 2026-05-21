@@ -1,6 +1,8 @@
 package com.alertetcl.android
 
+import android.app.NotificationManager
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -26,9 +28,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // N-02: clear notif badge sur reprise (parité iOS UNUserNotificationCenter setBadgeCount(0))
-        runCatching {
-            androidx.core.app.NotificationManagerCompat.from(this).cancelAll()
+        // N-02: clear badge TCL uniquement (parité iOS setBadgeCount(0))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val nm = getSystemService(NotificationManager::class.java)
+            nm?.activeNotifications
+                ?.filter { it.notification.channelId == com.alertetcl.android.notifications.NotificationChannels.ALERTS_CHANNEL_ID }
+                ?.forEach { nm.cancel(it.tag, it.id) }
         }
     }
 

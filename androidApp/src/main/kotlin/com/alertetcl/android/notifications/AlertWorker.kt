@@ -34,8 +34,27 @@ class AlertWorker(
             val severityPrefs = store.lineSeverityPreferences.first()
             val alerts = TclApiService.shared.fetchAlerts()
             val now = System.currentTimeMillis() / 1000L
-            val alreadySeen = seenKeys()
 
+            // Premier lancement : marquer tout comme vu silencieusement (anti-flood)
+            val baselinePrefs = applicationContext.getSharedPreferences(BASELINE_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            if (!baselinePrefs.getBoolean(BASELINE_DONE_KEY, false)) {
+                val allKeys = alerts
+                    .filter { it.ligneCom in favorites }
+                    .flatMap { alert ->
+                        listOf(
+                            alert.notificationKey(AlertNotificationPhase.ANNOUNCED),
+                            alert.notificationKey(AlertNotificationPhase.ACTIVE)
+                        )
+                    }.toSet()
+                val current = (prefs().getStringSet(PREFS_KEY, emptySet()) ?: emptySet()).toMutableSet()
+                current.addAll(allKeys)
+                prefs().edit().putStringSet(PREFS_KEY, current).apply()
+                baselinePrefs.edit().putBoolean(BASELINE_DONE_KEY, true).apply()
+                AppLogger.debug("AlertWorker: baseline (${allKeys.size / 2} alertes silencieuses)")
+                return Result.success()
+            }
+
+            val alreadySeen = seenKeys()
             alerts
                 .filter { it.isActive(now) && it.ligneCom in favorites }
                 .forEach { alert ->
@@ -100,7 +119,9 @@ class AlertWorker(
     private fun prefs() = applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     companion object {
-        private const val PREFS_NAME = "notif_dedup"
-        private const val PREFS_KEY  = "seen_keys"
+        private const val PREFS_NAME          = "notif_dedup"
+        private const val PREFS_KEY           = "seen_keys"
+        private const val BASELINE_PREFS_NAME = "notif_baseline"
+        private const val BASELINE_DONE_KEY   = "done"
     }
 }

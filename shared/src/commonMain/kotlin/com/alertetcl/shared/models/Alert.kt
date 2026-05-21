@@ -56,10 +56,7 @@ data class TCLAlert(
     fun isOngoing(nowEpoch: Long): Boolean = isActive(nowEpoch) && hasStarted(nowEpoch)
     fun isUpcoming(nowEpoch: Long): Boolean = isActive(nowEpoch) && !hasStarted(nowEpoch)
 
-    fun notificationKey(phase: AlertNotificationPhase): String {
-        val contentHash = (titre + message).hashCode()
-        return "$id|${phase.name}|$contentHash"
-    }
+    fun notificationKey(phase: AlertNotificationPhase): String = "$id|${phase.name}"
 }
 
 enum class AlertNotificationPhase { ANNOUNCED, ACTIVE }

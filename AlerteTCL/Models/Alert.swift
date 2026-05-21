@@ -197,11 +197,7 @@ enum AlertNotificationPhase: String {
 
 extension TCLAlert {
     func notificationKey(phase: AlertNotificationPhase) -> String {
-        var hash: UInt32 = 5381
-        for c in (titre + message).unicodeScalars {
-            hash = (hash &<< 5) &+ hash &+ c.value
-        }
-        return "\(id)|\(phase.rawValue)|\(hash)"
+        "\(id)|\(phase.rawValue)"
     }
 }
 

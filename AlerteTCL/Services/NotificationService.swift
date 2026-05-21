@@ -8,6 +8,7 @@ final class NotificationService: NSObject, ObservableObject {
     
     private let center = UNUserNotificationCenter.current()
     private let seenKeysKey = "notificationSeenKeys"
+    private let baselineDoneKey = "notifBaselineDone"
     
     @Published var isAuthorized = false
     
@@ -112,26 +113,29 @@ final class NotificationService: NSObject, ObservableObject {
     
     func processNewAlerts(_ alerts: [TCLAlert], subscriptionService: SubscriptionService) {
         let subscribedLines = subscriptionService.subscribedLineIds
-        
-        guard !subscribedLines.isEmpty else {
-            AppLogger.debug("ℹ️ Notifications: Aucune ligne abonnée")
-            return
-        }
-        
+        guard !subscribedLines.isEmpty else { return }
+
         let relevant = alerts.filter {
             subscribedLines.contains($0.ligneCom) || subscribedLines.contains($0.ligneCli)
         }
+
+        // Premier lancement : marquer tout comme vu silencieusement (anti-flood)
+        if !UserDefaults.standard.bool(forKey: baselineDoneKey) {
+            for alert in relevant {
+                markSeen(alert.notificationKey(phase: .announced))
+                markSeen(alert.notificationKey(phase: .active))
+            }
+            UserDefaults.standard.set(true, forKey: baselineDoneKey)
+            AppLogger.debug("ℹ️ Notifications: baseline (\(relevant.count) alertes silencieuses)")
+            return
+        }
+
         AppLogger.debug("📬 Notifications: \(relevant.count) alertes pour les lignes abonnées")
-        
         for alert in relevant {
             let line = TransportLine(ligneCom: alert.ligneCom, ligneCli: alert.ligneCli, mode: alert.mode)
             let preferences = subscriptionService.getNotificationPreferences(for: line)
-            if alert.isUpcoming {
-                scheduleAlertNotification(for: alert, phase: .announced, preferences: preferences)
-            }
-            if alert.isOngoing {
-                scheduleAlertNotification(for: alert, phase: .active, preferences: preferences)
-            }
+            if alert.isUpcoming { scheduleAlertNotification(for: alert, phase: .announced, preferences: preferences) }
+            if alert.isOngoing  { scheduleAlertNotification(for: alert, phase: .active,   preferences: preferences) }
         }
     }
     
