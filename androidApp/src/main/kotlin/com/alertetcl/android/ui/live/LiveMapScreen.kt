@@ -113,8 +113,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.alertetcl.shared.services.BusTrackerService
 import com.alertetcl.shared.services.WikimediaService
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -318,6 +322,9 @@ fun LiveMapScreen() {
     // MapLibre state
     var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
     var mapStyle    by remember { mutableStateOf<Style?>(null) }
+    // Sérialise les appels GL init (addSource/addLayer) — évite la saturation du GL thread au démarrage
+    val glInitMutex        = remember { Mutex() }
+    val vehiclesLayerReady = remember { mutableStateOf(false) }
 
     // Stable mutable refs lisibles depuis les callbacks non-composables (click handler)
     val vehiclesRef    = remember { mutableStateOf<List<Vehicle>>(emptyList()) }
@@ -410,6 +417,7 @@ fun LiveMapScreen() {
             val builder = if (isSatellite) Style.Builder().fromJson(STYLE_JSON_SATELLITE)
                           else if (isDark)  Style.Builder().fromUri(STYLE_URL_DARK)
                           else              Style.Builder().fromUri(STYLE_URL_LIBERTY)
+            vehiclesLayerReady.value = false
             mapStyle = null
             map.setStyle(builder) { style ->
                 enableLocationComponent(context, map, style)
@@ -595,10 +603,12 @@ fun LiveMapScreen() {
             ).map { features -> FeatureCollection.fromFeatures(features).toJson() }
         }
 
-        addOrUpdate(BUS_SRC,   BUS_LAYER,   allGeoJsons[0], 4f)
-        addOrUpdate(BUS_C_SRC, BUS_C_LAYER, allGeoJsons[1], 4f)
-        addOrUpdate(TRAM_SRC,  TRAM_LAYER,  allGeoJsons[2], 8f)
-        addOrUpdate(METRO_SRC, METRO_LAYER, allGeoJsons[3], 8f)
+        glInitMutex.withLock {
+            addOrUpdate(BUS_SRC,   BUS_LAYER,   allGeoJsons[0], 4f)
+            addOrUpdate(BUS_C_SRC, BUS_C_LAYER, allGeoJsons[1], 4f)
+            addOrUpdate(TRAM_SRC,  TRAM_LAYER,  allGeoJsons[2], 8f)
+            addOrUpdate(METRO_SRC, METRO_LAYER, allGeoJsons[3], 8f)
+        }
     }
 
     // Vehicle markers
@@ -639,36 +649,41 @@ fun LiveMapScreen() {
         val features = current.map { v -> buildVehicleFeature(v, vm.animatedVehicleFor(v.id), nowSec) }
 
         if (style.getSource(VEHICLES_SRC) == null) {
-            style.addSource(GeoJsonSource(VEHICLES_SRC, FeatureCollection.fromFeatures(features)))
-            // Layer 1 : flèche orbitale — sous le corps (z-index inférieur), masquée en dezoom
-            style.addLayer(SymbolLayer(VEHICLES_ARROW_LAYER, VEHICLES_SRC).withProperties(
-                PropertyFactory.iconImage(
-                    Expression.step(
-                        Expression.zoom(),
-                        Expression.literal("no_arrow"),
-                        Expression.literal(13.5), Expression.get("arrow_icon")
-                    )
-                ),
-                PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
-                PropertyFactory.iconRotate(Expression.toNumber(Expression.get("bearing"))),
-                PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_VIEWPORT),
-                PropertyFactory.iconAllowOverlap(true),
-                PropertyFactory.iconIgnorePlacement(true),
-                PropertyFactory.iconSize(1f)
-            ))
-            // Layer 2 : corps — au-dessus de la flèche, point coloré en dezoom (< 13.5)
-            style.addLayer(SymbolLayer(VEHICLES_LAYER, VEHICLES_SRC).withProperties(
-                PropertyFactory.iconImage(
-                    Expression.step(
-                        Expression.zoom(),
-                        Expression.get("dot_icon"),
-                        Expression.literal(13.5), Expression.get("icon")
-                    )
-                ),
-                PropertyFactory.iconAllowOverlap(true),
-                PropertyFactory.iconIgnorePlacement(true),
-                PropertyFactory.iconSize(1f)
-            ))
+            glInitMutex.withLock {
+                if (style.getSource(VEHICLES_SRC) == null) {
+                    style.addSource(GeoJsonSource(VEHICLES_SRC, FeatureCollection.fromFeatures(features)))
+                    // Layer 1 : flèche orbitale — sous le corps (z-index inférieur), masquée en dezoom
+                    style.addLayer(SymbolLayer(VEHICLES_ARROW_LAYER, VEHICLES_SRC).withProperties(
+                        PropertyFactory.iconImage(
+                            Expression.step(
+                                Expression.zoom(),
+                                Expression.literal("no_arrow"),
+                                Expression.literal(13.5), Expression.get("arrow_icon")
+                            )
+                        ),
+                        PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+                        PropertyFactory.iconRotate(Expression.toNumber(Expression.get("bearing"))),
+                        PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_VIEWPORT),
+                        PropertyFactory.iconAllowOverlap(true),
+                        PropertyFactory.iconIgnorePlacement(true),
+                        PropertyFactory.iconSize(1f)
+                    ))
+                    // Layer 2 : corps — au-dessus de la flèche, point coloré en dezoom (< 13.5)
+                    style.addLayer(SymbolLayer(VEHICLES_LAYER, VEHICLES_SRC).withProperties(
+                        PropertyFactory.iconImage(
+                            Expression.step(
+                                Expression.zoom(),
+                                Expression.get("dot_icon"),
+                                Expression.literal(13.5), Expression.get("icon")
+                            )
+                        ),
+                        PropertyFactory.iconAllowOverlap(true),
+                        PropertyFactory.iconIgnorePlacement(true),
+                        PropertyFactory.iconSize(1f)
+                    ))
+                }
+            }
+            vehiclesLayerReady.value = true
         } else {
             style.getSourceAs<GeoJsonSource>(VEHICLES_SRC)
                 ?.setGeoJson(buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb))
@@ -681,13 +696,9 @@ fun LiveMapScreen() {
     //         (3) setGeoJson(String) → supprime la double sérialisation MapLibre.
     LaunchedEffect(mapStyle) {
         val style = mapStyle ?: return@LaunchedEffect
-        // Race condition fix : VEHICLES_SRC est créé par LaunchedEffect(vehicles) dont
-        // l'ordre d'exécution n'est pas garanti — on attend activement qu'il soit prêt.
-        var source: GeoJsonSource? = null
-        while (source == null) {
-            source = style.getSourceAs<GeoJsonSource>(VEHICLES_SRC)
-            if (source == null) kotlinx.coroutines.delay(50)
-        }
+        // Attend que l'init GL vehicles soit terminée — suspend proprement, zéro polling.
+        snapshotFlow { vehiclesLayerReady.value }.first { it }
+        val source = style.getSourceAs<GeoJsonSource>(VEHICLES_SRC) ?: return@LaunchedEffect
         while (true) {
             val nowSec  = System.currentTimeMillis() / 1000.0
             val current = vehiclesRef.value
@@ -755,28 +766,32 @@ fun LiveMapScreen() {
 
         // Étape 3 (Main) : source + layers MapLibre
         if (style.getSource(STOPS_SRC) == null) {
-            style.addSource(GeoJsonSource(STOPS_SRC, geojson))
-            val circleLayer = CircleLayer(STOPS_LAYER, STOPS_SRC).withProperties(
-                    PropertyFactory.circleColor(Expression.get("fill_color")),
-                    PropertyFactory.circleStrokeColor("#FFFFFF"),
-                    PropertyFactory.circleRadius(Expression.toNumber(Expression.get("circle_r"))),
-                    PropertyFactory.circleStrokeWidth(Expression.toNumber(Expression.get("stroke_w")))
-                )
-            circleLayer.setMinZoom(14f)
-            circleLayer.setMaxZoom(16f) // exclusif : masqué quand badgeLayer prend le relais
-            val badgeLayer = SymbolLayer(STOPS_BADGE_LAYER, STOPS_SRC).withProperties(
-                    PropertyFactory.iconImage(Expression.get("icon")),
-                    PropertyFactory.iconAllowOverlap(true),
-                    PropertyFactory.iconIgnorePlacement(true),
-                    PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
-                )
-            badgeLayer.setMinZoom(16f)
-            if (style.getLayer(VEHICLES_LAYER) != null) {
-                style.addLayerBelow(circleLayer, VEHICLES_ARROW_LAYER)
-                style.addLayerBelow(badgeLayer, VEHICLES_ARROW_LAYER)
-            } else {
-                style.addLayer(circleLayer)
-                style.addLayer(badgeLayer)
+            glInitMutex.withLock {
+                if (style.getSource(STOPS_SRC) == null) {
+                    style.addSource(GeoJsonSource(STOPS_SRC, geojson))
+                    val circleLayer = CircleLayer(STOPS_LAYER, STOPS_SRC).withProperties(
+                            PropertyFactory.circleColor(Expression.get("fill_color")),
+                            PropertyFactory.circleStrokeColor("#FFFFFF"),
+                            PropertyFactory.circleRadius(Expression.toNumber(Expression.get("circle_r"))),
+                            PropertyFactory.circleStrokeWidth(Expression.toNumber(Expression.get("stroke_w")))
+                        )
+                    circleLayer.setMinZoom(14f)
+                    circleLayer.setMaxZoom(16f) // exclusif : masqué quand badgeLayer prend le relais
+                    val badgeLayer = SymbolLayer(STOPS_BADGE_LAYER, STOPS_SRC).withProperties(
+                            PropertyFactory.iconImage(Expression.get("icon")),
+                            PropertyFactory.iconAllowOverlap(true),
+                            PropertyFactory.iconIgnorePlacement(true),
+                            PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
+                        )
+                    badgeLayer.setMinZoom(16f)
+                    if (style.getLayer(VEHICLES_LAYER) != null) {
+                        style.addLayerBelow(circleLayer, VEHICLES_ARROW_LAYER)
+                        style.addLayerBelow(badgeLayer, VEHICLES_ARROW_LAYER)
+                    } else {
+                        style.addLayer(circleLayer)
+                        style.addLayer(badgeLayer)
+                    }
+                }
             }
         } else {
             style.getSourceAs<GeoJsonSource>(STOPS_SRC)?.setGeoJson(geojson)
