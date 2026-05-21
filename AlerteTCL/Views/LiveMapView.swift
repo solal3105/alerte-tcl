@@ -697,6 +697,9 @@ struct VehicleDetailSheet: View {
                                 Text(model)
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
+                                Text("Source : bus-tracker.fr")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
                             }
                         }
                         Spacer()
@@ -740,21 +743,6 @@ struct VehicleDetailSheet: View {
                                     .padding(.horizontal, 16)
                             }
                             .padding(.vertical, 12)
-                        }
-                        Divider().padding(.leading, 70)
-                        Link(destination: URL(string: "https://bus-tracker.fr")!) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "safari")
-                                    .font(.caption.weight(.medium))
-                                Text("Voir sur Bus Tracker")
-                                    .font(.caption.weight(.medium))
-                                Spacer()
-                                Image(systemName: "arrow.up.right")
-                                    .font(.caption2)
-                            }
-                            .foregroundStyle(.tint)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 11)
                         }
                         if vehiclePhotos.isEmpty,
                            let model = vehicleModel,

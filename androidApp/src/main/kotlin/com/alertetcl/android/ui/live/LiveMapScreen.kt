@@ -104,7 +104,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import coil3.compose.AsyncImage
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -1092,6 +1091,7 @@ private fun VehicleDetailSheet(v: Vehicle) {
                                 Text(fleet, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                                 vehicleModel?.let { model ->
                                     Text(model, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Source : bus-tracker.fr", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                                 }
                                 Text(
                                     "Numéro de parc",
@@ -1102,17 +1102,6 @@ private fun VehicleDetailSheet(v: Vehicle) {
                         }
                     }
                     if (vehicleModel != null) {
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                        Text(
-                            text = "Voir sur Bus Tracker ↗",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { try { uriHandler.openUri("https://bus-tracker.fr") } catch (_: Exception) {} }
-                                .padding(horizontal = 16.dp, vertical = 10.dp)
-                        )
                         vehicleModel?.let { model ->
                             val encodedQuery = java.net.URLEncoder.encode("$model TCL SYTRAL", "UTF-8")
                             if (vehiclePhotos.isEmpty()) {
@@ -1191,9 +1180,8 @@ private fun VehicleDetailSheet(v: Vehicle) {
                     .clickable { selectedPhoto = null },
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
-                    model = url,
-                    contentDescription = null,
+                WikimediaPhoto(
+                    url = url,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1224,7 +1212,7 @@ private fun vehicleTypeIcon(type: VehicleType): androidx.compose.ui.graphics.vec
  * iOS utilise URLSession directement via SwiftUI AsyncImage : comportement équivalent.
  */
 @Composable
-private fun WikimediaPhoto(url: String, modifier: Modifier = Modifier) {
+private fun WikimediaPhoto(url: String, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop) {
     val bitmap by produceState<ImageBitmap?>(null, url) {
         value = withContext(Dispatchers.IO) {
             WikimediaService.shared.fetchImageBytes(url)
@@ -1244,7 +1232,7 @@ private fun WikimediaPhoto(url: String, modifier: Modifier = Modifier) {
             Image(
                 bitmap = bitmap!!,
                 contentDescription = null,
-                contentScale = ContentScale.Crop,
+                contentScale = contentScale,
                 modifier = Modifier.fillMaxSize()
             )
         }
