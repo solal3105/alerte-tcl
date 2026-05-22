@@ -221,11 +221,20 @@ actor SIRILiteService {
     
     private func extractDestination(from destinationRef: String?) -> String {
         guard let ref = destinationRef, !ref.isEmpty else { return "" }
-        // Format DestinationRef : "ActIV:StopArea:SP:39975:SYTRAL" — identique aux StopPointRef
+
+        // Format 1 : "ActIV:StopArea:SP:39975:SYTRAL" — lookup par ID numérique GTFS
         let parts = ref.components(separatedBy: ":")
-        guard parts.count >= 4 else { return "" }
-        let numericId = parts[3]
-        return Self.gtfsStopNames[numericId] ?? ""
+        if parts.count >= 4, let name = Self.gtfsStopNames[parts[3]] { return name }
+
+        // Format 2 : "ActIV::Gare Part Dieu:SYTRAL" — nom embarqué entre :: (même regex que lineNameRegex)
+        let nsRef = ref as NSString
+        let range = NSRange(location: 0, length: nsRef.length)
+        if let match = Self.lineNameRegex.firstMatch(in: ref, options: [], range: range) {
+            let captureRange = match.range(at: 1)
+            if captureRange.location != NSNotFound { return nsRef.substring(with: captureRange) }
+        }
+
+        return ""
     }
     
     private func parseDelay(_ delay: String?) -> Int {

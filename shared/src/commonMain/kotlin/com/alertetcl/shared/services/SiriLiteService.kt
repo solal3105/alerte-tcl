@@ -147,11 +147,19 @@ class SiriLiteService {
 
     private fun extractDestination(ref: String?): String {
         if (ref.isNullOrEmpty()) return ""
-        // Format DestinationRef : "ActIV:StopArea:SP:39975:SYTRAL" — identique aux StopPointRef
+
+        // Format 1 : "ActIV:StopArea:SP:39975:SYTRAL" — lookup par ID numérique GTFS
         val parts = ref.split(":")
-        if (parts.size < 4) return ""
-        val numericId = parts[3]
-        return stopNameLookup(numericId) ?: ""
+        if (parts.size >= 4) {
+            val name = stopNameLookup(parts[3])
+            if (name != null) return name
+        }
+
+        // Format 2 : "ActIV::Gare Part Dieu:SYTRAL" — nom embarqué entre :: (même regex que lineNameRegex)
+        val match = lineNameRegex.find(ref)
+        if (match != null) return match.groupValues[1]
+
+        return ""
     }
 
     companion object { val shared = SiriLiteService() }

@@ -393,7 +393,8 @@ struct MergedStopDetailSheet: View {
     private func loadAllPassages() {
         isLoading = true
         Task { @MainActor in
-            async let termini = (try? BusLineService.shared.fetchLineTermini()) ?? [:]
+            async let busTermini = (try? BusLineService.shared.fetchLineTermini()) ?? [:]
+            async let transitTermini = (try? TransitLineService.shared.fetchLineTermini()) ?? [:]
             // Charger les passages de TOUS les arrêts du groupe en parallèle
             await withTaskGroup(of: Void.self) { group in
                 for stop in mergedStop.stops {
@@ -417,7 +418,7 @@ struct MergedStopDetailSheet: View {
                 p1.heurepassage < p2.heurepassage
             }
             
-            terminusMap = await termini
+            terminusMap = await busTermini.merging(await transitTermini) { _, new in new }
             isLoading = false
         }
     }
