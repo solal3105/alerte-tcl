@@ -106,7 +106,7 @@ class TCLBoardGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
 @Composable
 private fun BoardNotConfigured(context: Context, widgetId: Int) {
     val clickAction = actionStartActivity(
-        Intent(context, WidgetConfigActivity::class.java)
+        Intent(context, TCLBoardWidgetConfigActivity::class.java)
             .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     )

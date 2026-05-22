@@ -558,7 +558,7 @@ struct VehicleDetailSheet: View {
         return d
     }
 
-    // Stop à afficher : le prochain arrêt uniquement (l'API Grand Lyon ne renvoie pas les suivants)
+    // Dernier arrêt surveillé (MonitoredCall SIRI) — Grand Lyon ne renvoie qu'un seul arrêt par véhicule.
     private var stopsToShow: [(stop: StopInfo, isNext: Bool)] {
         guard let next = vehicle.nextStop else { return [] }
         return [(next, true)]

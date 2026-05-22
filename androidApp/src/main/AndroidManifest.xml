@@ -53,7 +53,18 @@
         </receiver>
 
         <activity
-            android:name=".widget.WidgetConfigActivity"
+            android:name=".widget.NextDeparturesWidgetConfigActivity"
+            android:exported="true"
+            android:label="Configurer le widget"
+            android:theme="@style/Theme.AlerteTCL"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".widget.TCLBoardWidgetConfigActivity"
             android:exported="true"
             android:label="Configurer le widget"
             android:theme="@style/Theme.AlerteTCL"

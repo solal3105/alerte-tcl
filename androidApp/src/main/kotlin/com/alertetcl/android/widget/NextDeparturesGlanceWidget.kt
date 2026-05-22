@@ -114,7 +114,7 @@ private fun NotConfiguredContent(lineName: String, context: Context, widgetId: I
     val lineColor = if (lineName.isNotEmpty()) colorFromHex(LineColors.backgroundHex(lineName))
                    else Color(0xFF1565C0)
     val clickAction = actionStartActivity(
-        Intent(context, WidgetConfigActivity::class.java)
+        Intent(context, NextDeparturesWidgetConfigActivity::class.java)
             .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     )

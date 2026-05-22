@@ -11,4 +11,4 @@
     android:updatePeriodMillis="1800000"
     android:widgetCategory="home_screen"
     android:description="@string/widget_next_departures_desc"
-    android:configure="com.alertetcl.android.widget.WidgetConfigActivity" />
+    android:configure="com.alertetcl.android.widget.NextDeparturesWidgetConfigActivity" />

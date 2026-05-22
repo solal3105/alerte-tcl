@@ -1,6 +1,7 @@
 package com.alertetcl.android.widget
 
 import android.appwidget.AppWidgetManager
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.glance.GlanceId
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.lifecycle.lifecycleScope
 import com.alertetcl.android.data.FavoritesStore
@@ -52,16 +54,28 @@ import com.alertetcl.shared.models.LineColors
 import kotlinx.coroutines.launch
 
 /**
- * Launched by the launcher when a widget is added to the home screen.
- * Wizard: Step 1 = pick a stop, Step 2 = pick a line + direction pair.
+ * Base config activity for all widget types.
+ *
+ * Subclasses override [updateWidget] to call [androidx.glance.appwidget.GlanceAppWidget.update]
+ * for the correct widget class. This avoids relying on [AppWidgetManager.getAppWidgetInfo],
+ * which returns null for pending (not yet committed) widgets during initial placement and would
+ * prevent the update from being scheduled — leaving the widget stuck until the 15-min refresh.
  */
 @OptIn(ExperimentalMaterial3Api::class)
-class WidgetConfigActivity : ComponentActivity() {
+open class WidgetConfigActivity : ComponentActivity() {
+
+    private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+
+    /**
+     * Subclasses override this to call the correct [GlanceAppWidget.update] unconditionally.
+     * The base implementation is a no-op; concrete widgets use their specific subclass.
+     */
+    protected open suspend fun updateWidget(ctx: Context, glanceId: GlanceId) = Unit
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val appWidgetId = intent?.extras?.getInt(
+        appWidgetId = intent?.extras?.getInt(
             AppWidgetManager.EXTRA_APPWIDGET_ID,
             AppWidgetManager.INVALID_APPWIDGET_ID,
         ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
@@ -84,26 +98,14 @@ class WidgetConfigActivity : ComponentActivity() {
                         WidgetConfigStore.save(this, appWidgetId, config)
                         lifecycleScope.launch {
                             val ctx = this@WidgetConfigActivity
-                            // getGlanceIdBy(intent) is safe for pending widgets: just extracts
-                            // EXTRA_APPWIDGET_ID without calling getAppWidgetInfo.
+                            // getGlanceIdBy(intent) only extracts EXTRA_APPWIDGET_ID —
+                            // no getAppWidgetInfo call, safe for pending widgets.
                             val glanceId = GlanceAppWidgetManager(ctx).getGlanceIdBy(intent)
                             if (glanceId != null) {
-                                // getAppWidgetIds() does NOT include pending (not yet committed)
-                                // widgets, so we use getAppWidgetInfo().provider instead —
-                                // which is non-null for any bound widget.
-                                val providerClass = AppWidgetManager.getInstance(ctx)
-                                    .getAppWidgetInfo(appWidgetId)?.provider?.className
-                                runCatching {
-                                    when (providerClass) {
-                                        NextDeparturesGlanceWidgetReceiver::class.java.name ->
-                                            NextDeparturesGlanceWidget().update(ctx, glanceId)
-                                        TCLBoardGlanceWidgetReceiver::class.java.name ->
-                                            TCLBoardGlanceWidget().update(ctx, glanceId)
-                                    }
-                                }
+                                runCatching { updateWidget(ctx, glanceId) }
                             }
-                            // Always execute: Android does NOT call onUpdate() for initial
-                            // widget placement when a config activity is present.
+                            // Android does NOT call onUpdate() for initial widget placement
+                            // when a config activity is present — we must commit here.
                             setResult(
                                 RESULT_OK,
                                 Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId),
@@ -115,6 +117,20 @@ class WidgetConfigActivity : ComponentActivity() {
                 )
             }
         }
+    }
+}
+
+/** Config activity for [NextDeparturesGlanceWidget]. Knows its widget type at compile time. */
+class NextDeparturesWidgetConfigActivity : WidgetConfigActivity() {
+    override suspend fun updateWidget(ctx: Context, glanceId: GlanceId) {
+        NextDeparturesGlanceWidget().update(ctx, glanceId)
+    }
+}
+
+/** Config activity for [TCLBoardGlanceWidget]. Knows its widget type at compile time. */
+class TCLBoardWidgetConfigActivity : WidgetConfigActivity() {
+    override suspend fun updateWidget(ctx: Context, glanceId: GlanceId) {
+        TCLBoardGlanceWidget().update(ctx, glanceId)
     }
 }
 
