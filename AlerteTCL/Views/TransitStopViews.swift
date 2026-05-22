@@ -317,7 +317,6 @@ struct MergedStopDetailSheet: View {
     @State private var allPassages: [Passage] = []
     @State private var isLoading = false
     @State private var showWidgetSheet = false
-    @State private var terminusMap: [String: String] = [:]
     
     /// Clé unique pour grouper par ligne ET direction
     private struct LineDirectionKey: Hashable {
@@ -328,8 +327,7 @@ struct MergedStopDetailSheet: View {
     private var availableLineDirections: [WidgetLineDirection] {
         sortedLineDirections.map { key in
             let stopId = passagesByLineDirection[key]?.first?.stopId ?? mergedStop.stops[0].id
-            let terminus = terminusMap["\(key.line)|\(key.direction.uppercased())"] ?? ""
-            return WidgetLineDirection(stopId: stopId, line: key.line, direction: key.direction, terminusName: terminus)
+            return WidgetLineDirection(stopId: stopId, line: key.line, direction: key.direction, terminusName: key.direction)
         }
     }
     
@@ -393,8 +391,6 @@ struct MergedStopDetailSheet: View {
     private func loadAllPassages() {
         isLoading = true
         Task { @MainActor in
-            async let busTermini = (try? BusLineService.shared.fetchLineTermini()) ?? [:]
-            async let transitTermini = (try? TransitLineService.shared.fetchLineTermini()) ?? [:]
             // Charger les passages de TOUS les arrêts du groupe en parallèle
             await withTaskGroup(of: Void.self) { group in
                 for stop in mergedStop.stops {
@@ -418,7 +414,6 @@ struct MergedStopDetailSheet: View {
                 p1.heurepassage < p2.heurepassage
             }
             
-            terminusMap = await busTermini.merging(await transitTermini) { _, new in new }
             isLoading = false
         }
     }

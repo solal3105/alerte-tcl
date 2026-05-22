@@ -10,8 +10,6 @@ actor TransitLineService {
     // Cache en mémoire
     private var cachedTransitLines: [TransitLine]?
     private var cacheTimestamp: Date?
-    private var terminusCache: [String: String]?
-    private var terminusCacheTimestamp: Date?
     private let cacheValidityDuration: TimeInterval = 86400 // 24 heures
 
     private init() {}
@@ -120,59 +118,5 @@ actor TransitLineService {
         AppLogger.debug("📊 Lignes \(type): \(transitLines.count) segments (\(Set(transitLines.map { $0.name }).sorted().joined(separator: ", ")))")
         
         return transitLines
-    }
-
-    /// Retourne un dictionnaire `"LIGNE|A"` / `"LIGNE|R"` → nom terminus pour métro, funiculaire et tramway.
-    /// Cache 24 h.
-    func fetchLineTermini() async throws -> [String: String] {
-        if let cached = terminusCache,
-           let ts = terminusCacheTimestamp,
-           Date().timeIntervalSince(ts) < cacheValidityDuration {
-            return cached
-        }
-
-        async let metroFuniTermini = fetchTerminiSection(url: metroFuniURL)
-        async let tramTermini = fetchTerminiSection(url: tramURL)
-
-        let (mf, tram) = await (metroFuniTermini, tramTermini)
-        var result = mf
-        result.merge(tram) { _, new in new }
-
-        terminusCache = result
-        terminusCacheTimestamp = Date()
-        return result
-    }
-
-    private func fetchTerminiSection(url: String) async -> [String: String] {
-        guard var components = URLComponents(string: url) else { return [:] }
-        components.queryItems = [
-            URLQueryItem(name: "limit", value: "100"),
-            URLQueryItem(name: "f", value: "json"),
-        ]
-        guard let finalURL = components.url else { return [:] }
-
-        var request = NetworkConfiguration.request(url: finalURL, timeout: NetworkConfiguration.sharedTimeout)
-        request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
-
-        guard let (data, response) = try? await NetworkConfiguration.session.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              let apiResponse = try? JSONDecoder().decode(TransitLineResponse.self, from: data) else {
-            return [:]
-        }
-
-        var result: [String: String] = [:]
-        for feature in apiResponse.features {
-            guard let ligne = feature.properties.ligne,
-                  let sensRaw = feature.properties.sens,
-                  let nomDest = feature.properties.nomDestination else { continue }
-            let suffix: String
-            switch sensRaw.lowercased().trimmingCharacters(in: .whitespaces) {
-            case "aller":  suffix = "A"
-            case "retour": suffix = "R"
-            default: continue
-            }
-            result["\(ligne)|\(suffix)"] = nomDest
-        }
-        return result
     }
 }

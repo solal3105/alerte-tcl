@@ -52,13 +52,6 @@ struct TransitLineProperties: Codable {
     let ligne: String?
     let nom_trace: String?
     let famille_transport: String?
-    let sens: String?
-    let nomDestination: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case ligne, nom_trace, famille_transport, sens
-        case nomDestination = "nom_destination"
-    }
 }
 
 // MARK: - Color Extension

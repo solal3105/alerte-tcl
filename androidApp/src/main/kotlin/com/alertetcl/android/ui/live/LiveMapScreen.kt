@@ -1273,11 +1273,6 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
     }
     val primaryStop = stop.stops.firstOrNull()
     val scope = rememberCoroutineScope()
-    val terminusMap = produceState<Map<String, String>>(initialValue = emptyMap(), stop) {
-        val bus     = runCatching { BusLineService.shared.fetchLineTermini() }.getOrDefault(emptyMap())
-        val transit = runCatching { TransitLineService.shared.fetchLineTermini() }.getOrDefault(emptyMap())
-        value = bus + transit
-    }
     val passages = produceState<List<Passage>?>(initialValue = null, stop.id) {
         val all = coroutineScope {
             stop.stops.map { member ->
@@ -1375,7 +1370,7 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
             )
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 lineDirections.forEach { (line, direction) ->
-                    val destLabel = terminusMap.value["${line}|${direction}"].orEmpty().ifBlank { "—" }
+                    val destLabel = direction.ifBlank { "—" }
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.surface,

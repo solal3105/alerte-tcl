@@ -11,9 +11,6 @@ actor BusLineService {
     private var cacheTimestamp: Date?
     private let cacheValidityDuration: TimeInterval = 86400 // 24 heures
 
-    private var terminusCache: [String: String]?
-    private var terminusCacheTimestamp: Date?
-    
     private init() {}
     
     func fetchBusLines() async throws -> [BusLine] {
@@ -100,53 +97,5 @@ actor BusLineService {
         AppLogger.debug("📊 Exemples: \(Set(busLines.map { $0.name }).sorted().prefix(5).joined(separator: ", "))")
         
         return busLines
-    }
-
-    /// Retourne un dictionnaire `"LIGNE|A"` → nom terminus, `"LIGNE|R"` → nom terminus.
-    /// Cache 24 h. Utilise limit=5000 pour couvrir toutes les lignes.
-    func fetchLineTermini() async throws -> [String: String] {
-        if let cached = terminusCache,
-           let ts = terminusCacheTimestamp,
-           Date().timeIntervalSince(ts) < cacheValidityDuration {
-            return cached
-        }
-
-        guard var components = URLComponents(string: baseURL) else {
-            throw ServiceError.invalidURL
-        }
-        components.queryItems = [
-            URLQueryItem(name: "limit", value: "5000"),
-            URLQueryItem(name: "f", value: "json"),
-        ]
-        guard let url = components.url else { throw ServiceError.invalidURL }
-
-        var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.sharedTimeout)
-        request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
-
-        let (data, response) = try await NetworkConfiguration.session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw ServiceError.invalidResponse
-        }
-
-        let apiResponse = try JSONDecoder().decode(BusLineResponse.self, from: data)
-
-        var result: [String: String] = [:]
-        for feature in apiResponse.features {
-            let props = feature.properties
-            guard let ligne = props.ligne,
-                  let sensRaw = props.sens,
-                  let nomDest = props.nomDestination else { continue }
-            let suffix: String
-            switch sensRaw.lowercased() {
-            case "aller":  suffix = "A"
-            case "retour": suffix = "R"
-            default: continue
-            }
-            result["\(ligne)|\(suffix)"] = nomDest
-        }
-
-        terminusCache = result
-        terminusCacheTimestamp = Date()
-        return result
     }
 }
