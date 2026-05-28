@@ -497,6 +497,7 @@ struct VehicleTypeChip: View {
         case .bus: return .purple
         case .trolley: return .green
         case .funicular: return .teal
+        case .navigone: return .cyan
         }
     }
 }
@@ -587,7 +588,7 @@ struct VehicleDetailSheet: View {
             }
             .task {
                 guard let fleet = vehicle.fleetNumber else { return }
-                vehicleModel = await BusTrackerService.fetchVehicleModel(fleetNumber: fleet)
+                vehicleModel = await BusTrackerService.shared.fetchVehicleModel(fleetNumber: fleet)
                 if let model = vehicleModel {
                     vehiclePhotos = await WikimediaService.fetchPhotos(for: model)
                 }
@@ -964,7 +965,9 @@ struct FilterSheet: View {
                         }
                     }
                     
-                    ForEach(VehicleType.allCases, id: \.self) { type in
+                    ForEach(VehicleType.allCases.filter { type in
+                        viewModel.vehicles.contains { $0.vehicleType == type }
+                    }, id: \.self) { type in
                         let count = viewModel.vehicles.filter { $0.vehicleType == type }.count
                         Button {
                             withAnimation {
@@ -1121,6 +1124,7 @@ struct FilterSheet: View {
         case .bus: return .purple
         case .trolley: return .green
         case .funicular: return .teal
+        case .navigone: return .cyan
         }
     }
 }

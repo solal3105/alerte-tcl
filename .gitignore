@@ -45,6 +45,11 @@ Secrets.swift
 *.secret
 *.credentials
 
+# Android signing — NEVER commit keystores or local signing properties
+*.jks
+*.keystore
+keystore.properties
+
 # Debug
 *.log
 crash_logs/

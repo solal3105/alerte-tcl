@@ -79,6 +79,7 @@ enum VehicleType: String, CaseIterable {
     case trolley = "Trolleybus"
     case funicular = "Funiculaire"
     case metro = "Métro"
+    case navigone = "Navigone"
     
     var icon: String {
         switch self {
@@ -87,6 +88,7 @@ enum VehicleType: String, CaseIterable {
         case .trolley: return "bus.doubledecker.fill"
         case .funicular: return "cablecar.fill"
         case .metro: return "tram.fill"
+        case .navigone: return "ferry.fill"
         }
     }
     
@@ -97,6 +99,7 @@ enum VehicleType: String, CaseIterable {
         case .tram: return 2
         case .trolley: return 3
         case .bus: return 4
+        case .navigone: return 5
         }
     }
     
@@ -107,6 +110,7 @@ enum VehicleType: String, CaseIterable {
         case .bus: return Color(hex: "6E6E73")
         case .trolley: return Color(hex: "DAA520")
         case .funicular: return Color(hex: "8BC752")
+        case .navigone: return Color(hex: "32ADE6")
         }
     }
 }

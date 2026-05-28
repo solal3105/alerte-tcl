@@ -215,6 +215,7 @@ actor SIRILiteService {
         if lineName == "RHONEXPRESS" || lineName == "RX" { return .tram }
         if Self.regexMatches(Self.trolleyRegex, lineName) { return .trolley }
         if Self.regexMatches(Self.funicularRegex, lineName) { return .funicular }
+        if lineName.hasPrefix("NAVI") || lineName == "7601" { return .navigone }
         
         return .bus
     }

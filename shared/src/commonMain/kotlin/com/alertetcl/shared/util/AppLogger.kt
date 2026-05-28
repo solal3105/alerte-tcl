@@ -6,8 +6,8 @@ package com.alertetcl.shared.util
  * remplacer (Logcat sur Android, NSLog sur iOS).
  */
 object AppLogger {
-    var enabled: Boolean = true
-    var sink: (String) -> Unit = { println(it) }
+    @Volatile var enabled: Boolean = true
+    @Volatile var sink: (String) -> Unit = { println(it) }
 
     fun debug(message: String) {
         if (enabled) sink(message)

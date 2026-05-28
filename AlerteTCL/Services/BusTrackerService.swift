@@ -3,13 +3,15 @@ import Foundation
 /// Récupère les informations de véhicule depuis l'API publique Bus Tracker.
 /// Source externe non officielle — données manquantes ou erreurs silencieusement ignorées.
 /// Référence : https://bus-tracker.fr
-enum BusTrackerService {
-    private static let baseURL = "https://bus-tracker.fr/api/vehicles"
-    private static let networkId = 91 // TCL Lyon (id stable dans la DB Bus Tracker)
+actor BusTrackerService {
+    static let shared = BusTrackerService()
 
-    private static var cache: [String: String] = [:]
+    private let baseURL = "https://bus-tracker.fr/api/vehicles"
+    private let networkId = 91 // TCL Lyon (id stable dans la DB Bus Tracker)
 
-    static func fetchVehicleModel(fleetNumber: String) async -> String? {
+    private var cache: [String: String] = [:]
+
+    func fetchVehicleModel(fleetNumber: String) async -> String? {
         if let cached = cache[fleetNumber] { return cached }
         guard let url = URL(string: "\(baseURL)?networkId=\(networkId)&number=\(fleetNumber)") else { return nil }
         var request = URLRequest(url: url, timeoutInterval: 8)
@@ -22,6 +24,7 @@ enum BusTrackerService {
             cache[fleetNumber] = designation
             return designation
         } catch {
+            AppLogger.debug("⚠️ BusTrackerService: erreur pour \(fleetNumber) — \(error)", category: .service)
             return nil
         }
     }

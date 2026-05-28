@@ -27,6 +27,7 @@ final class AlertViewModel: ObservableObject {
     
     init() {
         allLines = TransportLine.allPredefinedLines
+        Task { await loadLines() }
         
         subscriptionService.objectWillChange
             .sink { [weak self] in
@@ -148,6 +149,19 @@ final class AlertViewModel: ObservableObject {
     private static let maxRetries = 1
     private static let retryDelay: UInt64 = 2_000_000_000 // 2s
     
+    func loadLines() async {
+        do {
+            let busLines = try await TCLAPIService.shared.fetchBusLineNames()
+            var updated = allLines.filter { $0.mode != .bus && $0.mode != .busC }
+            updated += busLines
+            updated.sort { $0.mode.sortOrder < $1.mode.sortOrder }
+            allLines = updated
+            AppLogger.debug("✅ AlertViewModel: \(busLines.count) lignes bus chargées depuis l'API")
+        } catch {
+            AppLogger.debug("⚠️ AlertViewModel: Échec chargement lignes bus (fallback statique): \(error)")
+        }
+    }
+
     func loadAlerts() async {
         guard !isLoading else { return }
         

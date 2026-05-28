@@ -35,9 +35,19 @@ android {
         )
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile     = file(providers.gradleProperty("ALERTETCL_STORE_FILE").get())
+            storePassword = providers.gradleProperty("ALERTETCL_STORE_PASSWORD").get()
+            keyAlias      = providers.gradleProperty("ALERTETCL_KEY_ALIAS").get()
+            keyPassword   = providers.gradleProperty("ALERTETCL_KEY_PASSWORD").get()
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

@@ -57,5 +57,40 @@ actor TCLAPIService {
             throw ServiceError.decodingError(error)
         }
     }
+
+    func fetchBusLineNames() async throws -> [TransportLine] {
+        guard let url = URL(string: NetworkConfiguration.proxyBaseURL + "/bus-termini") else {
+            throw ServiceError.invalidURL
+        }
+        var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.fastTimeout)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await NetworkConfiguration.session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw ServiceError.invalidResponse
+        }
+
+        let decoded = try JSONDecoder().decode(BusTerminiResponse.self, from: data)
+        let names = Set(decoded.features.compactMap { $0.properties.ligne })
+        return names.sorted().map { name in
+            let mode: TransportMode = name.hasPrefix("C") ? .busC : .bus
+            return TransportLine(ligneCom: name, ligneCli: name, mode: mode)
+        }
+    }
+}
+
+// MARK: - Bus-termini response models (private)
+
+private struct BusTerminiResponse: Decodable {
+    let features: [BusTerminiFeature]
+}
+
+private struct BusTerminiFeature: Decodable {
+    let properties: BusTerminiProperties
+}
+
+private struct BusTerminiProperties: Decodable {
+    let ligne: String?
 }
 

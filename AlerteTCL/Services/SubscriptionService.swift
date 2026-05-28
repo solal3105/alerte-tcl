@@ -50,7 +50,9 @@ final class SubscriptionService: ObservableObject {
     
     func unsubscribe(from line: TransportLine) {
         subscriptions.removeValue(forKey: line.ligneCom)
-        subscriptions.removeValue(forKey: line.ligneCli)
+        if !line.ligneCli.isEmpty && line.ligneCli != line.ligneCom {
+            subscriptions.removeValue(forKey: line.ligneCli)
+        }
         saveSubscriptions()
     }
     
