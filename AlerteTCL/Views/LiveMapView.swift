@@ -445,7 +445,12 @@ struct LiveMapView: View {
     }
     
     private var hasActiveFilters: Bool {
-        viewModel.selectedVehicleType != nil || viewModel.selectedLine != nil || !viewModel.selectedLines.isEmpty
+        viewModel.selectedVehicleType != nil ||
+        viewModel.selectedLine != nil ||
+        !viewModel.selectedLines.isEmpty ||
+        !viewModel.showBusTraces ||
+        !viewModel.showTramTraces ||
+        !viewModel.showMetroTraces
     }
 }
 
@@ -941,6 +946,18 @@ struct FilterSheet: View {
                     }
                 }
                 
+                Section("Tracés des lignes") {
+                    Toggle(isOn: $viewModel.showBusTraces) {
+                        Label("Bus", systemImage: "bus")
+                    }
+                    Toggle(isOn: $viewModel.showTramTraces) {
+                        Label("Tram", systemImage: "tram.fill")
+                    }
+                    Toggle(isOn: $viewModel.showMetroTraces) {
+                        Label("Métro / Funiculaire", systemImage: "tram.fill.tunnel")
+                    }
+                }
+
                 Section("Type de véhicule") {
                     Button {
                         withAnimation {
@@ -1077,7 +1094,12 @@ struct FilterSheet: View {
     }
     
     private var hasActiveFilters: Bool {
-        viewModel.selectedVehicleType != nil || viewModel.selectedLine != nil || !viewModel.selectedLines.isEmpty
+        viewModel.selectedVehicleType != nil ||
+        viewModel.selectedLine != nil ||
+        !viewModel.selectedLines.isEmpty ||
+        !viewModel.showBusTraces ||
+        !viewModel.showTramTraces ||
+        !viewModel.showMetroTraces
     }
     
     @ViewBuilder

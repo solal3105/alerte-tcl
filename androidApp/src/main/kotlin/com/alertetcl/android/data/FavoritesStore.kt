@@ -52,12 +52,28 @@ class FavoritesStore(private val context: Context) {
     val selectedLiveLines: Flow<Set<String>> =
         context.favStore.data.map { p -> parse(p[KEY_SELECTED_LIVE_LINES]) }
 
-    /** Tracés des lignes sur la carte live (false = désactivé par défaut). */
-    val showLineTraces: Flow<Boolean> =
-        context.favStore.data.map { p -> p[KEY_SHOW_LINE_TRACES] == "1" }
+    /** Tracés des lignes bus sur la carte live (false = masqués par défaut). */
+    val showBusTraces: Flow<Boolean> =
+        context.favStore.data.map { p -> p[KEY_SHOW_BUS_TRACES] == "1" }
 
-    suspend fun setShowLineTraces(show: Boolean) {
-        context.favStore.edit { p -> p[KEY_SHOW_LINE_TRACES] = if (show) "1" else "0" }
+    /** Tracés des lignes tram sur la carte live (false = masqués par défaut). */
+    val showTramTraces: Flow<Boolean> =
+        context.favStore.data.map { p -> p[KEY_SHOW_TRAM_TRACES] == "1" }
+
+    /** Tracés des lignes métro/funiculaire sur la carte live (false = masqués par défaut). */
+    val showMetroTraces: Flow<Boolean> =
+        context.favStore.data.map { p -> p[KEY_SHOW_METRO_TRACES] == "1" }
+
+    suspend fun setShowBusTraces(show: Boolean) {
+        context.favStore.edit { p -> p[KEY_SHOW_BUS_TRACES] = if (show) "1" else "0" }
+    }
+
+    suspend fun setShowTramTraces(show: Boolean) {
+        context.favStore.edit { p -> p[KEY_SHOW_TRAM_TRACES] = if (show) "1" else "0" }
+    }
+
+    suspend fun setShowMetroTraces(show: Boolean) {
+        context.favStore.edit { p -> p[KEY_SHOW_METRO_TRACES] = if (show) "1" else "0" }
     }
 
     suspend fun setSelectedLiveLines(lines: Set<String>) {
@@ -160,6 +176,8 @@ class FavoritesStore(private val context: Context) {
         private val KEY_ONBOARDING          = stringPreferencesKey("onboarding_done")
         private val KEY_SELECTED_LIVE_LINES = stringPreferencesKey("live_selected_lines")
         private val KEY_SEVERITY_PREFS      = stringPreferencesKey("line_severity_prefs")
-        private val KEY_SHOW_LINE_TRACES     = stringPreferencesKey("show_line_traces")
+        private val KEY_SHOW_BUS_TRACES     = stringPreferencesKey("show_bus_traces")
+        private val KEY_SHOW_TRAM_TRACES    = stringPreferencesKey("show_tram_traces")
+        private val KEY_SHOW_METRO_TRACES   = stringPreferencesKey("show_metro_traces")
     }
 }

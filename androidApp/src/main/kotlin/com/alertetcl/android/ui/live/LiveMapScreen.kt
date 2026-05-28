@@ -100,6 +100,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -298,7 +299,9 @@ fun LiveMapScreen() {
             .sortedWith(compareBy({ it.vehicleType.sortOrder }, { it.lineName.toIntOrNull() ?: Int.MAX_VALUE }, { it.lineName }))
             .map { it.lineName }
     }
-    val showLineTraces by store.showLineTraces.collectAsState(initial = false)
+    val showBusTraces   by store.showBusTraces.collectAsState(initial = false)
+    val showTramTraces  by store.showTramTraces.collectAsState(initial = false)
+    val showMetroTraces by store.showMetroTraces.collectAsState(initial = false)
     val isDark = isSystemInDarkTheme()
     var isSatellite    by remember { mutableStateOf(false) }
     var bannerCollapsed by remember { mutableStateOf(false) }
@@ -365,7 +368,9 @@ fun LiveMapScreen() {
     val mapView = rememberMapView()
 
     // Filtres actifs (parité iOS hasActiveFilters — les arrêts sont automatiques, pas un filtre)
-    val hasActiveFilters = selectedTypes.size != VehicleType.entries.size || !showLineTraces || selectedLines.isNotEmpty()
+    val hasActiveFilters = selectedTypes.size != VehicleType.entries.size ||
+        !showBusTraces || !showTramTraces || !showMetroTraces ||
+        selectedLines.isNotEmpty()
 
     // ── UI ────────────────────────────────────────────────────────────────
     Box(modifier = Modifier.fillMaxSize()) {
@@ -547,7 +552,7 @@ fun LiveMapScreen() {
     // ── Map update effects ──────────────────────────────────────────────
 
     // Line traces — z-order bottom → top: bus → Bus C → tram → métro/funi
-    LaunchedEffect(mapStyle, showLineTraces, transitLines.value, busLines.value, selectedLines) {
+    LaunchedEffect(mapStyle, showBusTraces, showTramTraces, showMetroTraces, transitLines.value, busLines.value, selectedLines) {
         val style = mapStyle ?: return@LaunchedEffect
 
         // Capture immutable snapshots avant de switcher sur Default — évite les lectures de
@@ -555,7 +560,9 @@ fun LiveMapScreen() {
         val capturedBus     = busLines.value
         val capturedTransit = transitLines.value
         val capturedFilters = selectedLines
-        val capturedTraces  = showLineTraces
+        val capturedBusTraces   = showBusTraces
+        val capturedTramTraces  = showTramTraces
+        val capturedMetroTraces = showMetroTraces
 
         fun toTransitFeature(line: TransitLine): Feature? {
             if (capturedFilters.isNotEmpty() && line.name !in capturedFilters) return null
@@ -595,10 +602,10 @@ fun LiveMapScreen() {
         // Construction des Features + sérialisation JSON sur Default — aucun appel MapLibre/JNI
         val allGeoJsons = withContext(Dispatchers.Default) {
             listOf(
-                if (capturedTraces) capturedBus.filter { !it.name.startsWith("C") }.mapNotNull(::toBusFeature)   else emptyList(),
-                if (capturedTraces) capturedBus.filter {  it.name.startsWith("C") }.mapNotNull(::toBusFeature)   else emptyList(),
-                if (capturedTraces) capturedTransit.filter {  it.familyTransport.contains("tram", ignoreCase = true) }.mapNotNull(::toTransitFeature) else emptyList(),
-                if (capturedTraces) capturedTransit.filter { !it.familyTransport.contains("tram", ignoreCase = true) }.mapNotNull(::toTransitFeature) else emptyList()
+                if (capturedBusTraces)   capturedBus.filter { !it.name.startsWith("C") }.mapNotNull(::toBusFeature)   else emptyList(),
+                if (capturedBusTraces)   capturedBus.filter {  it.name.startsWith("C") }.mapNotNull(::toBusFeature)   else emptyList(),
+                if (capturedTramTraces)  capturedTransit.filter {  it.familyTransport.contains("tram", ignoreCase = true) }.mapNotNull(::toTransitFeature) else emptyList(),
+                if (capturedMetroTraces) capturedTransit.filter { !it.familyTransport.contains("tram", ignoreCase = true) }.mapNotNull(::toTransitFeature) else emptyList()
             ).map { features -> FeatureCollection.fromFeatures(features).toJson() }
         }
 
@@ -833,12 +840,21 @@ fun LiveMapScreen() {
                 availableLines = availableLines,
                 favorites = favorites,
                 onToggleFavorite = { scope.launch { store.toggleFavoriteLine(it) } },
-                showLineTraces = showLineTraces,
-                onToggleTraces = { scope.launch { store.setShowLineTraces(!showLineTraces) } },
+                showBusTraces = showBusTraces,
+                onToggleBusTraces = { scope.launch { store.setShowBusTraces(!showBusTraces) } },
+                showTramTraces = showTramTraces,
+                onToggleTramTraces = { scope.launch { store.setShowTramTraces(!showTramTraces) } },
+                showMetroTraces = showMetroTraces,
+                onToggleMetroTraces = { scope.launch { store.setShowMetroTraces(!showMetroTraces) } },
                 hasActiveFilters = hasActiveFilters,
                 onClearFilters = {
                     VehicleType.entries.filter { it != VehicleType.METRO && it !in vm.selectedTypes.value }.forEach { vm.toggleType(it) }
-                    scope.launch { store.setSelectedLiveLines(emptySet()) }
+                    scope.launch {
+                        store.setSelectedLiveLines(emptySet())
+                        store.setShowBusTraces(false)
+                        store.setShowTramTraces(false)
+                        store.setShowMetroTraces(false)
+                    }
                 },
                 vehicles = vehicles
             )
@@ -1273,12 +1289,26 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
     }
     val primaryStop = stop.stops.firstOrNull()
     val scope = rememberCoroutineScope()
-    val passages = produceState<List<Passage>?>(initialValue = null, stop.id) {
+    var passagesKey by remember(stop.id) { mutableStateOf(0) }
+    var passagesHadError by remember(stop.id) { mutableStateOf(false) }
+    val passages = produceState<List<Passage>?>(initialValue = null, stop.id, passagesKey) {
+        passagesHadError = false
+        var anyError = false
         val all = coroutineScope {
             stop.stops.map { member ->
-                async { runCatching { TransitStopService.shared.fetchPassagesForStop(member.id) }.getOrDefault(emptyList()) }
+                async {
+                    try {
+                        TransitStopService.shared.fetchPassagesForStop(member.id)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        anyError = true
+                        emptyList()
+                    }
+                }
             }.awaitAll()
         }.flatten().sortedBy { it.heurepassage }
+        passagesHadError = anyError
         value = all
     }
     val groupedPassages = remember(passages.value) {
@@ -1410,15 +1440,25 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
         }
 
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Icon(
-                Icons.Filled.AccessTime, null,
-                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp)
-            )
-            Text("Prochains passages", fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
-                color = MaterialTheme.colorScheme.primary)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    Icons.Filled.AccessTime, null,
+                    tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp)
+                )
+                Text("Prochains passages", fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+                    color = MaterialTheme.colorScheme.primary)
+            }
+            IconButton(onClick = { passagesKey++ }, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Filled.Refresh, "Rafraîchir les passages",
+                    tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+            }
         }
         Spacer(Modifier.height(12.dp))
         when {
@@ -1430,6 +1470,21 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
                         androidx.compose.material3.CircularProgressIndicator(
                             modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
                         Text("Chargement des passages…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            passagesHadError && groupedPassages.isEmpty() -> {
+                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp),
+                    contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(
+                            Icons.Filled.Warning, null,
+                            tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(36.dp)
+                        )
+                        Text("Impossible de charger les passages", fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        TextButton(onClick = { passagesKey++ }) { Text("Réessayer") }
                     }
                 }
             }
@@ -1719,8 +1774,12 @@ private fun FilterSheet(
     availableLines: List<String>,
     favorites: Set<String>,
     onToggleFavorite: (String) -> Unit,
-    showLineTraces: Boolean,
-    onToggleTraces: () -> Unit,
+    showBusTraces: Boolean,
+    onToggleBusTraces: () -> Unit,
+    showTramTraces: Boolean,
+    onToggleTramTraces: () -> Unit,
+    showMetroTraces: Boolean,
+    onToggleMetroTraces: () -> Unit,
     hasActiveFilters: Boolean,
     onClearFilters: () -> Unit,
     vehicles: List<Vehicle>
@@ -1761,20 +1820,17 @@ private fun FilterSheet(
             }
             item {
                 Text(
-                    "AFFICHAGE",
+                    "TRACÉS DES LIGNES",
                     style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp)
                 )
                 Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Tracés des lignes", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                            Text("Affiche les itinéraires des lignes", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(checked = showLineTraces, onCheckedChange = { onToggleTraces() })
+                    Column {
+                        TraceToggleRow(label = "Bus", checked = showBusTraces, onToggle = onToggleBusTraces)
+                        HorizontalDivider(modifier = Modifier.padding(start = 14.dp))
+                        TraceToggleRow(label = "Tram", checked = showTramTraces, onToggle = onToggleTramTraces)
+                        HorizontalDivider(modifier = Modifier.padding(start = 14.dp))
+                        TraceToggleRow(label = "Métro / Funiculaire", checked = showMetroTraces, onToggle = onToggleMetroTraces)
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -1871,6 +1927,18 @@ private fun FilterSheet(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TraceToggleRow(label: String, checked: Boolean, onToggle: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { onToggle() }
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = { onToggle() })
     }
 }
 

@@ -31,8 +31,15 @@ final class LiveVehiclesViewModel: ObservableObject {
             UserDefaults.standard.set(Array(selectedLines), forKey: PersistenceKey.selectedLines)
         }
     }
-    @Published var showBusLines = true
-    @Published var showTransitLines = true
+    @Published var showBusTraces = true {
+        didSet { UserDefaults.standard.set(showBusTraces, forKey: PersistenceKey.showBusTraces) }
+    }
+    @Published var showTramTraces = true {
+        didSet { UserDefaults.standard.set(showTramTraces, forKey: PersistenceKey.showTramTraces) }
+    }
+    @Published var showMetroTraces = true {
+        didSet { UserDefaults.standard.set(showMetroTraces, forKey: PersistenceKey.showMetroTraces) }
+    }
     @Published var mapRegion: MKCoordinateRegion
     /// Non-@Published : lu par les moteurs de clustering/viewport mais pas par
     /// les Views SwiftUI (la carte est en UIKit). Publier ces deux propriétés
@@ -68,6 +75,9 @@ final class LiveVehiclesViewModel: ObservableObject {
     private enum PersistenceKey {
         static let selectedLines = "liveMap.selectedLines"
         static let selectedVehicleType = "liveMap.selectedVehicleType"
+        static let showBusTraces = "liveMap.showBusTraces"
+        static let showTramTraces = "liveMap.showTramTraces"
+        static let showMetroTraces = "liveMap.showMetroTraces"
     }
 
     private static let lyonCenter = CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659)
@@ -92,6 +102,15 @@ final class LiveVehiclesViewModel: ObservableObject {
         }
         if let raw = UserDefaults.standard.string(forKey: PersistenceKey.selectedVehicleType) {
             _selectedVehicleType = Published(initialValue: VehicleType(rawValue: raw))
+        }
+        if UserDefaults.standard.object(forKey: PersistenceKey.showBusTraces) != nil {
+            _showBusTraces = Published(initialValue: UserDefaults.standard.bool(forKey: PersistenceKey.showBusTraces))
+        }
+        if UserDefaults.standard.object(forKey: PersistenceKey.showTramTraces) != nil {
+            _showTramTraces = Published(initialValue: UserDefaults.standard.bool(forKey: PersistenceKey.showTramTraces))
+        }
+        if UserDefaults.standard.object(forKey: PersistenceKey.showMetroTraces) != nil {
+            _showMetroTraces = Published(initialValue: UserDefaults.standard.bool(forKey: PersistenceKey.showMetroTraces))
         }
 
         LocationService.shared.$currentLocation
@@ -189,7 +208,6 @@ final class LiveVehiclesViewModel: ObservableObject {
         do {
             busLines = try await BusLineService.shared.fetchBusLines()
             AppLogger.debug("✅ ViewModel: \(busLines.count) lignes C chargées")
-            AppLogger.debug("✅ ViewModel: showBusLines = \(showBusLines)")
         } catch {
             AppLogger.debug("❌ Erreur chargement lignes de bus: \(error)")
         }
@@ -199,7 +217,6 @@ final class LiveVehiclesViewModel: ObservableObject {
         do {
             transitLines = try await TransitLineService.shared.fetchTransitLines()
             AppLogger.debug("✅ ViewModel: \(transitLines.count) lignes de transport chargées")
-            AppLogger.debug("✅ ViewModel: showTransitLines = \(showTransitLines)")
         } catch {
             AppLogger.debug("❌ Erreur chargement lignes de transport: \(error)")
         }
@@ -439,6 +456,9 @@ final class LiveVehiclesViewModel: ObservableObject {
         selectedVehicleType = nil
         selectedLine = nil
         selectedLines.removeAll()
+        showBusTraces = true
+        showTramTraces = true
+        showMetroTraces = true
         updateFilteredVehicles()
     }
     

@@ -85,9 +85,13 @@ struct LiveMapRepresentable: UIViewRepresentable {
         // Diff des annotations et overlays
         coord.syncVehicleAnnotations(viewModel.displayVehicles, animated: viewModel.animatedVehicles)
         coord.syncMergedStopAnnotations(stopsViewModel.visibleMergedStops)
+        let visibleTransitLines = viewModel.transitLines.filter { line in
+            let isTram = line.familyTransport.localizedCaseInsensitiveContains("tram")
+            return isTram ? viewModel.showTramTraces : viewModel.showMetroTraces
+        }
         coord.syncPolylineOverlays(
-            busLines:     viewModel.showBusLines     ? viewModel.busLines     : [],
-            transitLines: viewModel.showTransitLines ? viewModel.transitLines : []
+            busLines:     viewModel.showBusTraces ? viewModel.busLines : [],
+            transitLines: visibleTransitLines
         )
 
         // Les tooltips de ponctualité sont gérés dans `regionDidChangeAnimated`
