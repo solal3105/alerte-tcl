@@ -40,6 +40,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -60,7 +62,7 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.AddCircle
+// import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -137,7 +139,7 @@ import com.alertetcl.shared.models.Passage
 import com.alertetcl.shared.models.StopMergingEngine
 import com.alertetcl.shared.models.TransitLine
 import com.alertetcl.shared.models.TransportMode
-import com.alertetcl.android.data.WidgetSelection
+// import com.alertetcl.android.data.WidgetSelection
 import com.alertetcl.shared.models.AnimatedVehicle
 import com.alertetcl.shared.models.TransitStop
 import com.alertetcl.shared.models.Vehicle
@@ -300,8 +302,8 @@ fun LiveMapScreen() {
             .map { it.lineName }
     }
     val showBusTraces   by store.showBusTraces.collectAsState(initial = false)
-    val showTramTraces  by store.showTramTraces.collectAsState(initial = false)
-    val showMetroTraces by store.showMetroTraces.collectAsState(initial = false)
+    val showTramTraces  by store.showTramTraces.collectAsState(initial = true)
+    val showMetroTraces by store.showMetroTraces.collectAsState(initial = true)
     val isDark = isSystemInDarkTheme()
     var isSatellite    by remember { mutableStateOf(false) }
     var bannerCollapsed by remember { mutableStateOf(false) }
@@ -369,7 +371,7 @@ fun LiveMapScreen() {
 
     // Filtres actifs (parité iOS hasActiveFilters — les arrêts sont automatiques, pas un filtre)
     val hasActiveFilters = selectedTypes.size != VehicleType.entries.size ||
-        !showBusTraces || !showTramTraces || !showMetroTraces ||
+        showBusTraces || !showTramTraces || !showMetroTraces ||
         selectedLines.isNotEmpty()
 
     // ── UI ────────────────────────────────────────────────────────────────
@@ -807,24 +809,25 @@ fun LiveMapScreen() {
     // ── Bottom sheets ───────────────────────────────────────────────────
 
     filteredVehicles.find { it.id == selectedVehicleId.value }?.let { v ->
-        ModalBottomSheet(onDismissRequest = { selectedVehicleId.value = null }, sheetState = rememberModalBottomSheetState()) {
+        ModalBottomSheet(onDismissRequest = { selectedVehicleId.value = null }, sheetState = rememberModalBottomSheetState(), contentWindowInsets = { WindowInsets.systemBars }) {
             VehicleDetailSheet(v)
         }
     }
     selectedStop.value?.let { stop ->
-        ModalBottomSheet(onDismissRequest = { selectedStop.value = null }, sheetState = rememberModalBottomSheetState()) {
+        ModalBottomSheet(onDismissRequest = { selectedStop.value = null }, sheetState = rememberModalBottomSheetState(), contentWindowInsets = { WindowInsets.systemBars }) {
         MergedStopDetailSheet(stop)
         }
     }
     if (showAlertsSheet) {
-        ModalBottomSheet(onDismissRequest = { showAlertsSheet = false }, sheetState = rememberModalBottomSheetState()) {
+        ModalBottomSheet(onDismissRequest = { showAlertsSheet = false }, sheetState = rememberModalBottomSheetState(), contentWindowInsets = { WindowInsets.systemBars }) {
             Box(Modifier.fillMaxSize()) { com.alertetcl.android.ui.alerts.AlertsScreen(viewModel = alertsVm) }
         }
     }
     if (showFilterSheet) {
         ModalBottomSheet(
             onDismissRequest = { showFilterSheet = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            sheetState = rememberModalBottomSheetState(),
+            contentWindowInsets = { WindowInsets.systemBars }
         ) {
             FilterSheet(
                 selectedTypes = selectedTypes,
@@ -852,8 +855,8 @@ fun LiveMapScreen() {
                     scope.launch {
                         store.setSelectedLiveLines(emptySet())
                         store.setShowBusTraces(false)
-                        store.setShowTramTraces(false)
-                        store.setShowMetroTraces(false)
+                        store.setShowTramTraces(true)
+                        store.setShowMetroTraces(true)
                     }
                 },
                 vehicles = vehicles
@@ -861,12 +864,12 @@ fun LiveMapScreen() {
         }
     }
     if (showRefreshInfo) {
-        ModalBottomSheet(onDismissRequest = { showRefreshInfo = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        ModalBottomSheet(onDismissRequest = { showRefreshInfo = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), contentWindowInsets = { WindowInsets.systemBars }) {
             RefreshInfoSheet(lastUpdateMs = lastUpdateMs)
         }
     }
     if (showErrorsSheet) {
-        ModalBottomSheet(onDismissRequest = { showErrorsSheet = false }, sheetState = rememberModalBottomSheetState()) {
+        ModalBottomSheet(onDismissRequest = { showErrorsSheet = false }, sheetState = rememberModalBottomSheetState(), contentWindowInsets = { WindowInsets.systemBars }) {
             DataSourceErrorsSheet(
                 vehiclesError = vehiclesError, alertsError = alertsError,
                 onRetryVehicles = { vm.refresh() }, onRetryAlerts = { alertsVm.refresh() },
@@ -1275,20 +1278,26 @@ private data class LineDirectionKey(val line: String, val direction: String)
 @Composable
 private fun MergedStopDetailSheet(stop: MergedStop) {
     val context = LocalContext.current
-    val widgetStore = remember { com.alertetcl.android.data.FavoritesStore(context) }
-    val widgetSelections by widgetStore.widgetSelections.collectAsState(initial = emptyList())
-    val isInWidget = stop.stops.any { member -> widgetSelections.any { it.stopId == member.id } }
-    var showWidgetSheet by remember { mutableStateOf(false) }
-    val lineDirections = remember(stop) {
-        stop.stops.flatMap { member ->
-            member.desserte.split(",").mapNotNull {
-                val parts = it.split(":")
-                if (parts.size >= 2) parts[0].trim() to parts[1].trim() else null
-            }
-        }.distinctBy { it.first + "|" + it.second }.sortedWith(compareBy({ it.first }, { it.second }))
-    }
-    val primaryStop = stop.stops.firstOrNull()
-    val scope = rememberCoroutineScope()
+    // ── Widget (désactivé) ──
+    // val widgetStore = remember { com.alertetcl.android.data.FavoritesStore(context) }
+    // val widgetSelections by widgetStore.widgetSelections.collectAsState(initial = emptyList())
+    // val isInWidget = stop.stops.any { member -> widgetSelections.any { it.stopId == member.id } }
+    // var showWidgetSheet by remember { mutableStateOf(false) }
+    // val lineDirections = remember(stop) {
+    //     stop.stops.flatMap { member ->
+    //         member.desserte.split(",").mapNotNull {
+    //             val parts = it.split(":")
+    //             if (parts.size >= 2) parts[0].trim() to parts[1].trim() else null
+    //         }
+    //     }.distinctBy { it.first + "|" + it.second }.sortedWith(compareBy({ it.first }, { it.second }))
+    // }
+    // val widgetDestinationMap = produceState<Map<String, String>>(initialValue = emptyMap(), stop) {
+    //     val bus     = runCatching { BusLineService.shared.fetchLineTermini() }.getOrDefault(emptyMap())
+    //     val transit = runCatching { TransitLineService.shared.fetchLineTermini() }.getOrDefault(emptyMap())
+    //     value = bus + transit
+    // }
+    // val primaryStop = stop.stops.firstOrNull()
+    // val scope = rememberCoroutineScope()
     var passagesKey by remember(stop.id) { mutableStateOf(0) }
     var passagesHadError by remember(stop.id) { mutableStateOf(false) }
     val passages = produceState<List<Passage>?>(initialValue = null, stop.id, passagesKey) {
@@ -1363,81 +1372,81 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
         }
         Spacer(Modifier.height(12.dp))
 
-        // ── Ajouter au widget ──
-        Button(
-            onClick = {
-                if (isInWidget) scope.launch {
-                    stop.stops.forEach { widgetStore.removeWidgetSelectionsForStop(it.id) }
-                } else showWidgetSheet = true
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (isInWidget) StatusSuccess else MaterialTheme.colorScheme.primary
-            )
-        ) {
-            Icon(
-                if (isInWidget) Icons.Filled.CheckCircle else Icons.Filled.AddCircle,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                if (isInWidget) "Dans le widget" else "Ajouter au widget",
-                fontWeight = FontWeight.SemiBold,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-        Spacer(Modifier.height(16.dp))
+        // ── Ajouter au widget (désactivé) ──
+        // Button(
+        //     onClick = {
+        //         if (isInWidget) scope.launch {
+        //             stop.stops.forEach { widgetStore.removeWidgetSelectionsForStop(it.id) }
+        //         } else showWidgetSheet = true
+        //     },
+        //     modifier = Modifier.fillMaxWidth(),
+        //     colors = ButtonDefaults.buttonColors(
+        //         containerColor = if (isInWidget) StatusSuccess else MaterialTheme.colorScheme.primary
+        //     )
+        // ) {
+        //     Icon(
+        //         if (isInWidget) Icons.Filled.CheckCircle else Icons.Filled.AddCircle,
+        //         contentDescription = null,
+        //         modifier = Modifier.size(16.dp)
+        //     )
+        //     Spacer(Modifier.width(6.dp))
+        //     Text(
+        //         if (isInWidget) "Dans le widget" else "Ajouter au widget",
+        //         fontWeight = FontWeight.SemiBold,
+        //         style = MaterialTheme.typography.bodyMedium
+        //     )
+        // }
+        // Spacer(Modifier.height(16.dp))
 
-        if (showWidgetSheet && !isInWidget) {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "Choisir une ligne :",
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 6.dp),
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                lineDirections.forEach { (line, direction) ->
-                    val destLabel = direction.ifBlank { "—" }
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 1.dp,
-                        modifier = Modifier.fillMaxWidth().clickable {
-                            val stopId = primaryStop?.id ?: return@clickable
-                            val sel = WidgetSelection(
-                                id = "$stopId-$line-$direction",
-                                stopId = stopId,
-                                stopName = stop.nom,
-                                lineName = line,
-                                direction = direction,
-                                destinationName = destLabel,
-                            )
-                            scope.launch { widgetStore.addWidgetSelection(sel) }
-                            showWidgetSheet = false
-                        }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            com.alertetcl.android.ui.alerts.LineBadge(line, size = 36.dp, fontSize = 14.sp)
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Direction", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(
-                                    destLabel,
-                                    style = MaterialTheme.typography.bodyMedium, maxLines = 2
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-        }
+        // if (showWidgetSheet && !isInWidget) {
+        //     Spacer(Modifier.height(4.dp))
+        //     Text(
+        //         "Choisir une ligne :",
+        //         fontWeight = FontWeight.SemiBold,
+        //         fontSize = 13.sp,
+        //         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        //         modifier = Modifier.padding(bottom = 6.dp),
+        //     )
+        //     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        //         lineDirections.forEach { (line, direction) ->
+        //             val destLabel = widgetDestinationMap.value["${line}|${direction}"].takeUnless { it.isNullOrBlank() } ?: direction.ifBlank { "—" }
+        //             Surface(
+        //                 shape = RoundedCornerShape(12.dp),
+        //                 color = MaterialTheme.colorScheme.surface,
+        //                 tonalElevation = 1.dp,
+        //                 modifier = Modifier.fillMaxWidth().clickable {
+        //                     val stopId = primaryStop?.id ?: return@clickable
+        //                     val sel = WidgetSelection(
+        //                         id = "$stopId-$line-$direction",
+        //                         stopId = stopId,
+        //                         stopName = stop.nom,
+        //                         lineName = line,
+        //                         direction = direction,
+        //                         destinationName = destLabel,
+        //                     )
+        //                     scope.launch { widgetStore.addWidgetSelection(sel) }
+        //                     showWidgetSheet = false
+        //                 }
+        //             ) {
+        //                 Row(
+        //                     modifier = Modifier.padding(12.dp),
+        //                     verticalAlignment = Alignment.CenterVertically,
+        //                     horizontalArrangement = Arrangement.spacedBy(12.dp),
+        //                 ) {
+        //                     com.alertetcl.android.ui.alerts.LineBadge(line, size = 36.dp, fontSize = 14.sp)
+        //                     Column(modifier = Modifier.weight(1f)) {
+        //                         Text("Direction", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        //                         Text(
+        //                             destLabel,
+        //                             style = MaterialTheme.typography.bodyMedium, maxLines = 2
+        //                         )
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        //     Spacer(Modifier.height(8.dp))
+        // }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1842,7 +1851,7 @@ private fun FilterSheet(
                     modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 4.dp)
                 )
             }
-            items(VehicleType.entries.filter { it != VehicleType.METRO }.sortedBy { it.sortOrder }) { type ->
+            items(VehicleType.entries.filter { it != VehicleType.METRO && it != VehicleType.FUNICULAR }.sortedBy { it.sortOrder }) { type ->
                 val count = countByType[type] ?: 0
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable { onToggleType(type) }
