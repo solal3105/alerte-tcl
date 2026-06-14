@@ -31,7 +31,7 @@ final class LiveVehiclesViewModel: ObservableObject {
             UserDefaults.standard.set(Array(selectedLines), forKey: PersistenceKey.selectedLines)
         }
     }
-    @Published var showBusTraces = true {
+    @Published var showBusTraces = false {
         didSet { UserDefaults.standard.set(showBusTraces, forKey: PersistenceKey.showBusTraces) }
     }
     @Published var showTramTraces = true {
@@ -456,7 +456,7 @@ final class LiveVehiclesViewModel: ObservableObject {
         selectedVehicleType = nil
         selectedLine = nil
         selectedLines.removeAll()
-        showBusTraces = true
+        showBusTraces = false
         showTramTraces = true
         showMetroTraces = true
         updateFilteredVehicles()

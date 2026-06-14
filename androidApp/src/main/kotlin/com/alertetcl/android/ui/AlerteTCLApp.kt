@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -137,7 +138,8 @@ fun AlerteTCLApp(initialRoute: String? = null) {
                 showNotifSheet = true
                 scope.launch { store.setOnboardingDone() }
             },
-            sheetState = rememberModalBottomSheetState()
+            sheetState = rememberModalBottomSheetState(),
+            contentWindowInsets = { WindowInsets.systemBars }
         ) {
             LocationPermissionView(onDismiss = {
                 showLocationSheet = false
@@ -150,7 +152,8 @@ fun AlerteTCLApp(initialRoute: String? = null) {
     if (showNotifSheet) {
         ModalBottomSheet(
             onDismissRequest = { showNotifSheet = false },
-            sheetState = rememberModalBottomSheetState()
+            sheetState = rememberModalBottomSheetState(),
+            contentWindowInsets = { WindowInsets.systemBars }
         ) {
             NotificationPermissionView(onDismiss = { showNotifSheet = false })
         }

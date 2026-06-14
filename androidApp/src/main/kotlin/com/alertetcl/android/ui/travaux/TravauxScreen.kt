@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -404,7 +406,8 @@ fun TravauxScreen() {
     if (showFilterSheet) {
         ModalBottomSheet(
             onDismissRequest = { showFilterSheet = false },
-            sheetState = rememberModalBottomSheetState()
+            sheetState = rememberModalBottomSheetState(),
+            contentWindowInsets = { WindowInsets.systemBars }
         ) {
             TravauxFiltersSheet(
                 searchText = searchText,
@@ -428,7 +431,8 @@ fun TravauxScreen() {
     selected?.let { t ->
         ModalBottomSheet(
             onDismissRequest = { selected = null },
-            sheetState = rememberModalBottomSheetState()
+            sheetState = rememberModalBottomSheetState(),
+            contentWindowInsets = { WindowInsets.systemBars }
         ) { TravauxDetailSheet(t) }
     }
 }

@@ -9,7 +9,8 @@ enum class VehicleType(val displayName: String, val iconKey: String, val sortOrd
     FUNICULAR("Funiculaire", "funicular", 1),
     TRAM("Tramway", "tram", 2),
     TROLLEY("Trolleybus", "trolley", 3),
-    BUS("Bus", "bus", 4);
+    NAVIGONE("Navigo'ne", "navigone", 4),
+    BUS("Bus", "bus", 5);
 
     /** Couleur dominante sur la carte (hex `#RRGGBB`). */
     val clusterColorHex: String get() = when (this) {
@@ -18,6 +19,7 @@ enum class VehicleType(val displayName: String, val iconKey: String, val sortOrd
         BUS       -> "#6E6E73"
         TROLLEY   -> "#DAA520"
         FUNICULAR -> "#8BC752"
+        NAVIGONE  -> "#6E6E73"
     }
 }
 

@@ -36,7 +36,9 @@ class TravauxService {
                 if (Clock.System.now().epochSeconds - ts < cacheValidity) return data
             }
         }
-        val url = "$baseURL?f=application/json&limit=500"
+
+        // limit=2000 couvre le dataset complet (1116 records actuels) en une seule requête.
+        val url = "$baseURL?f=application/json&limit=2000"
         val resp = try {
             client.get(url) {
                 timeout { requestTimeoutMillis = NetworkConfiguration.SHARED_TIMEOUT_SECONDS * 1000 }
@@ -71,19 +73,14 @@ class TravauxService {
         val importance = TravauxImportance.parse(p.codeimportance)
         val perturbation = TravauxPerturbation.parse(p.typeperturbation)
 
-        // Polygons
+        // Polygons (normalisés par TravauxGeometry.rings, gère Multi/Polygon/LineString)
         val polygons = mutableListOf<List<LatLng>>()
         val allLats = mutableListOf<Double>()
         val allLons = mutableListOf<Double>()
-        for (polygon in f.geometry.coordinates) {
-            for (ring in polygon) {
-                val coords = ring.mapNotNull { LatLng.fromGeoJSON(it) }
-                if (coords.isNotEmpty()) {
-                    polygons += coords
-                    coords.forEach {
-                        allLats += it.latitude; allLons += it.longitude
-                    }
-                }
+        for (ring in f.geometry.rings) {
+            if (ring.isNotEmpty()) {
+                polygons += ring
+                ring.forEach { allLats += it.latitude; allLons += it.longitude }
             }
         }
         val centroid = if (allLats.isNotEmpty()) {

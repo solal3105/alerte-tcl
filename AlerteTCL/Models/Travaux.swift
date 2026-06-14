@@ -345,7 +345,33 @@ struct TravauxFeature: Decodable {
 
 struct TravauxGeometry: Decodable {
     let type: String
-    let coordinates: [[[[Double]]]]
+    /// Anneaux/lignes normalisés, quel que soit le type de géométrie GeoJSON.
+    let rings: [[CLLocationCoordinate2D]]
+    
+    enum CodingKeys: String, CodingKey {
+        case type, coordinates
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decode(String.self, forKey: .type)
+        
+        switch type {
+        case "MultiPolygon":
+            let coords = try container.decode([[[[Double]]]].self, forKey: .coordinates)
+            rings = coords.flatMap { polygon in
+                polygon.map { ring in ring.compactMap { CLLocationCoordinate2D.fromGeoJSON($0) } }
+            }
+        case "Polygon", "MultiLineString":
+            let coords = try container.decode([[[Double]]].self, forKey: .coordinates)
+            rings = coords.map { ring in ring.compactMap { CLLocationCoordinate2D.fromGeoJSON($0) } }
+        case "LineString":
+            let coords = try container.decode([[Double]].self, forKey: .coordinates)
+            rings = [coords.compactMap { CLLocationCoordinate2D.fromGeoJSON($0) }]
+        default:
+            rings = []
+        }
+    }
 }
 
 struct TravauxProperties: Decodable {
@@ -485,24 +511,14 @@ extension Travaux {
             self.finChantier = nil
         }
         
-        // Parse coordinates
-        var allCoordinates: [[CLLocationCoordinate2D]] = []
+        // Parse coordinates (normalisés par TravauxGeometry)
         var allLats: [Double] = []
         var allLons: [Double] = []
         
-        for polygon in feature.geometry.coordinates {
-            for ring in polygon {
-                var coords: [CLLocationCoordinate2D] = []
-                for point in ring {
-                    guard let coordinate = CLLocationCoordinate2D.fromGeoJSON(point) else { continue }
-                    coords.append(coordinate)
-                    allLats.append(coordinate.latitude)
-                    allLons.append(coordinate.longitude)
-                }
-                if !coords.isEmpty {
-                    allCoordinates.append(coords)
-                }
-            }
+        let allCoordinates = feature.geometry.rings.filter { !$0.isEmpty }
+        for ring in allCoordinates {
+            allLats.append(contentsOf: ring.map(\.latitude))
+            allLons.append(contentsOf: ring.map(\.longitude))
         }
         
         self.coordinates = allCoordinates

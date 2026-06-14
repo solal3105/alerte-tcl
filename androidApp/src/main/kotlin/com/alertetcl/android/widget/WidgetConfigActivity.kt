@@ -6,6 +6,8 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -43,34 +45,23 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.glance.GlanceId
-import androidx.glance.appwidget.GlanceAppWidgetManager
-import androidx.lifecycle.lifecycleScope
 import com.alertetcl.android.data.FavoritesStore
 import com.alertetcl.android.data.WidgetSelection
 import com.alertetcl.android.ui.colorFromHex
 import com.alertetcl.android.ui.theme.AlerteTCLTheme
 import com.alertetcl.shared.models.LineColors
-import kotlinx.coroutines.launch
 
 /**
  * Base config activity for all widget types.
  *
- * Subclasses override [updateWidget] to call [androidx.glance.appwidget.GlanceAppWidget.update]
- * for the correct widget class. This avoids relying on [AppWidgetManager.getAppWidgetInfo],
- * which returns null for pending (not yet committed) widgets during initial placement and would
- * prevent the update from being scheduled — leaving the widget stuck until the 15-min refresh.
+ * Commits the widget (RESULT_OK) BEFORE triggering the Glance update.
+ * Glance's AppWidgetSession calls getAppWidgetInfo() internally, which returns null
+ * for pending (uncommitted) widgets — causing the update to be silently dropped.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 open class WidgetConfigActivity : ComponentActivity() {
 
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
-
-    /**
-     * Subclasses override this to call the correct [GlanceAppWidget.update] unconditionally.
-     * The base implementation is a no-op; concrete widgets use their specific subclass.
-     */
-    protected open suspend fun updateWidget(ctx: Context, glanceId: GlanceId) = Unit
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -96,22 +87,21 @@ open class WidgetConfigActivity : ComponentActivity() {
                 WidgetConfigFlow(
                     onConfirm = { config ->
                         WidgetConfigStore.save(this, appWidgetId, config)
-                        lifecycleScope.launch {
-                            val ctx = this@WidgetConfigActivity
-                            // getGlanceIdBy(intent) only extracts EXTRA_APPWIDGET_ID —
-                            // no getAppWidgetInfo call, safe for pending widgets.
-                            val glanceId = GlanceAppWidgetManager(ctx).getGlanceIdBy(intent)
-                            if (glanceId != null) {
-                                runCatching { updateWidget(ctx, glanceId) }
-                            }
-                            // Android does NOT call onUpdate() for initial widget placement
-                            // when a config activity is present — we must commit here.
-                            setResult(
-                                RESULT_OK,
-                                Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId),
-                            )
-                            finish()
-                        }
+                        // Commit the widget BEFORE updating.
+                        // Glance's AppWidgetSession calls getAppWidgetInfo() which returns
+                        // null for pending (uncommitted) widgets — the update is silently
+                        // dropped, leaving the widget stuck on "Appuyer pour configurer"
+                        // until the next periodic WorkManager refresh (~15 min).
+                        setResult(
+                            RESULT_OK,
+                            Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId),
+                        )
+                        finish()
+                        // Trigger an immediate one-time refresh. WorkManager fires after
+                        // the launcher processes RESULT_OK, so the widget is committed
+                        // by the time the update runs.
+                        WorkManager.getInstance(applicationContext)
+                            .enqueue(OneTimeWorkRequestBuilder<WidgetRefreshWorker>().build())
                     },
                     onCancel = { finish() },
                 )
@@ -120,19 +110,11 @@ open class WidgetConfigActivity : ComponentActivity() {
     }
 }
 
-/** Config activity for [NextDeparturesGlanceWidget]. Knows its widget type at compile time. */
-class NextDeparturesWidgetConfigActivity : WidgetConfigActivity() {
-    override suspend fun updateWidget(ctx: Context, glanceId: GlanceId) {
-        NextDeparturesGlanceWidget().update(ctx, glanceId)
-    }
-}
+/** Config activity for [NextDeparturesGlanceWidget]. */
+class NextDeparturesWidgetConfigActivity : WidgetConfigActivity()
 
-/** Config activity for [TCLBoardGlanceWidget]. Knows its widget type at compile time. */
-class TCLBoardWidgetConfigActivity : WidgetConfigActivity() {
-    override suspend fun updateWidget(ctx: Context, glanceId: GlanceId) {
-        TCLBoardGlanceWidget().update(ctx, glanceId)
-    }
-}
+/** Config activity for [TCLBoardGlanceWidget]. */
+class TCLBoardWidgetConfigActivity : WidgetConfigActivity()
 
 // ── Config flow ───────────────────────────────────────────────────────────────
 

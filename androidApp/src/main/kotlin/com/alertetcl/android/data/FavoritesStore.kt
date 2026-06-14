@@ -56,13 +56,13 @@ class FavoritesStore(private val context: Context) {
     val showBusTraces: Flow<Boolean> =
         context.favStore.data.map { p -> p[KEY_SHOW_BUS_TRACES] == "1" }
 
-    /** Tracés des lignes tram sur la carte live (false = masqués par défaut). */
+    /** Tracés des lignes tram sur la carte live (true = affichés par défaut). */
     val showTramTraces: Flow<Boolean> =
-        context.favStore.data.map { p -> p[KEY_SHOW_TRAM_TRACES] == "1" }
+        context.favStore.data.map { p -> p[KEY_SHOW_TRAM_TRACES] != "0" }
 
-    /** Tracés des lignes métro/funiculaire sur la carte live (false = masqués par défaut). */
+    /** Tracés des lignes métro/funiculaire sur la carte live (true = affichés par défaut). */
     val showMetroTraces: Flow<Boolean> =
-        context.favStore.data.map { p -> p[KEY_SHOW_METRO_TRACES] == "1" }
+        context.favStore.data.map { p -> p[KEY_SHOW_METRO_TRACES] != "0" }
 
     suspend fun setShowBusTraces(show: Boolean) {
         context.favStore.edit { p -> p[KEY_SHOW_BUS_TRACES] = if (show) "1" else "0" }

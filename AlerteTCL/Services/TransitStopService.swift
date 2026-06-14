@@ -87,7 +87,12 @@ actor TransitStopService {
         return formatter
     }()
     
-    func fetchPassagesForStop(stopId: Int) async throws -> [Passage] {
+    // nonisolated: cette fonction n'accède à aucun état mutable de l'acteur
+    // (passagesEndpoint est un let constant, passageDateFormatter est un static let).
+    // Sans nonisolated, toutes les requêtes seraient sérialisées dans la queue de l'acteur,
+    // ce qui ferait démarrer le timeout de Task B AVANT que celle-ci puisse entrer dans
+    // l'acteur — Task A consommerait une partie du budget de 12s de Task B.
+    nonisolated func fetchPassagesForStop(stopId: Int) async throws -> [Passage] {
         AppLogger.debug("🚌 TransitStopService: Chargement passages pour arrêt \(stopId)...")
         
         // Utiliser le filtrage direct de l'API pour récupérer UNIQUEMENT les passages de cet arrêt

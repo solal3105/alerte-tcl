@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -221,7 +223,8 @@ fun AlertsScreen(viewModel: AlertsViewModel? = null) {
     if (subscribeSheetOpen) {
         ModalBottomSheet(
             onDismissRequest = { subscribeSheetOpen = false },
-            sheetState = rememberModalBottomSheetState()
+            sheetState = rememberModalBottomSheetState(),
+            contentWindowInsets = { WindowInsets.systemBars }
         ) {
             SubscribeLineSheet(
                 allLines = allLines,
@@ -234,7 +237,8 @@ fun AlertsScreen(viewModel: AlertsViewModel? = null) {
     selectedLine?.let { line ->
         ModalBottomSheet(
             onDismissRequest = { selectedLine = null },
-            sheetState = rememberModalBottomSheetState()
+            sheetState = rememberModalBottomSheetState(),
+            contentWindowInsets = { WindowInsets.systemBars }
         ) {
             LineDetailSheet(
                 line = line,
@@ -716,7 +720,7 @@ private fun SubscribeLineSheet(
     val filtered = remember(sortedLines, query) {
         if (query.isBlank()) sortedLines else sortedLines.filter { it.displayName.contains(query, ignoreCase = true) }
     }
-    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp).navigationBarsPadding()) {
         Text("S'abonner à une ligne", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
@@ -729,7 +733,7 @@ private fun SubscribeLineSheet(
             columns = GridCells.Fixed(4),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth().height(360.dp)
+            modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp, max = 460.dp)
         ) {
             items(filtered, key = { it.id }) { line ->
                 val subscribed = line.ligneCom in favorites

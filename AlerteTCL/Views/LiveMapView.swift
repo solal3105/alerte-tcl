@@ -448,7 +448,7 @@ struct LiveMapView: View {
         viewModel.selectedVehicleType != nil ||
         viewModel.selectedLine != nil ||
         !viewModel.selectedLines.isEmpty ||
-        !viewModel.showBusTraces ||
+        viewModel.showBusTraces ||
         !viewModel.showTramTraces ||
         !viewModel.showMetroTraces
     }
@@ -1097,7 +1097,7 @@ struct FilterSheet: View {
         viewModel.selectedVehicleType != nil ||
         viewModel.selectedLine != nil ||
         !viewModel.selectedLines.isEmpty ||
-        !viewModel.showBusTraces ||
+        viewModel.showBusTraces ||
         !viewModel.showTramTraces ||
         !viewModel.showMetroTraces
     }

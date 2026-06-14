@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -424,7 +426,8 @@ fun ParkingScreen() {
     if (showFilterSheet) {
         ModalBottomSheet(
             onDismissRequest = { showFilterSheet = false },
-            sheetState = rememberModalBottomSheetState()
+            sheetState = rememberModalBottomSheetState(),
+            contentWindowInsets = { WindowInsets.systemBars }
         ) {
             ParkingFilterSheet(
                 showParcRelais = showParcRelais,
@@ -442,7 +445,8 @@ fun ParkingScreen() {
     selectedParking?.let { p ->
         ModalBottomSheet(
             onDismissRequest = { selectedParking = null },
-            sheetState = rememberModalBottomSheetState()
+            sheetState = rememberModalBottomSheetState(),
+            contentWindowInsets = { WindowInsets.systemBars }
         ) { ParkingDetailSheet(p) }
     }
 
