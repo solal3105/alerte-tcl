@@ -34,6 +34,8 @@ struct BusLine: Identifiable, Codable {
 
 struct BusLineResponse: Codable {
     let features: [BusLineFeature]
+    let numberMatched: Int?
+    let numberReturned: Int?
 }
 
 struct BusLineFeature: Codable {

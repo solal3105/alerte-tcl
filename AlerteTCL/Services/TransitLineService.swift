@@ -6,6 +6,7 @@ actor TransitLineService {
     
     private let metroFuniURL = NetworkConfiguration.proxyBaseURL + "/metro-funi-lines"
     private let tramURL = NetworkConfiguration.proxyBaseURL + "/tram-lines"
+    private let rxURL = NetworkConfiguration.proxyBaseURL + "/rx-line"
     
     // Cache en mémoire
     private var cachedTransitLines: [TransitLine]?
@@ -25,19 +26,20 @@ actor TransitLineService {
 
         AppLogger.debug("🔄 Chargement des lignes de transport depuis l'API...")
 
-        // Charger métro/funiculaire et tramways en parallèle
+        // Charger métro/funiculaire, tramways et Rhônexpress en parallèle
         async let metroFuniLines = fetchLinesFromAPI(url: metroFuniURL, type: "métro/funiculaire")
         async let tramLines = fetchLinesFromAPI(url: tramURL, type: "tramway")
+        async let rxLines = fetchLinesFromAPI(url: rxURL, type: "Rhônexpress")
 
         do {
-            let (metroFuni, tram) = try await (metroFuniLines, tramLines)
-            let allLines = metroFuni + tram
+            let (metroFuni, tram, rx) = try await (metroFuniLines, tramLines, rxLines)
+            let allLines = metroFuni + tram + rx
 
             // Mettre en cache
             cachedTransitLines = allLines
             cacheTimestamp = Date()
 
-            AppLogger.debug("✅ \(allLines.count) lignes de transport chargées depuis l'API (\(metroFuni.count) métro/funi + \(tram.count) tram)")
+            AppLogger.debug("✅ \(allLines.count) lignes de transport chargées depuis l'API (\(metroFuni.count) métro/funi + \(tram.count) tram + \(rx.count) RX)")
             return allLines
 
         } catch {

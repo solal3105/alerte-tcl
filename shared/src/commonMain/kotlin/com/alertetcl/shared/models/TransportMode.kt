@@ -26,7 +26,7 @@ enum class TransportMode(val displayName: String, val iconKey: String, val sortO
                 u.startsWith("F") && u.length <= 3 -> FUNICULAR
                 u.startsWith("C") && u.length <= 3 -> BUS_C
                 u == "RHONEXPRESS" -> TRAMWAY
-                u.startsWith("NAVI") || u == "7601" -> NAVIGONE
+                u.startsWith("NAVI") || u == "7601" || u == "N1" -> NAVIGONE
                 else -> BUS
             }
         }

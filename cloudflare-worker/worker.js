@@ -7,10 +7,13 @@
  *   GET /vehicles                    → siri-lite/2.0/vehicle-monitoring.json
  *   GET /metro-funi-lines?<params>   → GeoServer tcllignemf_2_0_0/items
  *   GET /tram-lines?<params>         → GeoServer tcllignetram_2_0_0/items
+ *   GET /rx-line?<params>            → GeoServer rx_rhonexpress.rxligne_2_0_0/items
  *   GET /bus-lines?<params>          → GeoServer tcllignebus_2_0_0/items
  *   GET /stops?<params>              → GeoServer tclarret/items
  *   GET /parc-relais                 → GeoServer tclparcrelaisst/items (statique)
  *   GET /parc-relais-tr              → GeoServer tclparcrelaistr/items (temps réel)
+ *   GET /bus-termini                 → bus-lines stripped (ligne+sens+nom_destination)
+ *   GET /line-mapping                → mapping code_ligne→ligne (toutes lignes, sans géométrie)
  *
  * Les credentials Grand Lyon sont stockés en secrets Cloudflare chiffrés.
  * Aucune credential n'est dans le code ni dans le binaire iOS.
@@ -38,6 +41,7 @@ const VEHICLES_URL  = `${DATA_BASE}/siri-lite/2.0/vehicle-monitoring.json?Maximu
 const GEO_COLLECTIONS = {
   "metro-funi-lines": "sytral:tcl_sytral.tcllignemf_2_0_0",
   "tram-lines":       "sytral:tcl_sytral.tcllignetram_2_0_0",
+  "rx-line":          "sytral:rx_rhonexpress.rxligne_2_0_0",
   "bus-lines":        "sytral:tcl_sytral.tcllignebus_2_0_0",
   "stops":            "sytral:tcl_sytral.tclarret",
   "parc-relais":      "sytral:tcl_sytral.tclparcrelaisst",
@@ -139,6 +143,65 @@ async function doRefreshBusTermini(cacheKey, authHeaders, cache) {
 }
 
 /**
+ * Variante de doRefresh pour /line-mapping :
+ * Fetche toutes les collections de lignes (bus paginé, metro/funi, tram, RX),
+ * extrait uniquement code_ligne → ligne, et retourne un objet mapping compact.
+ * Payload upstream : ~22 MB → retourné au client : ~30 KB.
+ */
+async function doRefreshLineMapping(cacheKey, authHeaders, cache) {
+  const mapping = {};
+
+  // Collecte les entrées code_ligne → ligne depuis une liste de features GeoServer
+  function extractMapping(features) {
+    for (const f of features) {
+      const code = (f.properties?.code_ligne ?? "").trim();
+      const ligne = (f.properties?.ligne ?? "").trim();
+      if (code && ligne && code !== ligne) {
+        mapping[code] = ligne;
+      }
+    }
+  }
+
+  // Bus-lines : paginé (1727 features, GeoServer limite à 1000 par page)
+  let offset = 0;
+  let total = null;
+  do {
+    const url = `${GEO_BASE}/${GEO_COLLECTIONS["bus-lines"]}/items?limit=1000&startIndex=${offset}&sortby=gid&f=json`;
+    const resp = await fetch(url, { method: "GET", headers: authHeaders });
+    if (!resp.ok) break;
+    const data = await resp.json();
+    if (total === null) total = data.numberMatched ?? 0;
+    extractMapping(data.features ?? []);
+    offset += (data.features ?? []).length;
+  } while (offset < total);
+
+  // Metro/funi, tram, RX — petit nombre de features, pas besoin de pagination
+  for (const key of ["metro-funi-lines", "tram-lines", "rx-line"]) {
+    const url = `${GEO_BASE}/${GEO_COLLECTIONS[key]}/items?limit=100&f=json`;
+    const resp = await fetch(url, { method: "GET", headers: authHeaders });
+    if (!resp.ok) continue;
+    const data = await resp.json();
+    extractMapping(data.features ?? []);
+  }
+
+  const buf = new TextEncoder().encode(JSON.stringify({ mapping }));
+  const toStore = new Response(buf, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=86400",
+      "X-Cached-At":  String(Date.now()),
+    },
+  });
+  await cache.put(cacheKey, toStore);
+
+  return new Response(buf, {
+    status: 200,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
+}
+
+/**
  * Stratégie stale-while-revalidate :
  *  - Cache frais (age < ttl)  → réponse immédiate depuis le cache.
  *  - Cache périmé (age ≥ ttl) → réponse immédiate depuis le cache stale
@@ -224,7 +287,7 @@ export default {
       if (!stopId) {
         return new Response("Bad Request: missing or invalid id", { status: 400 });
       }
-      let url = `${PASSAGES_URL}?field=id&value=${stopId}&compact=false&maxfeatures=500`;
+      let url = `${PASSAGES_URL}?field=id&value=${stopId}&compact=false&maxfeatures=2000`;
       const sortby = searchParams.get("sortby");
       const sortorder = searchParams.get("sortorder");
       if (sortby && ALLOWED_SORTBY.has(sortby))         url += `&sortby=${sortby}`;
@@ -263,6 +326,34 @@ export default {
         });
       }
       return doRefreshBusTermini(cacheKey, authHeaders, cache);
+    }
+
+    // ── /line-mapping ────────────────────────────────────────────────────────
+    // Retourne {"mapping": {"code_ligne": "ligne_commerciale", ...}} pour toutes
+    // les lignes TCL. Utilisé par l'app pour résoudre les codes SIRI opérationnels.
+    if (pathname === "/line-mapping") {
+      const cache    = caches.default;
+      const cacheKey = new Request(request.url);
+
+      const cached = await cache.match(cacheKey);
+      if (cached) {
+        const cachedAt   = parseInt(cached.headers.get("X-Cached-At") ?? "0", 10);
+        const ageSeconds = (Date.now() - cachedAt) / 1000;
+        if (ageSeconds < GEO_TTL) {
+          const body = await cached.arrayBuffer();
+          return new Response(body, {
+            status:  cached.status,
+            headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+          });
+        }
+        ctx.waitUntil(doRefreshLineMapping(cacheKey, authHeaders, cache));
+        const body = await cached.arrayBuffer();
+        return new Response(body, {
+          status:  cached.status,
+          headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+        });
+      }
+      return doRefreshLineMapping(cacheKey, authHeaders, cache);
     }
 
     // ── /metro-funi-lines | /tram-lines | /bus-lines | /stops ───────────────

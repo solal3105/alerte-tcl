@@ -80,3 +80,34 @@ Avant de déclarer une tâche terminée, confirmer :
 - [ ] Aucun code mort laissé
 
 **Une tâche n'est pas terminée si l'un de ces points échoue.**
+
+---
+
+## Données GeoServer Grand Lyon — points d'attention
+
+### Pagination du endpoint `/bus-lines`
+
+Le endpoint GeoServer `/bus-lines` retourne **1727 features** mais avec une limite par défaut de 1000.
+Toujours paginer via `startIndex` jusqu'à avoir récupéré `numberMatched` features.
+
+- iOS : `BusLineService.fetchAllPages()` — boucle `repeat/while` avec `startIndex`
+- KMP/Android : `BusLineService.fetchBusLines()` — boucle `do-while` avec `lastPageSize`
+
+Sans pagination, les lignes 15, 52, 89, C5, C7, C12, S4A (et d'autres) sont silencieusement absentes.
+
+### Codes SIRI opérationnels (mapping dynamique)
+
+Grand Lyon envoie dans le flux SIRI des codes internes (`code_ligne`) au lieu des noms commerciaux affichés aux voyageurs.
+Le mapping est chargé dynamiquement depuis `/line-mapping` (proxy), construit à partir de l'attribut `code_ligne` des datasets GeoServer.
+
+Note : SYTRAL n'implémente pas LinesDiscovery. Les seuls services SIRI disponibles sont :
+- VehicleMonitoring (positions temps réel)
+- EstimatedTimetables (horaires estimés)
+- SituationExchange (alertes)
+
+La topologie du réseau (noms de lignes, correspondances) est disponible dans les fichiers GTFS/NeTEx.
+
+### Ligne RX
+
+La ligne RX est présente dans le flux SIRI (véhicules actifs) mais **absente du GeoServer** `/bus-lines`.
+Son tracé ne peut pas être affiché sur la carte. Problème côté données Grand Lyon.

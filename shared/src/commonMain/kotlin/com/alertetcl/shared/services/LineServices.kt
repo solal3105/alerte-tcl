@@ -32,26 +32,38 @@ class BusLineService {
         mutex.withLock { cache }?.let { (data, ts) ->
             if (Clock.System.now().epochSeconds - ts < cacheValidity) return data
         }
-        val url = "$baseURL?limit=1000&f=json"
-        val resp = try {
-            client.get(url) {
-                timeout { requestTimeoutMillis = NetworkConfiguration.SHARED_TIMEOUT_SECONDS * 1000 }
-            }
-        } catch (e: Throwable) { throw ApiError.NetworkError(e) }
-        if (resp.status != HttpStatusCode.OK) throw ApiError.HttpError(resp.status.value)
-        val body: BusLineResponse = try { resp.body() } catch (e: Throwable) { throw ApiError.DecodingError(e) }
-
         val lines = mutableListOf<BusLine>()
-        for (feature in body.features) {
-            val name = feature.properties.ligne ?: continue
-            feature.geometry.coordinates.forEachIndexed { idx, segment ->
-                if (segment.isNotEmpty()) {
-                    lines += BusLine(id = "${feature.id}_$idx", name = name, coordinates = segment)
+        var startIndex = 0
+        val pageSize = 1000
+        var total: Int? = null
+        var lastPageSize: Int
+
+        do {
+            val url = "$baseURL?limit=$pageSize&startIndex=$startIndex&f=json"
+            val resp = try {
+                client.get(url) {
+                    timeout { requestTimeoutMillis = NetworkConfiguration.SHARED_TIMEOUT_SECONDS * 1000 }
+                }
+            } catch (e: Throwable) { throw ApiError.NetworkError(e) }
+            if (resp.status != HttpStatusCode.OK) throw ApiError.HttpError(resp.status.value)
+            val body: BusLineResponse = try { resp.body() } catch (e: Throwable) { throw ApiError.DecodingError(e) }
+
+            if (total == null) total = body.numberMatched
+            for (feature in body.features) {
+                val name = feature.properties.ligne ?: continue
+                feature.geometry.coordinates.forEachIndexed { idx, segment ->
+                    if (segment.isNotEmpty()) {
+                        lines += BusLine(id = "${feature.id}_$idx", name = name, coordinates = segment)
+                    }
                 }
             }
-        }
+            lastPageSize = body.features.size
+            startIndex += lastPageSize
+            AppLogger.debug("BusLineService: $startIndex/${total ?: 0} features chargées")
+        } while (lastPageSize > 0 && startIndex < (total ?: 0))
+
         mutex.withLock { cache = lines to Clock.System.now().epochSeconds }
-        AppLogger.debug("BusLineService: ${lines.size} segments")
+        AppLogger.debug("BusLineService: ${lines.size} segments au total")
         return lines
     }
 
@@ -96,6 +108,7 @@ class TransitLineService {
     private val client = HttpClientProvider.client
     private val metroFuniUrl = NetworkConfiguration.PROXY_BASE_URL + "/metro-funi-lines"
     private val tramUrl      = NetworkConfiguration.PROXY_BASE_URL + "/tram-lines"
+    private val rxUrl        = NetworkConfiguration.PROXY_BASE_URL + "/rx-line"
 
     private val mutex = Mutex()
     private var cache: Pair<List<TransitLine>, Long>? = null
@@ -113,7 +126,8 @@ class TransitLineService {
             coroutineScope {
                 val mAsync = async { fetchSection(metroFuniUrl, "métro/funi") }
                 val tAsync = async { fetchSection(tramUrl, "tram") }
-                val all = mAsync.await() + tAsync.await()
+                val rxAsync = async { fetchSection(rxUrl, "Rhônexpress") }
+                val all = mAsync.await() + tAsync.await() + rxAsync.await()
                 mutex.withLock { cache = all to Clock.System.now().epochSeconds }
                 all
             }

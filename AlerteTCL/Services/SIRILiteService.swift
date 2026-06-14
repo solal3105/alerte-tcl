@@ -18,6 +18,10 @@ actor SIRILiteService {
         return Dictionary(stops.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
     }()
 
+    // Le mapping code_ligne SIRI → nom commercial est chargé dynamiquement
+    // depuis l'endpoint /line-mapping du proxy (construit depuis code_ligne GeoServer).
+    // Pré-chargé avant chaque fetch de véhicules et passé au parser.
+
     // Regex patterns (pré-compilés une fois)
     private static let lineNameRegex: NSRegularExpression =
         (try? NSRegularExpression(pattern: "::([^:]+):SYTRAL", options: [])) ?? NSRegularExpression()
@@ -83,7 +87,8 @@ actor SIRILiteService {
         
         do {
             let siriResponse = try Self.jsonDecoder.decode(SIRIResponse.self, from: data)
-            let vehicles = parseVehicleData(siriResponse)
+            let lineMapping = await LineCodeMappingService.shared.loadMapping()
+            let vehicles = parseVehicleData(siriResponse, lineMapping: lineMapping)
             
             #if DEBUG
             AppLogger.debug("📍 SIRI API: \(vehicles.count) véhicules reçus")
@@ -104,7 +109,7 @@ actor SIRILiteService {
         }
     }
     
-    private func parseVehicleData(_ response: SIRIResponse) -> [Vehicle] {
+    private func parseVehicleData(_ response: SIRIResponse, lineMapping: [String: String]) -> [Vehicle] {
         guard let vehicleActivities = response.Siri.ServiceDelivery.VehicleMonitoringDelivery?.first?.VehicleActivity else {
             return []
         }
@@ -132,8 +137,8 @@ actor SIRILiteService {
             }
             
             let lineRef = journey.LineRef?.value ?? ""
-            let lineName = extractLineName(from: lineRef)
-            let vehicleType = detectVehicleType(lineRef: lineRef, vehicleRef: vehRef)
+            let lineName = extractLineName(from: lineRef, lineMapping: lineMapping)
+            let vehicleType = detectVehicleType(lineRef: lineRef, vehicleRef: vehRef, lineMapping: lineMapping)
             let destination = extractDestination(from: journey.DestinationRef?.value)
             let delay = parseDelay(journey.Delay)
             
@@ -185,7 +190,7 @@ actor SIRILiteService {
         return Self.gtfsStopNames[numericId] ?? numericId
     }
     
-    private func extractLineName(from lineRef: String) -> String {
+    private func extractLineName(from lineRef: String, lineMapping: [String: String]) -> String {
         guard !lineRef.isEmpty else { return "?" }
         
         let nsRef = lineRef as NSString
@@ -194,7 +199,7 @@ actor SIRILiteService {
             let extracted = nsRef.substring(with: match.range)
             let cleaned = extracted.replacingOccurrences(of: "::", with: "")
                 .replacingOccurrences(of: ":SYTRAL", with: "")
-            return cleaned
+            return lineMapping[cleaned] ?? cleaned
         }
         
         let components = lineRef.split(separator: ":")
@@ -207,15 +212,15 @@ actor SIRILiteService {
         return regex.firstMatch(in: s, options: [], range: NSRange(location: 0, length: ns.length)) != nil
     }
     
-    private func detectVehicleType(lineRef: String, vehicleRef: String?) -> VehicleType {
-        let lineName = extractLineName(from: lineRef).uppercased()
+    private func detectVehicleType(lineRef: String, vehicleRef: String?, lineMapping: [String: String] = [:]) -> VehicleType {
+        let lineName = extractLineName(from: lineRef, lineMapping: lineMapping).uppercased()
         
         if Self.regexMatches(Self.metroRegex, lineName) { return .metro }
         if Self.regexMatches(Self.tramRegex, lineName) { return .tram }
         if lineName == "RHONEXPRESS" || lineName == "RX" { return .tram }
         if Self.regexMatches(Self.trolleyRegex, lineName) { return .trolley }
         if Self.regexMatches(Self.funicularRegex, lineName) { return .funicular }
-        if lineName.hasPrefix("NAVI") || lineName == "7601" { return .navigone }
+        if lineName.hasPrefix("NAVI") || lineName == "7601" || lineName == "N1" { return .navigone }
         
         return .bus
     }

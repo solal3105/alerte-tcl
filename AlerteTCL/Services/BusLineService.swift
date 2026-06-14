@@ -24,46 +24,13 @@ actor BusLineService {
         
         AppLogger.debug("🔄 Chargement des lignes de bus depuis l'API...")
         
-        guard var components = URLComponents(string: baseURL) else {
-            throw ServiceError.invalidURL
-        }
-        
-        components.queryItems = [
-            URLQueryItem(name: "limit", value: "1000"),
-            URLQueryItem(name: "f", value: "json")
-        ]
-        
-        guard let url = components.url else {
-            throw ServiceError.invalidURL
-        }
-        
-        var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.sharedTimeout)
-        request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
-        
         do {
-            let (data, response) = try await NetworkConfiguration.session.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw ServiceError.invalidResponse
-            }
-            
-            AppLogger.debug("📡 Réponse API lignes de bus: \(httpResponse.statusCode)")
-            
-            guard httpResponse.statusCode == 200 else {
-                throw ServiceError.invalidResponse
-            }
-            
-            let apiResponse = try JSONDecoder().decode(BusLineResponse.self, from: data)
-            let busLines = parseBusLines(from: apiResponse)
-            
-            // Mettre en cache
+            let allFeatures = try await fetchAllPages()
+            let busLines = parseBusLines(from: allFeatures)
             cachedBusLines = busLines
             cacheTimestamp = Date()
-            
             AppLogger.debug("✅ \(busLines.count) lignes de bus chargées et mises en cache")
-            
             return busLines
-            
         } catch let error as DecodingError {
             AppLogger.debug("❌ Erreur de décodage: \(error)")
             throw ServiceError.decodingError(error)
@@ -72,11 +39,47 @@ actor BusLineService {
             throw ServiceError.networkError(error)
         }
     }
+
+    private func fetchAllPages() async throws -> [BusLineFeature] {
+        let pageSize = 1000
+        var allFeatures: [BusLineFeature] = []
+        var startIndex = 0
+        var total: Int? = nil
+
+        repeat {
+            guard var components = URLComponents(string: baseURL) else {
+                throw ServiceError.invalidURL
+            }
+            components.queryItems = [
+                URLQueryItem(name: "limit", value: "\(pageSize)"),
+                URLQueryItem(name: "startIndex", value: "\(startIndex)"),
+                URLQueryItem(name: "f", value: "json")
+            ]
+            guard let url = components.url else { throw ServiceError.invalidURL }
+
+            var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.sharedTimeout)
+            request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
+
+            let (data, response) = try await NetworkConfiguration.session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                throw ServiceError.invalidResponse
+            }
+
+            let page = try JSONDecoder().decode(BusLineResponse.self, from: data)
+            allFeatures.append(contentsOf: page.features)
+            if total == nil { total = page.numberMatched }
+            startIndex += page.features.count
+
+            AppLogger.debug("📄 Lignes de bus: \(startIndex)/\(total ?? 0) features chargées")
+        } while startIndex < (total ?? 0) && !allFeatures.isEmpty
+
+        return allFeatures
+    }
     
-    private func parseBusLines(from response: BusLineResponse) -> [BusLine] {
+    private func parseBusLines(from features: [BusLineFeature]) -> [BusLine] {
         var busLines: [BusLine] = []
         
-        for feature in response.features {
+        for feature in features {
             guard let ligne = feature.properties.ligne,
                   !feature.geometry.coordinates.isEmpty else {
                 continue

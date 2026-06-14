@@ -54,10 +54,11 @@ class SiriLiteService {
             throw ApiError.DecodingError(e)
         }
 
-        return parseVehicles(body)
+        val lineMapping = LineMappingService.shared.loadMapping()
+        return parseVehicles(body, lineMapping)
     }
 
-    private fun parseVehicles(siri: SIRIResponse): List<Vehicle> {
+    private fun parseVehicles(siri: SIRIResponse, lineMapping: Map<String, String>): List<Vehicle> {
         val delivery = siri.Siri.ServiceDelivery.VehicleMonitoringDelivery?.firstOrNull()
         val activities = delivery?.VehicleActivity ?: return emptyList()
 
@@ -76,7 +77,7 @@ class SiriLiteService {
             if (vehicleId.isEmpty()) return@mapNotNull null
 
             val lineRef = journey.LineRef?.value ?: ""
-            val lineName = extractLineName(lineRef)
+            val lineName = extractLineName(lineRef, lineMapping)
             val type = detectVehicleType(lineName)
             val destination = extractDestination(journey.DestinationRef?.value)
             val direction = journey.DirectionRef?.value?.trim()?.uppercase() ?: ""
@@ -126,10 +127,13 @@ class SiriLiteService {
         return stopNameLookup(numericId) ?: numericId
     }
 
-    private fun extractLineName(ref: String): String {
+    private fun extractLineName(ref: String, lineMapping: Map<String, String>): String {
         if (ref.isEmpty()) return "?"
         val match = lineNameRegex.find(ref)
-        if (match != null) return match.groupValues[1]
+        if (match != null) {
+            val code = match.groupValues[1]
+            return lineMapping[code] ?: code
+        }
         return ref.split(":").lastOrNull() ?: ref
     }
 
@@ -141,6 +145,7 @@ class SiriLiteService {
             u == "RHONEXPRESS" || u == "RX" -> VehicleType.TRAM
             trolleyRegex.matches(u)   -> VehicleType.TROLLEY
             funicularRegex.matches(u) -> VehicleType.FUNICULAR
+            u.startsWith("NAVI") || u == "7601" || u == "N1" -> VehicleType.NAVIGONE
             else -> VehicleType.BUS
         }
     }

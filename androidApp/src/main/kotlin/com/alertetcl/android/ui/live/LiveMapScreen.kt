@@ -566,22 +566,6 @@ fun LiveMapScreen() {
         val capturedTramTraces  = showTramTraces
         val capturedMetroTraces = showMetroTraces
 
-        fun toTransitFeature(line: TransitLine): Feature? {
-            if (capturedFilters.isNotEmpty() && line.name !in capturedFilters) return null
-            val pts = line.coordinates.mapNotNull { c -> if (c.size < 2) null else Point.fromLngLat(c[0], c[1]) }
-            if (pts.size < 2) return null
-            return Feature.fromGeometry(LineString.fromLngLats(pts),
-                JsonObject().apply { addProperty("color", toMapColor(line.strokeColorHex)) })
-        }
-
-        fun toBusFeature(line: BusLine): Feature? {
-            if (capturedFilters.isNotEmpty() && line.name !in capturedFilters) return null
-            val pts = line.coordinates.mapNotNull { c -> if (c.size < 2) null else Point.fromLngLat(c[0], c[1]) }
-            if (pts.size < 2) return null
-            return Feature.fromGeometry(LineString.fromLngLats(pts),
-                JsonObject().apply { addProperty("color", toMapColor(LineColors.routeStrokeHex(line.name))) })
-        }
-
         // Sérialisation GeoJSON incluse dans le withContext(Default) — aucun JSON sur Main
         fun addOrUpdate(src: String, layer: String, geojson: String, width: Float) {
             if (style.getSource(src) == null) {
@@ -601,14 +585,14 @@ fun LiveMapScreen() {
             }
         }
 
-        // Construction des Features + sérialisation JSON sur Default — aucun appel MapLibre/JNI
+        // Construction des GeoJSON en string directe — évite d'allouer des milliers d'objets Point MapLibre
         val allGeoJsons = withContext(Dispatchers.Default) {
             listOf(
-                if (capturedBusTraces)   capturedBus.filter { !it.name.startsWith("C") }.mapNotNull(::toBusFeature)   else emptyList(),
-                if (capturedBusTraces)   capturedBus.filter {  it.name.startsWith("C") }.mapNotNull(::toBusFeature)   else emptyList(),
-                if (capturedTramTraces)  capturedTransit.filter {  it.familyTransport.contains("tram", ignoreCase = true) }.mapNotNull(::toTransitFeature) else emptyList(),
-                if (capturedMetroTraces) capturedTransit.filter { !it.familyTransport.contains("tram", ignoreCase = true) }.mapNotNull(::toTransitFeature) else emptyList()
-            ).map { features -> FeatureCollection.fromFeatures(features).toJson() }
+                if (capturedBusTraces)   buildLinesGeoJson(capturedBus.filter { !it.name.startsWith("C") }, capturedFilters) { toMapColor(LineColors.routeStrokeHex(it)) }   else EMPTY_FEATURE_COLLECTION,
+                if (capturedBusTraces)   buildLinesGeoJson(capturedBus.filter {  it.name.startsWith("C") }, capturedFilters) { toMapColor(LineColors.routeStrokeHex(it)) }   else EMPTY_FEATURE_COLLECTION,
+                if (capturedTramTraces)  buildTransitLinesGeoJson(capturedTransit.filter {  it.familyTransport.contains("tram", ignoreCase = true) }, capturedFilters)  else EMPTY_FEATURE_COLLECTION,
+                if (capturedMetroTraces) buildTransitLinesGeoJson(capturedTransit.filter { !it.familyTransport.contains("tram", ignoreCase = true) }, capturedFilters) else EMPTY_FEATURE_COLLECTION
+            )
         }
 
         glInitMutex.withLock {
@@ -2039,6 +2023,66 @@ private fun recenterOnUser(context: android.content.Context, map: MapLibreMap?) 
 private fun vehicleIconKey(line: String)  = "v_${line.replace(ICON_KEY_REGEX, "_")}"
 private fun vehicleDotKey(line: String)   = "vd_${line.replace(ICON_KEY_REGEX, "_")}"
 private fun vehicleArrowKey(line: String) = "va_${line.replace(ICON_KEY_REGEX, "_")}"
+
+private const val EMPTY_FEATURE_COLLECTION = "{\"type\":\"FeatureCollection\",\"features\":[]}"
+
+/**
+ * Construit un GeoJSON FeatureCollection pour des tracés [BusLine] sans allouer d'objets Point.
+ * Évite l'OOM sur les grands datasets (1700+ segments bus).
+ */
+private fun buildLinesGeoJson(
+    lines: List<BusLine>,
+    filters: Set<String>,
+    colorFn: (String) -> String
+): String = buildString {
+    append("{\"type\":\"FeatureCollection\",\"features\":[")
+    var first = true
+    for (line in lines) {
+        if (filters.isNotEmpty() && line.name !in filters) continue
+        val coords = line.coordinates
+        if (coords.size < 2) continue
+        if (!first) append(',')
+        first = false
+        val color = colorFn(line.name)
+        append("{\"type\":\"Feature\",\"geometry\":{\"type\":\"LineString\",\"coordinates\":[")
+        var firstCoord = true
+        for (c in coords) {
+            if (c.size < 2) continue
+            if (!firstCoord) append(',')
+            firstCoord = false
+            append('[').append(c[0]).append(',').append(c[1]).append(']')
+        }
+        append("]},\"properties\":{\"color\":\"$color\"}}")
+    }
+    append("]}")    
+}
+
+/** Construit un GeoJSON FeatureCollection pour des tracés [TransitLine] sans allouer d'objets Point. */
+private fun buildTransitLinesGeoJson(
+    lines: List<TransitLine>,
+    filters: Set<String>
+): String = buildString {
+    append("{\"type\":\"FeatureCollection\",\"features\":[")
+    var first = true
+    for (line in lines) {
+        if (filters.isNotEmpty() && line.name !in filters) continue
+        val coords = line.coordinates
+        if (coords.size < 2) continue
+        if (!first) append(',')
+        first = false
+        val color = toMapColor(line.strokeColorHex)
+        append("{\"type\":\"Feature\",\"geometry\":{\"type\":\"LineString\",\"coordinates\":[")
+        var firstCoord = true
+        for (c in coords) {
+            if (c.size < 2) continue
+            if (!firstCoord) append(',')
+            firstCoord = false
+            append('[').append(c[0]).append(',').append(c[1]).append(']')
+        }
+        append("]},\"properties\":{\"color\":\"$color\"}}")
+    }
+    append("]}")    
+}
 
 /** Échappe les caractères JSON spéciaux dans une string. */
 private fun String.jsonEscape(): String =

@@ -1,7 +1,12 @@
 package com.alertetcl.shared.network.dto
 
+import com.alertetcl.shared.geo.LatLng
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 
 // ─── Alerts ──────────────────────────────────────────────────────────────────
 
@@ -66,7 +71,11 @@ data class PassageDto(
 // ─── Bus / Transit lines ─────────────────────────────────────────────────────
 
 @Serializable
-data class BusLineResponse(val features: List<BusLineFeature> = emptyList())
+data class BusLineResponse(
+    val features: List<BusLineFeature> = emptyList(),
+    val numberMatched: Int? = null,
+    val numberReturned: Int? = null
+)
 
 @Serializable
 data class BusLineFeature(
@@ -151,21 +160,47 @@ data class ParkingProperties(
 // ─── Travaux ─────────────────────────────────────────────────────────────────
 
 @Serializable
-data class TravauxResponse(val features: List<TravauxFeature> = emptyList())
+data class TravauxResponse(
+    val features: List<TravauxFeature> = emptyList(),
+    val numberReturned: Int? = null
+)
 
 @Serializable
 data class TravauxFeature(
     val id: String,
-    val geometry: PolygonGeometry,
+    val geometry: TravauxGeometry,
     val properties: TravauxProperties
 )
 
 @Serializable
-data class PolygonGeometry(
+data class TravauxGeometry(
     val type: String? = null,
-    /** MultiPolygon: list of polygons; each polygon is a list of rings; each ring is a list of [lon,lat]. */
-    val coordinates: List<List<List<List<Double>>>> = emptyList()
-)
+    val coordinates: JsonElement = JsonNull
+) {
+    /** Anneaux/lignes normalisés, quel que soit le type GeoJSON (MultiPolygon, Polygon, MultiLineString, LineString). */
+    val rings: List<List<LatLng>>
+        get() = when (type) {
+            "MultiPolygon" ->
+                coordinates.jsonArray.flatMap { polyEl ->
+                    polyEl.jsonArray.map { ringEl ->
+                        ringEl.jsonArray.mapNotNull { pt ->
+                            LatLng.fromGeoJSON(pt.jsonArray.map { it.jsonPrimitive.content.toDouble() })
+                        }
+                    }
+                }
+            "Polygon", "MultiLineString" ->
+                coordinates.jsonArray.map { ringEl ->
+                    ringEl.jsonArray.mapNotNull { pt ->
+                        LatLng.fromGeoJSON(pt.jsonArray.map { it.jsonPrimitive.content.toDouble() })
+                    }
+                }
+            "LineString" ->
+                listOf(coordinates.jsonArray.mapNotNull { pt ->
+                    LatLng.fromGeoJSON(pt.jsonArray.map { it.jsonPrimitive.content.toDouble() })
+                })
+            else -> emptyList()
+        }
+}
 
 @Serializable
 data class TravauxProperties(

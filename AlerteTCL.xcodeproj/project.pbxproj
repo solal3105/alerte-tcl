@@ -11,6 +11,7 @@
 		4F095CB22F16EA78001D059A /* ViewportFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F095CB02F16EA78001D059A /* ViewportFilter.swift */; };
 		4F38BD202F1591C000E05786 /* BusLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD1F2F1591C000E05786 /* BusLine.swift */; };
 		4F38BD222F1591C900E05786 /* BusLineService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD212F1591C900E05786 /* BusLineService.swift */; };
+		4FLC0DE12F0000000000001A /* LineCodeMappingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FLC0DE02F0000000000001A /* LineCodeMappingService.swift */; };
 		4F38BD242F159CBE00E05786 /* TransitLineService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD232F159CBE00E05786 /* TransitLineService.swift */; };
 		4F38BD262F159CCA00E05786 /* MetroLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD252F159CCA00E05786 /* MetroLine.swift */; };
 		4F38BD282F15B0AC00E05786 /* Travaux.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F38BD272F15B0AC00E05786 /* Travaux.swift */; };
@@ -120,6 +121,7 @@
 		4F095CB02F16EA78001D059A /* ViewportFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewportFilter.swift; sourceTree = "<group>"; };
 		4F38BD1F2F1591C000E05786 /* BusLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusLine.swift; sourceTree = "<group>"; };
 		4F38BD212F1591C900E05786 /* BusLineService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusLineService.swift; sourceTree = "<group>"; };
+		4FLC0DE02F0000000000001A /* LineCodeMappingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineCodeMappingService.swift; sourceTree = "<group>"; };
 		4F38BD232F159CBE00E05786 /* TransitLineService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitLineService.swift; sourceTree = "<group>"; };
 		4F38BD252F159CCA00E05786 /* MetroLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetroLine.swift; sourceTree = "<group>"; };
 		4F38BD272F15B0AC00E05786 /* Travaux.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Travaux.swift; sourceTree = "<group>"; };
@@ -286,8 +288,7 @@
 				4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */,
 				4F38BD292F15B0BB00E05786 /* TravauxService.swift */,
 				4F38BD232F159CBE00E05786 /* TransitLineService.swift */,
-				4F38BD212F1591C900E05786 /* BusLineService.swift */,
-				4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */,
+				4F38BD212F1591C900E05786 /* BusLineService.swift */,					4FLC0DE02F0000000000001A /* LineCodeMappingService.swift */,				4F9DFFEA2F147FA400E01BFB /* RecentItemsService.swift */,
 				4F9DFF9E2F1457EE00E01BFB /* FavoriteLinesService.swift */,
 				4F9DFF9F2F1457EE00E01BFB /* ParkingService.swift */,
 				AAA00016 /* TCLAPIService.swift */,
@@ -550,6 +551,7 @@
 				AAA00039 /* LocationPermissionView.swift in Sources */,
 				4FD305012F1E5FC300EAFA92 /* TaskTimeout.swift in Sources */,
 				4F38BD222F1591C900E05786 /* BusLineService.swift in Sources */,
+				4FLC0DE12F0000000000001A /* LineCodeMappingService.swift in Sources */,
 				4F9DFFA32F1457F900E01BFB /* ParkingViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
