@@ -83,3 +83,7 @@ captures/
 .cxx/
 **/build/
 .kotlin/
+
+androidMain/
+commonMain/
+screen.png
