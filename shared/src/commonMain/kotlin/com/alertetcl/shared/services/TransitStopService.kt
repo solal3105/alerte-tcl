@@ -8,6 +8,8 @@ import com.alertetcl.shared.network.HttpClientProvider
 import com.alertetcl.shared.network.NetworkConfiguration
 import com.alertetcl.shared.network.dto.PassagesResponse
 import com.alertetcl.shared.network.dto.StopsResponse
+import com.alertetcl.shared.network.safeDecode
+import com.alertetcl.shared.network.safeRequest
 import com.alertetcl.shared.util.AppLogger
 import com.alertetcl.shared.util.parsePassageEpoch
 import io.ktor.client.call.body
@@ -37,14 +39,14 @@ class TransitStopService {
         if (region != null) {
             url += "&bbox=${region.minLongitude},${region.minLatitude},${region.maxLongitude},${region.maxLatitude}"
         }
-        val resp = try {
+        val resp = safeRequest {
             client.get(url) {
                 timeout { requestTimeoutMillis = NetworkConfiguration.HEAVY_TIMEOUT_SECONDS * 1000 }
             }
-        } catch (e: Throwable) { throw ApiError.NetworkError(e) }
+        }
 
         if (resp.status != HttpStatusCode.OK) throw ApiError.HttpError(resp.status.value)
-        val body: StopsResponse = try { resp.body() } catch (e: Throwable) { throw ApiError.DecodingError(e) }
+        val body: StopsResponse = safeDecode { resp.body() }
 
         val list = body.features.mapNotNull { f ->
             val coords = f.geometry.coordinates
@@ -70,14 +72,14 @@ class TransitStopService {
 
     suspend fun fetchPassagesForStop(stopId: Int): List<Passage> {
         val url = "$passagesEndpoint?id=$stopId&sortby=heurepassage&sortorder=asc"
-        val resp = try {
+        val resp = safeRequest {
             client.get(url) {
                 timeout { requestTimeoutMillis = NetworkConfiguration.HEAVY_TIMEOUT_SECONDS * 1000 }
             }
-        } catch (e: Throwable) { throw ApiError.NetworkError(e) }
+        }
 
         if (resp.status != HttpStatusCode.OK) throw ApiError.HttpError(resp.status.value)
-        val body: PassagesResponse = try { resp.body() } catch (e: Throwable) { throw ApiError.DecodingError(e) }
+        val body: PassagesResponse = safeDecode { resp.body() }
 
         val now = Clock.System.now().epochSeconds
         val passages = body.values

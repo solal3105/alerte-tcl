@@ -8,11 +8,14 @@ import com.alertetcl.shared.network.NetworkConfiguration
 import com.alertetcl.shared.network.dto.BusLineResponse
 import com.alertetcl.shared.network.dto.BusTerminiResponse
 import com.alertetcl.shared.network.dto.TransitLineResponse
+import com.alertetcl.shared.network.safeDecode
+import com.alertetcl.shared.network.safeRequest
 import com.alertetcl.shared.util.AppLogger
 import io.ktor.client.call.body
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
@@ -40,13 +43,13 @@ class BusLineService {
 
         do {
             val url = "$baseURL?limit=$pageSize&startIndex=$startIndex&f=json"
-            val resp = try {
+            val resp = safeRequest {
                 client.get(url) {
                     timeout { requestTimeoutMillis = NetworkConfiguration.SHARED_TIMEOUT_SECONDS * 1000 }
                 }
-            } catch (e: Throwable) { throw ApiError.NetworkError(e) }
+            }
             if (resp.status != HttpStatusCode.OK) throw ApiError.HttpError(resp.status.value)
-            val body: BusLineResponse = try { resp.body() } catch (e: Throwable) { throw ApiError.DecodingError(e) }
+            val body: BusLineResponse = safeDecode { resp.body() }
 
             if (total == null) total = body.numberMatched
             for (feature in body.features) {
@@ -74,13 +77,13 @@ class BusLineService {
             if (Clock.System.now().epochSeconds - ts < cacheValidity) return data
         }
         val url = NetworkConfiguration.PROXY_BASE_URL + "/bus-termini"
-        val resp = try {
+        val resp = safeRequest {
             client.get(url) {
                 timeout { requestTimeoutMillis = NetworkConfiguration.HEAVY_TIMEOUT_SECONDS * 1000 }
             }
-        } catch (e: Throwable) { throw ApiError.NetworkError(e) }
+        }
         if (resp.status != HttpStatusCode.OK) throw ApiError.HttpError(resp.status.value)
-        val body: BusTerminiResponse = try { resp.body() } catch (e: Throwable) { throw ApiError.DecodingError(e) }
+        val body: BusTerminiResponse = safeDecode { resp.body() }
 
         val termini = body.features
             .mapNotNull { feature ->
@@ -115,9 +118,6 @@ class TransitLineService {
     private var terminusCache: Pair<Map<String, String>, Long>? = null
     private val cacheValidity = 86_400L
 
-    /** Provider de fallback chargé depuis bundle natif (JSON). */
-    var bundledFallback: () -> List<TransitLine> = { emptyList() }
-
     suspend fun fetchTransitLines(): List<TransitLine> {
         mutex.withLock { cache }?.let { (data, ts) ->
             if (Clock.System.now().epochSeconds - ts < cacheValidity) return data
@@ -131,23 +131,24 @@ class TransitLineService {
                 mutex.withLock { cache = all to Clock.System.now().epochSeconds }
                 all
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Throwable) {
-            AppLogger.warn("TransitLineService fallback bundle: ${e.message}")
-            val fallback = bundledFallback()
-            mutex.withLock { cache = fallback to Clock.System.now().epochSeconds }
-            fallback
+            // Échec transitoire : ne rien cacher pour que le prochain appel retente immédiatement
+            AppLogger.warn("TransitLineService fetchTransitLines failed: ${e.message}")
+            emptyList()
         }
     }
 
     private suspend fun fetchSection(url: String, label: String): List<TransitLine> {
         val full = "$url?limit=30&f=json"
-        val resp = try {
+        val resp = safeRequest {
             client.get(full) {
                 timeout { requestTimeoutMillis = NetworkConfiguration.SHARED_TIMEOUT_SECONDS * 1000 }
             }
-        } catch (e: Throwable) { throw ApiError.NetworkError(e) }
+        }
         if (resp.status != HttpStatusCode.OK) throw ApiError.HttpError(resp.status.value)
-        val body: TransitLineResponse = try { resp.body() } catch (e: Throwable) { throw ApiError.DecodingError(e) }
+        val body: TransitLineResponse = safeDecode { resp.body() }
 
         val lines = mutableListOf<TransitLine>()
         for (feature in body.features) {
@@ -180,6 +181,8 @@ class TransitLineService {
                 mutex.withLock { terminusCache = all to Clock.System.now().epochSeconds }
                 all
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Throwable) {
             AppLogger.warn("TransitLineService fetchLineTermini failed: ${e.message}")
             emptyMap()
@@ -188,13 +191,14 @@ class TransitLineService {
 
     private suspend fun fetchTerminiSection(url: String): Map<String, String> {
         val full = "$url?limit=100&f=json"
-        val resp = try {
+        // Toute erreur remonte : fetchLineTermini ne doit pas cacher 24 h un résultat partiel
+        val resp = safeRequest {
             client.get(full) {
                 timeout { requestTimeoutMillis = NetworkConfiguration.SHARED_TIMEOUT_SECONDS * 1000 }
             }
-        } catch (e: Throwable) { return emptyMap() }
-        if (resp.status != HttpStatusCode.OK) return emptyMap()
-        val body: TransitLineResponse = try { resp.body() } catch (e: Throwable) { return emptyMap() }
+        }
+        if (resp.status != HttpStatusCode.OK) throw ApiError.HttpError(resp.status.value)
+        val body: TransitLineResponse = safeDecode { resp.body() }
         return body.features.mapNotNull { feature ->
             val ligne = feature.properties.ligne ?: return@mapNotNull null
             val sens  = feature.properties.sens?.trim()?.lowercase() ?: return@mapNotNull null

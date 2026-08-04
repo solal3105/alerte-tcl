@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alertetcl.android.R
+import com.alertetcl.android.ui.openUrl
 import com.alertetcl.android.ui.theme.StatusSuccess
 import com.alertetcl.android.ui.theme.StatusWarning
 
@@ -406,7 +407,7 @@ private fun VersionFooter(version: String, build: String) {
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
-            "Lyon Pocket " + if (build.isNotEmpty()) " ()" else "",
+            "Lyon Pocket $version" + if (build.isNotEmpty()) " ($build)" else "",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -474,8 +475,3 @@ private fun LinkItem(title: String, subtitle: String, icon: ImageVector, tint: C
     )
 }
 
-private fun openUrl(context: android.content.Context, url: String) {
-    runCatching {
-        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-    }
-}

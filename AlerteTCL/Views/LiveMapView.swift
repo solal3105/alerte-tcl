@@ -332,7 +332,7 @@ struct LiveMapView: View {
                             .scaleEffect(0.5)
                     } else if let lastUpdate = viewModel.lastUpdate {
                         TimelineView(.periodic(from: .now, by: 1)) { _ in
-                            let secs = max(0, 15 - Int(Date().timeIntervalSince(lastUpdate)))
+                            let secs = max(0, Int(viewModel.adaptiveInterval) - Int(Date().timeIntervalSince(lastUpdate)))
                             Text("\(secs)s")
                                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                                 .foregroundStyle(.secondary)
@@ -459,54 +459,6 @@ struct LiveMapView: View {
 
 
 
-struct VehicleTypeChip: View {
-    let type: VehicleType
-    let count: Int
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: type.icon)
-                    .font(.system(size: 12, weight: .semibold))
-                
-                Text(type.rawValue)
-                    .font(.system(size: 13, weight: .semibold))
-                
-                Text("\(count)")
-                    .font(.system(size: 11, weight: .bold))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(isSelected ? chipColor : Color(.systemGray4))
-                    .foregroundStyle(isSelected ? .white : .secondary)
-                    .clipShape(Capsule())
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(isSelected ? chipColor.opacity(0.15) : Color(.systemGray6))
-            .foregroundStyle(isSelected ? chipColor : .primary)
-            .clipShape(Capsule())
-            .overlay {
-                Capsule()
-                    .strokeBorder(isSelected ? chipColor.opacity(0.3) : Color.clear, lineWidth: 1)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-    
-    private var chipColor: Color {
-        switch type {
-        case .metro: return .orange
-        case .tram: return .blue
-        case .bus: return .purple
-        case .trolley: return .green
-        case .funicular: return .teal
-        case .navigone: return .cyan
-        }
-    }
-}
-
 // URL est Identifiable via absoluteString pour .sheet(item:)
 extension URL: @retroactive Identifiable {
     public var id: String { absoluteString }
@@ -595,7 +547,7 @@ struct VehicleDetailSheet: View {
                 guard let fleet = vehicle.fleetNumber else { return }
                 vehicleModel = await BusTrackerService.shared.fetchVehicleModel(fleetNumber: fleet)
                 if let model = vehicleModel {
-                    vehiclePhotos = await WikimediaService.fetchPhotos(for: model)
+                    vehiclePhotos = await WikimediaService.shared.fetchPhotos(for: model)
                 }
             }
             .sheet(item: $selectedPhoto) { url in

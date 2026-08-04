@@ -12,6 +12,8 @@ import com.alertetcl.shared.network.HttpClientProvider
 import com.alertetcl.shared.network.NetworkConfiguration
 import com.alertetcl.shared.network.dto.TravauxFeature
 import com.alertetcl.shared.network.dto.TravauxResponse
+import com.alertetcl.shared.network.safeDecode
+import com.alertetcl.shared.network.safeRequest
 import com.alertetcl.shared.util.parseDateEpoch
 import io.ktor.client.call.body
 import io.ktor.client.plugins.timeout
@@ -39,13 +41,13 @@ class TravauxService {
 
         // limit=2000 couvre le dataset complet (1116 records actuels) en une seule requête.
         val url = "$baseURL?f=application/json&limit=2000"
-        val resp = try {
+        val resp = safeRequest {
             client.get(url) {
                 timeout { requestTimeoutMillis = NetworkConfiguration.SHARED_TIMEOUT_SECONDS * 1000 }
             }
-        } catch (e: Throwable) { throw ApiError.NetworkError(e) }
+        }
         if (resp.status != HttpStatusCode.OK) throw ApiError.HttpError(resp.status.value)
-        val body: TravauxResponse = try { resp.body() } catch (e: Throwable) { throw ApiError.DecodingError(e) }
+        val body: TravauxResponse = safeDecode { resp.body() }
 
         val now = Clock.System.now().epochSeconds
         val travaux = body.features.map { decode(it) }.filter { it.isActive(now) }

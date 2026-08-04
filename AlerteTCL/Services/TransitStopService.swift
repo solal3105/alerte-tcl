@@ -1,6 +1,5 @@
 import Foundation
 import CoreLocation
-import MapKit
 
 actor TransitStopService {
     static let shared = TransitStopService()
@@ -16,7 +15,7 @@ actor TransitStopService {
     
     // MARK: - Fetch Stops
     
-    func fetchStops(in region: MKCoordinateRegion? = nil) async throws -> [TransitStop] {
+    func fetchStops() async throws -> [TransitStop] {
         // Check cache
         if let lastFetch = lastStopsFetch,
            Date().timeIntervalSince(lastFetch) < stopsCacheExpiration,
@@ -25,17 +24,8 @@ actor TransitStopService {
             return Array(cachedStops.values)
         }
         
-        var urlString = "\(stopsEndpoint)?f=application/json&limit=10000"
-        
-        // Add bbox filter if region provided
-        if let region = region {
-            let minLon = region.center.longitude - region.span.longitudeDelta
-            let maxLon = region.center.longitude + region.span.longitudeDelta
-            let minLat = region.center.latitude - region.span.latitudeDelta
-            let maxLat = region.center.latitude + region.span.latitudeDelta
-            urlString += "&bbox=\(minLon),\(minLat),\(maxLon),\(maxLat)"
-        }
-        
+        let urlString = "\(stopsEndpoint)?f=application/json&limit=10000"
+
         guard let url = URL(string: urlString) else {
             throw ServiceError.invalidURL
         }

@@ -6,6 +6,7 @@ import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
@@ -49,6 +50,8 @@ class WikimediaService {
                 ?: emptyList()
             mutex.withLock { cache[model] = urls }
             urls
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Throwable) {
             emptyList()
         }
@@ -82,6 +85,8 @@ class WikimediaService {
             timeout { requestTimeoutMillis = 10_000L }
         }
         if (resp.status != HttpStatusCode.OK) null else resp.body<ByteArray>()
+    } catch (e: CancellationException) {
+        throw e
     } catch (_: Throwable) { null }
 
     companion object { val shared = WikimediaService() }

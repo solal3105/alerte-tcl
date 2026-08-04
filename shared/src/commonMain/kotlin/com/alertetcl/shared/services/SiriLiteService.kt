@@ -8,6 +8,8 @@ import com.alertetcl.shared.network.HttpClientProvider
 import com.alertetcl.shared.network.NetworkConfiguration
 import com.alertetcl.shared.network.dto.MonitoredCallDto
 import com.alertetcl.shared.network.dto.SIRIResponse
+import com.alertetcl.shared.network.safeDecode
+import com.alertetcl.shared.network.safeRequest
 import com.alertetcl.shared.util.AppLogger
 import com.alertetcl.shared.util.parseDurationSeconds
 import com.alertetcl.shared.util.parseIsoEpoch
@@ -36,23 +38,17 @@ class SiriLiteService {
     private val funicularRegex    = Regex("^F\\d*$")
 
     suspend fun fetchVehicles(): List<Vehicle> {
-        val response: HttpResponse = try {
+        val response: HttpResponse = safeRequest {
             client.get(endpoint) {
                 timeout { requestTimeoutMillis = NetworkConfiguration.FAST_TIMEOUT_SECONDS * 1000 }
             }
-        } catch (e: Throwable) {
-            throw ApiError.NetworkError(e)
         }
 
         if (response.status != HttpStatusCode.OK) {
             throw ApiError.HttpError(response.status.value)
         }
 
-        val body: SIRIResponse = try {
-            response.body()
-        } catch (e: Throwable) {
-            throw ApiError.DecodingError(e)
-        }
+        val body: SIRIResponse = safeDecode { response.body() }
 
         val lineMapping = LineMappingService.shared.loadMapping()
         return parseVehicles(body, lineMapping)

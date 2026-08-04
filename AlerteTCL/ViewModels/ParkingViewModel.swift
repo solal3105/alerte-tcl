@@ -7,7 +7,13 @@ import Combine
 final class ParkingViewModel: ObservableObject {
     @Published var parkings: [Parking] = []
     @Published var parcRelais: [Parking] = []
-    @Published var showRealtimeParkings: Bool = true
+    @Published var showRealtimeParkings: Bool = true {
+        didSet {
+            if oldValue != showRealtimeParkings {
+                updateClustersIfNeeded(force: true)
+            }
+        }
+    }
     @Published var showParcRelais: Bool = true
     @Published var isLoading = false
     @Published var error: String?
@@ -197,18 +203,21 @@ final class ParkingViewModel: ObservableObject {
         guard !Task.isCancelled else { return }
         
         AppLogger.debug("🔄 ParkingViewModel: Début du chargement (\(selectedParkingType.rawValue))...")
+        let type = selectedParkingType
         isLoading = true
         error = nil
         defer { isLoading = false }
-        
+
         do {
-            let fetchedParkings = try await ParkingService.shared.fetchParkings(type: selectedParkingType)
+            let fetchedParkings = try await ParkingService.shared.fetchParkings(type: type)
+            // Si la tâche a été annulée ou le type a changé pendant le fetch, ignorer
+            guard !Task.isCancelled, type == selectedParkingType else { return }
             parkings = fetchedParkings.sorted { $0.nom < $1.nom }
             lastUpdate = Date()
             secondsUntilNextRefresh = Int(refreshInterval)
-            
+
             // Mettre en cache
-            parkingsCache[selectedParkingType] = parkings
+            parkingsCache[type] = parkings
             
             // Forcer la mise à jour des clusters
             updateClustersIfNeeded(force: true)
@@ -352,13 +361,17 @@ final class ParkingViewModel: ObservableObject {
 
     func loadParcRelais(forceRefresh: Bool = false) async {
         do {
-            let loaded = try await ParcRelaisService.shared.fetchParcRelais(forceRefresh: forceRefresh)
-            // Dédupliquer : certains P+R apparaissent aussi dans le dataset parkings standard
-            let existingNoms = Set(parkings.map { $0.nom.lowercased().trimmingCharacters(in: .whitespaces) })
-            parcRelais = loaded.filter { !existingNoms.contains($0.nom.lowercased().trimmingCharacters(in: .whitespaces)) }
+            parcRelais = try await ParcRelaisService.shared.fetchParcRelais(forceRefresh: forceRefresh)
         } catch {
             AppLogger.debug("⚠️ ParcRelais: \(error.localizedDescription)")
         }
+    }
+
+    /// P+R affichables : exclut ceux déjà présents dans le dataset parkings standard
+    /// (dédup recalculée à chaque lecture — insensible à l'ordre d'arrivée des fetchs)
+    var visibleParcRelais: [Parking] {
+        let existingNoms = Set(parkings.map { $0.nom.lowercased().trimmingCharacters(in: .whitespaces) })
+        return parcRelais.filter { !existingNoms.contains($0.nom.lowercased().trimmingCharacters(in: .whitespaces)) }
     }
     
     func onDisappear() {

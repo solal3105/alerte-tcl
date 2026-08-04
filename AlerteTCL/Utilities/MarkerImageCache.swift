@@ -101,7 +101,10 @@ enum MarkerImageCache {
 
     /// Point d'arrêt TCL — taille et couleur selon le tier de la ligne la plus importante.
     static func mergedStopDot(tier: StopTier, primaryLine: String?, forBadge: Bool = false) -> UIImage {
-        let key = "stop-\(tier.rawValue)-\(primaryLine ?? "")-\(forBadge ? 1 : 0)" as NSString
+        // Le rendu n'utilise primaryLine que pour le métro (couleur du noyau) :
+        // l'ignorer ailleurs garde un espace de clés minimal (~16 entrées).
+        let lineKey = tier == .metro ? (primaryLine ?? "") : ""
+        let key = "stop-\(tier.rawValue)-\(lineKey)-\(forBadge ? 1 : 0)" as NSString
         if let cached = sharedDotCache.object(forKey: key) { return cached }
         let image = renderStopDot(tier: tier, primaryLine: primaryLine, forBadge: forBadge)
         sharedDotCache.setObject(image, forKey: key)
@@ -154,7 +157,7 @@ enum MarkerImageCache {
     private static let bearingArrowCache: NSCache<NSString, UIImage>     = makeCache(name: "marker.arrow",       limit: 128)
     private static let vehicleDotCache:   NSCache<NSString, UIImage>      = makeCache(name: "marker.dot",         limit: 128)
     private static let tooltipCache: NSCache<TooltipKey, UIImage>        = makeCache(name: "marker.tooltip",     limit: 128)
-    private static let sharedDotCache: NSCache<NSString, UIImage>        = makeCache(name: "marker.stopDot",     limit: 4)
+    private static let sharedDotCache: NSCache<NSString, UIImage>        = makeCache(name: "marker.stopDot",     limit: 64)
 
     private static func makeCache<K, V>(name: String, limit: Int) -> NSCache<K, V> {
         let cache = NSCache<K, V>()

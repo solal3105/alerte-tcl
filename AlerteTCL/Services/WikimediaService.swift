@@ -2,12 +2,16 @@ import Foundation
 
 /// Recherche des photos de véhicules sur Wikimedia Commons (CC-BY-SA).
 /// API publique, sans clé. Politique d'usage : https://www.mediawiki.org/wiki/API:Etiquette
-enum WikimediaService {
-    private static let baseURL = "https://commons.wikimedia.org/w/api.php"
-    private static var cache: [String: [URL]] = [:]
+actor WikimediaService {
+    static let shared = WikimediaService()
+
+    private let baseURL = "https://commons.wikimedia.org/w/api.php"
+    private var cache: [String: [URL]] = [:]
+
+    private init() {}
 
     /// Retourne les URLs de thumbnails (400 px) pour le modèle donné, triées par index.
-    static func fetchPhotos(for model: String) async -> [URL] {
+    func fetchPhotos(for model: String) async -> [URL] {
         if let cached = cache[model] { return cached }
 
         let query = "\(model) TCL"

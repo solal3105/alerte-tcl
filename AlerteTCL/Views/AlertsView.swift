@@ -1167,15 +1167,6 @@ struct AlertLineBadgeView: View {
     }
 }
 
-// MARK: - Legacy AlertsView (kept for compatibility)
-struct AlertsView: View {
-    @EnvironmentObject var viewModel: AlertViewModel
-    
-    var body: some View {
-        NewAlertsView()
-    }
-}
-
 #Preview {
     NewAlertsView()
         .environmentObject(AlertViewModel())

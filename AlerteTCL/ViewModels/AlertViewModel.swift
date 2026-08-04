@@ -132,7 +132,9 @@ final class AlertViewModel: ObservableObject {
     }
     
     func alerts(for line: TransportLine) -> [TCLAlert] {
-        alerts.filter { $0.ligneCom == line.ligneCom || $0.ligneCli == line.ligneCli }
+        // ligne_cli manquant est décodé en "" : ne matcher sur ligneCli que s'il est renseigné,
+        // sinon toutes les alertes sans ligne_cli matcheraient toutes les lignes sans ligne_cli.
+        alerts.filter { $0.ligneCom == line.ligneCom || (!line.ligneCli.isEmpty && $0.ligneCli == line.ligneCli) }
     }
     
     /// Alertes en cours (déjà commencées) pour une ligne
@@ -144,10 +146,6 @@ final class AlertViewModel: ObservableObject {
     func upcomingAlerts(for line: TransportLine) -> [TCLAlert] {
         alerts(for: line).filter { $0.isUpcoming && $0.severity != .info }
     }
-    
-    /// Nombre max de retries automatiques pour le chargement initial
-    private static let maxRetries = 1
-    private static let retryDelay: UInt64 = 2_000_000_000 // 2s
     
     func loadLines() async {
         do {
@@ -164,51 +162,35 @@ final class AlertViewModel: ObservableObject {
 
     func loadAlerts() async {
         guard !isLoading else { return }
-        
+
         isLoading = true
         error = nil
         defer { isLoading = false }
-        
-        let isFirstLoad = lastUpdate == nil
-        let attempts = isFirstLoad ? (Self.maxRetries + 1) : 1
-        var lastError: Error?
-        
-        for attempt in 1...attempts {
-            do {
-                let fetchedAlerts = try await TCLAPIService.shared.fetchAlerts()
-                alerts = fetchedAlerts
-                lastUpdate = Date()
-                error = nil
-                
-                extractLinesFromAlerts(fetchedAlerts)
-                
-                // Traiter les nouvelles alertes pour les notifications
-                NotificationService.shared.processNewAlerts(fetchedAlerts, subscriptionService: subscriptionService)
-                
-                AppLogger.debug("✅ AlertViewModel: \(fetchedAlerts.count) alertes chargées depuis l'API")
-                return
-            } catch is CancellationError {
-                // La sheet a été fermée pendant le pull-to-refresh : annulation normale,
-                // pas une erreur à afficher à l'utilisateur.
-                AppLogger.debug("⏹️ Chargement alertes annulé (sheet fermée)")
-                return
-            } catch let urlError as URLError where urlError.code == .cancelled {
-                AppLogger.debug("⏹️ Requête alertes annulée (URLError.cancelled)")
-                return
-            } catch {
-                lastError = error
-                AppLogger.debug("⚠️ Erreur alertes tentative \(attempt)/\(attempts): \(error.localizedDescription)")
-            }
-            
-            // Retry avec délai seulement si ce n'est pas la dernière tentative
-            if attempt < attempts {
-                AppLogger.debug("🔄 Retry alertes dans 2s...")
-                try? await Task.sleep(nanoseconds: Self.retryDelay)
-            }
+
+        // Retry automatique réservé au premier chargement
+        let result = await withInitialRetry(attempts: lastUpdate == nil ? 2 : 1) {
+            try await TCLAPIService.shared.fetchAlerts()
         }
-        
-        // Toutes les tentatives ont échoué (erreur réseau réelle)
-        self.error = lastError?.localizedDescription
+
+        // nil = annulation (sheet fermée pendant le pull-to-refresh) : rien à afficher
+        guard let result else { return }
+
+        switch result {
+        case .success(let fetchedAlerts):
+            alerts = fetchedAlerts
+            lastUpdate = Date()
+            error = nil
+
+            extractLinesFromAlerts(fetchedAlerts)
+
+            // Traiter les nouvelles alertes pour les notifications
+            NotificationService.shared.processNewAlerts(fetchedAlerts, subscriptionService: subscriptionService)
+
+            AppLogger.debug("✅ AlertViewModel: \(fetchedAlerts.count) alertes chargées depuis l'API")
+        case .failure(let lastError):
+            // Toutes les tentatives ont échoué (erreur réseau réelle)
+            self.error = lastError.localizedDescription
+        }
     }
     
     private func extractLinesFromAlerts(_ alerts: [TCLAlert]) {

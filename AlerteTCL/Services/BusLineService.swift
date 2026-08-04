@@ -45,6 +45,7 @@ actor BusLineService {
         var allFeatures: [BusLineFeature] = []
         var startIndex = 0
         var total: Int? = nil
+        var lastPageSize = 0
 
         repeat {
             guard var components = URLComponents(string: baseURL) else {
@@ -66,12 +67,13 @@ actor BusLineService {
             }
 
             let page = try JSONDecoder().decode(BusLineResponse.self, from: data)
+            lastPageSize = page.features.count
             allFeatures.append(contentsOf: page.features)
             if total == nil { total = page.numberMatched }
-            startIndex += page.features.count
+            startIndex += lastPageSize
 
             AppLogger.debug("📄 Lignes de bus: \(startIndex)/\(total ?? 0) features chargées")
-        } while startIndex < (total ?? 0) && !allFeatures.isEmpty
+        } while lastPageSize > 0 && startIndex < (total ?? 0)
 
         return allFeatures
     }

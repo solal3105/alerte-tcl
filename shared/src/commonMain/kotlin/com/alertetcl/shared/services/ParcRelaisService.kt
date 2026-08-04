@@ -9,10 +9,14 @@ import com.alertetcl.shared.network.HttpClientProvider
 import com.alertetcl.shared.network.NetworkConfiguration
 import com.alertetcl.shared.network.dto.ParcRelaisRealtimeResponse
 import com.alertetcl.shared.network.dto.ParcRelaisStaticResponse
+import com.alertetcl.shared.network.safeDecode
+import com.alertetcl.shared.network.safeRequest
+import com.alertetcl.shared.util.AppLogger
 import io.ktor.client.call.body
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
@@ -49,7 +53,16 @@ class ParcRelaisService {
         val needRt = forceRefresh || (now - lastRtTimestamp >= rtValidity)
         if (!needRt) return lastMerged ?: staticList
 
-        val rtMap = runCatching { fetchRealtimeMap() }.getOrDefault(emptyMap())
+        // Un échec temps réel ne doit pas écraser les disponibilités connues par des zéros :
+        // on conserve la dernière fusion et le prochain appel retentera immédiatement.
+        val rtMap = try {
+            fetchRealtimeMap()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            AppLogger.warn("ParcRelaisService temps réel indisponible: ${e.message}")
+            return lastMerged ?: staticList
+        }
         mutex.withLock { lastRtTimestamp = now }
 
         val merged = staticList.map { pr ->
@@ -63,13 +76,13 @@ class ParcRelaisService {
     }
 
     private suspend fun fetchStatic(): List<Parking> = coroutineScope {
-        val resp = try {
+        val resp = safeRequest {
             client.get(staticUrl) {
                 timeout { requestTimeoutMillis = NetworkConfiguration.SHARED_TIMEOUT_SECONDS * 1000 }
             }
-        } catch (e: Throwable) { throw ApiError.NetworkError(e) }
+        }
         if (resp.status != HttpStatusCode.OK) throw ApiError.HttpError(resp.status.value)
-        val body: ParcRelaisStaticResponse = try { resp.body() } catch (e: Throwable) { throw ApiError.DecodingError(e) }
+        val body: ParcRelaisStaticResponse = safeDecode { resp.body() }
         body.features.mapNotNull { f ->
             val firstPoint = f.geometry.coordinates.firstOrNull() ?: return@mapNotNull null
             if (firstPoint.size < 2) return@mapNotNull null
@@ -96,13 +109,13 @@ class ParcRelaisService {
     }
 
     private suspend fun fetchRealtimeMap(): Map<String, Int> {
-        val resp = try {
+        val resp = safeRequest {
             client.get(realtimeUrl) {
                 timeout { requestTimeoutMillis = NetworkConfiguration.SHARED_TIMEOUT_SECONDS * 1000 }
             }
-        } catch (e: Throwable) { throw ApiError.NetworkError(e) }
+        }
         if (resp.status != HttpStatusCode.OK) throw ApiError.HttpError(resp.status.value)
-        val body: ParcRelaisRealtimeResponse = try { resp.body() } catch (e: Throwable) { throw ApiError.DecodingError(e) }
+        val body: ParcRelaisRealtimeResponse = safeDecode { resp.body() }
         return body.features.mapNotNull { f ->
             val d = f.properties.nbTotPlaceDispo ?: return@mapNotNull null
             f.properties.id to d

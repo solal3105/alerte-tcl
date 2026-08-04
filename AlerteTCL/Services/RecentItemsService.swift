@@ -12,7 +12,7 @@ import Foundation
 class RecentItemsService {
     static let shared = RecentItemsService()
     
-    private let defaults = UserDefaults(suiteName: "group.com.solal.alertetcl")
+    private let defaults = AppGroup.defaults
     private let maxRecentItems = 20
     
     private init() {}

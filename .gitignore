@@ -84,6 +84,7 @@ captures/
 **/build/
 .kotlin/
 
-androidMain/
-commonMain/
+# Copies AOSP orphelines à la racine uniquement — ne pas masquer shared/src/*Main/
+/androidMain/
+/commonMain/
 screen.png

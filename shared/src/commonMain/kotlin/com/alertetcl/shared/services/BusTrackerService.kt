@@ -5,6 +5,7 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
@@ -34,6 +35,8 @@ class BusTrackerService {
             val designation = vehicles.firstOrNull { it.number == fleetNumber }?.designation ?: return null
             mutex.withLock { cache[fleetNumber] = designation }
             designation
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Throwable) {
             null
         }

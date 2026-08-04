@@ -61,9 +61,6 @@ class LiveVehiclesViewModel(
         get() = if (consecutiveErrors == 0) pollIntervalMs
                 else min((pollIntervalMs * 1.5.pow(consecutiveErrors.toDouble())).toLong(), maxIntervalMs)
 
-    val filteredVehicles: List<Vehicle>
-        get() = _vehicles.value.filter { it.vehicleType in _selectedTypes.value }
-
     fun toggleType(type: VehicleType) {
         val cur = _selectedTypes.value.toMutableSet()
         if (!cur.add(type)) cur.remove(type)

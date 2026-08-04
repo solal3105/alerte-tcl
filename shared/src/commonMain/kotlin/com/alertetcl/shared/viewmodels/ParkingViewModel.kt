@@ -6,6 +6,7 @@ import com.alertetcl.shared.models.ParkingType
 import com.alertetcl.shared.services.ParcRelaisService
 import com.alertetcl.shared.services.ParkingService
 import com.alertetcl.shared.util.AppLogger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -22,6 +23,9 @@ class ParkingViewModel(
     private val parcRelaisService: ParcRelaisService = ParcRelaisService.shared
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    /** Requête de chargement en cours — annulée à chaque nouveau viewport. */
+    private var loadJob: Job? = null
 
     private val _parkings = MutableStateFlow<List<Parking>>(emptyList())
     val parkings: StateFlow<List<Parking>> = _parkings.asStateFlow()
@@ -65,7 +69,10 @@ class ParkingViewModel(
     }
 
     fun loadInRegion(region: GeoRegion, forceRefresh: Boolean = false) {
-        scope.launch {
+        // Annule la requête précédente : une réponse lente d'un ancien viewport
+        // ne doit pas écraser les données du viewport courant.
+        loadJob?.cancel()
+        loadJob = scope.launch {
             _isLoading.value = true
             try {
                 val carsAsync = if (ParkingType.CAR in _selectedTypes.value && _showRealtimeParkings.value)
@@ -87,6 +94,8 @@ class ParkingViewModel(
                 _parkings.value = all
                 _errorMessage.value = null
                 _lastUpdateEpochMs.value = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+            } catch (e: CancellationException) {
+                throw e // Annulation volontaire — ne pas la présenter comme une erreur
             } catch (e: Throwable) {
                 AppLogger.error("ParkingViewModel error", e)
                 _errorMessage.value = e.message

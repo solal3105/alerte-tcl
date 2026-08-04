@@ -25,11 +25,11 @@ private struct TCLLineBadge: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(WidgetLineColorHelper.backgroundColor(for: name))
+                .fill(LineColorHelper.backgroundColor(for: name))
                 .frame(width: size, height: size)
             Text(name)
                 .font(.system(size: size * 0.36, weight: .black))
-                .foregroundColor(WidgetLineColorHelper.textColor(for: name))
+                .foregroundColor(LineColorHelper.textColor(for: name))
                 .minimumScaleFactor(0.4)
                 .lineLimit(1)
         }
@@ -144,19 +144,41 @@ private var boardSeparator: some View {
         .frame(height: 1)
 }
 
-// MARK: - Unconfigured
+// MARK: - États d'erreur
 
-private struct TCLBoardUnconfigured: View {
+/// Message plein écran du panneau LED (arrêt non configuré, fin de service, réseau KO).
+private struct TCLBoardMessage: View {
+    let title: String
+    let subtitle: String
+
     var body: some View {
         VStack(spacing: 8) {
-            Text("ARRÊT NON CONFIGURÉ")
+            Text(title)
                 .font(.system(size: 9, weight: .bold, design: .monospaced))
                 .foregroundColor(ledAmber.opacity(0.7))
-            Text("Maintenez pour configurer")
+            Text(subtitle)
                 .font(.system(size: 8, design: .monospaced))
                 .foregroundColor(ledGreen.opacity(0.45))
         }
         .multilineTextAlignment(.center)
+    }
+}
+
+private extension TCLBoardMessage {
+    /// Message correspondant à l'erreur, ou nil si les passages doivent être affichés.
+    static func forError(_ error: WidgetPassageError?) -> TCLBoardMessage? {
+        switch error {
+        case .noStopSelected:
+            return TCLBoardMessage(title: "ARRÊT NON CONFIGURÉ", subtitle: "Maintenez pour configurer")
+        case .noPassages:
+            return TCLBoardMessage(title: "FIN DE SERVICE", subtitle: "Aucun passage prévu")
+        case .networkError:
+            return WidgetPassageError.isNightTime
+                ? TCLBoardMessage(title: "SERVEURS INACTIFS", subtitle: "Reprise après 6h")
+                : TCLBoardMessage(title: "DONNÉES INDISPONIBLES", subtitle: "Réessayez plus tard")
+        case nil:
+            return nil
+        }
     }
 }
 
@@ -195,8 +217,8 @@ struct TCLBoardSmallView: View {
             VStack(spacing: 0) {
                 Spacer()
 
-                if entry.error == .noStopSelected {
-                    TCLBoardUnconfigured()
+                if let message = TCLBoardMessage.forError(entry.error) {
+                    message
                 } else {
                     TCLBoardRow(
                         label: "Prochain",
@@ -264,8 +286,8 @@ struct TCLBoardMediumView: View {
             VStack(spacing: 0) {
                 Spacer()
 
-                if entry.error == .noStopSelected {
-                    TCLBoardUnconfigured()
+                if let message = TCLBoardMessage.forError(entry.error) {
+                    message
                 } else {
                     // Ligne 1 — Prochain (colonne horaire verte sur la gauche)
                     MediumBoardRow(

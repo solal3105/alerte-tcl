@@ -19,12 +19,18 @@ enum class TransportMode(val displayName: String, val iconKey: String, val sortO
         /** Détection à partir du code ligne (M*, T*, F*, C*, JD*, etc.). */
         fun detectFromLine(line: String): TransportMode {
             val u = line.uppercase()
+            // Résolution prioritaire via les listes canoniques du réseau
+            // (TB11/TB12 → TRAMWAY, C200-C205 → BUS_C, T36 → BUS, etc.).
+            val known = TransportLine.allPredefinedLines.firstOrNull { it.ligneCli == u || it.ligneCom == u }
+            if (known != null) return known.mode
+            // Heuristique de secours pour les codes hors listes (alignée sur iOS).
             return when {
                 u.startsWith("M") && u.length <= 3 -> METRO
                 u in setOf("A", "B", "C", "D") -> METRO
-                u.startsWith("T") && u.length <= 3 -> TRAMWAY
+                u.startsWith("TB") -> TRAMWAY
+                u.length == 2 && u[0] == 'T' && u[1].isDigit() -> TRAMWAY
                 u.startsWith("F") && u.length <= 3 -> FUNICULAR
-                u.startsWith("C") && u.length <= 3 -> BUS_C
+                u.length >= 2 && u[0] == 'C' && u[1].isDigit() -> BUS_C
                 u == "RHONEXPRESS" -> TRAMWAY
                 u.startsWith("NAVI") || u == "7601" || u == "N1" -> NAVIGONE
                 else -> BUS

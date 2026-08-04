@@ -54,15 +54,6 @@ struct TileCacheConfiguration {
         useFixedZoom: true       // clé stable au zoom — évite les cache misses en cascade
     )
     
-    /// Configuration pour données temps réel (parkings voiture)
-    static let realTimeData = TileCacheConfiguration(
-        tileSizeDegrees: 0.02,
-        expirationSeconds: 30,
-        maxTiles: 50,
-        viewportBuffer: 1.3,
-        useFixedZoom: false
-    )
-    
 }
 
 // MARK: - Spatial Tile Cache
@@ -117,16 +108,7 @@ actor SpatialTileCache<T: Identifiable & Sendable> {
     }
     
     // MARK: - Tile Calculation
-    
-    /// Calcule la clé de tuile pour une coordonnée donnée
-    func tileKey(for coordinate: CLLocationCoordinate2D, zoomLevel: Double = 0) -> TileKey {
-        let zoomAdjustedSize = config.tileSizeDegrees * max(1, zoomLevel * 10)
-        let x = Int(floor(coordinate.longitude / zoomAdjustedSize))
-        let y = Int(floor(coordinate.latitude / zoomAdjustedSize))
-        let zoom = Int(zoomLevel * 100)
-        return TileKey(x: x, y: y, zoom: zoom)
-    }
-    
+
     /// Calcule toutes les tuiles nécessaires pour couvrir une région
     func tilesForRegion(_ region: MKCoordinateRegion) -> [TileKey] {
         let buffer = config.viewportBuffer

@@ -60,6 +60,7 @@ actor ParcRelaisService {
     private let cacheValidity: TimeInterval = 86_400
 
     // Cache temps réel — 60s
+    private var cachedRealtimeMap: [String: Int] = [:]
     private var lastRealtimeFetch: Date?
     private let realtimeValidity: TimeInterval = 60
 
@@ -87,10 +88,13 @@ actor ParcRelaisService {
             || lastRealtimeFetch == nil
             || now.timeIntervalSince(lastRealtimeFetch!) >= realtimeValidity
 
-        guard shouldRefreshRT else { return staticList }
-
-        let rtMap = (try? await fetchRealtimeMap()) ?? [:]
-        lastRealtimeFetch = now
+        if shouldRefreshRT {
+            if let fresh = try? await fetchRealtimeMap() {
+                cachedRealtimeMap = fresh
+            }
+            lastRealtimeFetch = now
+        }
+        let rtMap = cachedRealtimeMap
 
         // 3. Fusionner — reconstruire Parking avec dispo si disponible
         return staticList.map { pr in

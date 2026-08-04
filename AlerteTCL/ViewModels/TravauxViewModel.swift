@@ -12,10 +12,13 @@ final class TravauxViewModel: ObservableObject {
     @Published var currentZoomLevel: Double = 0.15
     @Published var visibleRegion: MKCoordinateRegion?
     
-    @Published var selectedNatureChantier: Set<TravauxNatureChantier> = Set(TravauxNatureChantier.allCases)
-    @Published var searchText: String = ""
+    @Published var selectedNatureChantier: Set<TravauxNatureChantier> = Set(TravauxNatureChantier.allCases) {
+        didSet { updateClustersIfNeeded(force: true) }
+    }
+    @Published var searchText: String = "" {
+        didSet { updateClustersIfNeeded(force: true) }
+    }
     
-    private var refreshTask: Task<Void, Never>?
     private let cacheExpirationInterval: TimeInterval = 86400 // 24 heures
     private let clusteringConfig = ClusteringEngine.Configuration.dense
     /// Seuil de zoom au-delà duquel le clustering travaux s'active.
@@ -67,11 +70,11 @@ final class TravauxViewModel: ObservableObject {
         currentZoomLevel >= travauxClusteringZoomThreshold && visibleTravaux.count >= 20
     }
     
-    private func updateClustersIfNeeded() {
+    private func updateClustersIfNeeded(force: Bool = false) {
         let zoomChanged = abs(currentZoomLevel - lastClusteringZoom) > 0.002
         let travauxChanged = visibleTravaux.count != lastClusteringTravauxCount
-        
-        guard zoomChanged || travauxChanged else { return }
+
+        guard force || zoomChanged || travauxChanged else { return }
         
         let result = ClusteringEngine.createClusters(from: visibleTravaux, zoomLevel: currentZoomLevel, config: clusteringConfig)
         cachedClusters = result.clusters
@@ -138,21 +141,18 @@ final class TravauxViewModel: ObservableObject {
     // MARK: - Lifecycle
     
     func onAppear() {
-        // Charger les données en arrière-plan sans bloquer l'affichage
+        // Charger les données en arrière-plan sans bloquer l'affichage.
+        // Pas de refresh auto : le cache travaux est journalier (24 h).
         Task(priority: .userInitiated) { [weak self] in
-            guard let self = self else { return }
-            await self.loadTravaux()
-            self.startAutoRefresh()
+            await self?.loadTravaux()
         }
-    }
-    
-    func onDisappear() {
-        stopAutoRefresh()
     }
     
     // MARK: - Data Loading
     
     func loadTravaux() async {
+        guard !isLoading else { return }
+
         // Vérifier si le cache est encore valide (< 24h)
         if let lastUpdate = lastUpdate {
             let timeSinceLastUpdate = Date().timeIntervalSince(lastUpdate)
@@ -181,20 +181,6 @@ final class TravauxViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Auto Refresh
-    
-    private func startAutoRefresh() {
-        stopAutoRefresh()
-        
-        // Pas de refresh auto pour les travaux - cache de 24h
-        AppLogger.debug("ℹ️ TravauxViewModel: Pas de refresh auto (cache journalier)")
-    }
-    
-    private func stopAutoRefresh() {
-        refreshTask?.cancel()
-        refreshTask = nil
-    }
-    
     // MARK: - Filters
     
     func toggleNatureChantier(_ nature: TravauxNatureChantier) {
@@ -208,9 +194,5 @@ final class TravauxViewModel: ObservableObject {
     func resetFilters() {
         selectedNatureChantier = Set(TravauxNatureChantier.allCases)
         searchText = ""
-    }
-    
-    deinit {
-        refreshTask?.cancel()
     }
 }

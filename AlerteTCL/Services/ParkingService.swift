@@ -14,8 +14,7 @@ actor ParkingService {
     private let bikeTileCache = SpatialTileCache<Parking>(config: .staticData)
     private let motoTileCache = SpatialTileCache<Parking>(config: .staticData)
     
-    // Limites de requête
-    private let defaultLimit = 500
+    // Limite de requête (taille de page serveur)
     private let maxLimit = 1000
     /// Taille de tuile pour vélo/2-roues — doit correspondre à TileCacheConfiguration.staticData.tileSizeDegrees
     private static let bikeMotoTileSize: Double = 0.02
@@ -73,11 +72,18 @@ actor ParkingService {
         
         // Générer le bbox pour les tuiles manquantes
         let bbox = BBoxHelper.bboxString(for: missingTiles, tileSizeDegrees: Self.bikeMotoTileSize)
-        // Données statiques : on charge tout en une fois (caché 1h), pas de troncature
-        let limit = maxLimit
-        
-        // Charger les données manquantes
-        let newParkings = try await fetchFromAPI(type: type, bbox: bbox, limit: limit)
+
+        // Charger les données manquantes — paginer jusqu'à une page incomplète
+        // (le serveur tronque à maxLimit, une seule requête perdrait les features au-delà)
+        var newParkings: [Parking] = []
+        var startIndex = 0
+        var pageCount = 0
+        repeat {
+            let page = try await fetchFromAPI(type: type, bbox: bbox, limit: maxLimit, startIndex: startIndex)
+            pageCount = page.count
+            newParkings.append(contentsOf: page)
+            startIndex += pageCount
+        } while pageCount == maxLimit
         
         // Répartir les parkings dans les tuiles correspondantes
         for tile in missingTiles {
@@ -116,21 +122,26 @@ actor ParkingService {
     
     // MARK: - Private API Fetch
     
-    private func fetchFromAPI(type: ParkingType, bbox: String?, limit: Int?) async throws -> [Parking] {
+    private func fetchFromAPI(type: ParkingType, bbox: String?, limit: Int?, startIndex: Int = 0) async throws -> [Parking] {
         let collectionName = collectionName(for: type)
-        
+
         var urlString = "\(baseURL)/\(collectionName)/items?f=application/json"
-        
+
         // Ajouter bbox si fourni
         if let bbox = bbox, !bbox.isEmpty {
             urlString += "&bbox=\(bbox)"
         }
-        
+
         // Ajouter limit si fourni
         if let limit = limit {
             urlString += "&limit=\(limit)"
         }
-        
+
+        // Ajouter startIndex pour la pagination
+        if startIndex > 0 {
+            urlString += "&startIndex=\(startIndex)"
+        }
+
         // Tri pour cohérence
         urlString += "&sortby=gid"
         

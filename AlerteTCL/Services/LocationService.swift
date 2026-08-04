@@ -2,7 +2,8 @@ import Foundation
 import CoreLocation
 import Combine
 
-class LocationService: NSObject, ObservableObject {
+@MainActor
+final class LocationService: NSObject, ObservableObject {
     static let shared = LocationService()
     
     private let locationManager = CLLocationManager()
@@ -41,7 +42,7 @@ class LocationService: NSObject, ObservableObject {
     }
 }
 
-extension LocationService: CLLocationManagerDelegate {
+extension LocationService: @preconcurrency CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
         checkLocationAvailability()

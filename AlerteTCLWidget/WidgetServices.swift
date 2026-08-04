@@ -8,6 +8,21 @@
 import Foundation
 import SwiftUI
 
+// MARK: - Shared URLSession
+
+/// Session unique de l'extension : la créer par requête empêchait toute réutilisation
+/// de connexion et laissait des sessions non invalidées derrière chaque timeline.
+private enum WidgetNetwork {
+    static let session: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 15
+        config.waitsForConnectivity = false
+        config.urlCache = nil
+        return URLSession(configuration: config)
+    }()
+}
+
 // MARK: - Shared formatters (expensive to create — kept as static)
 
 private enum WidgetFormatters {
@@ -31,8 +46,7 @@ private enum WidgetFormatters {
 // MARK: - Shared App Group cache for last successful passages
 
 private enum WidgetCache {
-    private static let appGroup = "group.com.solal.alertetcl"
-    private static var defaults: UserDefaults? { UserDefaults(suiteName: appGroup) }
+    private static var defaults: UserDefaults? { AppGroup.defaults }
 
     private struct CachedPassages: Codable {
         let passages: [WidgetPassage]
@@ -52,12 +66,27 @@ private enum WidgetCache {
     }
 
     /// Returns cached passages when no older than `maxAge` seconds.
+    /// Les délais relatifs sont décrémentés de l'âge du cache et les passages
+    /// déjà écoulés écartés ; les délais absolus (péremption invérifiable) aussi.
+    /// Le badge temps réel est retiré : ces données ne le sont plus.
     static func load(stopId: Int, line: String, direction: String, maxAge: TimeInterval = 15 * 60) -> [WidgetPassage]? {
         guard let defaults,
               let data = defaults.data(forKey: key(stopId: stopId, line: line, direction: direction)),
               let cached = try? JSONDecoder().decode(CachedPassages.self, from: data) else { return nil }
-        guard Date().timeIntervalSince(cached.fetchedAt) <= maxAge else { return nil }
-        return cached.passages
+        let age = Date().timeIntervalSince(cached.fetchedAt)
+        guard age <= maxAge else { return nil }
+        let elapsedMinutes = Int(age / 60)
+        let adjusted = cached.passages.compactMap { passage -> WidgetPassage? in
+            guard let minutes = passage.delayMinutes else { return nil }
+            let remaining = minutes - elapsedMinutes
+            guard remaining >= 0 else { return nil }
+            return WidgetPassage(
+                delay: remaining == 0 ? "À l'approche" : "\(remaining) min",
+                time: passage.time,
+                isRealTime: false
+            )
+        }
+        return adjusted.isEmpty ? nil : adjusted
     }
 }
 
@@ -74,10 +103,10 @@ struct WidgetPassageService {
             WidgetCache.store(fresh, stopId: stopId, line: line, direction: direction)
             return fresh
         } catch {
-            // Fallback cache sans limite d'âge stricte : après plusieurs jours d'inactivité
-            // iOS peut appeler timeline() très rarement ; mieux vaut afficher des données
-            // potentiellement périmées que montrer une erreur vide.
-            if let cached = WidgetCache.load(stopId: stopId, line: line, direction: direction, maxAge: 4 * 3600) {
+            // Fallback cache : les délais sont ajustés de l'âge du cache et les
+            // passages écoulés écartés par load(). Fenêtre de 90 min, cohérente
+            // avec le filtrage appliqué au fetch — au-delà, tout serait écarté.
+            if let cached = WidgetCache.load(stopId: stopId, line: line, direction: direction, maxAge: 90 * 60) {
                 AppLogger.debug("⚠️ Widget: réseau KO, fallback cache (\(cached.count) passages)")
                 return cached
             }
@@ -99,13 +128,7 @@ struct WidgetPassageService {
         request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 10
 
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 10
-        config.timeoutIntervalForResource = 15
-        config.waitsForConnectivity = false
-        config.urlCache = nil
-        let session = URLSession(configuration: config)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await WidgetNetwork.session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -169,64 +192,47 @@ struct WidgetPassageValue: Codable {
 
 // MARK: - Line Color Helper for Widget
 
-struct WidgetLineColorHelper {
-    static func backgroundColor(for ligne: String) -> Color {
-        let upper = ligne.uppercased()
+// MARK: - Parking Service for Widget
 
-        if upper == "MA" || upper == "A" {
-            return Color(red: 238/255, green: 56/255, blue: 152/255)
-        } else if upper == "MB" || upper == "B" {
-            return Color(red: 0/255, green: 125/255, blue: 197/255)
-        } else if upper == "MC" || upper == "C" {
-            return Color(red: 249/255, green: 157/255, blue: 29/255)
-        } else if upper == "MD" || upper == "D" {
-            return Color(red: 0/255, green: 172/255, blue: 77/255)
-        } else if upper == "RX" || upper.contains("RHONEXPRESS") {
-            return Color(red: 201/255, green: 43/255, blue: 33/255)
-        } else if upper.hasPrefix("T") && upper.count <= 3 {
-            return Color(red: 103/255, green: 56/255, blue: 119/255)
-        } else if upper.hasPrefix("TB") {
-            return Color(red: 1.0, green: 0.8, blue: 0.0)
-        } else if upper.hasPrefix("F") && upper.count <= 3 {
-            return .orange
-        } else if upper.hasPrefix("C") && upper.count <= 4 {
-            return Color(.systemGray)
-        } else if upper.hasPrefix("JD") {
-            return Color(red: 42/255, green: 36/255, blue: 117/255)
-        }
-        return .blue
+/// Dernière occupation connue par parking, pour survivre à une coupure réseau.
+private enum WidgetParkingCache {
+    private static let maxAge: TimeInterval = 60 * 60
+
+    private struct CachedParking: Codable {
+        let parking: WidgetParking
+        let fetchedAt: Date
     }
 
-    static func textColor(for ligne: String) -> Color {
-        let upper = ligne.uppercased()
+    private static func key(id: String) -> String { "widget.parking.\(id)" }
 
-        if upper.hasPrefix("JD") {
-            return Color(red: 235/255, green: 202/255, blue: 47/255)
-        } else if upper.hasPrefix("C") && upper.count <= 4 {
-            return .white
-        } else if upper.hasPrefix("T") && upper.count <= 3 {
-            return .white
-        } else if !upper.hasPrefix("M") &&
-                  !upper.hasPrefix("F") &&
-                  !upper.hasPrefix("TB") &&
-                  upper != "A" && upper != "B" && upper != "C" && upper != "D" &&
-                  !upper.contains("RHONEXPRESS") && upper != "RX" {
-            return .red
+    static func store(_ parking: WidgetParking) {
+        guard let defaults = AppGroup.defaults else { return }
+        let payload = CachedParking(parking: parking, fetchedAt: Date())
+        if let data = try? JSONEncoder().encode(payload) {
+            defaults.set(data, forKey: key(id: parking.id))
         }
-        return .white
+    }
+
+    static func load(id: String) -> WidgetParking? {
+        guard let defaults = AppGroup.defaults,
+              let data = defaults.data(forKey: key(id: id)),
+              let cached = try? JSONDecoder().decode(CachedParking.self, from: data),
+              Date().timeIntervalSince(cached.fetchedAt) <= maxAge else { return nil }
+        return cached.parking
     }
 }
-
-// MARK: - Parking Service for Widget
 
 struct WidgetParkingService {
     static func fetchParking(withId parkingId: String) async -> WidgetParking? {
         do {
             let parkings = try await fetchParkings()
-            return parkings.first(where: { $0.id == parkingId })
+            let parking = parkings.first(where: { $0.id == parkingId })
+            if let parking { WidgetParkingCache.store(parking) }
+            return parking
         } catch {
             AppLogger.debug("❌ Widget: Erreur récupération parking: \(error)")
-            return nil
+            // Mieux vaut une occupation récente qu'un widget vide
+            return WidgetParkingCache.load(id: parkingId)
         }
     }
 
@@ -241,13 +247,7 @@ struct WidgetParkingService {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 10
 
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 10
-        config.timeoutIntervalForResource = 15
-        config.waitsForConnectivity = false
-        config.urlCache = nil
-        let session = URLSession(configuration: config)
-        let (data, _) = try await session.data(for: request)
+        let (data, _) = try await WidgetNetwork.session.data(for: request)
 
         let response = try JSONDecoder().decode(WidgetParkingResponse.self, from: data)
         return response.features.map { WidgetParking(from: $0) }
@@ -256,17 +256,19 @@ struct WidgetParkingService {
 
 // MARK: - Widget Models
 
-struct WidgetParking {
+struct WidgetParking: Codable {
     let id: String
     let nom: String
-    let placesDisponibles: Int
-    let capaciteTotale: Int
+    // Optionnels : le GeoServer renvoie null quand le capteur est indisponible ;
+    // la vue bascule alors sur « Données indisponibles » au lieu d'afficher « 0 / 0 »
+    let placesDisponibles: Int?
+    let capaciteTotale: Int?
 
     init(from feature: WidgetParkingFeature) {
         self.id = feature.properties.id
         self.nom = feature.properties.nom
-        self.placesDisponibles = feature.properties.placesDisponibles ?? 0
-        self.capaciteTotale = feature.properties.nbPlaces ?? 0
+        self.placesDisponibles = feature.properties.placesDisponibles
+        self.capaciteTotale = feature.properties.nbPlaces
     }
 }
 

@@ -6,6 +6,8 @@ struct ParkingMapView: View {
     @StateObject private var viewModel = ParkingViewModel()
     @ObservedObject private var locationService = LocationService.shared
     @State private var selectedParking: Parking?
+    /// Deep link parking reçu avant que les données soient chargées — résolu dès leur arrivée.
+    @State private var pendingParkingId: String?
     @State private var mapCameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
@@ -56,10 +58,13 @@ struct ParkingMapView: View {
         }
         .onChange(of: selectedParkingId) { _, newParkingId in
             if let parkingId = newParkingId {
-                openParkingById(parkingId)
+                pendingParkingId = parkingId
                 selectedParkingId = nil
+                resolvePendingParking()
             }
         }
+        .onChange(of: viewModel.parkings) { _, _ in resolvePendingParking() }
+        .onChange(of: viewModel.parcRelais) { _, _ in resolvePendingParking() }
     }
     
     private var parkingTypeSelector: some View {
@@ -148,7 +153,7 @@ struct ParkingMapView: View {
                 
                 // P+R TCL (toujours affichés dans l'onglet voiture)
                 if viewModel.selectedParkingType == .car && viewModel.showParcRelais {
-                    ForEach(viewModel.parcRelais) { pr in
+                    ForEach(viewModel.visibleParcRelais) { pr in
                         Annotation("", coordinate: pr.coordinate) {
                             ParkingMarker(parking: pr, currentZoomLevel: viewModel.currentZoomLevel)
                                 .onTapGesture { selectedParking = pr }
@@ -170,90 +175,44 @@ struct ParkingMapView: View {
             }
             .overlay {
                 if let error = viewModel.error {
-                    parkingErrorOverlay(error)
+                    ServerErrorOverlay(error: error) {
+                        Task { await viewModel.loadParkings() }
+                    }
                 }
             }
         }
     }
     
-    private func parkingErrorOverlay(_ error: String) -> some View {
-        let hour = Calendar.current.component(.hour, from: Date())
-        let isNight = hour >= 22 || hour < 6
-        let icon = isNight ? "moon.zzz.fill" : "cloud.slash.fill"
-        let iconColor: Color = isNight ? .indigo : .orange
-        let title = isNight ? "Les serveurs se reposent" : "Données temporairement indisponibles"
-        let subtitle = isNight
-            ? "Grand Lyon coupe ses serveurs la nuit. Revenez après 6h !"
-            : friendlyServerMessage(for: error)
-        return VStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.system(size: 48))
-                .foregroundStyle(iconColor)
-            
-            Text(title)
-                .font(.headline)
-                .multilineTextAlignment(.center)
-            
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            
-            Button("Réessayer") {
-                Task { await viewModel.loadParkings() }
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.blue)
+    /// Résout le deep link parking en attente dès que les données nécessaires arrivent.
+    ///
+    /// Piloté par l'état plutôt que par un délai fixe : un chargement plus lent que
+    /// le sleep précédent (0,5 s) faisait silencieusement perdre le deep link.
+    private func resolvePendingParking() {
+        guard let parkingId = pendingParkingId,
+              let parking = (viewModel.parkings + viewModel.parcRelais).first(where: { $0.id == parkingId })
+        else { return }
+
+        pendingParkingId = nil
+
+        // Changer le type de parking si nécessaire
+        if parking.parkingType != viewModel.selectedParkingType {
+            viewModel.selectedParkingType = parking.parkingType
         }
-        .padding(24)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 24))
-        .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 6)
-        .padding(20)
-    }
-    
-    private func friendlyServerMessage(for error: String) -> String {
-        if error.contains("504") || error.contains("Timeout") || error.contains("timeout") || error.contains("timed out") {
-            return "Le serveur Grand Lyon prend son temps... Réessayez dans quelques instants."
-        } else if error.contains("500") || error.contains("502") || error.contains("503") {
-            return "Le serveur Grand Lyon est en maintenance. Revenez bientôt !"
-        } else if error.contains("connection") || error.contains("network") || error.contains("Network") {
-            return "Vérifiez votre connexion internet."
+
+        // Zoomer sur le parking
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+            mapCameraPosition = .region(
+                MKCoordinateRegion(
+                    center: parking.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
+                )
+            )
         }
-        return "Une erreur inattendue s'est produite. Réessayez dans quelques instants."
-    }
-    
-    private func openParkingById(_ parkingId: String) {
-        // Attendre que les parkings soient chargés si nécessaire
+
+        // Ouvrir la fiche du parking une fois le zoom amorcé
         Task {
-            // Si les parkings ne sont pas encore chargés, attendre un peu
-            if viewModel.parkings.isEmpty {
-                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 secondes
-            }
-            
-            // Chercher le parking dans tous les parkings chargés
-            if let parking = viewModel.parkings.first(where: { $0.id == parkingId }) {
-                // Changer le type de parking si nécessaire
-                if parking.parkingType != viewModel.selectedParkingType {
-                    viewModel.selectedParkingType = parking.parkingType
-                }
-                
-                // Zoomer sur le parking
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                    mapCameraPosition = .region(
-                        MKCoordinateRegion(
-                            center: parking.coordinate,
-                            span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
-                        )
-                    )
-                }
-                
-                // Ouvrir la fiche du parking après un court délai
-                Task {
-                    try? await Task.sleep(for: .milliseconds(500))
-                    await MainActor.run { selectedParking = parking }
-                }
-            }
+            try? await Task.sleep(for: .milliseconds(500))
+            await MainActor.run { selectedParking = parking }
         }
     }
     
@@ -561,13 +520,6 @@ struct ParkingDetailSheet: View {
     @ObservedObject var viewModel: ParkingViewModel
     @Environment(\.dismiss) private var dismiss
     
-    init(parking: Parking, viewModel: ParkingViewModel) {
-        self.parking = parking
-        self.viewModel = viewModel
-        // Sauvegarder le parking dans les récents pour la configuration du widget
-        RecentItemsService.shared.saveRecentParking(id: parking.id, name: parking.nom)
-    }
-    
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -640,6 +592,10 @@ struct ParkingDetailSheet: View {
                         dismiss()
                     }
                 }
+            }
+            .onAppear {
+                // Une seule écriture par présentation (l'init était rejoué à chaque recomposition)
+                RecentItemsService.shared.saveRecentParking(id: parking.id, name: parking.nom)
             }
         }
     }
@@ -1095,7 +1051,7 @@ struct ParkingFilterSheet: View {
                                 Text("Parcs Relais TCL")
                                     .foregroundStyle(.primary)
                                     .font(.subheadline)
-                                Text("\(viewModel.parcRelais.count) P+R • données statiques")
+                                Text("\(viewModel.visibleParcRelais.count) P+R • données statiques")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }

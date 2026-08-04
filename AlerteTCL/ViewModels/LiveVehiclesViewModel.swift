@@ -40,7 +40,6 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published var showMetroTraces = true {
         didSet { UserDefaults.standard.set(showMetroTraces, forKey: PersistenceKey.showMetroTraces) }
     }
-    @Published var mapRegion: MKCoordinateRegion
     /// Non-@Published : lu par les moteurs de clustering/viewport mais pas par
     /// les Views SwiftUI (la carte est en UIKit). Publier ces deux propriétés
     /// invaliderait le body de `LiveMapView` à chaque mouvement de caméra
@@ -64,11 +63,10 @@ final class LiveVehiclesViewModel: ObservableObject {
     /// chaque requête retourne des données fraîches. Grand Lyon reçoit ≤ 1 req/15 s.
     private let baseInterval: TimeInterval = 15
     private let maxInterval: TimeInterval = 60
-    private var cancellables = Set<AnyCancellable>()
     private var isFirstLoad = true
     
     private var cachedAvailableLines: [String] = []
-    private var lastVehicleCount: Int = 0
+    private var lastLineNames: Set<String> = []
     
     let favoriteLinesService = FavoriteLinesService.shared
 
@@ -80,23 +78,7 @@ final class LiveVehiclesViewModel: ObservableObject {
         static let showMetroTraces = "liveMap.showMetroTraces"
     }
 
-    private static let lyonCenter = CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659)
-    private static let defaultSpan = MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
-    
     init() {
-        if LocationService.shared.isLocationAvailable,
-           let userLocation = LocationService.shared.currentLocation {
-            self.mapRegion = MKCoordinateRegion(
-                center: userLocation.coordinate,
-                span: Self.defaultSpan
-            )
-        } else {
-            self.mapRegion = MKCoordinateRegion(
-                center: Self.lyonCenter,
-                span: Self.defaultSpan
-            )
-        }
-        
         if let saved = UserDefaults.standard.array(forKey: PersistenceKey.selectedLines) as? [String] {
             _selectedLines = Published(initialValue: Set(saved))
         }
@@ -112,20 +94,6 @@ final class LiveVehiclesViewModel: ObservableObject {
         if UserDefaults.standard.object(forKey: PersistenceKey.showMetroTraces) != nil {
             _showMetroTraces = Published(initialValue: UserDefaults.standard.bool(forKey: PersistenceKey.showMetroTraces))
         }
-
-        LocationService.shared.$currentLocation
-            .compactMap { $0 }
-            .first()
-            .sink { [weak self] location in
-                guard let self = self else { return }
-                withAnimation {
-                    self.mapRegion = MKCoordinateRegion(
-                        center: location.coordinate,
-                        span: Self.defaultSpan
-                    )
-                }
-            }
-            .store(in: &cancellables)
     }
     
     private func updateFilteredVehicles() {
@@ -150,9 +118,10 @@ final class LiveVehiclesViewModel: ObservableObject {
     var displayVehicles: [Vehicle] { filteredVehicles }
     
     var availableLines: [String] {
-        if vehicles.count != lastVehicleCount {
+        let currentLineNames = Set(vehicles.map { $0.lineName })
+        if currentLineNames != lastLineNames {
             cachedAvailableLines = computeAvailableLines()
-            lastVehicleCount = vehicles.count
+            lastLineNames = currentLineNames
         }
         
         let linesToFilter: [Vehicle]
@@ -222,63 +191,40 @@ final class LiveVehiclesViewModel: ObservableObject {
         }
     }
     
-    /// Nombre max de retries automatiques pour le chargement initial
-    private static let maxRetries = 1
-    private static let retryDelay: UInt64 = 2_000_000_000 // 2s
-    
     func loadVehicles() async {
         guard !isLoading else { return }
-        
+
         isLoading = true
         error = nil
         consecutiveErrors = 0
         defer { isLoading = false }
-        
-        var lastError: Error?
-        let attempts = isInitialLoadComplete ? 1 : (Self.maxRetries + 1)
-        
-        for attempt in 1...attempts {
-            do {
-                let fetchedVehicles = try await SIRILiteService.shared.fetchVehiclePositions()
-                
-                updateAnimatedVehicles(with: fetchedVehicles)
-                
-                vehicles = mergeWithGracePeriodVehicles(fetchedVehicles)
-                lastUpdate = Date()
-                error = nil
-                isInitialLoadComplete = true
-                consecutiveErrors = 0
-                
-                // Mettre à jour les véhicules filtrés et clusters
-                updateFilteredVehicles()
-                return
-            } catch let siriError as ServiceError {
-                lastError = siriError
-                AppLogger.debug("⚠️ Erreur SIRI tentative \(attempt)/\(attempts): \(siriError.errorDescription ?? "inconnue")")
-            } catch is CancellationError {
-                AppLogger.debug("⏹️ Chargement véhicules annulé")
-                return
-            } catch let urlError as URLError where urlError.code == .cancelled {
-                AppLogger.debug("⏹️ Requête véhicules annulée (URLError.cancelled)")
-                return
-            } catch {
-                lastError = error
-                AppLogger.debug("⚠️ Erreur véhicules tentative \(attempt)/\(attempts): \(error.localizedDescription)")
-            }
-            
-            // Retry avec délai seulement si ce n'est pas la dernière tentative
-            if attempt < attempts {
-                AppLogger.debug("🔄 Retry véhicules dans 2s...")
-                try? await Task.sleep(nanoseconds: Self.retryDelay)
-            }
+
+        // Retry automatique réservé au premier chargement
+        let result = await withInitialRetry(attempts: isInitialLoadComplete ? 1 : 2) {
+            try await SIRILiteService.shared.fetchVehiclePositions()
         }
-        
-        // Toutes les tentatives ont échoué
-        if let siriError = lastError as? ServiceError {
-            self.error = siriError.errorDescription
-        } else {
-            self.error = lastError?.localizedDescription
+
+        // nil = annulation (vue quittée pendant le chargement) : rien à afficher
+        guard let result else { return }
+
+        switch result {
+        case .success(let fetchedVehicles):
+            applyFetchedVehicles(fetchedVehicles)
+            isInitialLoadComplete = true
+        case .failure(let lastError):
+            // Toutes les tentatives ont échoué
+            self.error = (lastError as? ServiceError)?.errorDescription ?? lastError.localizedDescription
         }
+    }
+
+    /// Applique un lot de véhicules fraîchement récupéré (état, animation, filtrage).
+    private func applyFetchedVehicles(_ fetched: [Vehicle]) {
+        updateAnimatedVehicles(with: fetched)
+        vehicles = mergeWithGracePeriodVehicles(fetched)
+        lastUpdate = Date()
+        error = nil
+        consecutiveErrors = 0
+        updateFilteredVehicles()
     }
     
     private func updateAnimatedVehicles(with newVehicles: [Vehicle]) {
@@ -344,7 +290,8 @@ final class LiveVehiclesViewModel: ObservableObject {
     
     // MARK: - Live Data Stream
     
-    private var adaptiveInterval: TimeInterval {
+    /// Intervalle effectif du stream temps réel (backoff progressif sur erreurs) — lu par le badge LIVE.
+    var adaptiveInterval: TimeInterval {
         guard consecutiveErrors > 0 else { return baseInterval }
         return min(baseInterval * pow(1.5, Double(consecutiveErrors)), maxInterval)
     }
@@ -389,13 +336,7 @@ final class LiveVehiclesViewModel: ObservableObject {
     private func fetchVehiclesQuietly() async {
         do {
             let fetched = try await SIRILiteService.shared.fetchVehiclePositions()
-            updateAnimatedVehicles(with: fetched)
-            vehicles = mergeWithGracePeriodVehicles(fetched)
-            lastUpdate = Date()
-            error = nil
-            consecutiveErrors = 0
-            
-            updateFilteredVehicles()
+            applyFetchedVehicles(fetched)
         } catch {
             consecutiveErrors += 1
             // Only surface error after 3 consecutive failures (transient tolerance)

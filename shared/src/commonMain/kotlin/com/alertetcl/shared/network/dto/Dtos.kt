@@ -118,7 +118,10 @@ data class MultiLineGeometry(
 // ─── Parking ─────────────────────────────────────────────────────────────────
 
 @Serializable
-data class ParkingResponse(val features: List<ParkingFeature> = emptyList())
+data class ParkingResponse(
+    val features: List<ParkingFeature> = emptyList(),
+    val numberMatched: Int? = null
+)
 
 @Serializable
 data class ParkingFeature(
@@ -160,10 +163,7 @@ data class ParkingProperties(
 // ─── Travaux ─────────────────────────────────────────────────────────────────
 
 @Serializable
-data class TravauxResponse(
-    val features: List<TravauxFeature> = emptyList(),
-    val numberReturned: Int? = null
-)
+data class TravauxResponse(val features: List<TravauxFeature> = emptyList())
 
 @Serializable
 data class TravauxFeature(

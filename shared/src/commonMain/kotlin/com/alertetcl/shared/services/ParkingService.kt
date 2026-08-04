@@ -11,6 +11,8 @@ import com.alertetcl.shared.network.HttpClientProvider
 import com.alertetcl.shared.network.NetworkConfiguration
 import com.alertetcl.shared.network.dto.ParkingFeature
 import com.alertetcl.shared.network.dto.ParkingResponse
+import com.alertetcl.shared.network.safeDecode
+import com.alertetcl.shared.network.safeRequest
 import com.alertetcl.shared.util.AppLogger
 import com.alertetcl.shared.util.SpatialTileCache
 import com.alertetcl.shared.util.TileCacheConfig
@@ -54,7 +56,7 @@ class ParkingService {
                 }
             }
         }
-        val parkings = fetchFromApi(type, bbox = null, limit = null)
+        val (parkings, _) = fetchPage(type, bbox = null, limit = null, startIndex = 0)
         mutex.withLock { simpleCache[type] = parkings to Clock.System.now().epochSeconds }
         return parkings
     }
@@ -63,6 +65,8 @@ class ParkingService {
         if (type == ParkingType.CAR) return fetchParkings(type, forceRefresh)
 
         val tileCache = if (type == ParkingType.BIKE) bikeTileCache else motoTileCache
+        // Pull-to-refresh : invalider les tuiles pour forcer un vrai re-fetch
+        if (forceRefresh) tileCache.clear()
         tileCache.pruneExpired()
 
         val (cached, missing) = tileCache.getItemsForBoundingBox(
@@ -71,8 +75,17 @@ class ParkingService {
         )
         if (missing.isEmpty()) return cached
 
+        // Pagination obligatoire : GeoServer plafonne à PAGE_LIMIT features par page
         val bbox = tileCache.bboxStringFor(missing)
-        val newParkings = fetchFromApi(type, bbox = bbox, limit = 1000)
+        val newParkings = mutableListOf<Parking>()
+        var startIndex = 0
+        var pageFeatureCount: Int
+        do {
+            val (pageParkings, featureCount) = fetchPage(type, bbox = bbox, limit = PAGE_LIMIT, startIndex = startIndex)
+            newParkings += pageParkings
+            pageFeatureCount = featureCount
+            startIndex += featureCount
+        } while (pageFeatureCount == PAGE_LIMIT)
 
         // Distribute new parkings to their tiles
         val tileSize = TileCacheConfig.STATIC_DATA.tileSizeDegrees
@@ -94,25 +107,33 @@ class ParkingService {
         return all
     }
 
-    private suspend fun fetchFromApi(type: ParkingType, bbox: String?, limit: Int?): List<Parking> {
+    /**
+     * Récupère une page. Renvoie les parkings décodés et le nombre brut de features reçues :
+     * la pagination doit se baser sur ce dernier, certaines features pouvant être ignorées au décodage.
+     */
+    private suspend fun fetchPage(
+        type: ParkingType,
+        bbox: String?,
+        limit: Int?,
+        startIndex: Int
+    ): Pair<List<Parking>, Int> {
         val sb = StringBuilder("$baseURL/${collectionName(type)}/items?f=application/json&sortby=gid")
         if (!bbox.isNullOrEmpty()) sb.append("&bbox=$bbox")
         if (limit != null) sb.append("&limit=$limit")
+        if (startIndex > 0) sb.append("&startIndex=$startIndex")
 
-        val response: HttpResponse = try {
+        val response: HttpResponse = safeRequest {
             client.get(sb.toString()) {
                 timeout { requestTimeoutMillis = NetworkConfiguration.SHARED_TIMEOUT_SECONDS * 1000 }
             }
-        } catch (e: Throwable) { throw ApiError.NetworkError(e) }
+        }
 
         if (response.status != HttpStatusCode.OK)
             throw ApiError.HttpError(response.status.value)
 
-        val body: ParkingResponse = try {
-            response.body()
-        } catch (e: Throwable) { throw ApiError.DecodingError(e) }
+        val body: ParkingResponse = safeDecode { response.body() }
 
-        return body.features.mapNotNull { decodeParking(it, type) }
+        return body.features.mapNotNull { decodeParking(it, type) } to body.features.size
     }
 
     private fun decodeParking(feature: ParkingFeature, type: ParkingType): Parking? {
@@ -157,5 +178,10 @@ class ParkingService {
         )
     }
 
-    companion object { val shared = ParkingService() }
+    companion object {
+        /** Limite de features par page côté GeoServer. */
+        private const val PAGE_LIMIT = 1000
+
+        val shared = ParkingService()
+    }
 }

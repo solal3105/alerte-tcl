@@ -41,8 +41,16 @@ struct ContentView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active {
+            switch phase {
+            case .active:
                 NotificationService.shared.clearBadge()
+                LocationService.shared.startUpdatingLocation()
+            case .background:
+                // Le GPS tourne en continu dès l'autorisation accordée : le couper
+                // en arrière-plan évite de vider la batterie pour rien.
+                LocationService.shared.stopUpdatingLocation()
+            default:
+                break
             }
         }
         .onReceive(

@@ -6,6 +6,8 @@ import com.alertetcl.shared.network.ApiError
 import com.alertetcl.shared.network.HttpClientProvider
 import com.alertetcl.shared.network.NetworkConfiguration
 import com.alertetcl.shared.network.dto.AlertsApiResponse
+import com.alertetcl.shared.network.safeDecode
+import com.alertetcl.shared.network.safeRequest
 import com.alertetcl.shared.util.AppLogger
 import com.alertetcl.shared.util.parseIsoEpoch
 import io.ktor.client.call.body
@@ -25,12 +27,14 @@ class TclApiService {
 
     suspend fun fetchAlerts(): List<TCLAlert> {
         val response: HttpResponse = try {
-            client.get(endpoint) {
-                timeout { requestTimeoutMillis = NetworkConfiguration.FAST_TIMEOUT_SECONDS * 1000 }
+            safeRequest {
+                client.get(endpoint) {
+                    timeout { requestTimeoutMillis = NetworkConfiguration.FAST_TIMEOUT_SECONDS * 1000 }
+                }
             }
-        } catch (e: Throwable) {
-            AppLogger.error("TclApiService: erreur réseau", e)
-            throw ApiError.NetworkError(e)
+        } catch (e: ApiError.NetworkError) {
+            AppLogger.error("TclApiService: erreur réseau", e.cause)
+            throw e
         }
 
         when (response.status) {
@@ -39,11 +43,7 @@ class TclApiService {
             else -> throw ApiError.HttpError(response.status.value)
         }
 
-        val body: AlertsApiResponse = try {
-            response.body()
-        } catch (e: Throwable) {
-            throw ApiError.DecodingError(e)
-        }
+        val body: AlertsApiResponse = safeDecode { response.body() }
 
         val now = Clock.System.now().epochSeconds
         val alerts = body.values.mapNotNull { dto ->

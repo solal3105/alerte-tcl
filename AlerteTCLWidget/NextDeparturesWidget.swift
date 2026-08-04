@@ -125,7 +125,7 @@ struct NextDeparturesProvider: AppIntentTimelineProvider {
     }
 
     private static func terminusName(forStopId stopId: Int, lineName: String, direction: String) -> String {
-        let defaults = UserDefaults(suiteName: "group.com.solal.alertetcl")
+        let defaults = AppGroup.defaults
         let savedStops = defaults?.array(forKey: "widgetStops") as? [[String: Any]] ?? []
         let id = "\(stopId)-\(lineName)-\(direction)"
         return savedStops.first(where: { ($0["id"] as? String) == id })?["terminusName"] as? String ?? ""
@@ -196,6 +196,15 @@ enum WidgetPassageError {
     case networkError
 }
 
+extension WidgetPassageError {
+    /// Vrai entre 22h et 6h : une erreur réseau la nuit correspond le plus
+    /// souvent aux serveurs TCL inactifs, pas à une panne.
+    static var isNightTime: Bool {
+        let hour = Calendar.current.component(.hour, from: Date())
+        return hour >= 22 || hour < 6
+    }
+}
+
 // MARK: - Widget View
 
 struct NextDeparturesEntryView: View {
@@ -221,8 +230,8 @@ struct NextDeparturesEntryView: View {
 struct SmallWidgetView: View {
     let entry: NextDeparturesEntry
 
-    private var lineColor: Color { WidgetLineColorHelper.backgroundColor(for: entry.lineName) }
-    private var textColor: Color { WidgetLineColorHelper.textColor(for: entry.lineName) }
+    private var lineColor: Color { LineColorHelper.backgroundColor(for: entry.lineName) }
+    private var textColor: Color { LineColorHelper.textColor(for: entry.lineName) }
 
     var body: some View {
         if let error = entry.error {
@@ -309,8 +318,8 @@ struct SmallWidgetView: View {
 struct MediumWidgetView: View {
     let entry: NextDeparturesEntry
 
-    private var lineColor: Color { WidgetLineColorHelper.backgroundColor(for: entry.lineName) }
-    private var textColor: Color { WidgetLineColorHelper.textColor(for: entry.lineName) }
+    private var lineColor: Color { LineColorHelper.backgroundColor(for: entry.lineName) }
+    private var textColor: Color { LineColorHelper.textColor(for: entry.lineName) }
 
     var body: some View {
         if let error = entry.error {
@@ -378,8 +387,8 @@ struct MediumWidgetView: View {
 struct LargeWidgetView: View {
     let entry: NextDeparturesEntry
 
-    private var lineColor: Color { WidgetLineColorHelper.backgroundColor(for: entry.lineName) }
-    private var textColor: Color { WidgetLineColorHelper.textColor(for: entry.lineName) }
+    private var lineColor: Color { LineColorHelper.backgroundColor(for: entry.lineName) }
+    private var textColor: Color { LineColorHelper.textColor(for: entry.lineName) }
 
     var body: some View {
         if let error = entry.error {
@@ -645,8 +654,7 @@ struct ErrorStateView: View {
     }
     
     private var networkErrorView: some View {
-        let hour = Calendar.current.component(.hour, from: Date())
-        let isNight = hour >= 22 || hour < 6
+        let isNight = WidgetPassageError.isNightTime
         let icon = isNight ? "moon.zzz.fill" : "wifi.slash"
         let color: Color = isNight ? .indigo : .red
         let title = isNight ? "Serveurs inactifs" : "Données indisponibles"

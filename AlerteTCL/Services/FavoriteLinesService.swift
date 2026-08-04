@@ -24,7 +24,6 @@ public final class FavoriteLinesService: ObservableObject {
             favoriteLines.insert(line)
         }
         saveFavorites()
-        objectWillChange.send()
     }
     
     private func loadFavorites() {

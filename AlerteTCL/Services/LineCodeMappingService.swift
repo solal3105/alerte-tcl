@@ -9,8 +9,10 @@ actor LineCodeMappingService {
     private let url = NetworkConfiguration.proxyBaseURL + "/line-mapping"
     private let cacheValidityDuration: TimeInterval = 86400
 
-    private var mapping: [String: String] = [:]
+    private var mapping: [String: String] = LineCodeMappingService.staticFallback
     private var cacheTimestamp: Date?
+    private var lastLoadAttempt: Date?
+    private let retryInterval: TimeInterval = 60
 
     private init() {}
 
@@ -41,6 +43,11 @@ actor LineCodeMappingService {
         if let ts = cacheTimestamp, Date().timeIntervalSince(ts) < cacheValidityDuration {
             return
         }
+        // Backoff : ne pas retenter le réseau à chaque cycle véhicules en cas d'échec
+        if let attempt = lastLoadAttempt, Date().timeIntervalSince(attempt) < retryInterval {
+            return
+        }
+        lastLoadAttempt = Date()
         do {
             try await load()
         } catch {

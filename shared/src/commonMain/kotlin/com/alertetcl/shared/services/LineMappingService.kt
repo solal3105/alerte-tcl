@@ -8,6 +8,7 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
@@ -41,6 +42,8 @@ class LineMappingService {
             mutex.withLock { cache = mapping to Clock.System.now().epochSeconds }
             AppLogger.debug("LineMappingService: ${mapping.size} entrées chargées")
             mapping
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Throwable) {
             AppLogger.warn("LineMappingService: impossible de charger le mapping — ${e.message}")
             // Retourne le cache périmé si disponible, sinon map vide

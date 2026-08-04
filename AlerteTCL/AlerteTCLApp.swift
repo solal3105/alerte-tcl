@@ -5,7 +5,6 @@ private let alertRefreshIdentifier = "com.alertetcl.alert-refresh"
 
 private func handleAlertRefresh(task: BGAppRefreshTask) {
     scheduleAlertRefresh()
-    var expired = false
     let work = Task {
         let alerts = try? await TCLAPIService.shared.fetchAlerts()
         if let alerts {
@@ -14,8 +13,8 @@ private func handleAlertRefresh(task: BGAppRefreshTask) {
             )
         }
     }
-    task.expirationHandler = { expired = true; work.cancel() }
-    Task { await work.value; task.setTaskCompleted(success: !expired) }
+    task.expirationHandler = { work.cancel() }
+    Task { await work.value; task.setTaskCompleted(success: !work.isCancelled) }
 }
 
 private func scheduleAlertRefresh() {
@@ -39,7 +38,11 @@ struct AlerteTCLApp: App {
             forTaskWithIdentifier: alertRefreshIdentifier,
             using: nil
         ) { task in
-            handleAlertRefresh(task: task as! BGAppRefreshTask)
+            guard let refreshTask = task as? BGAppRefreshTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
+            handleAlertRefresh(task: refreshTask)
         }
         configureAppearance()
     }

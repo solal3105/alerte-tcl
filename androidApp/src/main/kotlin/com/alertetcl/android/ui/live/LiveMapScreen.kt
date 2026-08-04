@@ -9,8 +9,6 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import android.Manifest
 import android.content.pm.PackageManager
-import android.location.LocationManager
-import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -62,13 +60,11 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.Warning
-// import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
@@ -132,6 +128,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.alertetcl.android.ui.colorFromHex
+import com.alertetcl.android.ui.map.MapCircleFab
+import com.alertetcl.android.ui.map.enableLocationComponent
+import com.alertetcl.android.ui.map.mapStyleBuilder
+import com.alertetcl.android.ui.map.recenterOnUser
+import com.alertetcl.android.ui.map.rememberManagedMapView
 import com.alertetcl.shared.models.BusLine
 import com.alertetcl.shared.models.LineColors
 import com.alertetcl.shared.models.MergedStop
@@ -139,7 +140,6 @@ import com.alertetcl.shared.models.Passage
 import com.alertetcl.shared.models.StopMergingEngine
 import com.alertetcl.shared.models.TransitLine
 import com.alertetcl.shared.models.TransportMode
-// import com.alertetcl.android.data.WidgetSelection
 import com.alertetcl.shared.models.AnimatedVehicle
 import com.alertetcl.shared.models.TransitStop
 import com.alertetcl.shared.models.Vehicle
@@ -152,12 +152,7 @@ import com.alertetcl.shared.viewmodels.LiveVehiclesViewModel
 import com.google.gson.JsonObject
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.location.LocationComponentActivationOptions
-import org.maplibre.android.location.modes.CameraMode
-import org.maplibre.android.location.modes.RenderMode
 import org.maplibre.android.maps.MapLibreMap
-import org.maplibre.android.maps.MapLibreMapOptions
-import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.CircleLayer
@@ -171,23 +166,6 @@ import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 
-// Tuiles OpenFreeMap — 100% gratuit, sans clé API
-private const val STYLE_URL_LIBERTY = "https://tiles.openfreemap.org/styles/liberty"
-private const val STYLE_URL_DARK    = "https://tiles.openfreemap.org/styles/fiord"
-
-// Style satellite via raster ESRI World Imagery (free, no key)
-private const val STYLE_JSON_SATELLITE = """{
-  "version": 8,
-  "sources": {
-    "satellite": {
-      "type": "raster",
-      "tiles": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
-      "tileSize": 256,
-      "attribution": "Tiles © Esri"
-    }
-  },
-  "layers": [{"id": "satellite", "type": "raster", "source": "satellite"}]
-}"""
 
 private const val METRO_SRC       = "metro-src"
 private const val TRAM_SRC        = "tram-src"
@@ -207,38 +185,6 @@ private const val STOPS_BADGE_LAYER = "stops-badge-layer"  // SymbolLayer mode b
 // Précompilé une seule fois — réutilisé dans les LaunchedEffect (parité iOS : aucune allocation par tick)
 private val ICON_KEY_REGEX = Regex("[^A-Za-z0-9]")
 
-@Composable
-private fun rememberMapView(): MapView {
-    val context = LocalContext.current
-    // textureMode(true) = TextureView = obligatoire sur Samsung One UI 4.x (Android 12).
-    // Le compositor Samsung crash avec SurfaceView ("Z-order hole punch") dans Compose.
-    // Sur émulateur : pas de Samsung → SurfaceView (défaut, plus rapide, pas de GPU copy en trop).
-    // Sur émulateur : density 420 dpi → pixelRatio ~2.6 → MapLibre charge ~7× trop de tuiles.
-    //   On force pixelRatio=1.0 sur émulateur pour un rendu fluide.
-    val isEmulator = Build.FINGERPRINT.startsWith("generic") ||
-                     Build.FINGERPRINT.contains("emulator") ||
-                     Build.MODEL.contains("Emulator") ||
-                     Build.MODEL.contains("Android SDK")
-    val isSamsung = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
-    val pixelRatio = if (isEmulator) 1.0f else context.resources.displayMetrics.density
-    val mapView = remember {
-        MapView(context, MapLibreMapOptions.createFromAttributes(context)
-            .textureMode(!isEmulator && isSamsung)
-            .pixelRatio(pixelRatio))
-    }
-    DisposableEffect(Unit) {
-        mapView.onCreate(null)
-        mapView.onStart()
-        mapView.onResume()
-        onDispose {
-            mapView.onPause()
-            mapView.onStop()
-            mapView.onDestroy()
-        }
-    }
-    return mapView
-}
-
 /** Normalise un hex TCL vers #RRGGBB lisible par MapLibre */
 private fun toMapColor(hex: String): String {
     val c = hex.trim().removePrefix("#")
@@ -257,19 +203,31 @@ fun LiveMapScreen() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    // Alertes pour le bandeau trafic en haut
+    val alertsAndroidVm: AlertsAndroidViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val alertsVm = alertsAndroidVm.alertsVm
+
     // Lifecycle: stop polling on background, restart on resume (parité iOS scenePhase)
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> vm.startPolling()
-                Lifecycle.Event.ON_STOP  -> vm.stopPolling()
+                Lifecycle.Event.ON_START -> {
+                    vm.startPolling()
+                    alertsVm.startPolling()
+                }
+                Lifecycle.Event.ON_STOP -> {
+                    vm.stopPolling()
+                    alertsVm.stopPolling()
+                }
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            // vm.dispose() géré par LiveMapAndroidViewModel.onCleared()
+            // Quitter l'onglet doit arrêter les deux polls (dispose() géré par les ViewModels Android)
+            vm.stopPolling()
+            alertsVm.stopPolling()
         }
     }
     val vehicles     by vm.vehicles.collectAsState()
@@ -279,15 +237,6 @@ fun LiveMapScreen() {
     val isLive       by vm.isLive.collectAsState()
     val lastUpdateMs by vm.lastUpdateEpochMs.collectAsState()
 
-    // Alertes pour le bandeau trafic en haut
-    val alertsAndroidVm: AlertsAndroidViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
-    val alertsVm = alertsAndroidVm.alertsVm
-    DisposableEffect(Unit) {
-        alertsVm.startPolling()
-        onDispose {
-            // alertsVm.dispose() géré par AlertsAndroidViewModel.onCleared()
-        }
-    }
     val alerts by alertsVm.alerts.collectAsState()
     val alertsError by alertsVm.errorMessage.collectAsState()
 
@@ -367,7 +316,7 @@ fun LiveMapScreen() {
         }
     }
 
-    val mapView = rememberMapView()
+    val mapView = rememberManagedMapView()
 
     // Filtres actifs (parité iOS hasActiveFilters — les arrêts sont automatiques, pas un filtre)
     val hasActiveFilters = selectedTypes.size != VehicleType.entries.size ||
@@ -407,7 +356,7 @@ fun LiveMapScreen() {
                             }
                             false
                         }
-                        map.setStyle(Style.Builder().fromUri(if (isDark) STYLE_URL_DARK else STYLE_URL_LIBERTY)) { style ->
+                        map.setStyle(mapStyleBuilder(isSatellite = false, isDark = isDark)) { style ->
                             enableLocationComponent(context, map, style)
                             mapStyle = style
                         }
@@ -420,9 +369,7 @@ fun LiveMapScreen() {
         // Switch base style when satellite toggled (re-applies layers via mapStyle observer)
         LaunchedEffect(isSatellite, isDark) {
             val map = mapLibreMap ?: return@LaunchedEffect
-            val builder = if (isSatellite) Style.Builder().fromJson(STYLE_JSON_SATELLITE)
-                          else if (isDark)  Style.Builder().fromUri(STYLE_URL_DARK)
-                          else              Style.Builder().fromUri(STYLE_URL_LIBERTY)
+            val builder = mapStyleBuilder(isSatellite, isDark)
             vehiclesLayerReady.value = false
             mapStyle = null
             map.setStyle(builder) { style ->
@@ -527,17 +474,17 @@ fun LiveMapScreen() {
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            CircleFab(
+            MapCircleFab(
                 icon = Icons.Filled.Public, contentDesc = "Vue satellite",
                 tint = if (isSatellite) StatusWarning else MaterialTheme.colorScheme.onSurface,
                 onClick = { isSatellite = !isSatellite }
             )
-            CircleFab(
+            MapCircleFab(
                 icon = Icons.Filled.FilterList, contentDesc = "Filtres",
                 tint = if (hasActiveFilters) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 onClick = { showFilterSheet = true }
             )
-            CircleFab(
+            MapCircleFab(
                 icon = Icons.Filled.MyLocation, contentDesc = "Ma position",
                 tint = MaterialTheme.colorScheme.primary,
                 onClick = {
@@ -595,6 +542,9 @@ fun LiveMapScreen() {
             )
         }
 
+        // Le style a pu être remplacé (satellite / thème) pendant le withContext :
+        // toucher un Style invalidé lève IllegalStateException.
+        if (!style.isFullyLoaded) return@LaunchedEffect
         glInitMutex.withLock {
             addOrUpdate(BUS_SRC,   BUS_LAYER,   allGeoJsons[0], 4f)
             addOrUpdate(BUS_C_SRC, BUS_C_LAYER, allGeoJsons[1], 4f)
@@ -626,6 +576,7 @@ fun LiveMapScreen() {
                     )
                 }
             }
+            if (!style.isFullyLoaded) return@LaunchedEffect
             newBitmaps.forEach { (key, bmp) -> style.addImage(key, bmp) }
         }
 
@@ -642,6 +593,7 @@ fun LiveMapScreen() {
 
         if (style.getSource(VEHICLES_SRC) == null) {
             glInitMutex.withLock {
+                if (!style.isFullyLoaded) return@LaunchedEffect
                 if (style.getSource(VEHICLES_SRC) == null) {
                     style.addSource(GeoJsonSource(VEHICLES_SRC, FeatureCollection.fromFeatures(features)))
                     // Layer 1 : flèche orbitale — sous le corps (z-index inférieur), masquée en dezoom
@@ -690,8 +642,11 @@ fun LiveMapScreen() {
         val style = mapStyle ?: return@LaunchedEffect
         // Attend que l'init GL vehicles soit terminée — suspend proprement, zéro polling.
         snapshotFlow { vehiclesLayerReady.value }.first { it }
+        if (!style.isFullyLoaded) return@LaunchedEffect
         val source = style.getSourceAs<GeoJsonSource>(VEHICLES_SRC) ?: return@LaunchedEffect
         while (true) {
+            // Un changement de style invalide `source` : sortir plutôt que crasher
+            if (!style.isFullyLoaded) return@LaunchedEffect
             val nowSec  = System.currentTimeMillis() / 1000.0
             val current = vehiclesRef.value
             if (current.isEmpty()) { kotlinx.coroutines.delay(100); continue }
@@ -743,6 +698,7 @@ fun LiveMapScreen() {
         }
 
         // Étape 2 (Main) : enregistrement des bitmaps manquants — style.getImage exige Main
+        if (!style.isFullyLoaded) return@LaunchedEffect
         val missing = allEntries.distinctBy { it.iconKey }
             .filter { style.getImage(it.iconKey) == null }
         if (missing.isNotEmpty()) {
@@ -753,12 +709,14 @@ fun LiveMapScreen() {
                     else stopCompactBitmap(e.tier, e.primaryLine)
                 }
             }
+            if (!style.isFullyLoaded) return@LaunchedEffect
             built.forEach { (key, bmp) -> style.addImage(key, bmp) }
         }
 
         // Étape 3 (Main) : source + layers MapLibre
         if (style.getSource(STOPS_SRC) == null) {
             glInitMutex.withLock {
+                if (!style.isFullyLoaded) return@LaunchedEffect
                 if (style.getSource(STOPS_SRC) == null) {
                     style.addSource(GeoJsonSource(STOPS_SRC, geojson))
                     val circleLayer = CircleLayer(STOPS_LAYER, STOPS_SRC).withProperties(
@@ -1244,44 +1202,11 @@ private fun WikimediaPhoto(url: String, modifier: Modifier = Modifier, contentSc
 
 // ── Bottom-sheet helpers ─────────────────────────────────────────────────
 
-@Composable
-private fun CircleFab(icon: androidx.compose.ui.graphics.vector.ImageVector, contentDesc: String,
-                     tint: Color, onClick: () -> Unit) {
-    SmallFloatingActionButton(
-        onClick = onClick,
-        shape = CircleShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = tint,
-    ) {
-        Icon(icon, contentDesc, modifier = Modifier.size(22.dp))
-    }
-}
-
 private data class LineDirectionKey(val line: String, val direction: String)
 
 @Composable
 private fun MergedStopDetailSheet(stop: MergedStop) {
     val context = LocalContext.current
-    // ── Widget (désactivé) ──
-    // val widgetStore = remember { com.alertetcl.android.data.FavoritesStore(context) }
-    // val widgetSelections by widgetStore.widgetSelections.collectAsState(initial = emptyList())
-    // val isInWidget = stop.stops.any { member -> widgetSelections.any { it.stopId == member.id } }
-    // var showWidgetSheet by remember { mutableStateOf(false) }
-    // val lineDirections = remember(stop) {
-    //     stop.stops.flatMap { member ->
-    //         member.desserte.split(",").mapNotNull {
-    //             val parts = it.split(":")
-    //             if (parts.size >= 2) parts[0].trim() to parts[1].trim() else null
-    //         }
-    //     }.distinctBy { it.first + "|" + it.second }.sortedWith(compareBy({ it.first }, { it.second }))
-    // }
-    // val widgetDestinationMap = produceState<Map<String, String>>(initialValue = emptyMap(), stop) {
-    //     val bus     = runCatching { BusLineService.shared.fetchLineTermini() }.getOrDefault(emptyMap())
-    //     val transit = runCatching { TransitLineService.shared.fetchLineTermini() }.getOrDefault(emptyMap())
-    //     value = bus + transit
-    // }
-    // val primaryStop = stop.stops.firstOrNull()
-    // val scope = rememberCoroutineScope()
     var passagesKey by remember(stop.id) { mutableStateOf(0) }
     var passagesHadError by remember(stop.id) { mutableStateOf(false) }
     val passages = produceState<List<Passage>?>(initialValue = null, stop.id, passagesKey) {
@@ -1355,82 +1280,6 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
             }
         }
         Spacer(Modifier.height(12.dp))
-
-        // ── Ajouter au widget (désactivé) ──
-        // Button(
-        //     onClick = {
-        //         if (isInWidget) scope.launch {
-        //             stop.stops.forEach { widgetStore.removeWidgetSelectionsForStop(it.id) }
-        //         } else showWidgetSheet = true
-        //     },
-        //     modifier = Modifier.fillMaxWidth(),
-        //     colors = ButtonDefaults.buttonColors(
-        //         containerColor = if (isInWidget) StatusSuccess else MaterialTheme.colorScheme.primary
-        //     )
-        // ) {
-        //     Icon(
-        //         if (isInWidget) Icons.Filled.CheckCircle else Icons.Filled.AddCircle,
-        //         contentDescription = null,
-        //         modifier = Modifier.size(16.dp)
-        //     )
-        //     Spacer(Modifier.width(6.dp))
-        //     Text(
-        //         if (isInWidget) "Dans le widget" else "Ajouter au widget",
-        //         fontWeight = FontWeight.SemiBold,
-        //         style = MaterialTheme.typography.bodyMedium
-        //     )
-        // }
-        // Spacer(Modifier.height(16.dp))
-
-        // if (showWidgetSheet && !isInWidget) {
-        //     Spacer(Modifier.height(4.dp))
-        //     Text(
-        //         "Choisir une ligne :",
-        //         fontWeight = FontWeight.SemiBold,
-        //         fontSize = 13.sp,
-        //         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        //         modifier = Modifier.padding(bottom = 6.dp),
-        //     )
-        //     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        //         lineDirections.forEach { (line, direction) ->
-        //             val destLabel = widgetDestinationMap.value["${line}|${direction}"].takeUnless { it.isNullOrBlank() } ?: direction.ifBlank { "—" }
-        //             Surface(
-        //                 shape = RoundedCornerShape(12.dp),
-        //                 color = MaterialTheme.colorScheme.surface,
-        //                 tonalElevation = 1.dp,
-        //                 modifier = Modifier.fillMaxWidth().clickable {
-        //                     val stopId = primaryStop?.id ?: return@clickable
-        //                     val sel = WidgetSelection(
-        //                         id = "$stopId-$line-$direction",
-        //                         stopId = stopId,
-        //                         stopName = stop.nom,
-        //                         lineName = line,
-        //                         direction = direction,
-        //                         destinationName = destLabel,
-        //                     )
-        //                     scope.launch { widgetStore.addWidgetSelection(sel) }
-        //                     showWidgetSheet = false
-        //                 }
-        //             ) {
-        //                 Row(
-        //                     modifier = Modifier.padding(12.dp),
-        //                     verticalAlignment = Alignment.CenterVertically,
-        //                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-        //                 ) {
-        //                     com.alertetcl.android.ui.alerts.LineBadge(line, size = 36.dp, fontSize = 14.sp)
-        //                     Column(modifier = Modifier.weight(1f)) {
-        //                         Text("Direction", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        //                         Text(
-        //                             destLabel,
-        //                             style = MaterialTheme.typography.bodyMedium, maxLines = 2
-        //                         )
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     }
-        //     Spacer(Modifier.height(8.dp))
-        // }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1976,45 +1825,6 @@ private fun LineFilterRow(
     }
 }
 
-private fun enableLocationComponent(context: android.content.Context, map: MapLibreMap, style: Style) {
-    val granted = androidx.core.content.ContextCompat.checkSelfPermission(
-        context, Manifest.permission.ACCESS_FINE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
-    if (!granted) return
-    @Suppress("MissingPermission")
-    map.locationComponent.run {
-        activateLocationComponent(
-            LocationComponentActivationOptions.builder(context, style)
-                .useDefaultLocationEngine(true)
-                .build()
-        )
-        isLocationComponentEnabled = true
-        renderMode = RenderMode.COMPASS
-        cameraMode  = CameraMode.NONE
-    }
-}
-
-private fun recenterOnUser(context: android.content.Context, map: MapLibreMap?) {
-    val m = map ?: return
-    val lm = context.getSystemService(android.content.Context.LOCATION_SERVICE) as? LocationManager ?: return
-    val granted = androidx.core.content.ContextCompat.checkSelfPermission(
-        context, Manifest.permission.ACCESS_FINE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
-    if (!granted) return
-    @Suppress("MissingPermission")
-    val loc = listOfNotNull(
-        runCatching { lm.getLastKnownLocation(LocationManager.GPS_PROVIDER) }.getOrNull(),
-        runCatching { lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) }.getOrNull()
-    ).maxByOrNull { it.time } ?: return
-    m.animateCamera(
-        org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(
-            CameraPosition.Builder()
-                .target(LatLng(loc.latitude, loc.longitude))
-                .zoom(15.0)
-                .build()
-        )
-    )
-}
 
 // ── Vehicle feature helpers ─────────────────────────────────────────────
 // Extraits pour éviter la duplication entre le LaunchedEffect(vehicles)

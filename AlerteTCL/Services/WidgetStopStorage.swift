@@ -10,8 +10,7 @@ struct WidgetStopSelection: Codable, Identifiable, Equatable {
     let line: String
     let direction: String
     let terminusName: String
-    let dateAdded: Date
-    
+
     init(stopId: Int, stopName: String, line: String, direction: String, terminusName: String = "") {
         self.id = "\(stopId)-\(line)-\(direction)"
         self.stopId = stopId
@@ -19,11 +18,6 @@ struct WidgetStopSelection: Codable, Identifiable, Equatable {
         self.line = line
         self.direction = direction
         self.terminusName = terminusName
-        self.dateAdded = Date()
-    }
-    
-    var displaySubtitle: String {
-        stopName
     }
 }
 
@@ -33,7 +27,7 @@ struct WidgetStopSelection: Codable, Identifiable, Equatable {
 class WidgetStopStorage: ObservableObject {
     static let shared = WidgetStopStorage()
     
-    private let defaults = UserDefaults(suiteName: "group.com.solal.alertetcl")
+    private let defaults = AppGroup.defaults
     private let storageKey = "widgetStops"
     private let maxSelections = 30
     
@@ -61,19 +55,6 @@ class WidgetStopStorage: ObservableObject {
         reloadWidgets()
     }
     
-    func removeSelection(withId id: String) {
-        selections.removeAll { $0.id == id }
-        save()
-        reloadWidgets()
-    }
-    
-    func removeSelection(at index: Int) {
-        guard index < selections.count else { return }
-        selections.remove(at: index)
-        save()
-        reloadWidgets()
-    }
-    
     func moveSelection(from source: IndexSet, to destination: Int) {
         selections.move(fromOffsets: source, toOffset: destination)
         save()
@@ -83,12 +64,6 @@ class WidgetStopStorage: ObservableObject {
     func hasSelection(stopId: Int, line: String, direction: String) -> Bool {
         let id = "\(stopId)-\(line)-\(direction)"
         return selections.contains { $0.id == id }
-    }
-    
-    func clearAll() {
-        selections.removeAll()
-        defaults?.removeObject(forKey: storageKey)
-        reloadWidgets()
     }
     
     // MARK: - Private
@@ -118,16 +93,26 @@ class WidgetStopStorage: ObservableObject {
                 "stopName": selection.stopName,
                 "lineName": selection.line,
                 "direction": selection.direction,
-                "terminusName": selection.terminusName,
-                "addedAt": selection.dateAdded.timeIntervalSince1970
+                "terminusName": selection.terminusName
             ]
         }
         
         defaults?.set(data, forKey: storageKey)
+
+        // Index de résolution jamais purgé : permet à l'extension widget de
+        // résoudre une StopEntity même si la sélection a été évincée/supprimée
+        var index = defaults?.dictionary(forKey: "widgetStopsIndex") as? [String: [String: Any]] ?? [:]
+        for dict in data {
+            if let id = dict["id"] as? String {
+                index[id] = dict
+            }
+        }
+        defaults?.set(index, forKey: "widgetStopsIndex")
         defaults?.synchronize()
     }
     
     private func reloadWidgets() {
         WidgetCenter.shared.reloadTimelines(ofKind: "NextDeparturesWidget")
+        WidgetCenter.shared.reloadTimelines(ofKind: "TCLBoardWidget")
     }
 }

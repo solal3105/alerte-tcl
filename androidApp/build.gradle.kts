@@ -12,8 +12,8 @@ android {
         applicationId = "com.alertetcl.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.2"
+        versionCode = 3
+        versionName = "1.3"
     }
 
     buildFeatures {
@@ -35,19 +35,24 @@ android {
         )
     }
 
+    // Config de signature déclarée seulement si les propriétés locales existent :
+    // sans elles, la configuration Gradle doit rester utilisable (debug, CI, clone frais).
     signingConfigs {
-        create("release") {
-            storeFile     = file(providers.gradleProperty("ALERTETCL_STORE_FILE").get())
-            storePassword = providers.gradleProperty("ALERTETCL_STORE_PASSWORD").get()
-            keyAlias      = providers.gradleProperty("ALERTETCL_KEY_ALIAS").get()
-            keyPassword   = providers.gradleProperty("ALERTETCL_KEY_PASSWORD").get()
+        val storeFilePath = providers.gradleProperty("ALERTETCL_STORE_FILE").orNull
+        if (storeFilePath != null) {
+            create("release") {
+                storeFile     = file(storeFilePath)
+                storePassword = providers.gradleProperty("ALERTETCL_STORE_PASSWORD").orNull
+                keyAlias      = providers.gradleProperty("ALERTETCL_KEY_ALIAS").orNull
+                keyPassword   = providers.gradleProperty("ALERTETCL_KEY_PASSWORD").orNull
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

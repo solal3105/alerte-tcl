@@ -7,7 +7,6 @@ import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Paint
 import android.graphics.PointF
-import android.location.LocationManager
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -57,7 +56,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -97,6 +95,12 @@ import com.alertetcl.shared.models.Parking
 import com.alertetcl.shared.models.ParkingState
 import com.alertetcl.shared.models.ParkingType
 import com.alertetcl.shared.viewmodels.ParkingViewModel
+import com.alertetcl.android.ui.map.MapCircleFab
+import com.alertetcl.android.ui.map.enableLocationComponent
+import com.alertetcl.android.ui.map.mapStyleBuilder
+import com.alertetcl.android.ui.map.recenterOnUser
+import com.alertetcl.android.ui.map.rememberManagedMapView
+import com.alertetcl.android.ui.openUrl
 import com.alertetcl.android.ui.theme.StatusError
 import com.alertetcl.android.ui.theme.StatusSuccess
 import com.alertetcl.android.ui.theme.StatusWarning
@@ -104,11 +108,7 @@ import com.google.gson.JsonObject
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.location.LocationComponentActivationOptions
-import org.maplibre.android.location.modes.CameraMode
-import org.maplibre.android.location.modes.RenderMode
 import org.maplibre.android.maps.MapLibreMap
-import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.PropertyFactory
@@ -119,35 +119,8 @@ import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
 import kotlin.math.pow
 
-private const val STYLE_URL      = "https://tiles.openfreemap.org/styles/liberty"
-private const val STYLE_URL_DARK = "https://tiles.openfreemap.org/styles/fiord"
-private const val STYLE_JSON_SATELLITE = """{
-  "version": 8,
-  "sources": {
-    "satellite": {
-      "type": "raster",
-      "tiles": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
-      "tileSize": 256,
-      "attribution": "Tiles © Esri"
-    }
-  },
-  "layers": [{"id": "satellite", "type": "raster", "source": "satellite"}]
-}"""
 private const val PARKING_SRC   = "parking-src"
 private const val PARKING_LAYER = "parking-layer"
-
-@Composable
-private fun rememberParkingMapView(): MapView {
-    val context = LocalContext.current
-    val mapView = remember { MapView(context) }
-    DisposableEffect(Unit) {
-        mapView.onCreate(null)
-        mapView.onStart()
-        mapView.onResume()
-        onDispose { mapView.onPause(); mapView.onStop(); mapView.onDestroy() }
-    }
-    return mapView
-}
 
 @OptIn(ExperimentalMaterial3Api::class, kotlinx.coroutines.FlowPreview::class)
 @Composable
@@ -205,9 +178,9 @@ fun ParkingScreen() {
 
     val locationPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-    ) { granted -> if (granted) recenterParkingOnUser(context, mapLibreMap) }
+    ) { granted -> if (granted) recenterOnUser(context, mapLibreMap) }
 
-    val mapView = rememberParkingMapView()
+    val mapView = rememberManagedMapView()
 
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
@@ -245,7 +218,7 @@ fun ParkingScreen() {
                                 true
                             } else false
                         }
-                        map.setStyle(if (isDark) STYLE_URL_DARK else STYLE_URL) { style ->
+                        map.setStyle(mapStyleBuilder(isSatellite = false, isDark = isDark)) { style ->
                             mapStyle = style
                             enableLocationComponent(context, map, style)
                         }
@@ -258,9 +231,7 @@ fun ParkingScreen() {
         // Switch base style on satellite toggle
         LaunchedEffect(isSatellite, isDark) {
             val map = mapLibreMap ?: return@LaunchedEffect
-            val builder = if (isSatellite) Style.Builder().fromJson(STYLE_JSON_SATELLITE)
-                          else if (isDark)  Style.Builder().fromUri(STYLE_URL_DARK)
-                          else              Style.Builder().fromUri(STYLE_URL)
+            val builder = mapStyleBuilder(isSatellite, isDark)
             mapStyle = null
             map.setStyle(builder) { style ->
                 mapStyle = style
@@ -306,27 +277,27 @@ fun ParkingScreen() {
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            ParkingCircleFab(
+            MapCircleFab(
                 icon = Icons.Filled.Public, contentDesc = "Vue satellite",
                 tint = if (isSatellite) StatusWarning else MaterialTheme.colorScheme.onSurface,
                 onClick = { isSatellite = !isSatellite }
             )
             if (isCarSelected) {
                 val hasActiveFilters = !showParcRelais || !showRealtimeParkings
-                ParkingCircleFab(
+                MapCircleFab(
                     icon = Icons.Filled.FilterList, contentDesc = "Filtres",
                     tint = if (hasActiveFilters) StatusWarning else MaterialTheme.colorScheme.onSurface,
                     onClick = { showFilterSheet = true }
                 )
             }
-            ParkingCircleFab(
+            MapCircleFab(
                 icon = Icons.Filled.MyLocation, contentDesc = "Ma position",
                 tint = MaterialTheme.colorScheme.primary,
                 onClick = {
                     val granted = androidx.core.content.ContextCompat.checkSelfPermission(
                         context, Manifest.permission.ACCESS_FINE_LOCATION
                     ) == PackageManager.PERMISSION_GRANTED
-                    if (granted) recenterParkingOnUser(context, mapLibreMap)
+                    if (granted) recenterOnUser(context, mapLibreMap)
                     else locationPermLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                 }
             )
@@ -451,10 +422,16 @@ fun ParkingScreen() {
     }
 
     // Update parking markers
+    val lastMarkerKeys = remember { mutableStateOf(emptySet<String>()) }
     LaunchedEffect(mapStyle, dedupedParkings) {
         val style = mapStyle ?: return@LaunchedEffect
+        if (!style.isFullyLoaded) return@LaunchedEffect
         // Add unique bitmaps per visual state (color × type × places × etat)
         val uniqueKeys = dedupedParkings.groupBy { markerCacheKey(it) }.mapValues { it.value.first() }
+        // La clé contient les places disponibles : sans purge, chaque rafraîchissement
+        // temps réel empilerait de nouveaux bitmaps dans le style.
+        (lastMarkerKeys.value - uniqueKeys.keys).forEach { style.removeImage(it) }
+        lastMarkerKeys.value = uniqueKeys.keys
         uniqueKeys.forEach { (key, p) ->
             if (style.getImage(key) == null) style.addImage(key, createMarkerBitmap(p))
         }
@@ -479,57 +456,6 @@ fun ParkingScreen() {
     }
 }
 
-@Composable
-private fun ParkingCircleFab(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDesc: String, tint: Color, onClick: () -> Unit
-) {
-    SmallFloatingActionButton(
-        onClick = onClick,
-        shape = CircleShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = tint,
-    ) {
-        Icon(icon, contentDesc, modifier = Modifier.size(22.dp))
-    }
-}
-
-private fun enableLocationComponent(context: android.content.Context, map: MapLibreMap, style: Style) {
-    val granted = androidx.core.content.ContextCompat.checkSelfPermission(
-        context, Manifest.permission.ACCESS_FINE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
-    if (!granted) return
-    @Suppress("MissingPermission")
-    map.locationComponent.run {
-        activateLocationComponent(
-            LocationComponentActivationOptions.builder(context, style)
-                .useDefaultLocationEngine(true)
-                .build()
-        )
-        isLocationComponentEnabled = true
-        renderMode = RenderMode.COMPASS
-        cameraMode  = CameraMode.NONE
-    }
-}
-
-private fun recenterParkingOnUser(context: android.content.Context, map: MapLibreMap?) {
-    val m = map ?: return
-    val lm = context.getSystemService(android.content.Context.LOCATION_SERVICE) as? LocationManager ?: return
-    val granted = androidx.core.content.ContextCompat.checkSelfPermission(
-        context, Manifest.permission.ACCESS_FINE_LOCATION
-    ) == PackageManager.PERMISSION_GRANTED
-    if (!granted) return
-    @Suppress("MissingPermission")
-    val loc = listOfNotNull(
-        runCatching { lm.getLastKnownLocation(LocationManager.GPS_PROVIDER) }.getOrNull(),
-        runCatching { lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) }.getOrNull()
-    ).maxByOrNull { it.time } ?: return
-    m.animateCamera(
-        CameraUpdateFactory.newCameraPosition(
-            CameraPosition.Builder().target(LatLng(loc.latitude, loc.longitude)).zoom(15.0).build()
-        )
-    )
-}
 
 @Composable
 private fun ParkingDetailSheet(p: Parking) {
@@ -580,7 +506,12 @@ private fun ParkingDetailSheet(p: Parking) {
                 val uri = Uri.parse("google.navigation:q=${p.latitude},${p.longitude}&mode=d")
                 val intent = Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.google.android.apps.maps") }
                 val fallback = Intent(Intent.ACTION_VIEW, Uri.parse("geo:${p.latitude},${p.longitude}?q=${Uri.encode(p.nom)}"))
-                try { context.startActivity(intent) } catch (e: Exception) { context.startActivity(fallback) }
+                try {
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    // Ni Google Maps ni aucune app « geo: » : ne pas crasher
+                    runCatching { context.startActivity(fallback) }
+                }
             },
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.medium
@@ -614,9 +545,7 @@ private fun ParkingDetailSheet(p: Parking) {
         // --- URL ---
         p.url?.let { urlStr ->
             FilledTonalButton(
-                onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(urlStr)))
-                },
+                onClick = { openUrl(context, urlStr) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.medium
             ) {

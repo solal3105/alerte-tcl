@@ -165,6 +165,7 @@ async function doRefreshLineMapping(cacheKey, authHeaders, cache) {
   // Bus-lines : paginé (1727 features, GeoServer limite à 1000 par page)
   let offset = 0;
   let total = null;
+  let pageCount = 0;
   do {
     const url = `${GEO_BASE}/${GEO_COLLECTIONS["bus-lines"]}/items?limit=1000&startIndex=${offset}&sortby=gid&f=json`;
     const resp = await fetch(url, { method: "GET", headers: authHeaders });
@@ -172,8 +173,9 @@ async function doRefreshLineMapping(cacheKey, authHeaders, cache) {
     const data = await resp.json();
     if (total === null) total = data.numberMatched ?? 0;
     extractMapping(data.features ?? []);
-    offset += (data.features ?? []).length;
-  } while (offset < total);
+    pageCount = (data.features ?? []).length;
+    offset += pageCount;
+  } while (pageCount > 0 && offset < total);
 
   // Metro/funi, tram, RX — petit nombre de features, pas besoin de pagination
   for (const key of ["metro-funi-lines", "tram-lines", "rx-line"]) {
