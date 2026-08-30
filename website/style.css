@@ -624,7 +624,7 @@ h2 {
   transform: translateY(0);
 }
 
-/* --- Android coming soon ------------------------------------------------- */
+/* --- Android ------------------------------------------------------------- */
 .hero-badges {
   display: flex;
   flex-wrap: wrap;
@@ -641,23 +641,15 @@ h2 {
 .badge-android:hover { background: rgba(61, 220, 132, 0.18); }
 .badge-android svg { flex-shrink: 0; }
 
-.btn-android-teaser {
-  background: rgba(61, 220, 132, 0.1);
-  color: #2ab86a;
-  border: 1.5px solid rgba(61, 220, 132, 0.25);
+.btn-android {
+  background: #0a8a3d;
+  color: #fff;
+  box-shadow: var(--shadow-sm);
 }
-.btn-android-teaser:hover {
-  background: rgba(61, 220, 132, 0.18);
+.btn-android:hover {
+  background: #086f31;
   transform: translateY(-2px);
-}
-.soon-badge {
-  background: #3ddc84;
-  color: #0b1220;
-  font-size: 11px;
-  font-weight: 800;
-  padding: 2px 8px;
-  border-radius: 999px;
-  white-space: nowrap;
+  box-shadow: var(--shadow-md);
 }
 
 .android-section {
@@ -706,52 +698,17 @@ h2 {
 }
 .android-lead { color: rgba(255,255,255,0.68); font-size: 17px; }
 
-.countdown-grid {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  justify-content: center;
-  margin-bottom: 24px;
-}
-.cd-unit {
+.android-right {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 16px;
-  padding: 18px 20px;
-  min-width: 76px;
-}
-.cd-num {
-  font-size: 48px;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-  color: #fff;
-}
-.cd-lbl {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.45);
-  margin-top: 6px;
-}
-.cd-sep {
-  font-size: 36px;
-  font-weight: 700;
-  color: rgba(255,255,255,0.25);
-  margin-bottom: 24px;
-  line-height: 1;
+  gap: 20px;
 }
 .android-date {
   text-align: center;
   color: rgba(255,255,255,0.55);
   font-size: 14px;
 }
-.android-date strong { color: #3ddc84; font-weight: 600; }
 
 .cta-btns {
   display: flex;
@@ -759,20 +716,7 @@ h2 {
   justify-content: center;
   flex-wrap: wrap;
 }
-.btn-gplay-soon {
-  background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.8);
-  border: 1.5px solid rgba(255,255,255,0.15);
-}
-.btn-gplay-soon:hover {
-  background: rgba(255,255,255,0.14);
-  transform: translateY(-2px);
-}
-
 @media (max-width: 840px) {
   .android-section { padding: 0 24px 60px; }
   .android-card { grid-template-columns: 1fr; padding: 40px 28px; gap: 36px; }
-  .cd-unit { min-width: 60px; padding: 14px 14px; }
-  .cd-num { font-size: 36px; }
-  .cd-sep { font-size: 28px; margin-bottom: 18px; }
 }
