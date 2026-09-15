@@ -101,6 +101,9 @@ data class TimetableDirectionSummary(
 @Serializable
 data class TimetableStop(val id: Int, val name: String)
 
+/** Arrêt présenté dans la liste d'un sens : un nom, et les indices des quais qui le portent. */
+data class TimetableStopGroup(val name: String, val stopIndexes: List<Int>)
+
 /** Une course : motif d'arrêts [p], calendrier [s], heures de passage [t] (une par arrêt du motif). */
 @Serializable
 data class TimetableTrip(val p: Int, val s: Int, val t: List<Int>)
@@ -157,6 +160,16 @@ data class LineTimetable(
     }
 
     fun isValidOn(date: LocalDate): Boolean = dayOffset(date) != null
+
+    /**
+     * Arrêts du sens sans doublon : le GTFS distingue les quais d'un même arrêt par des identifiants
+     * différents sous le même nom ; on les regroupe, dans l'ordre de première apparition.
+     */
+    val stopGroups: List<TimetableStopGroup> by lazy {
+        val groups = linkedMapOf<String, MutableList<Int>>()
+        stops.forEachIndexed { index, stop -> groups.getOrPut(stop.name.trim().lowercase()) { mutableListOf() }.add(index) }
+        groups.values.map { indexes -> TimetableStopGroup(stops[indexes.first()].name, indexes) }
+    }
 
     /** Vrai quand la fiche n'a pas été renouvelée : le jour demandé dépasse le dernier jour couvert. */
     fun isStaleOn(date: LocalDate): Boolean = date > validToDate

@@ -60,6 +60,13 @@ struct LiveMapRepresentable: UIViewRepresentable {
     func updateUIView(_ mapView: MKMapView, context: Context) {
         let coord = context.coordinator
 
+        // Véhicule sélectionné : halo et premier plan sur son marqueur.
+        let focusedVehicleId = viewModel.stopFocus?.vehicleId
+        if coord.focusedVehicleId != focusedVehicleId {
+            coord.focusedVehicleId = focusedVehicleId
+            coord.refreshHighlight()
+        }
+
         // Style (plan / satellite)
         if coord.lastAppliedSatellite != isSatellite {
             applyMapStyle(to: mapView, satellite: isSatellite)
@@ -135,6 +142,18 @@ struct LiveMapRepresentable: UIViewRepresentable {
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         let owner: LiveMapRepresentable
+        /// Identifiant du véhicule sélectionné (filtre de ligne lancé depuis la carte).
+        var focusedVehicleId: String?
+
+        /// Applique ou retire le halo sur les marqueurs déjà rendus.
+        func refreshHighlight() {
+            guard let mapView else { return }
+            for annotation in mapView.annotations {
+                guard let vehicle = annotation as? VehicleAnnotation,
+                      let view = vehicle.annotationView as? VehicleAnnotationView else { continue }
+                view.isFocusedVehicle = vehicle.vehicle.id == focusedVehicleId
+            }
+        }
         weak var mapView: MKMapView?
 
         // Diff state
@@ -437,6 +456,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
                     for: vehicle
                 ) as? VehicleAnnotationView ?? VehicleAnnotationView(annotation: vehicle, reuseIdentifier: VehicleAnnotationView.identifier)
                 view.annotation = vehicle
+                view.isFocusedVehicle = vehicle.vehicle.id == focusedVehicleId
                 view.apply(vehicle: vehicle.vehicle, bearing: vehicle.bearing,
                            showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold,
                            simplified: currentZoomLevel > Self.simpleDotZoomThreshold)

@@ -63,6 +63,13 @@ final class VehicleAnnotationView: MKAnnotationView {
 
     private let bodyLayer  = CALayer()
     private let arrowLayer = CALayer()
+    /// Halo à la couleur de la ligne autour du véhicule sélectionné sur la carte.
+    private let haloLayer  = CAShapeLayer()
+
+    /// Véhicule sélectionné (filtre de ligne actif sur lui) : halo et passage au premier plan.
+    var isFocusedVehicle = false {
+        didSet { if isFocusedVehicle != oldValue { updateHalo() } }
+    }
     /// Capsule "âge de la position" affichée sous le marqueur au zoom serré.
     private let ageLayer     = CALayer()
     private let ageTextLayer = CATextLayer()
@@ -86,6 +93,8 @@ final class VehicleAnnotationView: MKAnnotationView {
 
         bounds = CGRect(origin: .zero, size: CGSize(width: Layout.side, height: Layout.side))
 
+        haloLayer.isHidden = true
+        layer.addSublayer(haloLayer)
         layer.addSublayer(bodyLayer)
         layer.addSublayer(arrowLayer)
 
@@ -148,6 +157,26 @@ final class VehicleAnnotationView: MKAnnotationView {
 
     // MARK: - API
 
+    /// Halo autour du corps : diamètre 46 pt en mode complet, 24 pt autour du point en mode simplifié.
+    private func updateHalo() {
+        guard isFocusedVehicle, let lineName = currentLineName else {
+            haloLayer.isHidden = true
+            if zPriority != .defaultUnselected { zPriority = .defaultUnselected }
+            return
+        }
+        let center = currentSimplified ? CGPoint(x: Layout.dotSize / 2, y: Layout.dotSize / 2)
+                                       : CGPoint(x: Layout.side / 2, y: Layout.side / 2)
+        let diameter: CGFloat = currentSimplified ? 24 : 46
+        let rect = CGRect(x: center.x - diameter / 2, y: center.y - diameter / 2, width: diameter, height: diameter)
+        let color = UIColor(LineColorHelper.backgroundColor(for: lineName))
+        haloLayer.path        = UIBezierPath(ovalIn: rect).cgPath
+        haloLayer.fillColor   = color.withAlphaComponent(0.22).cgColor
+        haloLayer.strokeColor = color.cgColor
+        haloLayer.lineWidth   = 2
+        haloLayer.isHidden    = false
+        if zPriority != .max { zPriority = .max }
+    }
+
     /// Oublie la ligne rendue : le prochain `apply` régénère le corps (changement de palette de couleurs).
     func invalidateLineColors() {
         currentLineName = nil
@@ -208,6 +237,8 @@ final class VehicleAnnotationView: MKAnnotationView {
             updateAgeCapsule(vehicle: vehicle, visible: showTooltip)
             currentSimplified = false
         }
+
+        updateHalo()
 
         // Position obsolète (> 2 min sans nouvelle transmission TCL) :
         // le véhicule reste visible mais estompé, dans les deux modes.

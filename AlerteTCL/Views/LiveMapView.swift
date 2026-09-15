@@ -666,7 +666,9 @@ struct VehicleDetailSheet: View {
         liveViewModel?.vehicles.first { $0.id == vehicle.id } ?? vehicle
     }
 
-    private var accentColor: Color { vehicle.vehicleType.clusterColor }
+    /// Couleur officielle de la ligne du véhicule : toute la fiche s'y accorde.
+    private var accentColor: Color { LineColorHelper.backgroundColor(for: vehicle.lineName) }
+    private var accentTextColor: Color { LineColorHelper.textColor(for: vehicle.lineName) }
 
     // Destination propre (masquer les IDs techniques)
     private var cleanDestination: String? {
@@ -728,10 +730,10 @@ struct VehicleDetailSheet: View {
                     VStack(spacing: 2) {
                         Image(systemName: vehicle.vehicleType.icon)
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(accentTextColor)
                         Text(vehicle.lineName)
                             .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(accentTextColor)
                             .lineLimit(1)
                     }
                 }
@@ -741,7 +743,7 @@ struct VehicleDetailSheet: View {
                     Text(vehicle.vehicleType.rawValue)
                         .font(.caption)
                         .fontWeight(.semibold)
-                        .foregroundStyle(accentColor)
+                        .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                         .tracking(0.5)
 
@@ -1031,7 +1033,7 @@ struct VehicleDetailSheet: View {
                         if isNext, let timeUntil = stop.timeUntilArrival, timeUntil > 0 {
                             Text("dans \(Int(timeUntil / 60)) min")
                                 .font(.caption2)
-                                .foregroundStyle(accentColor)
+                                .foregroundStyle(Color.appAccent)
                                 .fontWeight(.medium)
                         }
                     }
@@ -1317,7 +1319,7 @@ private struct VehicleFocusCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
                 LineBadge(line: focus.line, size: 13)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(focus.bannerTitle)
@@ -1328,6 +1330,15 @@ private struct VehicleFocusCard: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                        .background(Color(.tertiarySystemFill), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Fermer")
             }
 
             if let vehicle {
@@ -1349,7 +1360,7 @@ private struct VehicleFocusCard: View {
                             HStack(spacing: 6) {
                                 Image(systemName: "mappin.circle.fill")
                                     .font(.system(size: 12))
-                                    .foregroundStyle(Color.appAccent)
+                                    .foregroundStyle(LineColorHelper.backgroundColor(for: focus.line))
                                 Text(nextStopText(name: name, at: next.aimedArrivalTime ?? next.aimedDepartureTime))
                                     .font(.system(size: 12))
                                     .foregroundStyle(.secondary)
@@ -1364,21 +1375,17 @@ private struct VehicleFocusCard: View {
                     .foregroundStyle(.secondary)
             }
 
-            HStack(spacing: 8) {
-                Spacer(minLength: 0)
-                Button("Fermer", action: onClose)
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
-                    .controlSize(.small)
-                if let vehicle {
+            if let vehicle {
+                HStack(spacing: 8) {
+                    Spacer(minLength: 0)
                     Button("Voir plus") { onMore(vehicle) }
                         .buttonStyle(.borderedProminent)
                         .buttonBorderShape(.capsule)
                         .controlSize(.small)
                         .tint(Color.appAccent)
                 }
+                .font(.system(size: 12, weight: .semibold))
             }
-            .font(.system(size: 12, weight: .semibold))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)

@@ -1073,23 +1073,24 @@ private struct LineStopsView: View {
     private func stopList(_ timetable: LineTimetable) -> some View {
         let accent = LineColorHelper.backgroundColor(for: timetable.line)
         let query = searchText.trimmingCharacters(in: .whitespaces)
-        let indexes = timetable.stops.indices.filter { query.isEmpty || timetable.stops[$0].name.localizedCaseInsensitiveContains(query) }
+        let groups = timetable.stopGroups
+        let indexes = groups.indices.filter { query.isEmpty || groups[$0].name.localizedCaseInsensitiveContains(query) }
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                LineHeaderCard(line: timetable.line, title: "Vers \(timetable.headsign)", subtitle: "\(timetable.stops.count) arrêts dans l'ordre du parcours")
+                LineHeaderCard(line: timetable.line, title: "Vers \(timetable.headsign)", subtitle: "\(groups.count) arrêts dans l'ordre du parcours")
                 SearchField(placeholder: "Rechercher un arrêt…", text: $searchText)
                     .padding(.bottom, 8)
                 ForEach(indexes, id: \.self) { stopIndex in
-                    let stop = timetable.stops[stopIndex]
-                    let isEnd = stopIndex == 0 || stopIndex == timetable.stops.count - 1
+                    let stop = groups[stopIndex]
+                    let isEnd = stopIndex == 0 || stopIndex == groups.count - 1
                     Button {
-                        selectedSource = .timetable(timetable, stopIndexes: [stopIndex], stopName: stop.name)
+                        selectedSource = .timetable(timetable, stopIndexes: stop.stopIndexes.map { $0.intValue }, stopName: stop.name)
                     } label: {
                         HStack(spacing: 0) {
                             // Rail de la ligne : les arrêts s'enchaînent visuellement comme sur un plan
                             TimelineDot(accent: accent, isEnd: isEnd, highlighted: false,
                                         showAbove: stopIndex > 0 && query.isEmpty,
-                                        showBelow: stopIndex < timetable.stops.count - 1 && query.isEmpty)
+                                        showBelow: stopIndex < groups.count - 1 && query.isEmpty)
                             Text(stop.name)
                                 .font(.subheadline.weight(isEnd ? .semibold : .regular))
                                 .foregroundStyle(.primary)

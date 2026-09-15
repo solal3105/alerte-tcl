@@ -60,8 +60,9 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -197,6 +198,7 @@ private const val METRO_LAYER     = "metro-layer"
 private const val TRAM_LAYER      = "tram-layer"
 private const val BUS_C_LAYER     = "bus-c-layer"
 private const val BUS_LAYER       = "bus-layer"
+private const val VEHICLES_HALO_LAYER = "vehicles-halo-layer"
 private const val VEHICLES_LAYER  = "vehicles-layer"
 private const val VEHICLES_ARROW_LAYER = "vehicles-arrow-layer"
 // Étiquette "âge de la position" sous chaque véhicule, visible au zoom serré (parité iOS).
@@ -715,13 +717,22 @@ fun LiveMapScreen() {
         }
 
         val nowSec   = System.currentTimeMillis() / 1000.0
-        val features = current.map { v -> buildVehicleFeature(v, vm.animatedVehicleFor(v.id), nowSec, isDark) }
+        val features = current.map { v -> buildVehicleFeature(v, vm.animatedVehicleFor(v.id), nowSec, isDark, vm.stopFocus.value?.vehicleId) }
 
         if (style.getSource(VEHICLES_SRC) == null) {
             glInitMutex.withLock {
                 if (!style.isFullyLoaded) return@LaunchedEffect
                 if (style.getSource(VEHICLES_SRC) == null) {
                     style.addSource(GeoJsonSource(VEHICLES_SRC, FeatureCollection.fromFeatures(features)))
+                    // Layer 0 : halo à la couleur de la ligne autour du véhicule sélectionné
+                    style.addLayer(CircleLayer(VEHICLES_HALO_LAYER, VEHICLES_SRC).withProperties(
+                        PropertyFactory.circleRadius(22f),
+                        PropertyFactory.circleColor(Expression.get("line_col")),
+                        PropertyFactory.circleOpacity(0.22f),
+                        PropertyFactory.circleStrokeColor(Expression.get("line_col")),
+                        PropertyFactory.circleStrokeWidth(2f),
+                        PropertyFactory.circleStrokeOpacity(0.9f)
+                    ).withFilter(Expression.eq(Expression.get("sel"), Expression.literal(1))))
                     // Layer 1 : flèche orbitale — sous le corps (z-index inférieur), masquée en dezoom
                     style.addLayer(SymbolLayer(VEHICLES_ARROW_LAYER, VEHICLES_SRC).withProperties(
                         PropertyFactory.iconImage(
@@ -1001,7 +1012,9 @@ fun LiveMapScreen() {
 
 @Composable
 private fun VehicleDetailSheet(v: Vehicle) {
-    val accentColor = Tokens.vehicleType(v.vehicleType)
+    // Couleur officielle de la ligne du véhicule : toute la fiche s'y accorde.
+    val accentColor = colorFromHex(LineColors.backgroundHex(v.lineName))
+    val accentText = colorFromHex(LineColors.textHex(v.lineName))
     var vehicleModel by remember { mutableStateOf<String?>(null) }
     var vehiclePhotos by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedPhoto by remember { mutableStateOf<String?>(null) }
@@ -1045,12 +1058,12 @@ private fun VehicleDetailSheet(v: Vehicle) {
                             Icon(
                                 imageVector = vehicleTypeIcon(v.vehicleType),
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = accentText,
                                 modifier = Modifier.size(20.dp)
                             )
                             Text(
                                 text = v.lineName,
-                                color = Color.White,
+                                color = accentText,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1065,7 +1078,7 @@ private fun VehicleDetailSheet(v: Vehicle) {
                 ) {
                     Text(
                         text = v.vehicleType.displayName.uppercase(),
-                        color = accentColor,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 0.5.sp
@@ -1217,7 +1230,7 @@ private fun VehicleDetailSheet(v: Vehicle) {
                                         Text(
                                             text = "dans $minsUntil min",
                                             fontSize = 10.sp,
-                                            color = accentColor,
+                                            color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.Medium
                                         )
                                     }
@@ -1670,12 +1683,15 @@ private fun VehicleFocusBanner(focus: StopLineFocus, vehicle: Vehicle?, onMore: 
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
         modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 LineBadge(focus.line, size = 30.dp, fontSize = 11.sp)
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(focus.bannerTitle, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text("Vers ${vehicle?.destination ?: focus.destination}", style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                FilledTonalIconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Filled.Close, contentDescription = "Fermer", modifier = Modifier.size(16.dp))
                 }
             }
             if (vehicle != null) {
@@ -1701,7 +1717,7 @@ private fun VehicleFocusBanner(focus: StopLineFocus, vehicle: Vehicle?, onMore: 
                     val at = vehicle.nextStop?.aimedArrivalTimeEpoch ?: vehicle.nextStop?.aimedDepartureTimeEpoch
                     val time = at?.let { java.time.Instant.ofEpochSecond(it).atZone(java.time.ZoneId.systemDefault()).toLocalTime().let { t -> "%02d:%02d".format(t.hour, t.minute) } }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(Icons.Filled.LocationOn, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Filled.LocationOn, null, tint = colorFromHex(LineColors.backgroundHex(focus.line)), modifier = Modifier.size(14.dp))
                         Text(if (time != null) "Dernier arrêt : $name · $time" else "Dernier arrêt : $name",
                             style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1710,9 +1726,8 @@ private fun VehicleFocusBanner(focus: StopLineFocus, vehicle: Vehicle?, onMore: 
             } else {
                 Text("Ce véhicule n'est plus suivi pour l'instant.", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-                OutlinedButton(onClick = onClose, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)) { Text("Fermer", fontSize = 12.sp) }
-                if (vehicle != null) {
+            if (vehicle != null) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     Button(onClick = onMore, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)) { Text("Voir plus", fontSize = 12.sp) }
                 }
             }
@@ -2344,7 +2359,7 @@ private fun buildVehicleGeoJson(
         sb.append(if (bearing != 0.0) (arrowCache[v.id] ?: "no_arrow") else "no_arrow")
         sb.append("\",\"bearing\":")
         sb.append(bearing.toFloat())
-        appendFreshnessProps(sb, v, (nowSec * 1000).toLong(), darkTheme)
+        appendFreshnessProps(sb, v, (nowSec * 1000).toLong(), darkTheme, vm.stopFocus.value?.vehicleId)
         sb.append("}")
         sb.append("}")
     }
@@ -2352,7 +2367,7 @@ private fun buildVehicleGeoJson(
     return sb.toString()
 }
 
-private fun buildVehicleFeature(v: Vehicle, animated: AnimatedVehicle?, nowSec: Double, darkTheme: Boolean): Feature {
+private fun buildVehicleFeature(v: Vehicle, animated: AnimatedVehicle?, nowSec: Double, darkTheme: Boolean, focusedId: String?): Feature {
     val coord   = animated?.currentInterpolatedCoordinate(nowSec) ?: v.coordinate
     val bearing = animated?.currentInterpolatedBearing(nowSec) ?: v.bearing
     val nowMs   = (nowSec * 1000).toLong()
@@ -2369,14 +2384,18 @@ private fun buildVehicleFeature(v: Vehicle, animated: AnimatedVehicle?, nowSec: 
         addProperty("age",         age?.let { Vehicle.formattedAge(it) } ?: "")
         addProperty("age_col",     fresh.color.hex(darkTheme))
         addProperty("op",          if (fresh == PositionFreshness.STALE) 0.45f else 1f)
+        addProperty("sel",         if (v.id == focusedId) 1 else 0)
+        addProperty("line_col",    LineColors.backgroundHex(v.lineName))
     }
     return Feature.fromGeometry(Point.fromLngLat(coord.longitude, coord.latitude), props)
 }
 
 /** Propriétés dynamiques de fraîcheur ajoutées au GeoJSON du hot path (âge, couleur, opacité). */
-private fun appendFreshnessProps(sb: StringBuilder, v: Vehicle, nowMs: Long, darkTheme: Boolean) {
+private fun appendFreshnessProps(sb: StringBuilder, v: Vehicle, nowMs: Long, darkTheme: Boolean, focusedId: String?) {
     val age   = v.positionAgeSeconds(nowMs)
     val fresh = v.positionFreshness(nowMs)
+    sb.append(",\"sel\":").append(if (v.id == focusedId) 1 else 0)
+    sb.append(",\"line_col\":\"").append(LineColors.backgroundHex(v.lineName)).append('"')
     sb.append(",\"age\":\"")
     sb.append(age?.let { Vehicle.formattedAge(it) } ?: "")
     sb.append("\",\"age_col\":\"")

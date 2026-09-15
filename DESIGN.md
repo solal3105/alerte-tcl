@@ -36,7 +36,10 @@ transparence et, sur Android, un liseré clair qui les détache du fond. Toucher
 ligne : seuls ses véhicules et son tracé restent visibles, quels que soient les réglages de tracés, le
 bandeau trafic s'efface et un bandeau décrit le véhicule (ligne, direction, fraîcheur de la position,
 retard, dernier arrêt) avec deux boutons, « Voir plus » pour sa fiche et « Fermer » pour tout
-réafficher. Le même bandeau, sans « Voir plus », sert au filtre lancé depuis la fiche d'un arrêt.
+réafficher (bouton rond en haut à droite). Le véhicule touché porte un halo à la couleur de sa ligne
+sur la carte. Le même bandeau, sans « Voir plus », sert au filtre lancé depuis la fiche d'un arrêt.
+La fiche d'un véhicule s'accorde entièrement à la couleur officielle de sa ligne (pictogramme, rail
+des arrêts) ; le mode n'y apparaît qu'en texte neutre, et les états gardent leurs couleurs propres.
 
 Les barèmes métier sont au même endroit : importance et avancement d'un chantier, progression d'un
 chantier (du rouge au vert en onze paliers), disponibilité et type d'un parking, nature d'un chantier

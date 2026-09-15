@@ -225,4 +225,21 @@ class TimetableTest {
         assertEquals(2.0, com.alertetcl.shared.design.MapStyle.routeWidth("27"))
         assertTrue(fromVehicle.isLine("c12"))
     }
+
+    @Test
+    fun stopsWithTheSameNameAreGroupedInOrder() {
+        val timetable = com.alertetcl.shared.models.LineTimetable(
+            line = "59", key = "59", dir = "R", mode = "bus", headsign = "X",
+            validFrom = "2026-09-15", validTo = "2026-12-01",
+            stops = listOf(
+                com.alertetcl.shared.models.TimetableStop(1, "Perrache"),
+                com.alertetcl.shared.models.TimetableStop(2768, "St-Clair Square Brosset"),
+                com.alertetcl.shared.models.TimetableStop(10898, "St-Clair Square Brosset"),
+                com.alertetcl.shared.models.TimetableStop(4, "Bellecour")
+            )
+        )
+        val groups = timetable.stopGroups
+        assertEquals(listOf("Perrache", "St-Clair Square Brosset", "Bellecour"), groups.map { it.name })
+        assertEquals(listOf(1, 2), groups[1].stopIndexes)
+    }
 }

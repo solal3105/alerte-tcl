@@ -78,6 +78,7 @@ import com.alertetcl.android.data.FavoritesStore
 import com.alertetcl.android.ui.components.LineBadge
 import androidx.compose.material.icons.filled.Warning
 import com.alertetcl.android.ui.theme.Tokens
+import com.alertetcl.shared.models.TimetableStopGroup
 import com.alertetcl.shared.models.TimetableTexts
 import com.alertetcl.android.ui.colorFromHex
 import com.alertetcl.shared.models.LineColors
@@ -211,8 +212,8 @@ fun TimetableDialog(start: TimetableStart, onDismiss: () -> Unit) {
                     is TimetableScreen.Directions -> DirectionsScreen(screen.line) { direction ->
                         push(TimetableScreen.Stops(screen.line.line, direction))
                     }
-                    is TimetableScreen.Stops -> StopsScreen(screen.line, screen.direction) { timetable, stopIndex ->
-                        push(TimetableScreen.StopTimes(timetable, listOf(stopIndex), timetable.stops[stopIndex].name))
+                    is TimetableScreen.Stops -> StopsScreen(screen.line, screen.direction) { timetable, stop ->
+                        push(TimetableScreen.StopTimes(timetable, stop.stopIndexes, stop.name))
                     }
                     is TimetableScreen.StopTimes -> StopTimesScreen(screen.timetable, screen.stopIndexes, screen.stopName) { departure ->
                         push(TimetableScreen.Trip(screen.timetable, departure.tripIndex, departure.stopIndex))
@@ -407,7 +408,7 @@ private fun DirectionsScreen(line: TimetableLineSummary, onSelect: (TimetableDir
 // ── Choix de l'arrêt ─────────────────────────────────────────────────────
 
 @Composable
-private fun StopsScreen(line: String, direction: TimetableDirectionSummary, onSelectStop: (LineTimetable, Int) -> Unit) {
+private fun StopsScreen(line: String, direction: TimetableDirectionSummary, onSelectStop: (LineTimetable, TimetableStopGroup) -> Unit) {
     var attempt by remember { mutableStateOf(0) }
     var query by remember { mutableStateOf("") }
     val loaded = produceState<Result<LineTimetable>?>(initialValue = null, line, direction.dir, attempt) {
@@ -426,21 +427,22 @@ private fun StopsScreen(line: String, direction: TimetableDirectionSummary, onSe
             onSuccess = { timetable ->
                 val accent = lineColor(timetable.line)
                 val trimmed = query.trim()
-                val indexes = timetable.stops.indices.filter { trimmed.isEmpty() || timetable.stops[it].name.contains(trimmed, ignoreCase = true) }
+                val groups = timetable.stopGroups
+                val indexes = groups.indices.filter { trimmed.isEmpty() || groups[it].name.contains(trimmed, ignoreCase = true) }
                 LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
                     item {
-                        LineHeaderCard(timetable.line, "Vers ${timetable.headsign}", "${timetable.stops.size} arrêts dans l'ordre du parcours")
+                        LineHeaderCard(timetable.line, "Vers ${timetable.headsign}", "${groups.size} arrêts dans l'ordre du parcours")
                         SearchField(query, "Rechercher un arrêt…") { query = it }
                     }
                     items(indexes, key = { it }) { stopIndex ->
-                        val stop = timetable.stops[stopIndex]
-                        val isEnd = stopIndex == 0 || stopIndex == timetable.stops.lastIndex
+                        val stop = groups[stopIndex]
+                        val isEnd = stopIndex == 0 || stopIndex == groups.lastIndex
                         Row(
-                            modifier = Modifier.fillMaxWidth().clickable { onSelectStop(timetable, stopIndex) }.padding(horizontal = 20.dp),
+                            modifier = Modifier.fillMaxWidth().clickable { onSelectStop(timetable, stop) }.padding(horizontal = 20.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Rail de la ligne : les arrêts s'enchaînent visuellement comme sur un plan
-                            TimelineDot(accent, isEnd = isEnd, highlighted = false, showAbove = stopIndex > 0 && trimmed.isEmpty(), showBelow = stopIndex < timetable.stops.lastIndex && trimmed.isEmpty())
+                            TimelineDot(accent, isEnd = isEnd, highlighted = false, showAbove = stopIndex > 0 && trimmed.isEmpty(), showBelow = stopIndex < groups.lastIndex && trimmed.isEmpty())
                             Text(
                                 stop.name,
                                 style = MaterialTheme.typography.bodyMedium,
