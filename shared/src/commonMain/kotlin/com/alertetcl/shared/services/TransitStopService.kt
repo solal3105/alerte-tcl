@@ -71,6 +71,7 @@ class TransitStopService {
         return list
     }
 
+    @Throws(Exception::class)
     suspend fun fetchPassagesForStop(stopId: Int): List<Passage> {
         // Mode démo (arret) : passages simulés estimés + théoriques.
         if (DemoShowcase.current == "arret") return DemoShowcase.passages(stopId)

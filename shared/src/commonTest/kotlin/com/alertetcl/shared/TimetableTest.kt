@@ -193,4 +193,22 @@ class TimetableTest {
         assertEquals("Voir ces bus sur la carte", TransportMode.detectFromLine("C12").showOnMapLabel)
         assertEquals("Voir ces bus sur la carte", TransportMode.detectFromLine("27").showOnMapLabel)
     }
+
+    @Test
+    fun livePassagesKeepOnlyTheLineAndDirectionOfTheTimetable() {
+        fun passage(line: String, direction: String, time: String, type: String = "E") =
+            com.alertetcl.shared.models.Passage(11518, line, direction, "5 min", "2026-09-15 $time", type)
+        val termini = mapOf("C12|A" to "Hôpital Feyzin Vénissieux", "C12|R" to "Gorge de Loup")
+        val passages = listOf(
+            passage("C12", "Gorge de Loup", "21:50:00"),
+            passage("C12", "Hôp. Feyzin Vénissieux", "21:55:00"),
+            passage("C25", "Saint-Genis 2", "21:52:00"),
+            passage("C12", "Hôp. Feyzin Vénissieux", "21:55:00"),
+            passage("C12", "Hôp. Feyzin Vénissieux", "22:20:00", "T"),
+        )
+        val next = com.alertetcl.shared.models.TimetableLive.nextPassages(passages, "C12", "A", termini)
+        assertEquals(listOf("2026-09-15 21:55:00", "2026-09-15 22:20:00"), next.map { it.heurepassage })
+        // Ligne sans terminus connus : on garde ses passages sans vérifier le sens.
+        assertEquals(1, com.alertetcl.shared.models.TimetableLive.nextPassages(passages, "C25", "A", termini).size)
+    }
 }

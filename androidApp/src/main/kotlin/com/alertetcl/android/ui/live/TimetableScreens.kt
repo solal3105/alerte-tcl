@@ -4,6 +4,13 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import kotlinx.coroutines.delay
+import com.alertetcl.shared.services.TransitStopService
+import com.alertetcl.shared.models.TimetableLive
+import com.alertetcl.shared.models.Passage
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -32,8 +39,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -43,12 +48,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -123,8 +125,6 @@ private sealed class TimetableScreen {
     data class StopTimes(val timetable: LineTimetable, val stopIndexes: List<Int>, val stopName: String) : TimetableScreen()
     data class Trip(val timetable: LineTimetable, val tripIndex: Int, val stopIndex: Int) : TimetableScreen()
 }
-
-private const val MILLIS_PER_DAY = 86_400_000L
 
 private fun serviceDateNow(): LocalDate =
     TimetableTime.serviceDate(Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()))
@@ -460,12 +460,24 @@ private fun StopsScreen(line: String, direction: TimetableDirectionSummary, onSe
 
 // ── Passages d'une journée à un arrêt ───────────────────────────────────
 
-private sealed class TimesRow {
-    data class Hour(val hour: Int) : TimesRow()
-    data class Departure(val departure: TimetableDeparture) : TimesRow()
+private val shortDayFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM", Locale.FRENCH)
+
+private fun LocalDate.formatShort(): String =
+    java.time.LocalDate.of(year, monthNumber, dayOfMonth).format(shortDayFormatter)
+
+/** Délai annoncé par le temps réel (« 12 min », « Proche ») sous une forme lisible. */
+private fun delayLabel(raw: String): String {
+    val trimmed = raw.trim()
+    return if (trimmed.endsWith("min")) "dans $trimmed" else trimmed.lowercase()
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+private data class HourRow(val hour: Int, val departures: List<TimetableDeparture>)
+
+/**
+ * Les prochains passages en direct, puis les horaires théoriques présentés comme une fiche
+ * d'arrêt : l'heure à gauche, les minutes à droite, le prochain passage mis en avant.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StopTimesScreen(
     timetable: LineTimetable,
@@ -474,6 +486,7 @@ private fun StopTimesScreen(
     onSelectTrip: (TimetableDeparture) -> Unit
 ) {
     val accent = lineColor(timetable.line)
+    val accentText = colorFromHex(LineColors.textHex(timetable.line))
     val today = remember { serviceDateNow() }
     // Fiche périmée : on montre le dernier jour connu, avec un avertissement dans la liste.
     var date by remember(timetable) {
@@ -485,152 +498,216 @@ private fun StopTimesScreen(
             }
         )
     }
-    var showPicker by remember { mutableStateOf(false) }
+    var showOtherDays by remember { mutableStateOf(false) }
     val departures = remember(timetable, stopIndexes, date) { timetable.departures(stopIndexes, date) }
     val isServiceDay = date == today
     val nowMinutes = remember(isServiceDay) { serviceMinutesNow() }
-    val nextId = remember(departures, isServiceDay, nowMinutes) {
-        if (isServiceDay) departures.firstOrNull { it.minutes >= nowMinutes }?.let { "${it.tripIndex}-${it.stopIndex}" } else null
+    val next = remember(departures, isServiceDay, nowMinutes) {
+        if (isServiceDay) departures.firstOrNull { it.minutes >= nowMinutes } else null
     }
+    val nextId = next?.let { "${it.tripIndex}-${it.stopIndex}" }
     val rows = remember(departures) {
-        buildList {
-            var lastHour = -1
-            for (d in departures) {
-                val hour = d.minutes / 60
-                if (hour != lastHour) { add(TimesRow.Hour(hour)); lastHour = hour }
-                add(TimesRow.Departure(d))
+        departures.groupBy { it.minutes / 60 }.entries.sortedBy { it.key }.map { HourRow(it.key, it.value) }
+    }
+    // Lettre par terminus inhabituel, dans l'ordre d'apparition (comme sur une fiche papier).
+    val terminusMarks = remember(departures) {
+        val marks = linkedMapOf<String, String>()
+        departures.filter { it.terminus != timetable.headsign }.forEach { d ->
+            if (d.terminus !in marks) marks[d.terminus] = ('a' + marks.size % 26).toString()
+        }
+        marks
+    }
+    val hasTerminusArrivals = departures.any { it.isTerminus }
+    val otherDays = remember(timetable, today) {
+        (2 until 60).map { today.plus(it, DateTimeUnit.DAY) }
+            .filter { it <= timetable.validToDate && timetable.isValidOn(it) }
+    }
+
+    // Passages en direct, rafraîchis toutes les 30 secondes tant que la journée en cours est affichée.
+    var live by remember(timetable, stopIndexes) { mutableStateOf<List<Passage>?>(null) }
+    val stopIds = remember(timetable, stopIndexes) { stopIndexes.mapNotNull { timetable.stops.getOrNull(it)?.id } }
+    if (isServiceDay) {
+        LaunchedEffect(stopIds) {
+            val termini = runCatching { LineTermini.all() }.getOrDefault(emptyMap())
+            while (true) {
+                val all = stopIds.flatMap { id -> runCatching { TransitStopService.shared.fetchPassagesForStop(id) }.getOrDefault(emptyList()) }
+                live = TimetableLive.nextPassages(all, timetable.line, timetable.dir, termini)
+                delay(30_000)
             }
         }
     }
+
     // Mode démo « horaires-course » : ouvrir le détail du prochain passage.
     LaunchedEffect(nextId) {
-        if (DemoShowcase.current == "horaires-course") {
-            departures.firstOrNull { "${it.tripIndex}-${it.stopIndex}" == nextId }?.let(onSelectTrip)
-        }
+        if (DemoShowcase.current == "horaires-course") next?.let(onSelectTrip)
     }
     val listState: LazyListState = rememberLazyListState()
-    // Ouvre la liste sur le prochain passage (journée en cours), centré dans la fenêtre
-    // une fois la hauteur visible connue (première mise en page).
+    // Ouvre la liste sur l'heure du prochain passage (journée en cours).
     LaunchedEffect(rows, nextId) {
-        val target = rows.indexOfFirst { it is TimesRow.Departure && "${it.departure.tripIndex}-${it.departure.stopIndex}" == nextId }
-        if (target < 0) return@LaunchedEffect
-        val viewportHeight = snapshotFlow { listState.layoutInfo.viewportEndOffset }.first { it > 0 }
-        listState.scrollToItem(target, scrollOffset = -viewportHeight / 2)
+        val hour = next?.minutes?.div(60) ?: return@LaunchedEffect
+        val index = rows.indexOfFirst { it.hour == hour }
+        if (index >= 0) listState.scrollToItem(index + 2)  // après les sections « En direct » et le libellé
     }
 
     Column(Modifier.fillMaxSize()) {
-    // L'en-tête reste visible : la liste seule défile jusqu'au prochain passage.
-    LineHeaderCard(timetable.line, "Vers ${timetable.headsign}", "Arrêt $stopName") {
-        Text(date.formatLong(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-            DayChip("Aujourd'hui", today, date, timetable, accent) { date = it }
-            DayChip("Demain", today.plus(1, DateTimeUnit.DAY), date, timetable, accent) { date = it }
-            FilterChip(
-                selected = false,
-                onClick = { showPicker = true },
-                label = { Text("Autre jour") },
-                leadingIcon = { Icon(Icons.Filled.CalendarMonth, null, modifier = Modifier.size(16.dp)) }
-            )
-        }
-    }
-    LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp), modifier = Modifier.weight(1f)) {
-        if (timetable.isStaleOn(today)) {
-            item { StaleNotice(TimetableTexts.staleNotice(timetable.validToDate.formatLong().lowercase())) }
-        }
-        if (departures.isEmpty()) {
-            item { EmptyText("Aucun passage prévu ce jour-là à cet arrêt.") }
-        }
-        items(rows) { row ->
-            when (row) {
-                is TimesRow.Hour -> SectionLabel(
-                    if (row.hour < 24) "${row.hour} h" else "${row.hour - 24} h, après minuit",
-                    Modifier.padding(start = 20.dp, top = 16.dp, bottom = 4.dp)
-                )
-                is TimesRow.Departure -> DepartureRow(row.departure, timetable, accent,
-                    isPast = isServiceDay && row.departure.minutes < nowMinutes,
-                    isNext = "${row.departure.tripIndex}-${row.departure.stopIndex}" == nextId,
-                    onClick = { onSelectTrip(row.departure) })
-            }
-        }
-        item {
-            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    "Horaires théoriques publiés par SYTRAL, connus jusqu'au ${timetable.validToDate.formatLong().lowercase()}. Ils ne tiennent pas compte des perturbations du jour : consultez les alertes trafic.",
-                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (departures.any { TimetableTime.isAfterMidnight(it.minutes) }) {
-                    Text(
-                        "Les passages après minuit sont rattachés à la journée de service de la veille.",
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+        // L'en-tête reste visible : la liste seule défile.
+        LineHeaderCard(timetable.line, "Vers ${timetable.headsign}", "Arrêt $stopName") {
+            Text(date.formatLong(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                DayChip("Aujourd'hui", today, date, timetable, accent) { date = it }
+                DayChip("Demain", today.plus(1, DateTimeUnit.DAY), date, timetable, accent) { date = it }
+                FilterChip(
+                    selected = showOtherDays,
+                    onClick = { showOtherDays = !showOtherDays },
+                    enabled = otherDays.isNotEmpty(),
+                    label = { Text("Autre jour") },
+                    leadingIcon = { Icon(Icons.Filled.CalendarMonth, null, modifier = Modifier.size(16.dp)) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = accent.copy(alpha = 0.18f),
+                        selectedLabelColor = MaterialTheme.colorScheme.onSurface,
+                        selectedLeadingIconColor = MaterialTheme.colorScheme.onSurface
                     )
+                )
+            }
+            if (showOtherDays) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                    items(otherDays, key = { it.toEpochDays() }) { day ->
+                        DayChip(day.formatShort(), day, date, timetable, accent) { date = it }
+                    }
                 }
             }
         }
-    }
-    }
-
-    if (showPicker) {
-        val fromMillis = timetable.validFromDate.toEpochDays() * MILLIS_PER_DAY
-        val toMillis = timetable.validToDate.toEpochDays() * MILLIS_PER_DAY
-        val pickerState = rememberDatePickerState(
-            initialSelectedDateMillis = date.toEpochDays() * MILLIS_PER_DAY,
-            selectableDates = object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis in fromMillis..toMillis
+        LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp), modifier = Modifier.weight(1f)) {
+            if (timetable.isStaleOn(today)) {
+                item { StaleNotice(TimetableTexts.staleNotice(timetable.validToDate.formatLong().lowercase())) }
             }
-        )
-        DatePickerDialog(
-            onDismissRequest = { showPicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    pickerState.selectedDateMillis?.let { date = LocalDate.fromEpochDays((it / MILLIS_PER_DAY).toInt()) }
-                    showPicker = false
-                }) { Text("Voir ce jour") }
-            },
-            dismissButton = { TextButton(onClick = { showPicker = false }) { Text("Annuler") } }
-        ) {
-            DatePicker(state = pickerState)
+            if (isServiceDay) {
+                item { LiveSection(live) }
+            }
+            if (departures.isEmpty()) {
+                item { EmptyText("Aucun passage prévu ce jour-là à cet arrêt.") }
+            } else {
+                item { SectionLabel(if (isServiceDay) "Horaires de la journée" else "Horaires", Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp)) }
+                items(rows, key = { it.hour }) { row ->
+                    val containsNext = next?.let { it.minutes / 60 == row.hour } ?: false
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(if (containsNext) accent.copy(alpha = 0.07f) else Color.Transparent)
+                            .padding(horizontal = 16.dp, vertical = 7.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            if (row.hour < 24) "${row.hour} h" else "${row.hour - 24} h +1",
+                            style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.width(48.dp).padding(top = 6.dp)
+                        )
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            row.departures.forEach { d ->
+                                MinuteChip(
+                                    departure = d,
+                                    mark = if (d.isTerminus) "†" else terminusMarks[d.terminus],
+                                    isPast = isServiceDay && d.minutes < nowMinutes,
+                                    isNext = "${d.tripIndex}-${d.stopIndex}" == nextId,
+                                    accent = accent, accentText = accentText,
+                                    onClick = { onSelectTrip(d) }
+                                )
+                            }
+                        }
+                    }
+                }
+                if (terminusMarks.isNotEmpty() || hasTerminusArrivals) {
+                    item {
+                        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            terminusMarks.forEach { (terminus, mark) -> LegendLine(mark, "vers $terminus") }
+                            if (hasTerminusArrivals) LegendLine("†", "heure d'arrivée, cet arrêt est le terminus")
+                        }
+                    }
+                }
+            }
+            item {
+                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "Horaires théoriques publiés par SYTRAL, connus jusqu'au ${timetable.validToDate.formatLong().lowercase()}. Les passages en direct viennent du temps réel TCL ; en cas de perturbation, consultez les alertes trafic.",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (departures.any { TimetableTime.isAfterMidnight(it.minutes) }) {
+                        Text(
+                            "Les heures marquées +1 sont après minuit, rattachées à la journée de service de la veille.",
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun DepartureRow(
-    d: TimetableDeparture, timetable: LineTimetable, accent: Color,
-    isPast: Boolean, isNext: Boolean, onClick: () -> Unit
+private fun LiveSection(live: List<Passage>?) {
+    Column(modifier = Modifier.padding(bottom = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(start = 20.dp, top = 12.dp)) {
+            Box(Modifier.size(7.dp).background(Tokens.success, CircleShape))
+            SectionLabel("En direct")
+        }
+        when {
+            live == null -> Text("Chargement des passages en direct…", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+            live.isEmpty() -> Text("Aucun passage annoncé pour le moment.", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+            else -> Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                live.forEach { p ->
+                    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(p.formattedTime, fontFamily = FontFamily.Monospace, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                            Text(delayLabel(p.delaipassage), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.weight(1f))
+                            if (p.isRealTime) Pill("estimé", Tokens.success.copy(alpha = 0.15f), Tokens.success)
+                            else Pill("théorique", MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MinuteChip(
+    departure: TimetableDeparture, mark: String?, isPast: Boolean, isNext: Boolean,
+    accent: Color, accentText: Color, onClick: () -> Unit
 ) {
-    val textColor = when {
-        isNext -> accent
-        isPast -> MaterialTheme.colorScheme.onSurfaceVariant
+    val foreground = when {
+        isNext -> accentText
+        isPast -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
         else -> MaterialTheme.colorScheme.onSurface
     }
     Surface(
-        color = if (isNext) accent.copy(alpha = 0.12f) else Color.Transparent,
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+        shape = RoundedCornerShape(9.dp),
+        color = if (isNext) accent else MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.clickable(onClick = onClick)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+        Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.Top) {
             Text(
-                d.time, fontFamily = FontFamily.Monospace, fontSize = 17.sp, color = textColor,
-                fontWeight = if (isNext) FontWeight.Bold else FontWeight.Medium
+                "%02d".format(departure.minutes % 60), fontFamily = FontFamily.Monospace, fontSize = 15.sp,
+                fontWeight = if (isNext) FontWeight.Bold else FontWeight.Medium, color = foreground
             )
-            if (d.terminus != timetable.headsign) {
-                Text(
-                    "vers ${d.terminus}", style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            if (d.isTerminus) Pill("arrivée", MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant)
-            if (isNext) Pill("prochain", accent, colorFromHex(LineColors.textHex(timetable.line)))
-            Chevron()
+            if (mark != null) Text(mark, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, color = foreground)
         }
     }
-    HorizontalDivider(modifier = Modifier.padding(start = 20.dp, end = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
+}
+
+@Composable
+private fun LegendLine(mark: String, text: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(mark, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(12.dp))
+        Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }
 
 @Composable

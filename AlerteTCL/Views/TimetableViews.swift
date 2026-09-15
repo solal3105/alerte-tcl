@@ -69,6 +69,22 @@ private enum TimetableFormat {
         return longDate(date, capitalized: false)
     }
 
+    private static let shortDayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "fr_FR")
+        f.dateFormat = "EEE d MMM"
+        return f
+    }()
+
+    /// « mer. 17 sept. » pour les puces de choix du jour.
+    static func shortDay(_ date: Date) -> String { shortDayFormatter.string(from: date) }
+
+    /// Délai annoncé par le temps réel (« 12 min », « Proche ») sous une forme lisible.
+    static func delayLabel(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        return trimmed.hasSuffix("min") ? "dans \(trimmed)" : trimmed.lowercased()
+    }
+
     static func iso(_ date: Date) -> String { isoDay.string(from: date) }
 
     static func date(iso: String) -> Date? { isoDay.date(from: iso) }
@@ -356,7 +372,8 @@ struct StopTimetableView: View {
     }
 }
 
-/// Liste des passages d'une journée, groupés par heure, avec le choix du jour.
+/// Passages d'une journée à un arrêt : les prochains passages en direct, puis les horaires
+/// théoriques présentés comme une fiche d'arrêt (l'heure à gauche, les minutes à droite).
 private struct TimetableDayList: View {
     let timetable: LineTimetable
     let stopIndexes: [Int]
@@ -364,53 +381,89 @@ private struct TimetableDayList: View {
     @Binding var date: Date
     let onSelect: (TimetableDeparture) -> Void
 
-    @State private var showPicker = false
+    @State private var showOtherDays = false
+    @State private var livePassages: [Shared.Passage] = []
+    @State private var liveLoaded = false
 
-    private struct HourGroup: Identifiable {
+    private struct HourRow: Identifiable {
         let hour: Int
         let departures: [TimetableDeparture]
         var id: Int { hour }
     }
 
+    private struct LegendEntry: Identifiable {
+        let mark: String
+        let text: String
+        var id: String { mark }
+    }
+
     private var accent: Color { LineColorHelper.backgroundColor(for: timetable.line) }
+    private var accentText: Color { LineColorHelper.textColor(for: timetable.line) }
 
     private var departures: [TimetableDeparture] {
         timetable.departures(stopIndexes: TimetableFormat.kotlinInts(stopIndexes), isoDate: TimetableFormat.iso(date))
     }
 
-    private var validRange: ClosedRange<Date> {
-        let from = TimetableFormat.date(iso: timetable.validFrom) ?? date
-        let to = TimetableFormat.date(iso: timetable.validTo) ?? date
-        return from...max(from, to)
-    }
-
-    private var hourGroups: [HourGroup] {
-        var groups: [HourGroup] = []
+    private var hourRows: [HourRow] {
+        var rows: [HourRow] = []
         for departure in departures {
             let hour = Int(departure.minutes) / 60
-            if let last = groups.indices.last, groups[last].hour == hour {
-                groups[last] = HourGroup(hour: hour, departures: groups[last].departures + [departure])
+            if let last = rows.indices.last, rows[last].hour == hour {
+                rows[last] = HourRow(hour: hour, departures: rows[last].departures + [departure])
             } else {
-                groups.append(HourGroup(hour: hour, departures: [departure]))
+                rows.append(HourRow(hour: hour, departures: [departure]))
             }
         }
-        return groups
+        return rows
     }
 
-    /// Le jour affiché est la journée de service en cours : on distingue passé et prochain passage.
+    /// Le jour affiché est la journée de service en cours : passé, prochain passage et direct ont un sens.
     private var isServiceDay: Bool {
         Calendar.current.isDate(date, inSameDayAs: TimetableFormat.serviceDate())
     }
 
     private var nowMinutes: Int { TimetableFormat.serviceMinutes() }
 
-    private var nextDepartureID: String? {
+    private var nextDeparture: TimetableDeparture? {
         guard isServiceDay else { return nil }
-        return departures.first { Int($0.minutes) >= nowMinutes }?.rowID
+        return departures.first { Int($0.minutes) >= nowMinutes }
     }
 
     private var hasAfterMidnight: Bool {
         departures.contains { TimetableTime.shared.isAfterMidnight(minutes: $0.minutes) }
+    }
+
+    /// Lettre par terminus inhabituel, dans l'ordre d'apparition (comme sur une fiche papier).
+    private var terminusMarks: [String: String] {
+        var marks: [String: String] = [:]
+        for departure in departures where departure.terminus != timetable.headsign && marks[departure.terminus] == nil {
+            marks[departure.terminus] = String(UnicodeScalar(UInt8(97 + marks.count % 26)))
+        }
+        return marks
+    }
+
+    private var legend: [LegendEntry] {
+        var entries = terminusMarks.sorted { $0.value < $1.value }.map { LegendEntry(mark: $0.value, text: "vers \($0.key)") }
+        if departures.contains(where: { $0.isTerminus }) {
+            entries.append(LegendEntry(mark: "†", text: "heure d'arrivée, cet arrêt est le terminus"))
+        }
+        return entries
+    }
+
+    private func mark(for departure: TimetableDeparture) -> String? {
+        if departure.isTerminus { return "†" }
+        return terminusMarks[departure.terminus]
+    }
+
+    /// Jours proposés au-delà de demain, dans la période couverte.
+    private var otherDays: [Date] {
+        let calendar = Calendar.current
+        let start = TimetableFormat.serviceDate()
+        guard let last = TimetableFormat.date(iso: timetable.validTo) else { return [] }
+        return (2..<60).compactMap { offset -> Date? in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: start), day <= last else { return nil }
+            return timetable.isValidOn(isoDate: TimetableFormat.iso(day)) ? day : nil
+        }
     }
 
     var body: some View {
@@ -421,32 +474,40 @@ private struct TimetableDayList: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                    if timetable.isStaleOn(isoDate: TimetableFormat.serviceDateIso()) {
-                        StaleNotice(text: TimetableTexts.shared.staleNotice(validToLong: TimetableFormat.longDate(iso: timetable.validTo)))
-                    }
-                    if departures.isEmpty {
-                        Text("Aucun passage prévu ce jour-là à cet arrêt.")
-                            .foregroundStyle(.secondary)
-                            .padding(20)
-                    }
-
-                    ForEach(hourGroups) { group in
-                        SectionLabel(text: hourLabel(group.hour))
-                        ForEach(group.departures, id: \.rowID) { departure in
-                            departureRow(departure)
-                                .id(departure.rowID)
+                        if timetable.isStaleOn(isoDate: TimetableFormat.serviceDateIso()) {
+                            StaleNotice(text: TimetableTexts.shared.staleNotice(validToLong: TimetableFormat.longDate(iso: timetable.validTo)))
                         }
-                    }
-
-                    notes
+                        if isServiceDay {
+                            liveSection
+                        }
+                        if departures.isEmpty {
+                            Text("Aucun passage prévu ce jour-là à cet arrêt.")
+                                .foregroundStyle(.secondary)
+                                .padding(20)
+                        } else {
+                            SectionLabel(text: isServiceDay ? "Horaires de la journée" : "Horaires")
+                            ForEach(hourRows) { row in
+                                hourRow(row)
+                                    .id(row.hour)
+                            }
+                            if !legend.isEmpty {
+                                legendView
+                            }
+                        }
+                        notes
                     }
                     .padding(.bottom, 24)
                 }
                 .onAppear { scrollToNext(proxy) }
                 .onChange(of: date) { _, _ in scrollToNext(proxy) }
+                // Le bloc « En direct » change de hauteur en arrivant : on recale la liste sur le prochain passage.
+                .onChange(of: liveLoaded) { _, _ in scrollToNext(proxy) }
             }
         }
+        .task(id: stopIndexes) { await refreshLive() }
     }
+
+    // MARK: En-tête et choix du jour
 
     private var header: some View {
         LineHeaderCard(line: timetable.line, title: "Vers \(timetable.headsign)", subtitle: "Arrêt \(stopName)") {
@@ -456,27 +517,21 @@ private struct TimetableDayList: View {
                 HStack(spacing: 8) {
                     dayChip("Aujourd'hui", offset: 0)
                     dayChip("Demain", offset: 1)
-                    Button {
-                        withAnimation { showPicker.toggle() }
-                    } label: {
-                        Label("Autre jour", systemImage: "calendar")
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(showPicker ? accent.opacity(0.18) : Color(.systemGray5), in: Capsule())
+                    chip(label: "Autre jour", icon: "calendar", selected: showOtherDays, available: !otherDays.isEmpty) {
+                        withAnimation(.easeInOut(duration: 0.2)) { showOtherDays.toggle() }
                     }
-                    .buttonStyle(.plain)
                 }
-                if showPicker {
-                    DatePicker(
-                        "Jour",
-                        selection: $date,
-                        in: validRange,
-                        displayedComponents: .date
-                    )
-                    .datePickerStyle(.graphical)
-                    .environment(\.locale, Locale(identifier: "fr_FR"))
-                    .tint(accent)
+                if showOtherDays {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(otherDays, id: \.self) { day in
+                                chip(label: TimetableFormat.shortDay(day), icon: nil,
+                                     selected: Calendar.current.isDate(day, inSameDayAs: date), available: true) {
+                                    date = day
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -484,65 +539,162 @@ private struct TimetableDayList: View {
 
     private func dayChip(_ title: String, offset: Int) -> some View {
         let target = Calendar.current.date(byAdding: .day, value: offset, to: TimetableFormat.serviceDate()) ?? date
-        let isSelected = Calendar.current.isDate(target, inSameDayAs: date)
-        let isAvailable = timetable.isValidOn(isoDate: TimetableFormat.iso(target))
-        return Button {
+        return chip(label: title, icon: nil,
+                    selected: Calendar.current.isDate(target, inSameDayAs: date),
+                    available: timetable.isValidOn(isoDate: TimetableFormat.iso(target))) {
             date = target
-        } label: {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(isSelected ? accent.opacity(0.18) : Color(.systemGray5), in: Capsule())
-                .overlay(Capsule().strokeBorder(isSelected ? accent.opacity(0.6) : .clear, lineWidth: 1))
         }
-        .buttonStyle(.plain)
-        .disabled(!isAvailable)
-        .opacity(isAvailable ? 1 : 0.4)
     }
 
-    private func departureRow(_ departure: TimetableDeparture) -> some View {
-        let isPast = isServiceDay && Int(departure.minutes) < nowMinutes
-        let isNext = departure.rowID == nextDepartureID
-        let textColor: Color = isNext ? accent : (isPast ? .secondary : .primary)
-        return VStack(spacing: 0) {
-            Button {
-                onSelect(departure)
-            } label: {
-                HStack(spacing: 10) {
-                    Text(departure.time)
-                        .font(.system(size: 17, weight: isNext ? .bold : .medium, design: .rounded).monospacedDigit())
-                        .foregroundStyle(textColor)
-                    if departure.terminus != timetable.headsign {
-                        Text("vers \(departure.terminus)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    Spacer()
-                    if departure.isTerminus {
-                        Pill(text: "arrivée", background: Color(.systemGray5), foreground: .secondary)
-                    }
-                    if isNext {
-                        Pill(text: "prochain", background: accent, foreground: LineColorHelper.textColor(for: timetable.line))
-                    }
-                    Chevron()
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 11)
-                .background(isNext ? accent.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .padding(.horizontal, 12)
+    private func chip(label: String, icon: String?, selected: Bool, available: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                if let icon { Image(systemName: icon) }
+                Text(label)
             }
-            .buttonStyle(.plain)
-            Divider().padding(.leading, 20).padding(.trailing, 12)
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(selected ? accent.opacity(0.18) : Color(.systemGray5), in: Capsule())
+            .overlay(Capsule().strokeBorder(selected ? accent.opacity(0.6) : .clear, lineWidth: 1))
         }
+        .buttonStyle(.plain)
+        .disabled(!available)
+        .opacity(available ? 1 : 0.4)
+    }
+
+    // MARK: Passages en direct
+
+    private var liveSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Circle().fill(Color.appSuccess).frame(width: 7, height: 7)
+                Text("EN DIRECT")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .padding(.bottom, 4)
+            if livePassages.isEmpty {
+                Text(liveLoaded ? "Aucun passage annoncé pour le moment." : "Chargement des passages en direct…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
+            } else {
+                VStack(spacing: 6) {
+                    ForEach(livePassages, id: \.id) { passage in liveRow(passage) }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+            }
+        }
+    }
+
+    private func liveRow(_ passage: Shared.Passage) -> some View {
+        HStack(spacing: 12) {
+            Text(passage.formattedTime)
+                .font(.system(size: 17, weight: .bold, design: .rounded).monospacedDigit())
+            Text(TimetableFormat.delayLabel(passage.delaipassage))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Pill(text: passage.isRealTime ? "estimé" : "théorique",
+                 background: passage.isRealTime ? Color.appSuccess.opacity(0.15) : Color(.systemGray5),
+                 foreground: passage.isRealTime ? Color.appSuccess : Color.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    /// Recharge les passages en direct toutes les 30 secondes tant que la journée en cours est affichée.
+    private func refreshLive() async {
+        let stopIds = stopIndexes.compactMap { index -> Int32? in
+            guard index >= 0, index < timetable.stops.count else { return nil }
+            return timetable.stops[index].id
+        }
+        let termini = (try? await LineTermini.shared.all()) ?? [:]
+        while !Task.isCancelled {
+            if isServiceDay {
+                var all: [Shared.Passage] = []
+                for stopId in stopIds {
+                    if let passages = try? await Shared.TransitStopService.companion.shared.fetchPassagesForStop(stopId: stopId) {
+                        all.append(contentsOf: passages)
+                    }
+                }
+                livePassages = TimetableLive.shared.nextPassages(passages: all, line: timetable.line, direction: timetable.dir, termini: termini, limit: 3)
+                liveLoaded = true
+            }
+            try? await Task.sleep(nanoseconds: 30_000_000_000)
+        }
+    }
+
+    // MARK: Grille des horaires
+
+    private func hourRow(_ row: HourRow) -> some View {
+        let containsNext = nextDeparture.map { Int($0.minutes) / 60 == row.hour } ?? false
+        return HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(hourLabel(row.hour))
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+                .frame(width: 48, alignment: .leading)
+            FlowLayout(spacing: 6) {
+                ForEach(row.departures, id: \.rowID) { departure in minuteChip(departure) }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 7)
+        .background(containsNext ? accent.opacity(0.07) : .clear)
+    }
+
+    private func minuteChip(_ departure: TimetableDeparture) -> some View {
+        let isPast = isServiceDay && Int(departure.minutes) < nowMinutes
+        let isNext = departure.rowID == nextDeparture?.rowID
+        let minute = String(format: "%02d", Int(departure.minutes) % 60)
+        let foreground: Color = isNext ? accentText : (isPast ? Color.secondary.opacity(0.55) : .primary)
+        return Button {
+            onSelect(departure)
+        } label: {
+            HStack(alignment: .top, spacing: 1) {
+                Text(minute)
+                    .font(.system(size: 15, weight: isNext ? .bold : .medium, design: .rounded).monospacedDigit())
+                if let mark = mark(for: departure) {
+                    Text(mark)
+                        .font(.system(size: 9, weight: .semibold))
+                        .baselineOffset(6)
+                }
+            }
+            .foregroundStyle(foreground)
+            .frame(minWidth: 36)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 6)
+            .background(isNext ? accent : Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var legendView: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(legend) { entry in
+                HStack(alignment: .top, spacing: 6) {
+                    Text(entry.mark).fontWeight(.semibold).frame(width: 12, alignment: .leading)
+                    Text(entry.text)
+                }
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
     }
 
     private var notes: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Horaires théoriques publiés par SYTRAL, connus jusqu'au \(TimetableFormat.longDate(iso: timetable.validTo)). Ils ne tiennent pas compte des perturbations du jour : consultez les alertes trafic.")
+            Text("Horaires théoriques publiés par SYTRAL, connus jusqu'au \(TimetableFormat.longDate(iso: timetable.validTo)). Les passages en direct viennent du temps réel TCL ; en cas de perturbation, consultez les alertes trafic.")
             if hasAfterMidnight {
-                Text("Les passages après minuit sont rattachés à la journée de service de la veille.")
+                Text("Les heures marquées +1 sont après minuit, rattachées à la journée de service de la veille.")
             }
         }
         .font(.caption)
@@ -552,13 +704,50 @@ private struct TimetableDayList: View {
     }
 
     private func hourLabel(_ hour: Int) -> String {
-        hour < 24 ? "\(hour) h" : "\(hour - 24) h, après minuit"
+        hour < 24 ? "\(hour) h" : "\(hour - 24) h +1"
     }
 
     private func scrollToNext(_ proxy: ScrollViewProxy) {
-        guard let target = nextDepartureID ?? departures.first?.rowID else { return }
+        guard let target = nextDeparture.map({ Int($0.minutes) / 60 }) ?? hourRows.first?.hour else { return }
         DispatchQueue.main.async {
-            withAnimation { proxy.scrollTo(target, anchor: .center) }
+            withAnimation { proxy.scrollTo(target, anchor: .top) }
+        }
+    }
+}
+
+/// Dispose ses enfants en lignes, à la manière d'un texte qui passe à la ligne.
+private struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, widest: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > maxWidth {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+            widest = max(widest, x - spacing)
+        }
+        return CGSize(width: proposal.width ?? widest, height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: .unspecified)
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
         }
     }
 }
