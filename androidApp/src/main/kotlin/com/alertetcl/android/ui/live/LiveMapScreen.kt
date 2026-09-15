@@ -62,7 +62,6 @@ import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -135,6 +134,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1672,23 +1672,33 @@ private fun CardActionButton(label: String, icon: ImageVector, modifier: Modifie
 }
 
 /**
- * Remplace le bandeau trafic quand un véhicule a été touché : l'essentiel du véhicule,
- * « Voir plus » pour sa fiche, « Fermer » pour retirer le filtre (parité iOS VehicleFocusCard).
+ * Remplace le bandeau trafic quand un véhicule a été touché : trois chiffres, le délai depuis la
+ * dernière position en premier, « Voir plus » pour la fiche, une croix pour retirer le filtre
+ * (parité iOS VehicleFocusCard).
  */
 @Composable
 private fun VehicleFocusBanner(focus: StopLineFocus, vehicle: Vehicle?, onMore: () -> Unit, onClose: () -> Unit) {
     var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(1000); nowMs = System.currentTimeMillis() } }
+    val lineColor = colorFromHex(LineColors.backgroundHex(focus.line))
+    val lineText = colorFromHex(LineColors.textHex(focus.line))
     Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 4.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, lineColor.copy(alpha = 0.35f)),
         modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 LineBadge(focus.line, size = 30.dp, fontSize = 11.sp)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(focus.bannerTitle, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("Vers ${vehicle?.destination ?: focus.destination}", style = MaterialTheme.typography.labelMedium,
+                    Text("→ ${vehicle?.destination ?: focus.destination}", style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (vehicle != null) {
+                    Button(
+                        onClick = onMore,
+                        colors = ButtonDefaults.buttonColors(containerColor = lineColor, contentColor = lineText),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)
+                    ) { Text("Voir plus", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
                 }
                 FilledTonalIconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Filled.Close, contentDescription = "Fermer", modifier = Modifier.size(16.dp))
@@ -1701,37 +1711,29 @@ private fun VehicleFocusBanner(focus: StopLineFocus, vehicle: Vehicle?, onMore: 
                     vehicle.isEarly -> MaterialTheme.colorScheme.primary
                     else -> Tokens.success
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(Modifier.size(7.dp).background(vehicle.positionFreshness(nowMs).color.compose(), CircleShape))
-                    Text(
-                        age?.let { "Position transmise par TCL il y a ${Vehicle.formattedAge(it)}" } ?: "Position transmise par TCL",
-                        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
-                    )
-                    Surface(shape = RoundedCornerShape(50), color = delayColor.copy(alpha = 0.12f)) {
-                        Text(vehicle.delayFormatted, color = delayColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
-                    }
-                }
-                vehicle.nextStop?.stopName?.let { name ->
-                    val at = vehicle.nextStop?.aimedArrivalTimeEpoch ?: vehicle.nextStop?.aimedDepartureTimeEpoch
-                    val time = at?.let { java.time.Instant.ofEpochSecond(it).atZone(java.time.ZoneId.systemDefault()).toLocalTime().let { t -> "%02d:%02d".format(t.hour, t.minute) } }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(Icons.Filled.LocationOn, null, tint = colorFromHex(LineColors.backgroundHex(focus.line)), modifier = Modifier.size(14.dp))
-                        Text(if (time != null) "Dernier arrêt : $name · $time" else "Dernier arrêt : $name",
-                            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FocusStat(age?.let { Vehicle.formattedAge(it) } ?: "—", "dernière position", vehicle.positionFreshness(nowMs).color.compose(), emphasized = true)
+                    FocusStat(vehicle.delayFormatted, if (vehicle.isDelayed) "retard" else if (vehicle.isEarly) "avance" else "horaire", delayColor, emphasized = false)
+                    vehicle.nextStop?.stopName?.let { name ->
+                        val at = vehicle.nextStop?.aimedArrivalTimeEpoch ?: vehicle.nextStop?.aimedDepartureTimeEpoch
+                        val time = at?.let { java.time.Instant.ofEpochSecond(it).atZone(java.time.ZoneId.systemDefault()).toLocalTime().let { t -> "%02d:%02d".format(t.hour, t.minute) } } ?: "—"
+                        FocusStat(time, name, MaterialTheme.colorScheme.onSurface, emphasized = false)
                     }
                 }
             } else {
-                Text("Ce véhicule n'est plus suivi pour l'instant.", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (vehicle != null) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Button(onClick = onMore, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)) { Text("Voir plus", fontSize = 12.sp) }
-                }
+                Text("Véhicule plus suivi pour l'instant", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+    }
+}
+
+/** Un chiffre et sa légende ; le premier, mis en avant, est plus grand. */
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.FocusStat(value: String, caption: String, color: Color, emphasized: Boolean) {
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(value, fontSize = if (emphasized) 22.sp else 15.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1,
+            fontFamily = FontFamily.Monospace)
+        Text(caption, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

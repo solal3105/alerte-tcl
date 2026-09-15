@@ -1309,27 +1309,38 @@ struct FilterSheet: View {
 
 // MARK: - Bandeau du véhicule touché
 
-/// Remplace le bandeau trafic quand un véhicule a été touché : l'essentiel du véhicule,
-/// « Voir plus » pour sa fiche, « Fermer » pour retirer le filtre.
+/// Remplace le bandeau trafic quand un véhicule a été touché : trois chiffres, le délai depuis la
+/// dernière position en premier, « Voir plus » pour la fiche, une croix pour retirer le filtre.
 private struct VehicleFocusCard: View {
     let focus: StopLineFocus
     let vehicle: Vehicle?
     let onMore: (Vehicle) -> Void
     let onClose: () -> Void
 
+    private var lineColor: Color { LineColorHelper.backgroundColor(for: focus.line) }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 10) {
                 LineBadge(line: focus.line, size: 13)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 1) {
                     Text(focus.bannerTitle)
                         .font(.system(size: 15, weight: .bold))
-                    Text("Vers \(vehicle?.destination ?? focus.destination)")
+                    Text("→ \(vehicle?.destination ?? focus.destination)")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
+                if let vehicle {
+                    Button("Voir plus") { onMore(vehicle) }
+                        .font(.system(size: 12, weight: .semibold))
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.capsule)
+                        .controlSize(.small)
+                        .tint(lineColor)
+                        .foregroundStyle(LineColorHelper.textColor(for: focus.line))
+                }
                 Button(action: onClose) {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .bold))
@@ -1343,48 +1354,33 @@ private struct VehicleFocusCard: View {
 
             if let vehicle {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(vehicle.positionFreshness.color)
-                                .frame(width: 7, height: 7)
-                            Text(vehicle.positionAge.map { "Position transmise par TCL il y a \(Vehicle.formattedAge($0))" }
-                                 ?? "Position transmise par TCL")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                            Spacer(minLength: 0)
-                            delayPill(vehicle)
-                        }
+                    HStack(alignment: .top, spacing: 10) {
+                        stat(
+                            value: vehicle.positionAge.map(Vehicle.formattedAge) ?? "—",
+                            caption: "dernière position",
+                            color: vehicle.positionFreshness.color,
+                            emphasized: true
+                        )
+                        stat(
+                            value: vehicle.delayFormatted,
+                            caption: vehicle.isDelayed ? "retard" : (vehicle.isEarly ? "avance" : "horaire"),
+                            color: vehicle.isDelayed ? .appWarning : (vehicle.isEarly ? Color.appAccent : Color.appSuccess),
+                            emphasized: false
+                        )
                         if let next = vehicle.nextStop, let name = next.stopName {
-                            HStack(spacing: 6) {
-                                Image(systemName: "mappin.circle.fill")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(LineColorHelper.backgroundColor(for: focus.line))
-                                Text(nextStopText(name: name, at: next.aimedArrivalTime ?? next.aimedDepartureTime))
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
+                            stat(
+                                value: (next.aimedArrivalTime ?? next.aimedDepartureTime).map { $0.formatted(date: .omitted, time: .shortened) } ?? "—",
+                                caption: name,
+                                color: .primary,
+                                emphasized: false
+                            )
                         }
                     }
                 }
             } else {
-                Text("Ce véhicule n'est plus suivi pour l'instant.")
+                Text("Véhicule plus suivi pour l'instant")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
-            }
-
-            if let vehicle {
-                HStack(spacing: 8) {
-                    Spacer(minLength: 0)
-                    Button("Voir plus") { onMore(vehicle) }
-                        .buttonStyle(.borderedProminent)
-                        .buttonBorderShape(.capsule)
-                        .controlSize(.small)
-                        .tint(Color.appAccent)
-                }
-                .font(.system(size: 12, weight: .semibold))
             }
         }
         .padding(.horizontal, 14)
@@ -1393,24 +1389,24 @@ private struct VehicleFocusCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.appAccent.opacity(0.25), lineWidth: 1)
+                .strokeBorder(lineColor.opacity(0.35), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
     }
 
-    private func delayPill(_ vehicle: Vehicle) -> some View {
-        let color: Color = vehicle.isDelayed ? .appWarning : (vehicle.isEarly ? Color.appAccent : Color.appSuccess)
-        return Text(vehicle.delayFormatted)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(color.opacity(0.12), in: Capsule())
-    }
-
-    private func nextStopText(name: String, at date: Date?) -> String {
-        guard let date else { return "Dernier arrêt : \(name)" }
-        return "Dernier arrêt : \(name) · \(date.formatted(date: .omitted, time: .shortened))"
+    /// Un chiffre et sa légende ; le premier, mis en avant, est plus grand.
+    private func stat(value: String, caption: String, color: Color, emphasized: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(.system(size: emphasized ? 22 : 15, weight: .bold, design: .rounded).monospacedDigit())
+                .foregroundStyle(color)
+                .lineLimit(1)
+            Text(caption)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
