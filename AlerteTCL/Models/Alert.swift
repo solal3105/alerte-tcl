@@ -168,14 +168,6 @@ enum AlertSeverity: String, CaseIterable, Identifiable {
         }
     }
     
-    var color: String {
-        switch self {
-        case .info: return "alertInfo"
-        case .disruption: return "alertWarning"
-        case .major: return "alertDanger"
-        }
-    }
-    
     var icon: String {
         switch self {
         case .info: return "info.circle.fill"
@@ -188,16 +180,5 @@ enum AlertSeverity: String, CaseIterable, Identifiable {
 
 struct APIResponse: Codable {
     let values: [TCLAlert]
-}
-
-enum AlertNotificationPhase: String {
-    case announced
-    case active
-}
-
-extension TCLAlert {
-    func notificationKey(phase: AlertNotificationPhase) -> String {
-        "\(id)|\(phase.rawValue)"
-    }
 }
 

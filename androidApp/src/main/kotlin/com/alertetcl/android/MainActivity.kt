@@ -16,6 +16,11 @@ import com.alertetcl.android.ui.theme.AlerteTCLTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (BuildConfig.DEBUG) {
+            // Mode démo (adb shell am start ... --es demo <cas>) : états simulés
+            // pour capture d'écran, cf. DemoShowcase (parité iOS -demo).
+            com.alertetcl.shared.util.DemoShowcase.current = intent?.getStringExtra("demo")
+        }
         val initialRoute = intent?.getStringExtra(EXTRA_INITIAL_ROUTE)
         setContent {
             AlerteTCLTheme {

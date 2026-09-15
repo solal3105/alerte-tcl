@@ -1,4 +1,5 @@
 import Foundation
+import Shared
 
 actor SIRILiteService {
     static let shared = SIRILiteService()
@@ -55,6 +56,23 @@ actor SIRILiteService {
     private init() {}
     
     func fetchVehiclePositions() async throws -> [Vehicle] {
+        #if DEBUG
+        // Mode démo (-demo <cas>) : états simulés pour capture d'écran, cf. DemoShowcase.
+        if let mode = DemoShowcase.current {
+            switch mode {
+            case "vide":
+                return []
+            case "erreur401":
+                throw ServiceError.unauthorized
+            case "fige":
+                DemoShowcase.vehicleFetchCount += 1
+                if DemoShowcase.vehicleFetchCount > 1 { throw ServiceError.httpError(503) }
+                return DemoShowcase.vehicles()
+            default:
+                return DemoShowcase.vehicles()
+            }
+        }
+        #endif
         guard let url = URL(string: baseURL + vehicleMonitoringEndpoint) else {
             throw ServiceError.invalidURL
         }
@@ -154,6 +172,7 @@ actor SIRILiteService {
                 lineName: lineName,
                 vehicleType: vehicleType,
                 destination: destination,
+                direction: DirectionMatching.shared.siriDirectionCode(raw: journey.DirectionRef?.value),
                 delay: delay,
                 status: journey.VehicleStatus,
                 recordedAt: parseISO8601Date(activity.RecordedAtTime),

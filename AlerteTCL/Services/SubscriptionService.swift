@@ -1,89 +1,77 @@
 import Foundation
 import Combine
+import Shared
 
-struct LineSubscription: Codable {
-    let lineId: String
-    var notificationTypes: Set<String>
-}
-
+/// Abonnements aux notifications, indépendants des lignes favorites.
+///
+/// Les règles (double code de ligne, types d'alertes par défaut) et le format enregistré viennent
+/// du module partagé (`LineSubscriptions`), identiques sur Android ; ce service ne fait que
+/// publier l'état et le conserver dans les réglages de l'application.
 @MainActor
 final class SubscriptionService: ObservableObject {
     static let shared = SubscriptionService()
-    
+
     private let subscriptionsKey = "lineSubscriptions"
-    
+    private let rules = LineSubscriptions.shared
+
     @Published private(set) var subscriptions: [String: LineSubscription] = [:]
-    
+
     var subscribedLineIds: Set<String> {
         Set(subscriptions.keys)
     }
-    
+
     private init() {
-        loadSubscriptions()
-    }
-    
-    private func loadSubscriptions() {
-        if let data = UserDefaults.standard.data(forKey: subscriptionsKey),
-           let saved = try? JSONDecoder().decode([String: LineSubscription].self, from: data) {
-            subscriptions = saved
+        #if DEBUG
+        if DemoShowcase.isAlertsCase {
+            subscriptions = DemoShowcase.subscriptions()
+            return
         }
+        #endif
+        subscriptions = rules.decode(encoded: storedEncoded())
     }
-    
-    private func saveSubscriptions() {
-        if let data = try? JSONEncoder().encode(subscriptions) {
-            UserDefaults.standard.set(data, forKey: subscriptionsKey)
+
+    /// Les versions précédentes enregistraient le JSON en données binaires ; on lit les deux formes.
+    private func storedEncoded() -> String? {
+        let defaults = UserDefaults.standard
+        if let data = defaults.data(forKey: subscriptionsKey) {
+            return String(data: data, encoding: .utf8)
         }
+        return defaults.string(forKey: subscriptionsKey)
     }
-    
+
+    private func apply(_ updated: [String: LineSubscription]) {
+        subscriptions = updated
+        #if DEBUG
+        if DemoShowcase.isAlertsCase { return }  // jamais enregistré en démo
+        #endif
+        UserDefaults.standard.set(rules.encode(subscriptions: updated), forKey: subscriptionsKey)
+    }
+
     func isSubscribed(to lineId: String) -> Bool {
         subscriptions[lineId] != nil
     }
-    
+
+    func isSubscribed(to line: TransportLine) -> Bool {
+        rules.isSubscribed(subscriptions: subscriptions, line: line.shared)
+    }
+
     func subscribe(to line: TransportLine, notificationTypes: Set<AlertSeverity> = Set(AlertSeverity.allCases)) {
-        let types = Set(notificationTypes.map { $0.rawValue })
-        subscriptions[line.ligneCom] = LineSubscription(lineId: line.ligneCom, notificationTypes: types)
-        if !line.ligneCli.isEmpty && line.ligneCli != line.ligneCom {
-            subscriptions[line.ligneCli] = LineSubscription(lineId: line.ligneCli, notificationTypes: types)
-        }
-        saveSubscriptions()
+        apply(rules.subscribe(subscriptions: subscriptions, line: line.shared, severities: Set(notificationTypes.map(\.shared))))
     }
-    
+
     func unsubscribe(from line: TransportLine) {
-        subscriptions.removeValue(forKey: line.ligneCom)
-        if !line.ligneCli.isEmpty && line.ligneCli != line.ligneCom {
-            subscriptions.removeValue(forKey: line.ligneCli)
-        }
-        saveSubscriptions()
+        apply(rules.unsubscribe(subscriptions: subscriptions, line: line.shared))
     }
-    
+
     func toggle(line: TransportLine) {
-        if isSubscribed(to: line.ligneCom) || isSubscribed(to: line.ligneCli) {
-            unsubscribe(from: line)
-        } else {
-            subscribe(to: line)
-        }
+        apply(rules.toggle(subscriptions: subscriptions, line: line.shared))
     }
-    
+
     func updateNotificationPreferences(for line: TransportLine, types: Set<AlertSeverity>) {
-        let typeStrings = Set(types.map { $0.rawValue })
-        if var sub = subscriptions[line.ligneCom] {
-            sub.notificationTypes = typeStrings
-            subscriptions[line.ligneCom] = sub
-        }
-        if !line.ligneCli.isEmpty && line.ligneCli != line.ligneCom {
-            if var sub = subscriptions[line.ligneCli] {
-                sub.notificationTypes = typeStrings
-                subscriptions[line.ligneCli] = sub
-            }
-        }
-        saveSubscriptions()
+        subscribe(to: line, notificationTypes: types)
     }
-    
+
     func getNotificationPreferences(for line: TransportLine) -> Set<AlertSeverity> {
-        if let sub = subscriptions[line.ligneCom] {
-            return Set(sub.notificationTypes.compactMap { AlertSeverity(rawValue: $0) })
-        }
-        return Set(AlertSeverity.allCases)
+        Set(rules.preferences(subscriptions: subscriptions, line: line.shared).compactMap { AlertSeverity(shared: $0) })
     }
-    
 }

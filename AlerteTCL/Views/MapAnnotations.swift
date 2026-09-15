@@ -63,10 +63,14 @@ final class VehicleAnnotationView: MKAnnotationView {
 
     private let bodyLayer  = CALayer()
     private let arrowLayer = CALayer()
+    /// Capsule "âge de la position" affichée sous le marqueur au zoom serré.
+    private let ageLayer     = CALayer()
+    private let ageTextLayer = CATextLayer()
 
     private var currentLineName:  String?
     private var currentType:      VehicleType?
     private var currentSimplified: Bool = false
+    private var currentAgeText:    String?
 
     override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
@@ -94,10 +98,51 @@ final class VehicleAnnotationView: MKAnnotationView {
         arrowLayer.contentsGravity = .resizeAspect
         arrowLayer.isHidden        = true
 
+        ageLayer.cornerRadius    = 7
+        ageLayer.backgroundColor = UIColor.black.withAlphaComponent(0.55).cgColor
+        ageLayer.isHidden        = true
+        layer.addSublayer(ageLayer)
+
+        ageTextLayer.fontSize        = 9
+        ageTextLayer.font            = UIFont.systemFont(ofSize: 9, weight: .semibold)
+        ageTextLayer.alignmentMode   = .center
+        ageTextLayer.contentsScale   = UIScreen.main.scale
+        ageLayer.addSublayer(ageTextLayer)
+
         centerOffset = .zero
     }
 
+    /// Met à jour la capsule d'âge ("il y a 12 s") sous le marqueur.
+    /// Ne touche les layers que si le texte affiché change (≤ 1 fois/s),
+    /// pour rester quasi gratuit dans la boucle d'animation à 10 Hz.
+    private func updateAgeCapsule(vehicle: Vehicle, visible: Bool) {
+        guard visible, let age = vehicle.positionAge else {
+            if !ageLayer.isHidden { ageLayer.isHidden = true }
+            currentAgeText = nil
+            return
+        }
+
+        let text = Vehicle.formattedAge(age)
+        if text != currentAgeText {
+            currentAgeText = text
+            let width = CGFloat(text.count) * 5.4 + 12
+            ageLayer.bounds   = CGRect(x: 0, y: 0, width: width, height: 14)
+            ageLayer.position = CGPoint(x: Layout.side / 2, y: Layout.side / 2 + Layout.bodySize / 2 + 11)
+            ageTextLayer.frame = CGRect(x: 0, y: 1.5, width: width, height: 11)
+            ageTextLayer.string = text
+            ageTextLayer.foregroundColor = UIColor(vehicle.positionFreshness.color)
+                .resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)).cgColor
+        }
+        if ageLayer.isHidden { ageLayer.isHidden = false }
+    }
+
     // MARK: - API
+
+    /// Oublie la ligne rendue : le prochain `apply` régénère le corps (changement de palette de couleurs).
+    func invalidateLineColors() {
+        currentLineName = nil
+        currentType = nil
+    }
 
     func apply(vehicle: Vehicle, bearing: Double, showTooltip: Bool, simplified: Bool) {
         CATransaction.begin()
@@ -116,6 +161,7 @@ final class VehicleAnnotationView: MKAnnotationView {
                 currentType     = vehicle.vehicleType
             }
             arrowLayer.isHidden = true
+            updateAgeCapsule(vehicle: vehicle, visible: false)
             currentSimplified = true
 
         } else {
@@ -149,8 +195,14 @@ final class VehicleAnnotationView: MKAnnotationView {
                 arrowLayer.isHidden = true
             }
 
+            updateAgeCapsule(vehicle: vehicle, visible: showTooltip)
             currentSimplified = false
         }
+
+        // Position obsolète (> 2 min sans nouvelle transmission TCL) :
+        // le véhicule reste visible mais estompé, dans les deux modes.
+        let targetOpacity: Float = vehicle.positionFreshness == .stale ? 0.45 : 1.0
+        if layer.opacity != targetOpacity { layer.opacity = targetOpacity }
 
         CATransaction.commit()
     }
@@ -160,7 +212,10 @@ final class VehicleAnnotationView: MKAnnotationView {
         currentLineName   = nil
         currentType       = nil
         currentSimplified = false
+        currentAgeText    = nil
         arrowLayer.isHidden = true
+        ageLayer.isHidden   = true
+        layer.opacity = 1.0
     }
 }
 

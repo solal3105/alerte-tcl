@@ -1,74 +1,36 @@
 import SwiftUI
+import Combine
+import Shared
 
-/// Couleurs officielles TCL par ligne. Source unique pour toute l'app.
+/// Couleurs de ligne de l'application : délègue au module partagé (palette officielle du GTFS,
+/// puis charte historique en secours), pour que iOS et Android calculent exactement les mêmes couleurs.
+/// L'extension widget, qui ne lie pas le module Kotlin, a sa propre lecture de la palette
+/// (`AlerteTCLWidget/WidgetLineColors.swift`).
 struct LineColorHelper {
 
     /// Couleur de fond du badge de ligne.
     static func backgroundColor(for ligne: String) -> Color {
-        let upper = ligne.uppercased()
-
-        // Métro
-        if upper == "MA" || upper == "A" { return Color(hex: "EE3898") } // Rose/Fuchsia
-        if upper == "MB" || upper == "B" { return Color(hex: "007DC5") } // Bleu
-        if upper == "MC" || upper == "C" { return Color(hex: "F99D1D") } // Orange
-        if upper == "MD" || upper == "D" { return Color(hex: "00AC4D") } // Vert
-
-        // Rhônexpress
-        if upper == "RX" || upper.contains("RHONEXPRESS") { return Color(hex: "C92B21") }
-
-        // Tramway
-        if upper.hasPrefix("T") && upper.count <= 3 { return Color(hex: "8C368C") }
-
-        // Trolleybus
-        if upper.hasPrefix("TB") { return Color(hex: "FFCC00") }
-
-        // Funiculaire
-        if upper.hasPrefix("F") && upper.count <= 3 { return Color(hex: "8BC752") }
-
-        // Bus C – gris
-        if upper.hasPrefix("C") && upper.count <= 4 { return Color(.systemGray) }
-
-        // Bus JD – bleu foncé
-        if upper.hasPrefix("JD") { return Color(hex: "2A2475") }
-
-        // Bus régulier – fond blanc
-        return .white
+        Color(hex: LineColors.shared.backgroundHex(line: ligne))
     }
 
     /// Couleur du texte du badge de ligne.
     static func textColor(for ligne: String) -> Color {
-        let upper = ligne.uppercased()
-
-        if upper.hasPrefix("JD") { return Color(hex: "EBCA2F") }
-        if upper.hasPrefix("C") && upper.count <= 4 { return .white }
-        if upper.hasPrefix("T") && upper.count <= 3 { return .white }
-
-        // Bus classiques (non-métro, non-funiculaire, non-TB, non-RX)
-        let isMiscBus = !upper.hasPrefix("M") &&
-            !upper.hasPrefix("F") &&
-            !upper.hasPrefix("TB") &&
-            upper != "A" && upper != "B" && upper != "C" && upper != "D" &&
-            upper != "RX" && !upper.contains("RHONEXPRESS")
-
-        if isMiscBus {
-            if upper.hasPrefix("N") { return Color(hex: "DC7921") }
-            if upper.hasSuffix("E") { return Color(hex: "5E3A18") }
-            return .red
-        }
-
-        return .white
+        Color(hex: LineColors.shared.textHex(line: ligne))
     }
 
-    /// Indique si une bordure est nécessaire (fonds blancs).
+    /// Indique si une bordure est nécessaire (fond clair, proche du blanc).
     static func needsBorder(for ligne: String) -> Bool {
-        let upper = ligne.uppercased()
-        return !upper.hasPrefix("M") &&
-            !upper.hasPrefix("F") &&
-            !upper.hasPrefix("C") &&
-            !upper.hasPrefix("T") &&
-            !upper.hasPrefix("TB") &&
-            !upper.hasPrefix("JD") &&
-            upper != "A" && upper != "B" && upper != "C" && upper != "D" &&
-            upper != "RX" && !upper.contains("RHONEXPRESS")
+        LineColors.shared.needsBorder(line: ligne)
     }
+}
+
+/// Signale aux vues SwiftUI que la palette officielle a changé : un badge rendu avant son
+/// chargement (démarrage à froid) se redessine avec les bonnes couleurs.
+@MainActor
+final class LinePaletteObserver: ObservableObject {
+    static let shared = LinePaletteObserver()
+    @Published private(set) var version = 0
+    private init() {}
+
+    func paletteDidChange() { version += 1 }
 }

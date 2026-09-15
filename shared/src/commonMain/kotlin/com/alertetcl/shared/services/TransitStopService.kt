@@ -1,5 +1,6 @@
 package com.alertetcl.shared.services
 
+import com.alertetcl.shared.util.DemoShowcase
 import com.alertetcl.shared.geo.GeoRegion
 import com.alertetcl.shared.models.Passage
 import com.alertetcl.shared.models.TransitStop
@@ -71,6 +72,8 @@ class TransitStopService {
     }
 
     suspend fun fetchPassagesForStop(stopId: Int): List<Passage> {
+        // Mode démo (arret) : passages simulés estimés + théoriques.
+        if (DemoShowcase.current == "arret") return DemoShowcase.passages(stopId)
         val url = "$passagesEndpoint?id=$stopId&sortby=heurepassage&sortorder=asc"
         val resp = safeRequest {
             client.get(url) {

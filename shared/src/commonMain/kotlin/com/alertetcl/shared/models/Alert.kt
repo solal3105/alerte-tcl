@@ -8,10 +8,15 @@ enum class AlertSeverity(val displayName: String, val sortOrder: Int) {
     DISRUPTION("Perturbation", 1),
     INFO("Information", 2);
 
-    val colorKey: String get() = when (this) {
-        MAJOR      -> "alertDanger"
-        DISRUPTION -> "alertWarning"
-        INFO       -> "alertInfo"
+    /** Ce que la notification et la feuille d'options disent de ce type d'alerte. */
+    val description: String get() = when (this) {
+        MAJOR      -> "Interruptions totales de service"
+        DISRUPTION -> "Retards et déviations importantes"
+        INFO       -> "Informations et travaux prévus"
+    }
+
+    companion object {
+        fun fromDisplayName(name: String): AlertSeverity? = entries.firstOrNull { it.displayName == name }
     }
 }
 

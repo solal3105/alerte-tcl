@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.sp
 import com.alertetcl.shared.viewmodels.AlertsViewModel
 import com.alertetcl.shared.viewmodels.LiveVehiclesViewModel
 import kotlinx.coroutines.launch
+import com.alertetcl.android.ui.components.SheetHeader
+import com.alertetcl.android.ui.theme.Tokens
 
 @Composable
 fun DataSourceErrorsSheet(
@@ -50,14 +52,13 @@ fun DataSourceErrorsSheet(
     val scope = rememberCoroutineScope()
     var isRetrying by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
-        // Header
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Warning, null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(10.dp))
-            Text("Erreurs de chargement", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        }
-        Spacer(Modifier.height(4.dp))
+    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+        SheetHeader(
+            title = "Erreurs de chargement",
+            onClose = onDismiss,
+            leading = { Icon(Icons.Filled.Warning, null, tint = Tokens.warning, modifier = Modifier.size(24.dp)) }
+        )
+        Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
         Text(
             run {
                 val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
@@ -132,11 +133,8 @@ fun DataSourceErrorsSheet(
             }
             Text("Réessayer toutes les sources")
         }
-        Spacer(Modifier.height(8.dp))
-        TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-            Text("Fermer")
-        }
         Spacer(Modifier.height(16.dp))
+        }
     }
 }
 

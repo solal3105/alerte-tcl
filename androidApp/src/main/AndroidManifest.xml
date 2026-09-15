@@ -27,53 +27,5 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- Widget désactivé
-        <receiver
-            android:name=".widget.NextDeparturesGlanceWidgetReceiver"
-            android:exported="true"
-            android:label="@string/widget_next_departures_desc">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/next_departures_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name=".widget.TCLBoardGlanceWidgetReceiver"
-            android:exported="true"
-            android:label="@string/widget_tcl_board_desc">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/tcl_board_widget_info" />
-        </receiver>
-
-        <activity
-            android:name=".widget.NextDeparturesWidgetConfigActivity"
-            android:exported="true"
-            android:label="Configurer le widget"
-            android:theme="@style/Theme.AlerteTCL"
-            android:screenOrientation="portrait">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
-            </intent-filter>
-        </activity>
-
-        <activity
-            android:name=".widget.TCLBoardWidgetConfigActivity"
-            android:exported="true"
-            android:label="Configurer le widget"
-            android:theme="@style/Theme.AlerteTCL"
-            android:screenOrientation="portrait">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
-            </intent-filter>
-        </activity>
-        -->
     </application>
 </manifest>

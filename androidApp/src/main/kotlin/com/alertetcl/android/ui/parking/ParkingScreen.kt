@@ -101,9 +101,8 @@ import com.alertetcl.android.ui.map.mapStyleBuilder
 import com.alertetcl.android.ui.map.recenterOnUser
 import com.alertetcl.android.ui.map.rememberManagedMapView
 import com.alertetcl.android.ui.openUrl
-import com.alertetcl.android.ui.theme.StatusError
-import com.alertetcl.android.ui.theme.StatusSuccess
-import com.alertetcl.android.ui.theme.StatusWarning
+import com.alertetcl.android.ui.theme.Tokens
+import com.alertetcl.shared.design.AppColors
 import com.google.gson.JsonObject
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -159,6 +158,19 @@ fun ParkingScreen() {
     // Recharger immédiatement quand le type ou les filtres changent
     LaunchedEffect(selectedTypes, showParcRelais, showRealtimeParkings) {
         currentRegion.value?.let { vm.loadInRegion(it) }
+    }
+
+    // Retour au premier plan : recharger immédiatement plutôt que d'attendre
+    // le prochain tick du countdown (parité iOS scenePhase).
+    val parkingLifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(parkingLifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_START) {
+                currentRegion.value?.let { vm.loadInRegion(it, forceRefresh = true) }
+            }
+        }
+        parkingLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { parkingLifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // Countdown auto-refresh 60s (voitures seulement, comme iOS)
@@ -279,14 +291,14 @@ fun ParkingScreen() {
         ) {
             MapCircleFab(
                 icon = Icons.Filled.Public, contentDesc = "Vue satellite",
-                tint = if (isSatellite) StatusWarning else MaterialTheme.colorScheme.onSurface,
+                tint = if (isSatellite) Tokens.warning else MaterialTheme.colorScheme.onSurface,
                 onClick = { isSatellite = !isSatellite }
             )
             if (isCarSelected) {
                 val hasActiveFilters = !showParcRelais || !showRealtimeParkings
                 MapCircleFab(
                     icon = Icons.Filled.FilterList, contentDesc = "Filtres",
-                    tint = if (hasActiveFilters) StatusWarning else MaterialTheme.colorScheme.onSurface,
+                    tint = if (hasActiveFilters) Tokens.warning else MaterialTheme.colorScheme.onSurface,
                     onClick = { showFilterSheet = true }
                 )
             }
@@ -347,7 +359,7 @@ fun ParkingScreen() {
         }
 
         // LIVE card bottom-left (voitures seulement, comme iOS)
-        if (isCarSelected) {            val liveColor = if (errorMessage != null) StatusWarning else MaterialTheme.colorScheme.primary
+        if (isCarSelected) {            val liveColor = if (errorMessage != null) Tokens.warning else MaterialTheme.colorScheme.primary
             Surface(
                 shape = RoundedCornerShape(50),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
@@ -491,7 +503,7 @@ private fun ParkingDetailSheet(p: Parking) {
                     Icon(Icons.Filled.AccessTime, null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(20.dp))
                     Column {
                         Text("Données statiques uniquement", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.tertiary)
-                        Text("La disponibilité en temps réel n'est pas disponible pour ce P+R.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("L'exploitant ne transmet pas la disponibilité en temps réel pour ce parc relais. La capacité affichée est indicative.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -561,7 +573,7 @@ private fun ParkingDetailSheet(p: Parking) {
 
 @Composable
 private fun ParkingAvailabilityHeader(p: Parking) {
-    val accentColor = parkingColorFor(p.availabilityColor)
+    val accentColor = Tokens.parkingAvailability(p.availabilityColor)
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -614,14 +626,14 @@ private fun ParkingAvailabilityHeader(p: Parking) {
             ) {
                 if (p.isParcRelais) {
                     val (ic, col, lbl) = if (p.hasRealtimeData)
-                        Triple(Icons.Filled.CheckCircle, StatusSuccess, "Données en direct")
-                    else Triple(Icons.Filled.AccessTime, StatusWarning, "Données statiques")
+                        Triple(Icons.Filled.CheckCircle, Tokens.success, "Données en direct")
+                    else Triple(Icons.Filled.AccessTime, Tokens.warning, "Données statiques")
                     Icon(ic, null, tint = col, modifier = Modifier.size(18.dp))
                     Text(lbl, fontWeight = FontWeight.SemiBold, color = col)
                 } else {
                     val (ic, col, lbl) = if (p.etat.raw == "ouvert")
-                        Triple(Icons.Filled.CheckCircle, StatusSuccess, "Ouvert")
-                    else Triple(Icons.Filled.Info, StatusError, p.etat.displayName)
+                        Triple(Icons.Filled.CheckCircle, Tokens.success, "Ouvert")
+                    else Triple(Icons.Filled.Info, Tokens.error, p.etat.displayName)
                     Icon(ic, null, tint = col, modifier = Modifier.size(18.dp))
                     Text(lbl, fontWeight = FontWeight.SemiBold, color = col)
                 }
@@ -656,10 +668,10 @@ private fun ParkingInfoCard(p: Parking) {
 
 @Composable
 private fun ParkingTarifCard(p: Parking) {
-    ParkingCard(title = "Tarifs", icon = Icons.Filled.Euro, iconColor = StatusSuccess) {
+    ParkingCard(title = "Tarifs", icon = Icons.Filled.Euro, iconColor = Tokens.success) {
         if (p.gratuit) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Filled.CheckCircle, null, tint = StatusSuccess, modifier = Modifier.size(18.dp))
+                Icon(Icons.Filled.CheckCircle, null, tint = Tokens.success, modifier = Modifier.size(18.dp))
                 Text("Parking gratuit", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
             }
         } else {
@@ -719,9 +731,9 @@ private fun ParkingServicesCard(p: Parking) {
     data class ServiceItem(val icon: ImageVector, val label: String, val count: Int, val color: Color)
     val services = listOfNotNull(
         p.nbPmr?.takeIf { it > 0 }?.let { ServiceItem(Icons.Filled.Person, "PMR", it, MaterialTheme.colorScheme.primary) },
-        p.nbVoituresElectriques?.takeIf { it > 0 }?.let { ServiceItem(Icons.Filled.ElectricCar, "Électrique", it, StatusSuccess) },
-        p.nbVelo?.takeIf { it > 0 }?.let { ServiceItem(Icons.Filled.DirectionsBike, "Vélos", it, StatusWarning) },
-        p.nb2Rm?.takeIf { it > 0 }?.let { ServiceItem(Icons.Filled.TwoWheeler, "2 roues", it, StatusError) },
+        p.nbVoituresElectriques?.takeIf { it > 0 }?.let { ServiceItem(Icons.Filled.ElectricCar, "Électrique", it, Tokens.success) },
+        p.nbVelo?.takeIf { it > 0 }?.let { ServiceItem(Icons.Filled.DirectionsBike, "Vélos", it, Tokens.warning) },
+        p.nb2Rm?.takeIf { it > 0 }?.let { ServiceItem(Icons.Filled.TwoWheeler, "2 roues", it, Tokens.error) },
         p.nbAutopartage?.takeIf { it > 0 }?.let { ServiceItem(Icons.Filled.DirectionsCar, "Autopartage", it, MaterialTheme.colorScheme.tertiary) }
     )
     ParkingCard(title = "Services", icon = Icons.Filled.Build, iconColor = MaterialTheme.colorScheme.tertiary) {
@@ -758,7 +770,7 @@ private fun ParkingServicesCard(p: Parking) {
 
 @Composable
 private fun ParkingAdditionalCard(p: Parking) {
-    ParkingCard(title = "Informations complémentaires", icon = Icons.Filled.Info, iconColor = StatusWarning) {
+    ParkingCard(title = "Informations complémentaires", icon = Icons.Filled.Info, iconColor = Tokens.warning) {
         ParkingInfoRow(icon = Icons.Filled.Person, label = "Type d'usagers", value = "Tous publics")
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -766,8 +778,8 @@ private fun ParkingAdditionalCard(p: Parking) {
             modifier = Modifier.fillMaxWidth()
         ) {
             val (ic, col, lbl) = if (p.gratuit)
-                Triple(Icons.Filled.CheckCircle, StatusSuccess, "Gratuit")
-            else Triple(Icons.Filled.Euro, StatusWarning, "Payant")
+                Triple(Icons.Filled.CheckCircle, Tokens.success, "Gratuit")
+            else Triple(Icons.Filled.Euro, Tokens.warning, "Payant")
             Icon(ic, null, tint = col, modifier = Modifier.size(18.dp))
             Column {
                 Text("Statut", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -814,20 +826,6 @@ private fun ParkingInfoRow(icon: ImageVector, label: String, value: String) {
     }
 }
 
-@Composable
-private fun parkingColorFor(c: AvailabilityColor): Color = when (c) {
-    AvailabilityColor.GRAY   -> MaterialTheme.colorScheme.onSurfaceVariant
-    AvailabilityColor.GREEN  -> StatusSuccess
-    AvailabilityColor.ORANGE -> StatusWarning
-    AvailabilityColor.RED    -> StatusError
-}
-
-@Composable
-private fun parkingTypeColor(type: ParkingType): Color = when (type) {
-    ParkingType.CAR           -> MaterialTheme.colorScheme.primary
-    ParkingType.BIKE          -> StatusSuccess
-    ParkingType.MOTORIZED_2W  -> StatusWarning
-}
 
 private fun parkingTypeIcon(type: ParkingType) = when (type) {
     ParkingType.CAR           -> Icons.Filled.DirectionsCar
@@ -837,7 +835,7 @@ private fun parkingTypeIcon(type: ParkingType) = when (type) {
 
 @Composable
 private fun ParkingTypeButton(type: ParkingType, isSelected: Boolean, onClick: () -> Unit) {
-    val accent = parkingTypeColor(type)
+    val accent = Tokens.parkingType(type)
     val bg = if (isSelected) accent else Color.Transparent
     val fg = if (isSelected) when (type) {
         ParkingType.CAR          -> MaterialTheme.colorScheme.onPrimary   // primary adapts in dark mode
@@ -933,12 +931,8 @@ private fun friendlyParkingError(err: String): String = when {
     else -> "Une erreur inattendue s'est produite. Réessayez dans quelques instants."
 }
 
-private fun parkingAndroidColor(c: AvailabilityColor): Int = when (c) {
-    AvailabilityColor.GRAY   -> AndroidColor.parseColor("#9E9E9E")
-    AvailabilityColor.GREEN  -> AndroidColor.parseColor("#43A047")
-    AvailabilityColor.ORANGE -> AndroidColor.parseColor("#FB8C00")
-    AvailabilityColor.RED    -> AndroidColor.parseColor("#E53935")
-}
+private fun parkingAndroidColor(c: AvailabilityColor): Int =
+    AndroidColor.parseColor(AppColors.parkingAvailability(c).light)
 
 /** Cache key: same visual state → same bitmap. */
 private fun markerCacheKey(p: Parking): String {

@@ -40,6 +40,7 @@ Thumbs.db
 .vscode/
 
 # Secrets - NEVER commit these
+cloudflare-worker/.dev.vars
 Secrets.swift
 **/Secrets.swift
 *.secret
@@ -88,3 +89,11 @@ captures/
 /androidMain/
 /commonMain/
 screen.png
+
+# Artefacts locaux (profilage, environnement Python, sorties de scripts)
+*.trace/
+nohup.out
+.venv/
+
+# Captures d'écran de référence : produites à la demande avec les modes démo (voir les README), non versionnées
+captures-tests/**/*.png

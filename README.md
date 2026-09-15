@@ -1,157 +1,78 @@
-# 🚇 Alerte TCL
+# Lyon Pocket
 
-Application iOS minimaliste pour suivre les alertes du réseau de transport TCL (Lyon).
+Les transports lyonnais en direct sur la carte : positions des véhicules TCL en temps réel, prochains
+passages à chaque arrêt, fiches horaires théoriques, alertes trafic avec notifications, travaux et
+parkings. Une application iOS (SwiftUI) et une application Android (Jetpack Compose) qui partagent la
+même logique métier en Kotlin Multiplatform.
 
-![Swift](https://img.shields.io/badge/Swift-5.9-orange)
-![iOS](https://img.shields.io/badge/iOS-17.0+-blue)
-![SwiftUI](https://img.shields.io/badge/SwiftUI-Native-green)
+Code ouvert, librement auditable et gratuit. Application indépendante, sans affiliation à SYTRAL
+Mobilités, Keolis Lyon ou TCL.
 
-## ✨ Fonctionnalités
+## Ce que fait l'application
 
-- **📋 Liste des lignes** : Métro, Tramway, Funiculaire, Bus
-- **🔔 Abonnements** : S'abonner aux lignes qui vous intéressent
-- **⚠️ Alertes en temps réel** : Voir les perturbations sur vos lignes
-- **📱 Notifications** : Recevoir des alertes push pour vos lignes suivies
-- **🎨 Design moderne** : Interface native SwiftUI ultra minimaliste
+- **Transport** : carte temps réel des métros, tramways, trolleybus, bus et navette fluviale ; fiche d'un
+  véhicule (retard, fraîcheur de la position, prochain arrêt) ; fiche d'un arrêt avec les prochains
+  passages estimés et théoriques ; filtre « Voir ces bus sur la carte » depuis un arrêt ; fiches horaires
+  théoriques (ligne, sens, arrêt, date) ; filtres par type de véhicule et par ligne ; bandeau trafic.
+- **Alertes** : perturbations du réseau, abonnement à des lignes avec choix des types d'alertes
+  notifiées.
+- **Travaux** : chantiers du réseau et de la voirie sur la carte.
+- **Parkings** : parkings publics et parcs relais avec disponibilité en temps réel.
+- **Widgets** (iOS seulement) : prochains passages, panneau d'affichage et parking sur l'écran d'accueil.
+- **Notifications** : abonnement par ligne, avec le choix des types d'alertes, sur les deux plateformes.
 
-## 🏗️ Architecture
+## Architecture
 
 ```
-AlerteTCL/
-├── AlerteTCLApp.swift          # Point d'entrée
-├── Models/
-│   ├── Alert.swift             # Modèle d'alerte TCL
-│   └── TransportLine.swift     # Modèle de ligne
-├── Services/
-│   ├── TCLAPIService.swift     # Appels API Grand Lyon
-│   ├── NotificationService.swift
-│   └── SubscriptionService.swift
-├── ViewModels/
-│   └── AlertViewModel.swift    # Logique métier
-└── Views/
-    ├── ContentView.swift       # TabView principal
-    ├── AlertsView.swift        # Liste des alertes
-    ├── LinesListView.swift     # Liste des lignes
-    ├── SubscriptionsView.swift # Abonnements
-    └── Components/
-        ├── LineRow.swift
-        └── AlertCard.swift
+shared/            Logique métier Kotlin Multiplatform : modèles, services réseau, ViewModels,
+                   couleurs de lignes, fiches horaires, tests (commonTest)
+AlerteTCL/         Application iOS (SwiftUI, MapKit) : lie le framework Kotlin `Shared`
+AlerteTCLWidget/   Extension widgets iOS (Swift seul, sans le module Kotlin)
+androidApp/        Application Android (Jetpack Compose, MapLibre)
+cloudflare-worker/ Proxy Cloudflare : détient les identifiants Grand Lyon, met en cache les flux
+horaires/          Construction nocturne des fiches horaires à partir du GTFS SYTRAL
+.github/workflows/ Intégration continue (tests, compilation iOS et Android) et publication des horaires
+website/           Site vitrine (Netlify)
 ```
 
-## 🚀 Guide de démarrage - Première app iOS
+Le module `shared` est compilé en bibliothèque Android et en framework Kotlin/Native pour iOS ; le
+projet Xcode le construit automatiquement à chaque compilation (phase « Module partagé Kotlin »). Les
+règles de développement sont dans `CLAUDE.md`, l'état de la migration iOS dans `KMP_MIGRATION.md`,
+l'audit de cohérence dans `AUDIT_COHERENCE.md`, les fiches horaires dans `horaires/README.md`.
 
-### Prérequis
+## Données
 
-1. **Mac** avec macOS 13+ (Ventura ou plus récent)
-2. **Xcode 15+** installé depuis l'App Store
-3. **Compte Apple** (gratuit) pour le simulateur
-4. *(Optionnel)* Compte Apple Developer (99€/an) pour tester sur un vrai iPhone
+Toutes les données viennent des données ouvertes du Grand Lyon et de SYTRAL Mobilités (licence
+ouverte / ODbL) : flux SIRI Lite (positions temps réel), prochains passages, alertes trafic, GeoServer
+(arrêts, tracés, parkings), GTFS (horaires théoriques et couleurs officielles des lignes). Les
+applications n'appellent jamais ces services directement : le proxy Cloudflare (`cloudflare-worker/`)
+porte les identifiants et lisse la charge.
 
-### Étape 1 : Installer Xcode
+## Compiler
 
-1. Ouvrir l'**App Store** sur ton Mac
-2. Rechercher "**Xcode**"
-3. Cliquer sur **Obtenir** / **Installer** (≈ 12 Go, prévoir du temps)
-4. Une fois installé, **lancer Xcode** une première fois pour qu'il installe les composants
-
-### Étape 2 : Ouvrir le projet
+Prérequis : Xcode 15 ou plus récent, un JDK 17 et le SDK Android (chemins dans `local.properties`).
+Le projet ne doit pas vivre dans un dossier synchronisé par iCloud Drive : la synchronisation crée des
+doublons dans les dossiers de compilation Gradle et fait échouer le dexing.
 
 ```bash
-# Dans le Terminal, naviguer vers le dossier du projet
-cd /Users/solal/Documents/codebase/alerte-tcl
+# Tests du module partagé et application Android
+./gradlew :shared:testDebugUnitTest :androidApp:assembleDebug
 
-# Ouvrir le projet avec Xcode
-open AlerteTCL.xcodeproj
+# Application iOS (le framework Kotlin est construit par Xcode)
+xcodebuild -project AlerteTCL.xcodeproj -scheme AlerteTCL \
+  -destination "generic/platform=iOS Simulator" -configuration Debug build
 ```
 
-Ou simplement **double-cliquer** sur `AlerteTCL.xcodeproj` dans le Finder.
+Le script `run.sh` lance l'émulateur Android et installe l'application. Le proxy se déploie avec
+`bash cloudflare-worker/deploy.sh`.
 
-### Étape 3 : Configurer le projet
+## Captures d'écran et modes démo
 
-1. Dans Xcode, cliquer sur **AlerteTCL** (icône bleue) dans le panneau de gauche
-2. Onglet **Signing & Capabilities**
-3. Cocher **"Automatically manage signing"**
-4. Sélectionner ton **Team** (ton compte Apple personnel)
-   - Si pas de team : Xcode > Settings > Accounts > Ajouter ton Apple ID
+Les deux applications acceptent un mode démo qui provoque un état précis de l'interface, pour les
+captures et la revue visuelle : `-demo <cas>` en argument de lancement sur iOS,
+`adb shell am start -n com.alertetcl.android/.MainActivity --es demo <cas>` sur Android. Les cas sont
+listés dans `DemoShowcase` et les captures de référence dans `captures-tests/`.
 
-### Étape 4 : Lancer sur le simulateur
+## Licence
 
-1. En haut de Xcode, cliquer sur le sélecteur de destination (à côté du bouton ▶️)
-2. Choisir un simulateur : **iPhone 15 Pro** (recommandé)
-3. Cliquer sur le bouton **▶️ (Run)** ou appuyer sur `Cmd + R`
-4. Le simulateur va se lancer avec l'app ! 🎉
-
-### Étape 5 : Tester sur ton iPhone (optionnel)
-
-1. Brancher ton iPhone avec un câble USB
-2. **Faire confiance** à l'ordinateur sur l'iPhone si demandé
-3. Sélectionner ton iPhone dans le menu des destinations
-4. Cliquer sur **▶️ Run**
-5. Sur l'iPhone : Réglages > Général > Gestion des appareils > Faire confiance
-
-## 📱 Utilisation de l'app
-
-### Onglet Alertes
-- Affiche les alertes **uniquement pour vos lignes suivies**
-- Tirez vers le bas pour actualiser
-- Tapez sur une alerte pour voir les détails
-
-### Onglet Lignes
-- Parcourez toutes les lignes disponibles
-- Filtrez par mode de transport (Métro, Tram, Bus...)
-- Tapez sur 🔔 pour s'abonner/se désabonner
-
-### Onglet Abonnements
-- Voyez toutes vos lignes suivies
-- Glissez vers la gauche pour supprimer
-- Statistiques en haut (lignes suivies / alertes actives)
-
-## 🔧 Configuration de l'API
-
-L'app utilise l'API ouverte de **Data Grand Lyon** :
-- Endpoint : `https://download.data.grandlyon.com/ws/rdata/tcl_sytral.tclalertetrafic_2/all.json`
-- Documentation : [data.grandlyon.com](https://data.grandlyon.com)
-
-> **Note** : En cas d'erreur API (authentification requise), l'app affiche des données de démonstration.
-
-## 🎨 Personnalisation
-
-### Changer les couleurs
-Modifier `Assets.xcassets/AccentColor.colorset/Contents.json`
-
-### Ajouter des lignes de bus
-Éditer `TransportLine.swift` et ajouter dans `allPredefinedLines`
-
-### Modifier la fréquence de refresh
-Dans `AlertViewModel.swift`, ajuster la logique de `loadAlerts()`
-
-## 📚 Ressources pour apprendre
-
-- [SwiftUI Tutorials (Apple)](https://developer.apple.com/tutorials/swiftui)
-- [Hacking with Swift](https://www.hackingwithswift.com/100/swiftui)
-- [Stanford CS193p](https://cs193p.sites.stanford.edu/)
-
-## 🐛 Dépannage
-
-### "Unable to boot simulator"
-→ Xcode > Settings > Platforms > Télécharger iOS Simulator
-
-### "Signing requires a development team"
-→ Xcode > Settings > Accounts > Ajouter ton Apple ID
-
-### L'API ne répond pas
-→ L'app bascule automatiquement sur des données de démo
-
-### Build failed
-→ Menu Product > Clean Build Folder (`Cmd + Shift + K`) puis relancer
-
-## 📄 Licence
-
-Code ouvert, librement auditable et gratuit. Usage personnel bienvenu sans restriction.
-Usage commercial → parlons-en d'abord. Les contributions ne valent pas cession de propriété intellectuelle.
-
-Voir le fichier [LICENSE](LICENSE) pour les détails complets.
-
----
-
-**Bonne découverte du développement iOS !** 🚀
+Code ouvert, usage personnel bienvenu sans restriction (voir `LICENSE`).

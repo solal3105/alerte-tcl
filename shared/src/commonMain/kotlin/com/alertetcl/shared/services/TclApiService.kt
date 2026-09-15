@@ -26,6 +26,8 @@ class TclApiService {
     private val client = HttpClientProvider.client
 
     suspend fun fetchAlerts(): List<TCLAlert> {
+        // Mode démo : alertes simulées pour capture d'écran, cf. DemoShowcase.
+        if (com.alertetcl.shared.util.DemoShowcase.isAlertsCase) return com.alertetcl.shared.util.DemoShowcase.alerts()
         val response: HttpResponse = try {
             safeRequest {
                 client.get(endpoint) {

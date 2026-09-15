@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import Shared
 
 // MARK: - Merged Stop Marker (supprimé)
 //
@@ -13,6 +14,7 @@ import MapKit
 struct LineBadge: View {
     let line: String
     var size: CGFloat = 11
+    @ObservedObject private var palette = LinePaletteObserver.shared
     
     private var bgColor: Color {
         LineColorHelper.backgroundColor(for: line)
@@ -47,6 +49,10 @@ struct LinePassagesCard: View {
     let line: String
     let direction: String
     let passages: [Passage]
+    /// Montre sur la carte les véhicules de cette ligne dans ce sens.
+    var onShowOnMap: (() -> Void)? = nil
+    /// Ouvre la fiche horaire théorique de cette ligne à cet arrêt.
+    var onShowTimetable: (() -> Void)? = nil
     
     private var bgColor: Color {
         LineColorHelper.backgroundColor(for: line)
@@ -77,6 +83,23 @@ struct LinePassagesCard: View {
                     PassageChip(passage: passage, color: bgColor)
                 }
             }
+
+            if passages.prefix(4).contains(where: { $0.isTheoretical }) {
+                Text("Les horaires sans pastille verte sont théoriques : le véhicule n'est pas suivi en direct, vérifiez les alertes en cas de perturbation.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            if onShowOnMap != nil || onShowTimetable != nil {
+                HStack(spacing: 8) {
+                    if let onShowOnMap {
+                        cardAction("Voir ces bus sur la carte", icon: "map", action: onShowOnMap)
+                    }
+                    if let onShowTimetable {
+                        cardAction("Tous les horaires", icon: "calendar", action: onShowTimetable)
+                    }
+                }
+            }
         }
         .padding(16)
         .background(.ultraThinMaterial)
@@ -89,19 +112,43 @@ struct LinePassagesCard: View {
     }
 }
 
+extension LinePassagesCard {
+    private func cardAction(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(bgColor.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
+    }
+}
+
 // MARK: - Passage Chip
 
 struct PassageChip: View {
     let passage: Passage
     let color: Color
-    
+
     var body: some View {
         VStack(spacing: 4) {
-            // Délai en minutes
-            Text(passage.delaipassage)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(Color(.systemGray))
-            
+            // Délai en minutes, pastille verte = suivi temps réel du véhicule
+            HStack(spacing: 3) {
+                if passage.isRealTime {
+                    Circle()
+                        .fill(Color.appSuccess)
+                        .frame(width: 5, height: 5)
+                }
+                Text(passage.delaipassage)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color(.systemGray))
+            }
+
             // Heure de passage
             Text(passage.formattedTime)
                 .font(.system(size: 9, weight: .medium))
@@ -111,6 +158,7 @@ struct PassageChip: View {
         .padding(.vertical, 8)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 10))
+        .opacity(passage.isTheoretical ? 0.65 : 1)
         .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
 }
@@ -120,10 +168,16 @@ struct PassageChip: View {
 struct MergedStopDetailSheet: View {
     let mergedStop: MergedStop
     let stopsVM: TransitStopViewModel
+    /// Appelé quand l'utilisateur veut voir sur la carte les bus d'une ligne dans un sens
+    /// (le parent applique le filtre et referme la fiche).
+    var onFocus: ((StopLineFocus) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var allPassages: [Passage] = []
     @State private var isLoading = false
     @State private var showWidgetSheet = false
+    /// Terminus par ligne et sens, pour déduire le sens d'une destination affichée.
+    @State private var termini: [String: String] = [:]
+    @State private var timetableRequest: StopTimetableRequest?
     
     /// Clé unique pour grouper par ligne ET direction
     private struct LineDirectionKey: Hashable {
@@ -183,9 +237,26 @@ struct MergedStopDetailSheet: View {
                     .fontWeight(.semibold)
                 }
             }
+            .navigationDestination(item: $timetableRequest) { request in
+                StopTimetableView(source: .request(request))
+            }
         }
-        .onAppear {
-            loadAllPassages()
+        .task {
+            // Rafraîchit les passages toutes les 30 s tant que la fiche est ouverte
+            // (annulé automatiquement à la fermeture du sheet).
+            while !Task.isCancelled {
+                await loadAllPassages()
+                #if DEBUG
+                // Modes démo « horaires-arret » / « horaires-course » : ouvrir la fiche horaire de la première ligne.
+                if ["horaires-arret", "horaires-course"].contains(DemoShowcase.current ?? ""), timetableRequest == nil, let key = sortedLineDirections.first {
+                    timetableRequest = timetableRequest(for: key)
+                }
+                #endif
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
+            }
+        }
+        .task {
+            termini = (try? await LineTermini.shared.all()) ?? [:]
         }
         .sheet(isPresented: $showWidgetSheet) {
             AddToWidgetSheet(
@@ -195,44 +266,66 @@ struct MergedStopDetailSheet: View {
         }
     }
     
-    private func loadAllPassages() {
-        isLoading = true
-        Task { @MainActor in
-            // Charger les passages de TOUS les arrêts du groupe en parallèle
-            await withTaskGroup(of: Void.self) { group in
-                for stop in mergedStop.stops {
-                    let stopId = stop.id
-                    group.addTask { @MainActor in
-                        await stopsVM.loadAllPassagesForStop(stopId: stopId)
-                    }
-                }
-            }
-            
-            // Collecter tous les passages
-            var passages: [Passage] = []
+    @MainActor
+    private func loadAllPassages() async {
+        // Le spinner ne s'affiche qu'au premier chargement : les refreshs
+        // suivants remplacent les données en place, sans clignotement.
+        if allPassages.isEmpty { isLoading = true }
+
+        // Charger les passages de TOUS les arrêts du groupe en parallèle
+        await withTaskGroup(of: Void.self) { group in
             for stop in mergedStop.stops {
-                if let updatedStop = stopsVM.transitStops.first(where: { $0.id == stop.id }) {
-                    passages.append(contentsOf: updatedStop.passages)
+                let stopId = stop.id
+                group.addTask { @MainActor in
+                    await stopsVM.loadAllPassagesForStop(stopId: stopId)
                 }
             }
-            
-            // Trier par heure et dédupliquer
-            allPassages = passages.sorted { p1, p2 in
-                p1.heurepassage < p2.heurepassage
-            }
-            
-            isLoading = false
         }
+
+        // Collecter tous les passages
+        var passages: [Passage] = []
+        for stop in mergedStop.stops {
+            if let updatedStop = stopsVM.transitStops.first(where: { $0.id == stop.id }) {
+                passages.append(contentsOf: updatedStop.passages)
+            }
+        }
+
+        // Trier par heure et dédupliquer
+        allPassages = passages.sorted { p1, p2 in
+            p1.heurepassage < p2.heurepassage
+        }
+
+        isLoading = false
     }
     
+    private func stopLineFocus(for key: LineDirectionKey) -> StopLineFocus {
+        StopLineFocus(
+            line: key.line,
+            direction: DirectionMatching.shared.resolveDirection(line: key.line, destination: key.direction, termini: termini),
+            destination: key.direction,
+            stopName: mergedStop.nom,
+            latitude: mergedStop.coordinate.latitude,
+            longitude: mergedStop.coordinate.longitude
+        )
+    }
+
+    private func timetableRequest(for key: LineDirectionKey) -> StopTimetableRequest {
+        StopTimetableRequest(
+            line: key.line,
+            destination: key.direction,
+            stopIds: mergedStop.stops.map(\.id).sorted(),
+            stopName: mergedStop.nom
+        )
+    }
+
     private var headerSection: some View {
         VStack(spacing: 12) {
             // Icône (même style que TransitStopDetailSheet)
             Image(systemName: "tram.fill")
                 .font(.system(size: 32))
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.appAccent)
                 .padding(16)
-                .background(Color.blue.opacity(0.1))
+                .background(Color.appAccent.opacity(0.1))
                 .clipShape(Circle())
             
             // Nom de l'arrêt
@@ -259,7 +352,7 @@ struct MergedStopDetailSheet: View {
             if mergedStop.pmr {
                 HStack(spacing: 4) {
                     Image(systemName: "figure.roll")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.appAccent)
                     Text("Accessible PMR")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -283,7 +376,7 @@ struct MergedStopDetailSheet: View {
                     .padding(.vertical, 10)
                     .background(
                         LinearGradient(
-                            colors: [.blue, .purple],
+                            colors: [Color.appAccent, Color.appAccent.opacity(0.75)],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
@@ -304,11 +397,17 @@ struct MergedStopDetailSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Label("Prochains passages", systemImage: "clock.fill")
                 .font(.headline)
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.appAccent)
             
             ForEach(sortedLineDirections, id: \.self) { key in
                 if let linePassages = passagesByLineDirection[key] {
-                    LinePassagesCard(line: key.line, direction: key.direction, passages: linePassages)
+                    LinePassagesCard(
+                        line: key.line,
+                        direction: key.direction,
+                        passages: linePassages,
+                        onShowOnMap: onFocus.map { focus in { focus(stopLineFocus(for: key)) } },
+                        onShowTimetable: { timetableRequest = timetableRequest(for: key) }
+                    )
                 }
             }
         }

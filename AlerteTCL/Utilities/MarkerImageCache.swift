@@ -43,6 +43,9 @@ enum StopTier: Int {
         }
     }
 
+    /// Métro et tramway prennent la couleur officielle de leur ligne principale.
+    var usesLineColor: Bool { self == .metro || self == .tramway }
+
     // MARK: Factory
 
     static func from(lines: [String]) -> StopTier {
@@ -101,9 +104,9 @@ enum MarkerImageCache {
 
     /// Point d'arrêt TCL — taille et couleur selon le tier de la ligne la plus importante.
     static func mergedStopDot(tier: StopTier, primaryLine: String?, forBadge: Bool = false) -> UIImage {
-        // Le rendu n'utilise primaryLine que pour le métro (couleur du noyau) :
-        // l'ignorer ailleurs garde un espace de clés minimal (~16 entrées).
-        let lineKey = tier == .metro ? (primaryLine ?? "") : ""
+        // Le rendu n'utilise primaryLine que pour le métro et le tramway (couleur du noyau) :
+        // l'ignorer ailleurs garde un espace de clés minimal.
+        let lineKey = tier.usesLineColor ? (primaryLine ?? "") : ""
         let key = "stop-\(tier.rawValue)-\(lineKey)-\(forBadge ? 1 : 0)" as NSString
         if let cached = sharedDotCache.object(forKey: key) { return cached }
         let image = renderStopDot(tier: tier, primaryLine: primaryLine, forBadge: forBadge)
@@ -129,6 +132,14 @@ enum MarkerImageCache {
         let image = renderPunctualityTooltip(text: text, color: status.color)
         tooltipCache.setObject(image, forKey: key)
         return image
+    }
+
+    /// Vide toutes les images : à appeler quand la palette des couleurs de lignes change.
+    static func clearAll() {
+        vehicleBodyCache.removeAllObjects()
+        bearingArrowCache.removeAllObjects()
+        vehicleDotCache.removeAllObjects()
+        sharedDotCache.removeAllObjects()
     }
 
     // MARK: - Types
@@ -263,14 +274,11 @@ enum MarkerImageCache {
         let inner = outer - stroke * 2
         let size = CGSize(width: outer, height: outer)
 
-        // Couleur du noyau selon le tier
+        // Couleur du noyau : celle de la ligne principale pour le métro et le tramway, sinon celle du tier
         let fillColor: UIColor
         switch tier {
-        case .metro:
-            let line = primaryLine ?? ""
-            fillColor = uiColor(LineColorHelper.backgroundColor(for: line))
-        case .tramway:
-            fillColor = UIColor(red: 0.40, green: 0.20, blue: 0.60, alpha: 1) // violet tram
+        case .metro, .tramway:
+            fillColor = uiColor(LineColorHelper.backgroundColor(for: primaryLine ?? ""))
         case .busC:
             fillColor = UIColor(red: 0.10, green: 0.20, blue: 0.55, alpha: 1) // bleu nuit bus C
         case .bus:

@@ -13,7 +13,7 @@ Toute la logique métier **doit vivre dans `:shared`** (module KMP) et être par
 - Services réseau, parsing, modèles de données, ViewModels
 - Aucun code métier dupliqué entre `AlerteTCL/` et `androidApp/`
 - Le module `:shared` expose les APIs via `Shared.framework` (iOS) et directement via dépendance Gradle (Android)
-- Migration iOS documentée dans `KMP_MIGRATION.md`
+- Migration iOS documentée dans `KMP_MIGRATION.md` ; le framework est lié et consommé par iOS
 
 ### Frontend natif
 
@@ -111,3 +111,26 @@ La topologie du réseau (noms de lignes, correspondances) est disponible dans le
 
 La ligne RX est présente dans le flux SIRI (véhicules actifs) mais **absente du GeoServer** `/bus-lines`.
 Son tracé ne peut pas être affiché sur la carte. Problème côté données Grand Lyon.
+
+### Fiches horaires théoriques (GTFS)
+
+Les horaires d'une journée entière (fiches horaires par ligne, sens et date) ne viennent pas
+d'une API Grand Lyon mais du GTFS SYTRAL, découpé chaque nuit par `horaires/build_timetables.py`
+(GitHub Actions, `.github/workflows/horaires.yml`) et publié sur la branche orpheline `horaires`.
+Le proxy les relaie sous `/horaires/index.json` et `/horaires/lignes/<CLÉ>/<A|R>.json`.
+Format et conventions (sens A/R, minutes ≥ 1440 après minuit) : `horaires/README.md`.
+Logique partagée : `TimetableService` / `LineTimetable` (KMP), consommés directement par iOS
+(framework `Shared` lié par la phase Xcode « Module partagé Kotlin », cf. `KMP_MIGRATION.md`).
+
+### Couleurs, textes et règles d'interface
+
+- Toute couleur sémantique vient de `AppColors` (module partagé) : `Color.appAccent`… et les
+  extensions de `AppColorTokens.swift` côté iOS, l'objet `Tokens` côté Android. Aucune couleur
+  système nommée ni hexadécimale dans une vue. Les lignes utilisent `LineColors` (palette GTFS).
+- L'accent Android est fixe (pas de couleur dynamique Material) ; le thème est `AlerteTCLTheme`.
+- Abonnements aux notifications : `LineSubscriptions` (règles + JSON), distincts des favoris qui ne
+  servent qu'aux filtres. Règle de notification : `AlertNotifications`. Bandeau trafic :
+  `TrafficBanner`. Dates des alertes : `AlertDates`. Ces règles ont des tests dans `commonTest`.
+- Pas de widgets Android (décision produit du 15 septembre 2026) ; les widgets iOS restent.
+- Les composants communs sont décrits dans `DESIGN.md` : badge de ligne (`LineBadge`), en-tête de
+  feuille (`SheetHeader`), états chargement / vide / erreur, textes des alertes.

@@ -11,16 +11,6 @@ enum class VehicleType(val displayName: String, val iconKey: String, val sortOrd
     TROLLEY("Trolleybus", "trolley", 3),
     NAVIGONE("Navigo'ne", "navigone", 4),
     BUS("Bus", "bus", 5);
-
-    /** Couleur dominante sur la carte (hex `#RRGGBB`). */
-    val clusterColorHex: String get() = when (this) {
-        METRO     -> "#EE3898"
-        TRAM      -> "#8C368C"
-        BUS       -> "#6E6E73"
-        TROLLEY   -> "#DAA520"
-        FUNICULAR -> "#8BC752"
-        NAVIGONE  -> "#6E6E73"
-    }
 }
 
 @Serializable
@@ -44,6 +34,7 @@ data class Vehicle(
     val lineName: String,
     val vehicleType: VehicleType,
     val destination: String,
+    /** Sens SIRI normalisé : "A" aller, "R" retour, "" inconnu (cf. DirectionMatching). */
     val direction: String = "",
     val delay: Int,
     val status: String? = null,
@@ -71,4 +62,44 @@ data class Vehicle(
 
     val isDelayed: Boolean get() = delay > 60
     val isEarly:   Boolean get() = delay < -60
+
+    /** Âge de la dernière position transmise par TCL (RecordedAtTime SIRI), en secondes. */
+    fun positionAgeSeconds(nowEpochMs: Long): Long? =
+        recordedAtEpoch?.let { (nowEpochMs / 1000 - it).coerceAtLeast(0) }
+
+    /**
+     * Fraîcheur de la position, pour l'affichage (couleur + transparence).
+     * Le flux SIRI TCL republie chaque véhicule toutes les ~15-60 s ;
+     * au-delà de 2 min la position est considérée obsolète (véhicule "fantôme").
+     */
+    fun positionFreshness(nowEpochMs: Long): PositionFreshness {
+        val age = positionAgeSeconds(nowEpochMs) ?: return PositionFreshness.FRESH
+        return when {
+            age < 45  -> PositionFreshness.FRESH
+            age < 120 -> PositionFreshness.AGING
+            else      -> PositionFreshness.STALE
+        }
+    }
+
+    companion object {
+        /** Formate un âge en texte court ("12 s", "1 min 30", "4 min"). */
+        fun formattedAge(seconds: Long): String {
+            if (seconds < 60) return "$seconds s"
+            val m = seconds / 60
+            val r = seconds % 60
+            if (m >= 5 || r == 0L) return "$m min"
+            return "$m min ${r.toString().padStart(2, '0')}"
+        }
+    }
+}
+
+enum class PositionFreshness {
+    FRESH, AGING, STALE;
+
+    /** Couleur d'état associée (jetons partagés, variantes claire et sombre). */
+    val color: com.alertetcl.shared.design.ThemedColor get() = when (this) {
+        FRESH -> com.alertetcl.shared.design.AppColors.fresh
+        AGING -> com.alertetcl.shared.design.AppColors.aging
+        STALE -> com.alertetcl.shared.design.AppColors.stale
+    }
 }

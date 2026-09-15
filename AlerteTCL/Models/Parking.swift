@@ -14,14 +14,7 @@ enum ParkingType: String, Codable, CaseIterable {
         case .motorized2Wheel: return "motorcycle.fill"
         }
     }
-    
-    var color: String {
-        switch self {
-        case .car: return "blue"
-        case .bike: return "green"
-        case .motorized2Wheel: return "orange"
-        }
-    }
+
 }
 
 struct ParkingResponse: Codable {
@@ -178,17 +171,6 @@ struct Parking: Identifiable, Hashable, Sendable {
         return Double(capaciteTotale - placesDisponibles) / Double(capaciteTotale)
     }
 
-    /// Couleur de disponibilité unifiée : gris si pas de données, sinon vert → rouge.
-    var availabilityColor: Color {
-        guard hasRealtimeData else { return .gray }
-        if !isParcRelais, etat != .ouvert { return .gray }
-        switch tauxOccupation {
-        case ..<0.5:  return .green
-        case 0.5..<0.8: return .orange
-        default:        return .red
-        }
-    }
-
     var isFull: Bool {
         guard hasRealtimeData else { return false }
         return placesDisponibles == 0 || etat == .complet
@@ -340,11 +322,7 @@ enum ParkingState: String, Codable {
 
 extension Parking: Clusterable {
     var clusterColor: Color {
-        switch parkingType {
-        case .bike:          return .green
-        case .motorized2Wheel: return .orange
-        case .car:           return availabilityColor
-        }
+        parkingType == .car ? availabilityColor : parkingType.color
     }
 
     var clusterIcon: String {

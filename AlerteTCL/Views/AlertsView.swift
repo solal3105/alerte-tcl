@@ -1,4 +1,5 @@
 import SwiftUI
+import Shared
 
 // MARK: - NewAlertsView (Main View)
 struct NewAlertsView: View {
@@ -65,6 +66,14 @@ struct NewAlertsView: View {
         .sheet(isPresented: $showSubscribeSheet) {
             SubscribeLineSheet(viewModel: viewModel)
         }
+        #if DEBUG
+        .task {
+            // Mode démo : ouvrir la fiche de la ligne C12 une fois l'écran affiché.
+            guard ["alertes-ligne", "alertes-options"].contains(DemoShowcase.current ?? "") else { return }
+            try? await Task.sleep(nanoseconds: DemoShowcase.pushDelayNanoseconds)
+            selectedLine = viewModel.allLines.first { $0.ligneCom == "C12" }
+        }
+        #endif
     }
     
     // MARK: - Status Summary Banner
@@ -76,7 +85,7 @@ struct NewAlertsView: View {
         let hasMajor = viewModel.subscribedLines.contains {
             viewModel.ongoingAlerts(for: $0).contains { $0.severity == .major }
         }
-        let bannerColor: Color = hasMajor ? .red : (totalAlerts > 0 ? .orange : .green)
+        let bannerColor: Color = hasMajor ? .appError : (totalAlerts > 0 ? Color.appWarning : Color.appSuccess)
 
         return HStack(spacing: 14) {
             ZStack {
@@ -150,7 +159,7 @@ struct NewAlertsView: View {
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 30, height: 30)
-                        .background(.blue)
+                        .background(Color.appAccent)
                         .clipShape(Circle())
                 }
             }
@@ -204,11 +213,11 @@ struct NewAlertsView: View {
             VStack(spacing: 18) {
                 ZStack {
                     Circle()
-                        .fill(Color.blue.opacity(0.1))
+                        .fill(Color.appAccent.opacity(0.1))
                         .frame(width: 72, height: 72)
                     Image(systemName: "bell.badge")
                         .font(.system(size: 30))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.appAccent)
                 }
 
                 VStack(spacing: 6) {
@@ -228,7 +237,7 @@ struct NewAlertsView: View {
                 }
                 .font(.subheadline)
                 .fontWeight(.semibold)
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.appAccent)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 40)
@@ -368,12 +377,8 @@ private struct LineStatusCard: View {
     private var isMajor: Bool { highestSeverity == .major }
 
     private var statusColor: Color {
-        guard let sev = highestSeverity else { return .green }
-        switch sev {
-        case .major: return .red
-        case .disruption: return .orange
-        case .info: return .blue
-        }
+        guard let sev = highestSeverity else { return .appSuccess }
+        return sev.color
     }
 
     var body: some View {
@@ -384,7 +389,6 @@ private struct LineStatusCard: View {
 
             HStack(spacing: 16) {
                 AlertLineBadgeView(line: line, size: 62)
-                    .shadow(color: line.mode.color.opacity(0.35), radius: 10, x: 0, y: 4)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(line.mode.rawValue)
@@ -441,7 +445,7 @@ private struct LineStatusCard: View {
                 } else {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 28))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color.appSuccess)
                 }
             }
             .padding(16)
@@ -471,12 +475,7 @@ private struct LineGridCell: View {
     let highestSeverity: AlertSeverity?
 
     private var badgeColor: Color {
-        switch highestSeverity {
-        case .major: return .red
-        case .disruption: return .orange
-        case .info: return .blue
-        case nil: return .red
-        }
+        highestSeverity?.color ?? .appError
     }
 
     var body: some View {
@@ -517,7 +516,7 @@ private struct LineGridCell: View {
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.white)
                     .padding(4)
-                    .background(.blue)
+                    .background(Color.appAccent)
                     .clipShape(Circle())
                     .offset(x: 4, y: -4)
             }
@@ -550,7 +549,7 @@ struct LineDetailSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
-                    heroHeader
+                    header
 
                     VStack(spacing: 20) {
                         subscribeSection
@@ -567,9 +566,7 @@ struct LineDetailSheet: View {
                     .padding(.bottom, 48)
                 }
             }
-            .navigationTitle("Ligne \(line.displayName)")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Fermer") {
@@ -578,6 +575,13 @@ struct LineDetailSheet: View {
                     .fontWeight(.semibold)
                 }
             }
+            #if DEBUG
+            .task {
+                guard DemoShowcase.current == "alertes-options" else { return }
+                try? await Task.sleep(nanoseconds: DemoShowcase.pushDelayNanoseconds)
+                showSubscriptionOptions = true
+            }
+            #endif
             .sheet(isPresented: $showSubscriptionOptions) {
                 SubscriptionOptionsSheet(line: line, viewModel: viewModel)
             }
@@ -585,94 +589,52 @@ struct LineDetailSheet: View {
         .interactiveDismissDisabled(false)
     }
 
-    // MARK: - Hero Header
+    // MARK: - En-tête
 
-    private var heroHeader: some View {
-        ZStack(alignment: .bottomLeading) {
-            LinearGradient(
-                colors: [
-                    line.mode.color.opacity(0.85),
-                    line.mode.color.opacity(0.45),
-                    line.mode.color.opacity(0.15),
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .frame(height: 180)
-            .overlay {
-                GeometryReader { geo in
-                    ZStack {
-                        Circle()
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                            .frame(width: 160, height: 160)
-                            .offset(x: geo.size.width - 60, y: -40)
-                        Circle()
-                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                            .frame(width: 250, height: 250)
-                            .offset(x: geo.size.width - 80, y: -100)
-                    }
-                }
+    /// Même en-tête que sur Android : pictogramme, nom de la ligne, mode et état du service.
+    private var header: some View {
+        HStack(alignment: .top, spacing: 16) {
+            AlertLineBadgeView(line: line, size: 64)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Ligne \(line.displayName)")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .lineLimit(1)
+                Text(line.mode.rawValue)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                statusPill
+                    .padding(.top, 2)
             }
 
-            HStack(spacing: 18) {
-                AlertLineBadgeView(line: line, size: 76)
-                    .shadow(color: .black.opacity(0.22), radius: 12, x: 0, y: 6)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(line.mode.rawValue)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.white.opacity(0.8))
-
-                    Text("Ligne \(line.displayName)")
-                        .font(.title2)
-                        .fontWeight(.black)
-                        .foregroundStyle(.white)
-
-                    heroStatusPill
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 20)
+        .padding(.top, 4)
     }
 
     private var highestOngoingColor: Color {
         lineAlerts
             .map { $0.severity }
             .min { $0.sortOrder < $1.sortOrder }
-            .map { sev -> Color in
-                switch sev {
-                case .major: return .red
-                case .disruption: return .orange
-                case .info: return .blue
-                }
-            } ?? .orange
+            .map(\.color) ?? .appWarning
     }
 
-    private var heroStatusPill: some View {
+    private var statusPill: some View {
         let isClear = lineAlerts.isEmpty
+        let color: Color = isClear ? .appSuccess : highestOngoingColor
         return HStack(spacing: 5) {
-            Image(
-                systemName: isClear
-                    ? "checkmark.circle.fill"
-                    : "exclamationmark.triangle.fill"
-            )
-            .font(.caption)
-            Text(
-                isClear
-                    ? "Service normal"
-                    : "\(lineAlerts.count) perturbation\(lineAlerts.count > 1 ? "s" : "")"
-            )
-            .font(.caption)
-            .fontWeight(.semibold)
+            Image(systemName: isClear ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .font(.caption)
+            Text(isClear ? "Service normal" : "\(lineAlerts.count) perturbation\(lineAlerts.count > 1 ? "s" : "")")
+                .font(.caption)
+                .fontWeight(.semibold)
         }
-        .foregroundStyle(isClear ? .green : highestOngoingColor)
+        .foregroundStyle(color)
         .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(.black.opacity(0.22))
+        .padding(.vertical, 6)
+        .background(color.opacity(0.12))
         .clipShape(Capsule())
     }
     
@@ -683,14 +645,14 @@ struct LineDetailSheet: View {
                     HStack(spacing: 7) {
                         Image(systemName: "bell.fill")
                             .font(.subheadline)
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color.appAccent)
                         Text("Abonné")
                             .font(.subheadline)
                             .fontWeight(.semibold)
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 9)
-                    .background(Color.blue.opacity(0.1))
+                    .background(Color.appAccent.opacity(0.1))
                     .clipShape(Capsule())
 
                     Spacer()
@@ -706,7 +668,7 @@ struct LineDetailSheet: View {
                         .fontWeight(.semibold)
                     }
                     .buttonStyle(.bordered)
-                    .tint(.blue)
+                    .tint(Color.appAccent)
                     .controlSize(.small)
 
                     Button {
@@ -715,7 +677,7 @@ struct LineDetailSheet: View {
                         Image(systemName: "bell.slash")
                     }
                     .buttonStyle(.bordered)
-                    .tint(.red)
+                    .tint(Color.appError)
                     .controlSize(.small)
                 }
             } else {
@@ -730,7 +692,7 @@ struct LineDetailSheet: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.blue)
+                .tint(Color.appAccent)
                 .controlSize(.large)
             }
         }
@@ -740,7 +702,7 @@ struct LineDetailSheet: View {
         VStack(spacing: 14) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 52))
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.appSuccess)
                 .symbolEffect(.pulse)
 
             Text("Service normal")
@@ -797,11 +759,7 @@ private struct AlertDetailCard: View {
 
     private var accentColor: Color {
         if isUpcoming { return .secondary }
-        switch alert.severity {
-        case .major: return .red
-        case .disruption: return .orange
-        case .info: return .blue
-        }
+        return alert.severity.color
     }
 
     var body: some View {
@@ -830,6 +788,8 @@ private struct AlertDetailCard: View {
                             .font(.caption)
                             .fontWeight(.semibold)
                             .foregroundStyle(accentColor)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
 
                         if !alert.cause.isEmpty {
                             Text("·")
@@ -846,6 +806,8 @@ private struct AlertDetailCard: View {
                             Text(smartDateLabel(debut))
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
                         }
                     }
 
@@ -866,7 +828,11 @@ private struct AlertDetailCard: View {
                         }
                         if let fin = alert.fin {
                             Label(
-                                "Jusqu'au \(fin.formatted(date: .abbreviated, time: .shortened))",
+                                AlertDates.shared.endLabel(
+                                    epochSeconds: Int64(fin.timeIntervalSince1970),
+                                    nowEpochSeconds: Int64(Date().timeIntervalSince1970),
+                                    timeZoneId: TimeZone.current.identifier
+                                ),
                                 systemImage: "clock"
                             )
                             .font(.caption)
@@ -898,10 +864,11 @@ private struct AlertDetailCard: View {
     }
 
     private func smartDateLabel(_ date: Date) -> String {
-        let diff = Date().timeIntervalSince(date)
-        if diff < 3600 { return "Il y a \(Int(diff / 60)) min" }
-        if diff < 86400 { return date.formatted(date: .omitted, time: .shortened) }
-        return date.formatted(date: .abbreviated, time: .omitted)
+        AlertDates.shared.startLabel(
+            epochSeconds: Int64(date.timeIntervalSince1970),
+            nowEpochSeconds: Int64(Date().timeIntervalSince1970),
+            timeZoneId: TimeZone.current.identifier
+        )
     }
 }
 
@@ -973,7 +940,7 @@ struct SubscriptionOptionsSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(selectedTypes.isEmpty ? .red : .blue)
+                .tint(selectedTypes.isEmpty ? Color.appError : Color.appAccent)
                 .controlSize(.large)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 20)
@@ -1034,20 +1001,10 @@ private struct NotificationTypeRow: View {
     }
     
     private var severityColor: Color {
-        switch severity {
-        case .major: return .red
-        case .disruption: return .orange
-        case .info: return .blue
-        }
+        severity.color
     }
     
-    private var severityDescription: String {
-        switch severity {
-        case .major: return "Interruptions totales de service"
-        case .disruption: return "Retards et déviations importantes"
-        case .info: return "Informations et travaux prévus"
-        }
-    }
+    private var severityDescription: String { severity.summary }
 }
 
 // MARK: - Subscribe Line Sheet
@@ -1094,7 +1051,7 @@ struct SubscribeLineSheet: View {
                                         if count > 0 {
                                             Text("\(count) alerte\(count > 1 ? "s" : "")")
                                                 .font(.caption)
-                                                .foregroundStyle(.orange)
+                                                .foregroundStyle(Color.appWarning)
                                         }
                                     }
                                 }
@@ -1131,6 +1088,7 @@ struct SubscribeLineSheet: View {
 struct AlertLineBadgeView: View {
     let line: TransportLine
     let size: CGFloat
+    @ObservedObject private var palette = LinePaletteObserver.shared
     
     private var lineName: String {
         line.ligneCli.isEmpty ? line.ligneCom : line.ligneCli

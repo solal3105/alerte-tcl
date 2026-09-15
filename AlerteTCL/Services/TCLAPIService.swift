@@ -1,4 +1,5 @@
 import Foundation
+import Shared
 
 actor TCLAPIService {
     static let shared = TCLAPIService()
@@ -10,6 +11,9 @@ actor TCLAPIService {
     private init() {}
     
     func fetchAlerts() async throws -> [TCLAlert] {
+        #if DEBUG
+        if DemoShowcase.isAlertsCase { return DemoShowcase.alerts() }
+        #endif
         guard let url = URL(string: alertsEndpoint) else {
             AppLogger.debug("❌ TCLAPIService: URL invalide")
             throw ServiceError.invalidURL
@@ -59,38 +63,11 @@ actor TCLAPIService {
     }
 
     func fetchBusLineNames() async throws -> [TransportLine] {
-        guard let url = URL(string: NetworkConfiguration.proxyBaseURL + "/bus-termini") else {
-            throw ServiceError.invalidURL
-        }
-        var request = NetworkConfiguration.request(url: url, timeout: NetworkConfiguration.fastTimeout)
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("AlerteTCL/1.0", forHTTPHeaderField: "User-Agent")
-
-        let (data, response) = try await NetworkConfiguration.session.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw ServiceError.invalidResponse
-        }
-
-        let decoded = try JSONDecoder().decode(BusTerminiResponse.self, from: data)
-        let names = Set(decoded.features.compactMap { $0.properties.ligne })
+        // Clés "ligne|A" / "ligne|R" des terminus bus du module partagé
+        let names = Set(try await Shared.BusLineService.companion.shared.fetchLineTermini().keys.compactMap { $0.split(separator: "|").first.map(String.init) })
         return names.sorted().map { name in
             let mode: TransportMode = name.hasPrefix("C") ? .busC : .bus
             return TransportLine(ligneCom: name, ligneCli: name, mode: mode)
         }
     }
 }
-
-// MARK: - Bus-termini response models (private)
-
-private struct BusTerminiResponse: Decodable {
-    let features: [BusTerminiFeature]
-}
-
-private struct BusTerminiFeature: Decodable {
-    let properties: BusTerminiProperties
-}
-
-private struct BusTerminiProperties: Decodable {
-    let ligne: String?
-}
-

@@ -63,10 +63,14 @@ struct Passage: Identifiable, Hashable, Codable {
     let direction: String
     let delaipassage: String
     let heurepassage: String
-    let type: String // T = Théorique, R = Temps réel
-    
+    let type: String // E = Estimé (temps réel), T = Théorique (horaire papier)
+
     var isRealTime: Bool {
-        type == "R"
+        type == "E"
+    }
+
+    var isTheoretical: Bool {
+        type == "T"
     }
     
     var lineColor: Color {
@@ -162,34 +166,6 @@ extension Array where Element: Hashable {
     }
 }
 
-extension TransportMode {
-    static func detectFromLine(_ ligne: String) -> TransportMode {
-        let upper = ligne.uppercased()
-
-        // Métro : lettres seules A/B/C/D (codes GeoServer) ou préfixe M (MA/MB…)
-        if upper == "A" || upper == "B" || upper == "C" || upper == "D" { return .metro }
-        if upper.hasPrefix("M") && upper.count <= 3 { return .metro }
-
-        // Tramways : T + chiffre unique (T1…T9) ou TGS — exclut T36, TB11, etc.
-        if upper == "TGS" { return .tramway }
-        if upper.hasPrefix("T") && upper.count == 2 && (upper.last?.isNumber ?? false) { return .tramway }
-
-        // Funiculaires : F1, F2
-        if upper.hasPrefix("F") && upper.count <= 3 { return .funiculaire }
-
-        // Chronobus : C suivi d'un chiffre (C1, C7, C15E, C200, C20E, etc.)
-        // "C" seul = métro C, déjà traité ci-dessus
-        if upper.hasPrefix("C"), let second = upper.dropFirst().first, second.isNumber { return .busC }
-
-        // RhôneExpress
-        if upper == "RX" || upper == "RHONEXPRESS" { return .tramway }
-
-        // Navigone (navette fluviale)
-        if upper.hasPrefix("NAVI") || upper == "7601" { return .navigone }
-
-        return .bus
-    }
-}
 
 // MARK: - Clusterable Conformance (for viewport filtering)
 

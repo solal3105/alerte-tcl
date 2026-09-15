@@ -1,6 +1,7 @@
 package com.alertetcl.shared.viewmodels
 
 import com.alertetcl.shared.models.AnimatedVehicle
+import com.alertetcl.shared.models.StopLineFocus
 import com.alertetcl.shared.models.Vehicle
 import com.alertetcl.shared.models.VehicleType
 import com.alertetcl.shared.services.SiriLiteService
@@ -47,6 +48,13 @@ class LiveVehiclesViewModel(
     private val _lastUpdateEpochMs = MutableStateFlow<Long?>(null)
     val lastUpdateEpochMs: StateFlow<Long?> = _lastUpdateEpochMs.asStateFlow()
 
+    /**
+     * Filtre « bus de cet arrêt » (ligne + sens) choisi depuis la fiche d'un arrêt.
+     * Volontairement non persisté : il disparaît à la fermeture de l'application.
+     */
+    private val _stopFocus = MutableStateFlow<StopLineFocus?>(null)
+    val stopFocus: StateFlow<StopLineFocus?> = _stopFocus.asStateFlow()
+
     /** Index des véhicules animés par id (pour interpolation côté UI). */
     private val animatedVehicles = mutableMapOf<String, AnimatedVehicle>()
 
@@ -60,6 +68,10 @@ class LiveVehiclesViewModel(
     private val adaptiveIntervalMs: Long
         get() = if (consecutiveErrors == 0) pollIntervalMs
                 else min((pollIntervalMs * 1.5.pow(consecutiveErrors.toDouble())).toLong(), maxIntervalMs)
+
+    fun focusOnStop(focus: StopLineFocus) { _stopFocus.value = focus }
+
+    fun clearStopFocus() { _stopFocus.value = null }
 
     fun toggleType(type: VehicleType) {
         val cur = _selectedTypes.value.toMutableSet()

@@ -11,6 +11,8 @@ struct Vehicle: Identifiable, Hashable {
     let lineName: String
     let vehicleType: VehicleType
     let destination: String
+    /// Sens SIRI normalisé : "A" aller, "R" retour, "" inconnu (cf. DirectionMatching).
+    let direction: String
     let delay: Int
     let status: String?
     let recordedAt: Date?
@@ -54,6 +56,37 @@ struct Vehicle: Identifiable, Hashable {
         let parts = id.split(separator: ":")
         guard parts.count > 3 else { return nil }
         return String(parts[3])
+    }
+
+    /// Âge de la dernière position transmise par TCL (RecordedAtTime SIRI), en secondes.
+    var positionAge: TimeInterval? {
+        recordedAt.map { max(0, Date().timeIntervalSince($0)) }
+    }
+
+    /// Fraîcheur de la position, pour l'affichage (couleur + transparence).
+    /// Seuils : le flux SIRI TCL republie chaque véhicule toutes les ~15-60 s ;
+    /// au-delà de 2 min la position est considérée obsolète (véhicule "fantôme").
+    enum PositionFreshness {
+        case fresh   // < 45 s
+        case aging   // 45 s – 2 min
+        case stale   // > 2 min
+    }
+
+    var positionFreshness: PositionFreshness {
+        guard let age = positionAge else { return .fresh }
+        if age < 45 { return .fresh }
+        if age < 120 { return .aging }
+        return .stale
+    }
+
+    /// Formate un âge en texte court ("12 s", "1 min 30", "4 min").
+    static func formattedAge(_ seconds: TimeInterval) -> String {
+        let s = Int(seconds)
+        if s < 60 { return "\(s) s" }
+        let m = s / 60
+        let r = s % 60
+        if m >= 5 || r == 0 { return "\(m) min" }
+        return "\(m) min \(String(format: "%02d", r))"
     }
 }
 
@@ -100,17 +133,6 @@ enum VehicleType: String, CaseIterable {
         case .trolley: return 3
         case .bus: return 4
         case .navigone: return 5
-        }
-    }
-    
-    var clusterColor: Color {
-        switch self {
-        case .metro: return Color(hex: "EE3898")
-        case .tram: return Color(hex: "8C368C")
-        case .bus: return Color(hex: "6E6E73")
-        case .trolley: return Color(hex: "DAA520")
-        case .funicular: return Color(hex: "8BC752")
-        case .navigone: return Color(hex: "32ADE6")
         }
     }
 }

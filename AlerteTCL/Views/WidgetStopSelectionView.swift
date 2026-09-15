@@ -91,7 +91,7 @@ struct AddToWidgetSheet: View {
         VStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(.blue.gradient)
+                    .fill(Color.appAccent.gradient)
                     .frame(width: 70, height: 70)
                 Image(systemName: "plus.rectangle.on.rectangle")
                     .font(.system(size: 28, weight: .semibold))
@@ -117,7 +117,7 @@ struct AddToWidgetSheet: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
-        .tint(.blue)
+        .tint(Color.appAccent)
         .controlSize(.large)
         .padding(20)
     }
@@ -128,7 +128,7 @@ struct AddToWidgetSheet: View {
             
             VStack(spacing: 20) {
                 ZStack {
-                    Circle().fill(.green).frame(width: 80, height: 80)
+                    Circle().fill(Color.appSuccess).frame(width: 80, height: 80)
                     Image(systemName: "checkmark").font(.system(size: 36, weight: .bold)).foregroundColor(.white)
                 }
                 
@@ -143,7 +143,7 @@ struct AddToWidgetSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.blue)
+                .tint(Color.appAccent)
             }
             .padding(24)
             .background(Color(.systemBackground))
@@ -195,11 +195,11 @@ struct LineDirectionRow: View {
                 
                 if isAlreadySaved {
                     HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                        Text("Ajouté").font(.caption).foregroundStyle(.green)
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.appSuccess)
+                        Text("Ajouté").font(.caption).foregroundStyle(Color.appSuccess)
                     }
                 } else if isSelected {
-                    Image(systemName: "checkmark.circle.fill").font(.system(size: 24)).foregroundStyle(.blue)
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 24)).foregroundStyle(Color.appAccent)
                 } else {
                     Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2).frame(width: 24, height: 24)
                 }

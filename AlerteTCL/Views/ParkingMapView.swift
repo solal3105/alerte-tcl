@@ -5,6 +5,7 @@ import CoreLocation
 struct ParkingMapView: View {
     @StateObject private var viewModel = ParkingViewModel()
     @ObservedObject private var locationService = LocationService.shared
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedParking: Parking?
     /// Deep link parking reçu avant que les données soient chargées — résolu dès leur arrivée.
     @State private var pendingParkingId: String?
@@ -49,6 +50,13 @@ struct ParkingMapView: View {
                 transitLines = (try? await TransitLineService.shared.fetchTransitLines()) ?? []
             }
         }
+        // Retour au premier plan pendant que cet onglet est affiché :
+        // recharger tout de suite plutôt que d'attendre le prochain tick du timer.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active && viewModel.isViewActive {
+                viewModel.onAppear()
+            }
+        }
         .withInitialLocation(
             mapCameraPosition: $mapCameraPosition,
             hasSetInitialLocation: $hasSetInitialLocation
@@ -88,8 +96,8 @@ struct ParkingMapView: View {
                     .background {
                         if viewModel.selectedParkingType == type {
                             Capsule()
-                                .fill(parkingTypeColor(type))
-                                .shadow(color: parkingTypeColor(type).opacity(0.4), radius: 4, x: 0, y: 2)
+                                .fill(type.color)
+                                .shadow(color: type.color.opacity(0.4), radius: 4, x: 0, y: 2)
                         }
                     }
                 }
@@ -102,14 +110,6 @@ struct ParkingMapView: View {
         .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 4)
         .padding(.horizontal, 16)
         .padding(.top, 8)
-    }
-    
-    private func parkingTypeColor(_ type: ParkingType) -> Color {
-        switch type {
-        case .car: return .blue
-        case .bike: return .green
-        case .motorized2Wheel: return .orange
-        }
     }
     
     private var mapContent: some View {
@@ -236,7 +236,7 @@ struct ParkingMapView: View {
                     } label: {
                         Image(systemName: isSatellite ? "globe.europe.africa.fill" : "globe.europe.africa")
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(isSatellite ? .orange : .primary)
+                            .foregroundStyle(isSatellite ? Color.appWarning : Color.primary)
                             .frame(width: 50, height: 50)
                             .background(.regularMaterial)
                             .clipShape(Circle())
@@ -252,7 +252,7 @@ struct ParkingMapView: View {
                         } label: {
                             Image(systemName: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                                 .font(.system(size: 20, weight: .medium))
-                                .foregroundStyle(hasActiveFilters ? .blue : .primary)
+                                .foregroundStyle(hasActiveFilters ? Color.appAccent : Color.primary)
                                 .frame(width: 50, height: 50)
                                 .background(.regularMaterial)
                                 .clipShape(Circle())
@@ -279,7 +279,7 @@ struct ParkingMapView: View {
                     } label: {
                         Image(systemName: "location.fill")
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color.appAccent)
                             .frame(width: 50, height: 50)
                             .background(.regularMaterial)
                             .clipShape(Circle())
@@ -302,12 +302,12 @@ struct ParkingMapView: View {
         } label: {
             HStack(spacing: 8) {
                 Circle()
-                    .fill(viewModel.error != nil ? Color.orange : Color.blue)
+                    .fill(viewModel.error != nil ? Color.appWarning : Color.appAccent)
                     .frame(width: 8, height: 8)
 
                 Text("LIVE")
                     .font(.system(size: 12, weight: .heavy, design: .rounded))
-                    .foregroundStyle(viewModel.error != nil ? .orange : .blue)
+                    .foregroundStyle(viewModel.error != nil ? Color.appWarning : Color.appAccent)
 
                 if viewModel.isLoading {
                     ProgressView()
@@ -336,11 +336,11 @@ struct ParkingMapView: View {
                 HStack(spacing: 12) {
                     ZStack {
                         Circle()
-                            .fill(Color.blue.opacity(0.15))
+                            .fill(Color.appAccent.opacity(0.15))
                             .frame(width: 44, height: 44)
                         Image(systemName: "parkingsign.circle.fill")
                             .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color.appAccent)
                     }
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Temps réel")
@@ -363,7 +363,7 @@ struct ParkingMapView: View {
                     VStack(spacing: 3) {
                         Text("60s")
                             .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color.appAccent)
                         Text("intervalle")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
@@ -398,7 +398,7 @@ struct ParkingMapView: View {
                 // No-refresh notice
                 HStack(spacing: 10) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.appAccent)
                         .font(.system(size: 15))
                     Text("Inutile de rafraîchir manuellement")
                         .font(.system(size: 13, weight: .semibold))
@@ -504,7 +504,7 @@ struct ParkingMarker: View {
             Group {
                 if !parking.isParcRelais {
                     Circle()
-                        .fill(parking.etat == .ouvert ? Color.green : Color.red)
+                        .fill(parking.etat == .ouvert ? Color.appSuccess : Color.appError)
                         .frame(width: 12, height: 12)
                         .overlay(Circle().stroke(.white, lineWidth: 2))
                         .offset(x: 16, y: -16)
@@ -531,19 +531,19 @@ struct ParkingDetailSheet: View {
                     if parking.isParcRelais && !parking.hasRealtimeData {
                         HStack(spacing: 8) {
                             Image(systemName: "clock.badge.exclamationmark")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.appWarning)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Données statiques uniquement")
                                     .font(.caption).fontWeight(.semibold)
-                                    .foregroundStyle(.orange)
-                                Text("La disponibilité en temps réel n'est pas disponible pour ce P+R.")
+                                    .foregroundStyle(Color.appWarning)
+                                Text("L'exploitant ne transmet pas la disponibilité en temps réel pour ce parc relais. La capacité affichée est indicative.")
                                     .font(.caption2).foregroundStyle(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                             Spacer()
                         }
                         .padding(12)
-                        .background(Color.orange.opacity(0.1))
+                        .background(Color.appWarning.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                         .padding(.horizontal, 0)
                     }
@@ -640,16 +640,16 @@ struct ParkingDetailSheet: View {
                     Image(systemName: parking.hasRealtimeData
                           ? "antenna.radiowaves.left.and.right"
                           : "clock.badge.exclamationmark")
-                        .foregroundStyle(parking.hasRealtimeData ? .green : .orange)
+                        .foregroundStyle(parking.hasRealtimeData ? Color.appSuccess : Color.appWarning)
                     Text(parking.hasRealtimeData ? "Données en direct" : "Données statiques")
                         .font(.headline)
-                        .foregroundStyle(parking.hasRealtimeData ? .green : .orange)
+                        .foregroundStyle(parking.hasRealtimeData ? Color.appSuccess : Color.appWarning)
                 } else {
                     Image(systemName: parking.etat.icon)
-                        .foregroundStyle(parking.etat == .ouvert ? .green : .red)
+                        .foregroundStyle(parking.etat == .ouvert ? Color.appSuccess : Color.appError)
                     Text(parking.etat.displayName)
                         .font(.headline)
-                        .foregroundStyle(parking.etat == .ouvert ? .green : .red)
+                        .foregroundStyle(parking.etat == .ouvert ? Color.appSuccess : Color.appError)
                 }
             }
 
@@ -671,7 +671,7 @@ struct ParkingDetailSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Label("Informations", systemImage: "info.circle.fill")
                 .font(.headline)
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.appAccent)
 
             VStack(spacing: 12) {
                 if !parking.isParcRelais {
@@ -717,12 +717,12 @@ struct ParkingDetailSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Label("Tarifs", systemImage: "eurosign.circle.fill")
                 .font(.headline)
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.appSuccess)
             
             if parking.gratuit {
                 HStack {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color.appSuccess)
                     Text("Parking gratuit")
                         .font(.subheadline)
                         .fontWeight(.semibold)
@@ -806,16 +806,16 @@ struct ParkingDetailSheet: View {
                 GridItem(.flexible())
             ], spacing: 12) {
                 if let pmr = parking.nbPmr, pmr > 0 {
-                    ServiceCell(icon: "figure.roll", title: "PMR", count: pmr, color: .blue)
+                    ServiceCell(icon: "figure.roll", title: "PMR", count: pmr, color: .appAccent)
                 }
                 if let elec = parking.nbVoituresElectriques, elec > 0 {
-                    ServiceCell(icon: "bolt.car", title: "Électrique", count: elec, color: .green)
+                    ServiceCell(icon: "bolt.car", title: "Électrique", count: elec, color: .appSuccess)
                 }
                 if let velo = parking.nbVelo, velo > 0 {
-                    ServiceCell(icon: "bicycle", title: "Vélos", count: velo, color: .orange)
+                    ServiceCell(icon: "bicycle", title: "Vélos", count: velo, color: .appWarning)
                 }
                 if let moto = parking.nb2Rm, moto > 0 {
-                    ServiceCell(icon: "motorcycle", title: "2 roues", count: moto, color: .red)
+                    ServiceCell(icon: "motorcycle", title: "2 roues", count: moto, color: .appError)
                 }
                 if let auto = parking.nbAutopartage, auto > 0 {
                     ServiceCell(icon: "car.2", title: "Autopartage", count: auto, color: .purple)
@@ -842,7 +842,7 @@ struct ParkingDetailSheet: View {
             .padding(.vertical, 16)
         }
         .buttonStyle(.borderedProminent)
-        .tint(.blue)
+        .tint(Color.appAccent)
         .controlSize(.large)
         .padding(.horizontal, 20)
     }
@@ -851,7 +851,7 @@ struct ParkingDetailSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Label("Informations complémentaires", systemImage: "info.circle.fill")
                 .font(.headline)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.appWarning)
             
             VStack(spacing: 12) {
                 // Type d'usagers
@@ -864,7 +864,7 @@ struct ParkingDetailSheet: View {
                 HStack(spacing: 12) {
                     Image(systemName: parking.gratuit ? "checkmark.circle.fill" : "eurosign.circle.fill")
                         .font(.system(size: 16))
-                        .foregroundStyle(parking.gratuit ? .green : .orange)
+                        .foregroundStyle(parking.gratuit ? Color.appSuccess : Color.appWarning)
                         .frame(width: 24)
                     
                     VStack(alignment: .leading, spacing: 2) {
@@ -874,7 +874,7 @@ struct ParkingDetailSheet: View {
                         Text(parking.gratuit ? "Gratuit" : "Payant")
                             .font(.subheadline)
                             .fontWeight(.semibold)
-                            .foregroundStyle(parking.gratuit ? .green : .orange)
+                            .foregroundStyle(parking.gratuit ? Color.appSuccess : Color.appWarning)
                     }
                     
                     Spacer()
@@ -995,9 +995,9 @@ struct ParkingFilterSheet: View {
                         } label: {
                             HStack {
                                 Image(systemName: "arrow.counterclockwise")
-                                    .foregroundStyle(.red)
+                                    .foregroundStyle(Color.appError)
                                 Text("Réinitialiser les filtres")
-                                    .foregroundStyle(.red)
+                                    .foregroundStyle(Color.appError)
                             }
                         }
                     }
@@ -1011,10 +1011,10 @@ struct ParkingFilterSheet: View {
                         HStack(spacing: 14) {
                             ZStack {
                                 Circle()
-                                    .fill(Color.blue.opacity(0.15))
+                                    .fill(Color.appAccent.opacity(0.15))
                                     .frame(width: 36, height: 36)
                                 Image(systemName: "car.fill")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.appAccent)
                                     .font(.system(size: 16))
                             }
                             VStack(alignment: .leading, spacing: 2) {
@@ -1028,7 +1028,7 @@ struct ParkingFilterSheet: View {
                             Spacer()
                             if viewModel.showRealtimeParkings {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.appAccent)
                             }
                         }
                         .padding(.vertical, 4)
@@ -1058,7 +1058,7 @@ struct ParkingFilterSheet: View {
                             Spacer()
                             if viewModel.showParcRelais {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.appAccent)
                             }
                         }
                         .padding(.vertical, 4)

@@ -1,63 +1,52 @@
-# Migration Kotlin Multiplatform — état & intégration iOS
+# Module partagé Kotlin Multiplatform : état et intégration iOS
 
-## Statut Android
+## Ce qui est partagé aujourd'hui
 
-✅ Build APK : `./gradlew :androidApp:assembleDebug`
-- Sortie : `androidApp/build/outputs/apk/debug/androidApp-debug.apk`
-- Logique métier 100 % partagée via `:shared`
-- Écrans Compose :
-  - **LiveMap** : carte temps réel avec filtres, clustering, animation 100 ms,
-    boutons d'action (alertes, réglages, refresh) en overlay
-  - **Travaux** : carte polygones colorés
-  - **Parkings** : carte avec viewport reload + ParkingViewModel
-  - **À propos** : Hero, Manifesto, OpenData, Sources (5 lignes), Créateur,
-    Contact LinkedIn, Liens, Version (réplique d'`AboutView.swift`)
-  - **Alertes** (modale depuis LiveMap) : StatusBanner contextuel,
-    section "Mes lignes" (favoris), "Toutes les alertes",
-    grille "Toutes les lignes" — réplique de `NewAlertsView.swift`
-  - **Lignes** (`LinesListScreen`) : grille 2 colonnes, recherche, filtre par
-    mode de transport, toggle favori
-  - **Sélection arrêts widget** : recherche d'arrêts + sélection multiple
-  - **Settings** : permissions notif, premium, widget, données, confidentialité
-- Persistance : DataStore (`FavoritesStore`) — lignes favorites, arrêts widget,
-  flag premium
-- Notifications : WorkManager (`AlertWorker` toutes les 30 min) +
-  channel `tcl_alerts`
-- Widget : Glance `NextDeparturesGlanceWidget` (prochains passages aux 2 arrêts
-  favoris)
-- Navigation : 4 onglets (Transport, Travaux, Parkings, Info) identiques à iOS
+Le module `:shared` contient les modèles, les services réseau (Ktor), les règles métier et les
+ViewModels. Android le consomme par dépendance Gradle. iOS le consomme comme framework
+`Shared.framework`, produit à chaque compilation Xcode par la phase « Module partagé Kotlin »
+(première phase de la cible `AlerteTCL`) qui lance `:shared:embedAndSignAppleFrameworkForXcode`.
+Le framework est cherché dans `shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)` et lié
+statiquement (`-framework Shared`). Le widget iOS reste en Swift seul (il lit la palette des lignes
+depuis le conteneur partagé, clé `linePalette`).
 
-## Statut iOS
+Logique que Swift ne duplique plus (les fichiers Swift correspondants ont été supprimés) :
 
-✅ Framework Kotlin/Native : `./gradlew :shared:linkDebugFrameworkIosSimulatorArm64`
-- Sortie : `shared/build/bin/iosSimulatorArm64/debugFramework/Shared.framework`
-- Tous les services (`TclApiService`, `TransitStopService`, `ParkingService`,
-  `TravauxService`, `BusLineService`, `MetroLineService`, etc.) sont
-  multiplateformes et exposés au binaire iOS
+- fiches horaires : `TimetableService`, `LineTimetable`, `TimetableTime`, `TimetableIndex` ;
+- couleurs : `LinePalette`, `LineColors`, `AppColors` (jetons, voir `DESIGN.md`) ;
+- sens et rapprochement des noms : `DirectionMatching`, `LineTermini`, `StopLineFocus` ;
+- abonnements aux notifications : `LineSubscription`, `LineSubscriptions` (règles et format JSON,
+  clé `lineSubscriptions` sur iOS, `line_subscriptions` sur Android) ;
+- notifications : `AlertNotifications` (premier passage silencieux, une notification par phase,
+  purge des clés vues, titres) ;
+- bandeau trafic : `TrafficBanner` ; dates des alertes : `AlertDates`.
 
-### Intégration dans l'Xcode existant
+Ces règles sont couvertes par les tests de `shared/src/commonTest` (`./gradlew :shared:testDebugUnitTest`).
 
-Pour basculer progressivement les services Swift vers le binaire partagé :
+## Ce qui reste en Swift
 
-1. Ajouter une *Run Script Phase* (avant *Compile Sources*) à la cible
-   `AlerteTCL` dans `AlerteTCL.xcodeproj` :
-   ```bash
-   cd "$SRCROOT/.."
-   ./gradlew :shared:embedAndSignAppleFrameworkForXcode
-   ```
-2. Ajouter `${BUILT_PRODUCTS_DIR}/Shared.framework` dans
-   *Frameworks, Libraries, and Embedded Content*
-3. Côté Swift :
-   ```swift
-   import Shared
+Les modèles réseau et services iOS historiques (`TCLAlert`, `TransportLine`, `Vehicle`, `Parking`,
+`Travaux` et leurs services) existent encore en Swift, avec des passerelles vers leurs jumeaux Kotlin
+(`AppColorTokens.swift` : `.shared` sur chaque énumération, `TCLAlert.shared`, `TransportLine.shared`).
+Ordre de migration conseillé : services réseau (un seul client, un seul jeu de DTO), puis
+ViewModels (un mince `ObservableObject` par écran qui observe les `StateFlow`), puis persistance
+par `expect/actual`. Chaque migration supprime le fichier Swift correspondant et s'appuie sur un test
+Kotlin.
 
-   let alerts = try await TclApiService.shared.fetchAlerts()
-   ```
-4. Migrer les fichiers Swift correspondants (les services peuvent être
-   supprimés au fur et à mesure : `AlerteTCL/Services/AlertService.swift`,
-   `TCLAPIService.swift`, `ParkingService.swift`, etc.).
+## Conventions d'interopérabilité
 
-## Variables d'environnement requises pour build
+- Les fonctions `suspend` exposées à Swift portent `@Throws(Exception::class)` pour devenir
+  `async throws` ; sans cette annotation, une exception Kotlin fait planter l'application.
+- Les surcharges par type ne passent pas en Objective-C : donner des noms distincts
+  (`stopIndexesForIds`, `findForStopIds`).
+- `List<Int>` devient `[KotlinInt]` ; `Int` Kotlin devient `Int32` ; `Long?` devient `KotlinLong?`.
+- Les objets Kotlin se lisent par `.shared` (`LineColors.shared`), les compagnons par
+  `.companion.shared`, les classes imbriquées avec le nom du parent en préfixe
+  (`TrafficBanner.State` devient `TrafficBannerState`).
+- Quand Swift et Kotlin ont un type du même nom, le type Swift l'emporte dans l'application ;
+  écrire `Shared.TransportMode` pour le type Kotlin.
+
+## Environnement de compilation
 
 ```bash
 export JAVA_HOME=~/jdks/jdk-17.0.12.jdk/Contents/Home
@@ -65,13 +54,12 @@ export ANDROID_HOME=~/Library/Android/sdk
 export PATH=$JAVA_HOME/bin:$PATH
 ```
 
-## Clé API Maps
+Le dépôt vit dans un dossier synchronisé iCloud : la synchronisation dépose des doublons
+(`fichier 2.dex`) dans `androidApp/build` et `shared/build` qui font échouer le dexing. Avant de
+compiler Android, supprimer ces doublons (`find androidApp/build shared/build -name "* [0-9].*" -delete`)
+ou, mieux, sortir le projet d'iCloud.
 
-L'app Android lit `MAPS_API_KEY` depuis :
-- propriété Gradle (`-PMAPS_API_KEY=...`)
-- variable d'environnement (`MAPS_API_KEY=...`)
-- (sinon valeur vide → pas de carte rendue)
+## Clé Maps Android
 
-## Branche
-
-`kmp-migration` (à fusionner dans `main` après tests sur device).
+L'application Android lit `MAPS_API_KEY` depuis une propriété Gradle (`-PMAPS_API_KEY=...`) ou une
+variable d'environnement ; sans clé, la carte n'est pas rendue.

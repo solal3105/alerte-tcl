@@ -1,9 +1,11 @@
 package com.alertetcl.shared.services
 
+import com.alertetcl.shared.models.DirectionMatching
 import com.alertetcl.shared.models.StopInfo
 import com.alertetcl.shared.models.Vehicle
 import com.alertetcl.shared.models.VehicleType
 import com.alertetcl.shared.network.ApiError
+import com.alertetcl.shared.util.DemoShowcase
 import com.alertetcl.shared.network.HttpClientProvider
 import com.alertetcl.shared.network.NetworkConfiguration
 import com.alertetcl.shared.network.dto.MonitoredCallDto
@@ -38,6 +40,19 @@ class SiriLiteService {
     private val funicularRegex    = Regex("^F\\d*$")
 
     suspend fun fetchVehicles(): List<Vehicle> {
+        // Mode démo : états simulés pour capture d'écran, cf. DemoShowcase.
+        DemoShowcase.current?.let { mode ->
+            when (mode) {
+                "vide"      -> return emptyList()
+                "erreur401" -> throw ApiError.Unauthorized
+                "fige"      -> {
+                    DemoShowcase.vehicleFetchCount += 1
+                    if (DemoShowcase.vehicleFetchCount > 1) throw ApiError.HttpError(503)
+                    return DemoShowcase.vehicles()
+                }
+                else        -> return DemoShowcase.vehicles()
+            }
+        }
         val response: HttpResponse = safeRequest {
             client.get(endpoint) {
                 timeout { requestTimeoutMillis = NetworkConfiguration.FAST_TIMEOUT_SECONDS * 1000 }
@@ -76,7 +91,7 @@ class SiriLiteService {
             val lineName = extractLineName(lineRef, lineMapping)
             val type = detectVehicleType(lineName)
             val destination = extractDestination(journey.DestinationRef?.value)
-            val direction = journey.DirectionRef?.value?.trim()?.uppercase() ?: ""
+            val direction = DirectionMatching.siriDirectionCode(journey.DirectionRef?.value)
             val delay = parseDurationSeconds(journey.Delay)
             val nextStop = parseMonitoredCall(journey.MonitoredCall)
 

@@ -1,0 +1,60 @@
+# Construit chaque nuit les fiches horaires théoriques (GTFS SYTRAL → JSON compacts)
+# et les publie sur la branche orpheline `horaires`, relayée aux applications par le
+# proxy Cloudflare (route /horaires/...). Aucun secret nécessaire : le GTFS est public.
+name: Fiches horaires
+
+on:
+  schedule:
+    # 03:30 UTC, soit 05:30 à Lyon en été et 04:30 en hiver : après la publication SYTRAL,
+    # avant les premiers voyageurs.
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: horaires
+  cancel-in-progress: false
+
+jobs:
+  construire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Récupérer le script
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: horaires
+          sparse-checkout-cone-mode: true
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Construire les fiches horaires
+        run: python3 horaires/build_timetables.py --out "${RUNNER_TEMP}/horaires-out"
+
+      - name: Publier sur la branche horaires
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd "${RUNNER_TEMP}/horaires-out"
+          git init -q -b horaires
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Fiches horaires du $(date -u +%Y-%m-%d)"
+          # Un seul commit par publication : l'historique de la branche reste vide,
+          # le dépôt principal ne grossit pas avec les données.
+          git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" horaires
+
+      - name: Garder la planification active
+        # GitHub désactive les workflows planifiés d'un dépôt public sans activité depuis
+        # 60 jours. L'application n'est mise à jour que deux fois par an : on réarme donc
+        # explicitement ce workflow à chaque exécution, en plus de la publication nocturne.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow enable horaires.yml --repo "${GITHUB_REPOSITORY}"

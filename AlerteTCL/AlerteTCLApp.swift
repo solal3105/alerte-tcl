@@ -1,5 +1,6 @@
 import SwiftUI
 import BackgroundTasks
+import Shared
 
 private let alertRefreshIdentifier = "com.alertetcl.alert-refresh"
 
@@ -34,6 +35,13 @@ struct AlerteTCLApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        // Couleurs officielles des lignes : rechargées avant tout accès réseau, puis
+        // conservées dans le conteneur partagé à chaque mise à jour de l'index des fiches horaires.
+        LinePalette.shared.restore(encoded: AppGroup.paletteStorage.string(forKey: AppGroup.linePaletteKey))
+        LinePalette.shared.onChange = { encoded in
+            AppGroup.paletteStorage.set(encoded, forKey: AppGroup.linePaletteKey)
+            Task { @MainActor in LinePaletteObserver.shared.paletteDidChange() }
+        }
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: alertRefreshIdentifier,
             using: nil
@@ -50,6 +58,17 @@ struct AlerteTCLApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(selectedParkingId: $selectedParkingId)
+                .onAppear {
+                    #if DEBUG
+                    // Mode démo (-demo parking) : ouvrir la fiche du P+R St-Genis
+                    // (parc sans disponibilité temps réel) via le deep link parking.
+                    if DemoShowcase.current == "parking" {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                            selectedParkingId = "parc-relais-HLS"
+                        }
+                    }
+                    #endif
+                }
                 .environmentObject(viewModel)
                 .onAppear {
                     if !hasShownLocationPrompt {

@@ -5,14 +5,17 @@ import android.content.Context
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import com.alertetcl.android.data.FavoritesStore
 import com.alertetcl.android.notifications.AlertWorkerScheduler
 import com.alertetcl.android.notifications.NotificationChannels
+import com.alertetcl.shared.models.LinePalette
 import com.alertetcl.shared.platform.AndroidBundleSetup
 import com.alertetcl.shared.platform.BundledResources
 import com.alertetcl.shared.services.SiriLiteService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.maplibre.android.MapLibre
@@ -34,7 +37,14 @@ class AlerteTCLApplication : Application(), SingletonImageLoader.Factory {
         // avant la fin du préchauffage.
         val stopNames = lazy { buildStopNamesMap() }
         SiriLiteService.shared.stopNameLookup = { stopNames.value[it] }
-        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch { stopNames.value }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        scope.launch { stopNames.value }
+
+        // Couleurs officielles des lignes : rechargées avant tout accès réseau, puis
+        // conservées à chaque mise à jour de l'index des fiches horaires.
+        val store = FavoritesStore(this)
+        scope.launch { LinePalette.restore(store.linePalette.first()) }
+        LinePalette.onChange = { encoded -> scope.launch { store.setLinePalette(encoded) } }
 
         NotificationChannels.ensureChannels(this)
         AlertWorkerScheduler.schedule(this)

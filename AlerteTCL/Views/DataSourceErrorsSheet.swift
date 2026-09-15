@@ -125,7 +125,7 @@ struct ErrorRow: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 20))
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.appWarning)
                 .frame(width: 32)
             
             VStack(alignment: .leading, spacing: 4) {
@@ -149,7 +149,7 @@ struct ErrorRow: View {
                 } else {
                     Image(systemName: "arrow.clockwise.circle.fill")
                         .font(.system(size: 24))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.appAccent)
                 }
             }
             .buttonStyle(.plain)
@@ -159,6 +159,10 @@ struct ErrorRow: View {
     }
     
     private var simplifiedError: String {
+        // Les messages déjà rédigés pour l'utilisateur passent tels quels.
+        if error.contains("Grand Lyon refusent l'accès") {
+            return error
+        }
         let hour = Calendar.current.component(.hour, from: Date())
         if hour >= 22 || hour < 6 {
             return "Les serveurs Grand Lyon se reposent la nuit — réessayez après 6h"

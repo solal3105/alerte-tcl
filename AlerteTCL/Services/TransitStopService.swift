@@ -83,6 +83,12 @@ actor TransitStopService {
     // ce qui ferait démarrer le timeout de Task B AVANT que celle-ci puisse entrer dans
     // l'acteur — Task A consommerait une partie du budget de 12s de Task B.
     nonisolated func fetchPassagesForStop(stopId: Int) async throws -> [Passage] {
+        #if DEBUG
+        // Mode démo (-demo arret) : passages simulés estimés + théoriques.
+        if DemoShowcase.current == "arret" {
+            return DemoShowcase.passages(stopId: stopId)
+        }
+        #endif
         AppLogger.debug("🚌 TransitStopService: Chargement passages pour arrêt \(stopId)...")
         
         // Utiliser le filtrage direct de l'API pour récupérer UNIQUEMENT les passages de cet arrêt

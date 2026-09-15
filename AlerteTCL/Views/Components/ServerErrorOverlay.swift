@@ -34,7 +34,7 @@ struct ServerErrorOverlay: View {
         VStack(spacing: 16) {
             Image(systemName: isNight ? "moon.zzz.fill" : "cloud.slash.fill")
                 .font(.system(size: 48))
-                .foregroundStyle(isNight ? Color.indigo : Color.orange)
+                .foregroundStyle(isNight ? Color.indigo : Color.appWarning)
 
             Text(isNight ? "Les serveurs se reposent" : "Données temporairement indisponibles")
                 .font(.headline)
@@ -49,7 +49,7 @@ struct ServerErrorOverlay: View {
 
             Button("Réessayer", action: onRetry)
                 .buttonStyle(.borderedProminent)
-                .tint(.blue)
+                .tint(Color.appAccent)
         }
         .padding(24)
         .background(.ultraThinMaterial)

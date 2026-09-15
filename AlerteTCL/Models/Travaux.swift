@@ -22,17 +22,6 @@ enum TravauxNatureChantier: String, CaseIterable {
         }
     }
     
-    var color: Color {
-        switch self {
-        case .transportsCommun: return .purple
-        case .cyclab: return .green
-        case .espacePublic: return .blue
-        case .carrefour: return .orange
-        case .assainissement: return .brown
-        case .autre: return .gray
-        }
-    }
-    
     static func detect(from natureChantier: String?) -> TravauxNatureChantier {
         guard let nature = natureChantier?.lowercased() else { return .autre }
         
@@ -184,38 +173,6 @@ struct Travaux: Identifiable, Hashable {
         let percentage = (elapsed / totalDuration) * 100
         
         return min(max(percentage, 0), 100)
-    }
-    
-    /// Couleur basée sur le pourcentage de réalisation
-    /// Rouge (0%) -> Vert (100%) par paliers de 10%
-    var progressColor: Color {
-        let percentage = completionPercentage
-        
-        // Paliers de 10%
-        switch percentage {
-        case 0..<10:
-            return Color(red: 220/255, green: 38/255, blue: 38/255) // Rouge vif
-        case 10..<20:
-            return Color(red: 239/255, green: 68/255, blue: 68/255) // Rouge
-        case 20..<30:
-            return Color(red: 249/255, green: 115/255, blue: 22/255) // Orange-rouge
-        case 30..<40:
-            return Color(red: 251/255, green: 146/255, blue: 60/255) // Orange
-        case 40..<50:
-            return Color(red: 251/255, green: 191/255, blue: 36/255) // Orange clair
-        case 50..<60:
-            return Color(red: 234/255, green: 179/255, blue: 8/255) // Jaune-orange
-        case 60..<70:
-            return Color(red: 202/255, green: 138/255, blue: 4/255) // Jaune foncé
-        case 70..<80:
-            return Color(red: 132/255, green: 204/255, blue: 22/255) // Jaune-vert
-        case 80..<90:
-            return Color(red: 101/255, green: 163/255, blue: 13/255) // Vert clair
-        case 90..<100:
-            return Color(red: 34/255, green: 197/255, blue: 94/255) // Vert
-        default: // 100%
-            return Color(red: 22/255, green: 163/255, blue: 74/255) // Vert foncé
-        }
     }
     
     func hash(into hasher: inout Hasher) {
@@ -453,8 +410,8 @@ extension Travaux: Clusterable {
     
     var clusterColor: Color {
         switch importance {
-        case .tresPerturbant: return .red
-        case .perturbant: return .orange
+        case .tresPerturbant: return .appError
+        case .perturbant: return .appWarning
         case .peuPerturbant: return .yellow
         case .inconnu: return .gray
         }

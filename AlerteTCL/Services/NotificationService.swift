@@ -1,6 +1,7 @@
 import Foundation
 import UserNotifications
 import UIKit
+import Shared
 
 @MainActor
 final class NotificationService: NSObject, ObservableObject {
@@ -53,32 +54,40 @@ final class NotificationService: NSObject, ObservableObject {
     }
     
     // MARK: - Alert Notifications
-    
-    func scheduleAlertNotification(for alert: TCLAlert, phase: AlertNotificationPhase, preferences: Set<AlertSeverity>? = nil) {
-        let key = alert.notificationKey(phase: phase)
-        guard !hasSeen(key) else {
-            AppLogger.debug("ℹ️ Notifications: Alerte \(alert.id) [\(phase.rawValue)] déjà notifiée")
-            return
-        }
-        if let prefs = preferences, !prefs.contains(alert.severity) {
-            AppLogger.debug("ℹ️ Notifications: Alerte \(alert.id) filtrée par préférences")
+
+    /// Applique la règle commune (`AlertNotifications`) : premier passage silencieux, puis une
+    /// notification par alerte et par phase (annoncée, en cours) pour les lignes abonnées.
+    func processNewAlerts(_ alerts: [TCLAlert], subscriptionService: SubscriptionService) {
+        let subscriptions = subscriptionService.subscriptions
+        guard !subscriptions.isEmpty else { return }
+        let rules = AlertNotifications.shared
+        let sharedAlerts = alerts.map(\.shared)
+        let defaults = UserDefaults.standard
+
+        if !defaults.bool(forKey: baselineDoneKey) {
+            let baseline = rules.baselineKeys(alerts: sharedAlerts, subscriptions: subscriptions)
+            saveSeen(rules.remember(seenKeys: seenKeys, newKeys: Array(baseline)))
+            defaults.set(true, forKey: baselineDoneKey)
+            AppLogger.debug("ℹ️ Notifications: baseline (\(baseline.count / 2) alertes silencieuses)")
             return
         }
 
+        let pending = rules.pending(
+            alerts: sharedAlerts,
+            subscriptions: subscriptions,
+            seenKeys: Set(seenKeys),
+            nowEpoch: Int64(Date().timeIntervalSince1970)
+        )
+        AppLogger.debug("📬 Notifications: \(pending.count) notification(s) à émettre")
+        pending.forEach(schedule)
+    }
+
+    private func schedule(_ pending: AlertNotifications.Pending) {
+        let alert = pending.alert
+        let rules = AlertNotifications.shared
         let content = UNMutableNotificationContent()
-        let emoji: String
-        switch alert.severity {
-        case .major:      emoji = "🔴"
-        case .disruption: emoji = "🟠"
-        case .info:       emoji = "🔵"
-        }
-        let lineLabel = alert.ligneCli.isEmpty ? alert.ligneCom : alert.ligneCli
-        content.title = phase == .announced
-            ? "📅 \(emoji) \(alert.mode.rawValue) \(lineLabel)"
-            : "\(emoji) \(alert.mode.rawValue) \(lineLabel)"
-        content.subtitle = phase == .announced
-            ? "À venir · \(alert.titre)"
-            : alert.titre
+        content.title = rules.title(alert: alert, phase: pending.phase)
+        content.subtitle = rules.subtitle(alert: alert, phase: pending.phase)
         content.body = alert.message
         content.sound = .default
         content.categoryIdentifier = "TCL_ALERT"
@@ -87,71 +96,41 @@ final class NotificationService: NSObject, ObservableObject {
             "alertId": alert.id,
             "lineId": alert.ligneCom,
             "lineCli": alert.ligneCli,
-            "severity": alert.severity.rawValue,
+            "severity": alert.severity.displayName,
             "type": "tcl_alert"
         ]
 
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         let request = UNNotificationRequest(
-            identifier: "alert-\(alert.id)-\(phase.rawValue)",
+            identifier: "alert-\(alert.id)-\(pending.phase.name)",
             content: content,
-            trigger: trigger
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         )
-
+        let key = pending.key
+        let title = content.title
         center.add(request) { [weak self] error in
             Task { @MainActor [weak self] in
+                guard let self else { return }
                 if let error {
                     AppLogger.debug("❌ Notifications: Erreur planification - \(error)")
                 } else {
-                    self?.markSeen(key)
-                    self?.updateBadgeCount()
-                    AppLogger.debug("✅ Notifications: Alerte \(lineLabel) [\(phase.rawValue)] planifiée")
+                    self.saveSeen(AlertNotifications.shared.remember(seenKeys: self.seenKeys, newKeys: [key]))
+                    self.updateBadgeCount()
+                    AppLogger.debug("✅ Notifications: \(title) planifiée")
                 }
             }
         }
     }
-    
-    func processNewAlerts(_ alerts: [TCLAlert], subscriptionService: SubscriptionService) {
-        let subscribedLines = subscriptionService.subscribedLineIds
-        guard !subscribedLines.isEmpty else { return }
 
-        let relevant = alerts.filter {
-            subscribedLines.contains($0.ligneCom) || subscribedLines.contains($0.ligneCli)
-        }
-
-        // Premier lancement : marquer tout comme vu silencieusement (anti-flood)
-        if !UserDefaults.standard.bool(forKey: baselineDoneKey) {
-            for alert in relevant {
-                markSeen(alert.notificationKey(phase: .announced))
-                markSeen(alert.notificationKey(phase: .active))
-            }
-            UserDefaults.standard.set(true, forKey: baselineDoneKey)
-            AppLogger.debug("ℹ️ Notifications: baseline (\(relevant.count) alertes silencieuses)")
-            return
-        }
-
-        AppLogger.debug("📬 Notifications: \(relevant.count) alertes pour les lignes abonnées")
-        for alert in relevant {
-            let line = TransportLine(ligneCom: alert.ligneCom, ligneCli: alert.ligneCli, mode: alert.mode)
-            let preferences = subscriptionService.getNotificationPreferences(for: line)
-            if alert.isUpcoming { scheduleAlertNotification(for: alert, phase: .announced, preferences: preferences) }
-            if alert.isOngoing  { scheduleAlertNotification(for: alert, phase: .active,   preferences: preferences) }
-        }
-    }
-    
     // MARK: - Deduplication
 
-    private func hasSeen(_ key: String) -> Bool {
-        (UserDefaults.standard.stringArray(forKey: seenKeysKey) ?? []).contains(key)
+    private var seenKeys: [String] {
+        UserDefaults.standard.stringArray(forKey: seenKeysKey) ?? []
     }
 
-    private func markSeen(_ key: String) {
-        var keys = UserDefaults.standard.stringArray(forKey: seenKeysKey) ?? []
-        keys.append(key)
-        if keys.count > 500 { keys = Array(keys.suffix(250)) }
+    private func saveSeen(_ keys: [String]) {
         UserDefaults.standard.set(keys, forKey: seenKeysKey)
     }
-    
+
     // MARK: - Badge Management
     
     func updateBadgeCount() {

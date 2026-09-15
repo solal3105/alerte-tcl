@@ -3,6 +3,7 @@ import SwiftUI
 import Combine
 import CoreLocation
 import MapKit
+import Shared
 
 @MainActor
 final class LiveVehiclesViewModel: ObservableObject {
@@ -31,6 +32,11 @@ final class LiveVehiclesViewModel: ObservableObject {
             UserDefaults.standard.set(Array(selectedLines), forKey: PersistenceKey.selectedLines)
         }
     }
+    /// Filtre « bus de cet arrêt » (ligne + sens) choisi depuis la fiche d'un arrêt.
+    /// Volontairement non persisté : il disparaît à la fermeture de l'application.
+    @Published private(set) var stopFocus: StopLineFocus? {
+        didSet { updateFilteredVehicles() }
+    }
     @Published var showBusTraces = false {
         didSet { UserDefaults.standard.set(showBusTraces, forKey: PersistenceKey.showBusTraces) }
     }
@@ -48,6 +54,9 @@ final class LiveVehiclesViewModel: ObservableObject {
     var visibleRegion: MKCoordinateRegion?
     @Published var isInitialLoadComplete = false
     @Published var isLive = false
+    /// Incrémenté quand la palette officielle des couleurs de lignes change : la carte
+    /// régénère alors ses images de véhicules, d'arrêts et de tracés.
+    @Published private(set) var paletteVersion = 0
     
     // Cached computed properties for performance
     // `filteredVehicles` est un état interne : les vues lisent `displayVehicles`
@@ -94,19 +103,40 @@ final class LiveVehiclesViewModel: ObservableObject {
         if UserDefaults.standard.object(forKey: PersistenceKey.showMetroTraces) != nil {
             _showMetroTraces = Published(initialValue: UserDefaults.standard.bool(forKey: PersistenceKey.showMetroTraces))
         }
+        // La persistance de la palette est branchée au démarrage de l'app ; on y ajoute le
+        // rafraîchissement de la carte sans écraser cette persistance.
+        let persist = LinePalette.shared.onChange
+        LinePalette.shared.onChange = { [weak self] encoded in
+            persist?(encoded)
+            Task { @MainActor in self?.paletteVersion += 1 }
+        }
+    }
+
+    /// Charge l'index des fiches horaires, qui porte la palette officielle des couleurs de lignes.
+    func loadLinePalette() async {
+        do {
+            _ = try await TimetableService.companion.shared.fetchIndex()
+        } catch {
+            AppLogger.debug("⚠️ Palette des lignes indisponible : \(error.localizedDescription)")
+        }
     }
     
     private func updateFilteredVehicles() {
         var result = vehicles
         
-        if let type = selectedVehicleType {
-            result = result.filter { $0.vehicleType == type }
-        }
-        
-        if let line = selectedLine, !line.isEmpty {
-            result = result.filter { $0.lineName == line }
-        } else if !selectedLines.isEmpty {
-            result = result.filter { selectedLines.contains($0.lineName) }
+        if let focus = stopFocus {
+            // Le filtre d'arrêt prime sur les autres : on veut voir ces bus, quels que soient les réglages.
+            result = result.filter { focus.matches(lineName: $0.lineName, vehicleDirection: $0.direction) }
+        } else {
+            if let type = selectedVehicleType {
+                result = result.filter { $0.vehicleType == type }
+            }
+            
+            if let line = selectedLine, !line.isEmpty {
+                result = result.filter { $0.lineName == line }
+            } else if !selectedLines.isEmpty {
+                result = result.filter { selectedLines.contains($0.lineName) }
+            }
         }
         
         // Filtrage viewport avec buffer standard
@@ -393,7 +423,42 @@ final class LiveVehiclesViewModel: ObservableObject {
         updateFilteredVehicles()
     }
     
+    func focusOnStop(_ focus: StopLineFocus) {
+        stopFocus = focus
+    }
+
+    func clearStopFocus() {
+        stopFocus = nil
+    }
+
+    /// Nombre de véhicules concernés par le filtre d'arrêt, hors limitation à l'écran.
+    var stopFocusVehicleCount: Int {
+        guard let focus = stopFocus else { return 0 }
+        return vehicles.filter { focus.matches(lineName: $0.lineName, vehicleDirection: $0.direction) }.count
+    }
+
+    /// Cadre l'arrêt et les véhicules concernés par le filtre d'arrêt (nil sans filtre).
+    func stopFocusRegion() -> MKCoordinateRegion? {
+        guard let focus = stopFocus else { return nil }
+        var coordinates = vehicles
+            .filter { focus.matches(lineName: $0.lineName, vehicleDirection: $0.direction) }
+            .map(\.coordinate)
+        coordinates.append(CLLocationCoordinate2D(latitude: focus.latitude, longitude: focus.longitude))
+        let latitudes = coordinates.map(\.latitude)
+        let longitudes = coordinates.map(\.longitude)
+        guard let minLat = latitudes.min(), let maxLat = latitudes.max(),
+              let minLon = longitudes.min(), let maxLon = longitudes.max() else { return nil }
+        let center = CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2)
+        // Marge autour des points, et un cadre minimal quand tout est concentré près de l'arrêt.
+        let span = MKCoordinateSpan(
+            latitudeDelta: max((maxLat - minLat) * 1.4, 0.012),
+            longitudeDelta: max((maxLon - minLon) * 1.4, 0.012)
+        )
+        return MKCoordinateRegion(center: center, span: span)
+    }
+
     func clearFilters() {
+        stopFocus = nil
         selectedVehicleType = nil
         selectedLine = nil
         selectedLines.removeAll()

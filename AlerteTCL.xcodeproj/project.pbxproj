@@ -52,8 +52,10 @@
 		A1000032 /* MapAnnotations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000033 /* MapAnnotations.swift */; };
 		A1000034 /* LiveMapRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000035 /* LiveMapRepresentable.swift */; };
 		A1000040 /* ServiceError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000041 /* ServiceError.swift */; };
+		A1000050 /* DemoShowcase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000051 /* DemoShowcase.swift */; };
+		A200000B /* TimetableViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000C /* TimetableViews.swift */; };
 		A1000042 /* LineColorHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000043 /* LineColorHelper.swift */; };
-		AAA20004 /* LineColorHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000043 /* LineColorHelper.swift */; };
+		A2000030 /* AppColorTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000031 /* AppColorTokens.swift */; };
 		AAA20002 /* ColorHex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20012 /* ColorHex.swift */; };
 		AAA20005 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20013 /* AppGroup.swift */; };
 		AAA20006 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20013 /* AppGroup.swift */; };
@@ -167,7 +169,10 @@
 		A1000033 /* MapAnnotations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapAnnotations.swift; sourceTree = "<group>"; };
 		A1000035 /* LiveMapRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMapRepresentable.swift; sourceTree = "<group>"; };
 		A1000041 /* ServiceError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceError.swift; sourceTree = "<group>"; };
+		A1000051 /* DemoShowcase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoShowcase.swift; sourceTree = "<group>"; };
+		A200000C /* TimetableViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimetableViews.swift; sourceTree = "<group>"; };
 		A1000043 /* LineColorHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineColorHelper.swift; sourceTree = "<group>"; };
+		A2000031 /* AppColorTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColorTokens.swift; sourceTree = "<group>"; };
 		AAA20012 /* ColorHex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorHex.swift; sourceTree = "<group>"; };
 		AAA20013 /* AppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroup.swift; sourceTree = "<group>"; };
 		A1000045 /* TransitStopViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopViewModel.swift; sourceTree = "<group>"; };
@@ -235,7 +240,9 @@
 			children = (
 				A1000011 /* AppLogger.swift */,
 				A1000041 /* ServiceError.swift */,
+				A1000051 /* DemoShowcase.swift */,
 				A1000043 /* LineColorHelper.swift */,
+				A2000031 /* AppColorTokens.swift */,
 				AAA20012 /* ColorHex.swift */,
 				AAA20013 /* AppGroup.swift */,
 				A1000021 /* AnimationClock.swift */,
@@ -323,6 +330,7 @@
 		AAA00036 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				A200000C /* TimetableViews.swift */,
 				4FD3050C2F1E68CB00EAFA92 /* WidgetStopSelectionView.swift */,
 				4FD305042F1E60C600EAFA92 /* DataSourceErrorsSheet.swift */,
 				4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */,
@@ -409,6 +417,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = AAA00041 /* Build configuration list for PBXNativeTarget "AlerteTCL" */;
 			buildPhases = (
+				A2000020 /* Module partagé Kotlin */,
 				AAA00042 /* Sources */,
 				AAA00022 /* Frameworks */,
 				AAA00043 /* Resources */,
@@ -485,13 +494,34 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		A2000020 /* Module partagé Kotlin */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Module partagé Kotlin";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\ncd \"$SRCROOT\"\n# JDK : variable d'environnement, puis JDK du projet, puis JDK système (17 minimum)\nif [ -z \"${JAVA_HOME:-}\" ]; then\n  if [ -d \"$HOME/jdks/jdk-17.0.12.jdk/Contents/Home\" ]; then\n    export JAVA_HOME=\"$HOME/jdks/jdk-17.0.12.jdk/Contents/Home\"\n  else\n    export JAVA_HOME=\"$(/usr/libexec/java_home -v 17+)\"\n  fi\nfi\nexport PATH=\"$JAVA_HOME/bin:$PATH\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode --no-configuration-cache -q\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		4F9DFFC02F146EFE00E01BFB /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				A1000006 /* AppLogger.swift in Sources */,
-				AAA20004 /* LineColorHelper.swift in Sources */,
 				AAA20003 /* ColorHex.swift in Sources */,
 				AAA20006 /* AppGroup.swift in Sources */,
 			);
@@ -529,7 +559,10 @@
 				4FCB1FC62F1EC6D90031B71E /* SpatialTileCache.swift in Sources */,
 				A1000001 /* AppLogger.swift in Sources */,
 				A1000040 /* ServiceError.swift in Sources */,
+				A1000050 /* DemoShowcase.swift in Sources */,
+				A200000B /* TimetableViews.swift in Sources */,
 				A1000042 /* LineColorHelper.swift in Sources */,
+				A2000030 /* AppColorTokens.swift in Sources */,
 				AAA20002 /* ColorHex.swift in Sources */,
 				AAA20005 /* AppGroup.swift in Sources */,
 				A1000020 /* AnimationClock.swift in Sources */,
@@ -798,6 +831,16 @@
 				);
 				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solal.AlerteTCL;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					Shared,
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -832,6 +875,16 @@
 				);
 				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solal.AlerteTCL;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					Shared,
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;

@@ -45,6 +45,9 @@ struct ContentView: View {
             case .active:
                 NotificationService.shared.clearBadge()
                 LocationService.shared.startUpdatingLocation()
+                // Retour au premier plan : recharger les alertes immédiatement
+                // (les véhicules sont relancés par LiveMapView, les parkings par leur ViewModel).
+                Task { await viewModel.loadAlerts() }
             case .background:
                 // Le GPS tourne en continu dès l'autorisation accordée : le couper
                 // en arrière-plan évite de vider la batterie pour rien.

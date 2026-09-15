@@ -63,7 +63,7 @@ struct AboutView: View {
             } else {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .fill(LinearGradient(
-                        colors: [.green, .teal],
+                        colors: [Color.appSuccess, Color.appSuccess.opacity(0.75)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing))
                     .overlay(
@@ -81,7 +81,7 @@ struct AboutView: View {
     private var manifestoCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
-                badge(icon: "checkmark.seal.fill", tint: .green)
+                badge(icon: "checkmark.seal.fill", tint: .appSuccess)
                 Text("Respectueuse, par conception")
                     .font(.headline)
             }
@@ -133,7 +133,7 @@ struct AboutView: View {
                     Image(systemName: "arrow.up.right")
                         .font(.caption.weight(.semibold))
                 }
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.appSuccess)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
                 .background(.white, in: Capsule())
@@ -152,7 +152,7 @@ struct AboutView: View {
             )
         )
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: Color.green.opacity(0.18), radius: 16, x: 0, y: 8)
+        .shadow(color: Color.appSuccess.opacity(0.18), radius: 16, x: 0, y: 8)
     }
 
     // MARK: Sources
@@ -160,7 +160,7 @@ struct AboutView: View {
     private var sourcesCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                badge(icon: "antenna.radiowaves.left.and.right", tint: .blue)
+                badge(icon: "antenna.radiowaves.left.and.right", tint: .appAccent)
                 Text("Sources de données")
                     .font(.headline)
                 Spacer()
@@ -174,7 +174,7 @@ struct AboutView: View {
                     title: "Position des véhicules",
                     subtitle: "SIRI-Lite, temps réel",
                     icon: "location.fill",
-                    tint: .green
+                    tint: .appSuccess
                 )
                 separator
                 sourceRow(
@@ -188,7 +188,7 @@ struct AboutView: View {
                     title: "Alertes & perturbations",
                     subtitle: "Flux officiel TCL",
                     icon: "exclamationmark.triangle.fill",
-                    tint: .orange
+                    tint: .appWarning
                 )
                 separator
                 sourceRow(
@@ -363,7 +363,7 @@ struct AboutView: View {
                 .padding(.vertical, 12)
                 .background(
                     LinearGradient(
-                        colors: [.blue, .indigo],
+                        colors: [Color.appAccent, Color.appAccent.opacity(0.75)],
                         startPoint: .leading,
                         endPoint: .trailing),
                     in: RoundedRectangle(cornerRadius: 12, style: .continuous)

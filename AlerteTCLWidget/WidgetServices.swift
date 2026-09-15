@@ -169,7 +169,8 @@ struct WidgetPassageService {
             return WidgetPassage(
                 delay: value.delaipassage,
                 time: time,
-                isRealTime: value.type == "R"
+                // "E" = passage estimé en temps réel, "T" = horaire théorique
+                isRealTime: value.type == "E"
             )
         }
     }

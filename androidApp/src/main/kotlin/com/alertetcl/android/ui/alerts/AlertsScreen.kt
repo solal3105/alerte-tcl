@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -41,10 +42,20 @@ import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.NotificationAdd
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -72,27 +83,22 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alertetcl.android.data.FavoritesStore
 import androidx.compose.material3.MaterialTheme
-import com.alertetcl.android.ui.colorFromHex
-import com.alertetcl.android.ui.theme.ModeMetro
-import com.alertetcl.android.ui.theme.ModeTramway
-import com.alertetcl.android.ui.theme.ModeFunicular
-import com.alertetcl.android.ui.theme.ModeBusC
-import com.alertetcl.android.ui.theme.ModeBus
-import com.alertetcl.android.ui.theme.ModeNavigone
-import com.alertetcl.android.ui.theme.StatusError
-import com.alertetcl.android.ui.theme.StatusWarning
-import com.alertetcl.android.ui.theme.StatusSuccess
+import com.alertetcl.android.ui.components.LineBadge
+import com.alertetcl.android.ui.components.SheetHeader
+import com.alertetcl.android.ui.theme.Tokens
+import com.alertetcl.shared.models.AlertDates
 import com.alertetcl.shared.models.AlertSeverity
-import com.alertetcl.shared.models.LineColors
+import com.alertetcl.shared.models.LineSubscription
+import com.alertetcl.shared.models.LineSubscriptions
 import com.alertetcl.shared.models.TCLAlert
 import com.alertetcl.shared.models.TransportLine
 import com.alertetcl.shared.models.TransportMode
+import com.alertetcl.shared.util.DemoShowcase
 import com.alertetcl.shared.viewmodels.AlertsViewModel
 import kotlinx.coroutines.launch
 
@@ -116,12 +122,17 @@ fun AlertsScreen(viewModel: AlertsViewModel? = null) {
     val context = LocalContext.current
     val store = remember { FavoritesStore(context) }
     val scope = rememberCoroutineScope()
-    val favorites by store.favoriteLines.collectAsState(initial = emptySet())
+    val storedSubscriptions by store.lineSubscriptions.collectAsState(initial = emptyMap())
+    // Mode démo : abonnements simulés, jamais enregistrés (cf. DemoShowcase).
+    val subscriptions = if (DemoShowcase.isAlertsCase) DemoShowcase.subscriptions() else storedSubscriptions
 
     val allLines: List<TransportLine> = TransportLine.allPredefinedLines
 
-    val subscribedLines = remember(allLines, favorites) {
-        allLines.filter { it.ligneCom in favorites }
+    val subscribedLines = remember(allLines, subscriptions) {
+        LineSubscriptions.subscribedLines(subscriptions, allLines)
+    }
+    fun updateSubscriptions(transform: (Map<String, LineSubscription>) -> Map<String, LineSubscription>) {
+        scope.launch { store.updateLineSubscriptions(transform) }
     }
     val alertsByLine: Map<String, List<TCLAlert>> = remember(alerts) {
         val now = System.currentTimeMillis() / 1000L
@@ -134,7 +145,19 @@ fun AlertsScreen(viewModel: AlertsViewModel? = null) {
     var selectedModeFilter by remember { mutableStateOf<TransportMode?>(null) }
     var subscribeSheetOpen by remember { mutableStateOf(false) }
     var selectedLine by remember { mutableStateOf<TransportLine?>(null) }
+    var optionsLine by remember { mutableStateOf<TransportLine?>(null) }
     var refreshing by remember { mutableStateOf(false) }
+
+    if (DemoShowcase.isAlertsCase) {
+        LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(1_500)
+            val c12 = allLines.firstOrNull { it.ligneCom == "C12" } ?: return@LaunchedEffect
+            when (DemoShowcase.current) {
+                "alertes-ligne" -> selectedLine = c12
+                "alertes-options" -> optionsLine = c12
+            }
+        }
+    }
 
     PullToRefreshBox(
         isRefreshing = refreshing,
@@ -154,7 +177,7 @@ fun AlertsScreen(viewModel: AlertsViewModel? = null) {
             }
             allLines.isEmpty() && error != null -> {
                 Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                    Text("Erreur : $error")
+                    Text(error ?: "Impossible de charger les alertes.", textAlign = TextAlign.Center)
                 }
             }
             else -> {
@@ -210,7 +233,7 @@ fun AlertsScreen(viewModel: AlertsViewModel? = null) {
                             lines = allLines,
                             selectedMode = selectedModeFilter,
                             alertsByLine = alertsByLine,
-                            favorites = favorites,
+                            subscriptions = subscriptions,
                             onClick = { selectedLine = it },
                             modifier = Modifier.padding(top = 14.dp, start = 16.dp, end = 16.dp)
                         )
@@ -228,8 +251,9 @@ fun AlertsScreen(viewModel: AlertsViewModel? = null) {
         ) {
             SubscribeLineSheet(
                 allLines = allLines,
-                favorites = favorites,
-                onToggle = { line -> scope.launch { store.toggleFavoriteLine(line.ligneCom) } }
+                subscriptions = subscriptions,
+                onToggle = { line -> updateSubscriptions { LineSubscriptions.toggle(it, line) } },
+                onClose = { subscribeSheetOpen = false }
             )
         }
     }
@@ -243,8 +267,28 @@ fun AlertsScreen(viewModel: AlertsViewModel? = null) {
             LineDetailSheet(
                 line = line,
                 alerts = allAlertsByLine[line.ligneCom].orEmpty(),
-                isSubscribed = line.ligneCom in favorites,
-                onToggleSubscription = { scope.launch { store.toggleFavoriteLine(line.ligneCom) } }
+                isSubscribed = LineSubscriptions.isSubscribed(subscriptions, line),
+                onOptions = { optionsLine = line },
+                onUnsubscribe = { updateSubscriptions { LineSubscriptions.unsubscribe(it, line) } },
+                onClose = { selectedLine = null }
+            )
+        }
+    }
+
+    optionsLine?.let { line ->
+        ModalBottomSheet(
+            onDismissRequest = { optionsLine = null },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            contentWindowInsets = { WindowInsets.systemBars }
+        ) {
+            SubscriptionOptionsSheet(
+                line = line,
+                initialTypes = LineSubscriptions.preferences(subscriptions, line),
+                onSave = { types ->
+                    updateSubscriptions { LineSubscriptions.subscribe(it, line, types) }
+                    optionsLine = null
+                },
+                onCancel = { optionsLine = null }
             )
         }
     }
@@ -283,7 +327,7 @@ private fun StatusSummaryBanner(
     val hasMajor = subscribedLines.any { line ->
         alertsByLine[line.ligneCom]?.any { it.severity == AlertSeverity.MAJOR } == true
     }
-    val color = when { hasMajor -> StatusError; totalAlerts > 0 -> StatusWarning; else -> StatusSuccess }
+    val color = when { hasMajor -> Tokens.error; totalAlerts > 0 -> Tokens.warning; else -> Tokens.success }
     val icon: ImageVector = when {
         hasMajor -> Icons.Filled.Warning
         totalAlerts > 0 -> Icons.Filled.NotificationsActive
@@ -455,12 +499,12 @@ private fun LineStatusCard(
 ) {
     val highestSeverity = alerts.minByOrNull { it.severity.sortOrder }?.severity
     val statusColor = when (highestSeverity) {
-        AlertSeverity.MAJOR -> StatusError
-        AlertSeverity.DISRUPTION -> StatusWarning
+        AlertSeverity.MAJOR -> Tokens.error
+        AlertSeverity.DISRUPTION -> Tokens.warning
         AlertSeverity.INFO -> MaterialTheme.colorScheme.primary
-        null -> StatusSuccess
+        null -> Tokens.success
     }
-    val modeColor = transportModeColor(line.mode)
+    val modeColor = Tokens.mode(line.mode)
 
     Surface(
         shape = RoundedCornerShape(20.dp),
@@ -476,7 +520,7 @@ private fun LineStatusCard(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                LineBadge(line.ligneCom, size = 62.dp, fontSize = 20.sp)
+                LineBadge(line.displayName, size = 62.dp, fontSize = 20.sp)
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Box(
                         modifier = Modifier
@@ -507,7 +551,7 @@ private fun LineStatusCard(
                             fontSize = 10.sp, fontWeight = FontWeight.Bold, color = statusColor.copy(alpha = 0.65f))
                     }
                 } else {
-                    Icon(Icons.Filled.CheckCircle, null, tint = StatusSuccess, modifier = Modifier.size(28.dp))
+                    Icon(Icons.Filled.CheckCircle, null, tint = Tokens.success, modifier = Modifier.size(28.dp))
                 }
             }
         }
@@ -554,7 +598,7 @@ private fun ModeFilterTabs(
             ModeChip(
                 label = mode.displayName,
                 icon = transportModeIcon(mode),
-                color = transportModeColor(mode),
+                color = Tokens.mode(mode),
                 onColor = transportModeOnColor(mode),
                 badgeCount = countByMode[mode] ?: 0,
                 isSelected = selected == mode
@@ -596,7 +640,7 @@ private fun LinesGrid(
     lines: List<TransportLine>,
     selectedMode: TransportMode?,
     alertsByLine: Map<String, List<TCLAlert>>,
-    favorites: Set<String>,
+    subscriptions: Map<String, LineSubscription>,
     onClick: (TransportLine) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -624,7 +668,7 @@ private fun LinesGrid(
             LineGridCell(
                 line = line,
                 alertCount = alertsByLine[line.ligneCom]?.size ?: 0,
-                isSubscribed = line.ligneCom in favorites,
+                isSubscribed = LineSubscriptions.isSubscribed(subscriptions, line),
                 highestSeverity = alertsByLine[line.ligneCom]?.minByOrNull { it.severity.sortOrder }?.severity,
                 onClick = { onClick(line) }
             )
@@ -640,12 +684,12 @@ private fun LineGridCell(
     highestSeverity: AlertSeverity?,
     onClick: () -> Unit
 ) {
-    val modeColor = transportModeColor(line.mode)
+    val modeColor = Tokens.mode(line.mode)
     val badgeColor = when (highestSeverity) {
-        AlertSeverity.MAJOR -> StatusError
-        AlertSeverity.DISRUPTION -> StatusWarning
+        AlertSeverity.MAJOR -> Tokens.error
+        AlertSeverity.DISRUPTION -> Tokens.warning
         AlertSeverity.INFO -> MaterialTheme.colorScheme.primary
-        null -> StatusError
+        null -> Tokens.error
     }
     val badgeOnColor = when (highestSeverity) {
         AlertSeverity.DISRUPTION -> Color(0xFF1B1B1F)
@@ -670,7 +714,7 @@ private fun LineGridCell(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            LineBadge(line.ligneCom, size = 50.dp, fontSize = 16.sp)
+            LineBadge(line.displayName, size = 50.dp, fontSize = 16.sp)
             Text(line.displayName, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, maxLines = 1)
         }
         if (alertCount > 0) {
@@ -704,8 +748,9 @@ private fun LineGridCell(
 @Composable
 private fun SubscribeLineSheet(
     allLines: List<TransportLine>,
-    favorites: Set<String>,
-    onToggle: (TransportLine) -> Unit
+    subscriptions: Map<String, LineSubscription>,
+    onToggle: (TransportLine) -> Unit,
+    onClose: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
     val sortedLines = remember(allLines) {
@@ -720,9 +765,13 @@ private fun SubscribeLineSheet(
     val filtered = remember(sortedLines, query) {
         if (query.isBlank()) sortedLines else sortedLines.filter { it.displayName.contains(query, ignoreCase = true) }
     }
-    Column(modifier = Modifier.fillMaxWidth().padding(16.dp).navigationBarsPadding()) {
-        Text("S'abonner à une ligne", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(12.dp))
+    Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
+        SheetHeader(
+            title = "S'abonner à une ligne",
+            subtitle = "Touchez une ligne pour recevoir ses alertes ; touchez-la de nouveau pour arrêter.",
+            onClose = onClose
+        )
+        Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
         OutlinedTextField(
             value = query, onValueChange = { query = it },
             placeholder = { Text("Rechercher", fontSize = 13.sp) },
@@ -736,7 +785,7 @@ private fun SubscribeLineSheet(
             modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp, max = 460.dp)
         ) {
             items(filtered, key = { it.id }) { line ->
-                val subscribed = line.ligneCom in favorites
+                val subscribed = LineSubscriptions.isSubscribed(subscriptions, line)
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
@@ -746,13 +795,14 @@ private fun SubscribeLineSheet(
                     contentAlignment = Alignment.Center
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        LineBadge(line.ligneCom, size = 32.dp, fontSize = 11.sp)
+                        LineBadge(line.displayName, size = 32.dp, fontSize = 11.sp)
                         if (subscribed) {
                             Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(12.dp))
                         }
                     }
                 }
             }
+        }
         }
     }
 }
@@ -763,9 +813,11 @@ private fun LineDetailSheet(
     line: TransportLine,
     alerts: List<TCLAlert>,
     isSubscribed: Boolean,
-    onToggleSubscription: () -> Unit
+    onOptions: () -> Unit,
+    onUnsubscribe: () -> Unit,
+    onClose: () -> Unit
 ) {
-    val modeColor = transportModeColor(line.mode)
+    val modeColor = Tokens.mode(line.mode)
     val now = remember { System.currentTimeMillis() / 1000L }
     val ongoingAlerts = remember(alerts) {
         alerts.filter { it.isOngoing(now) }.sortedBy { it.severity.sortOrder }
@@ -774,34 +826,54 @@ private fun LineDetailSheet(
         alerts.filter { it.isUpcoming(now) }.sortedBy { it.debutEpoch ?: Long.MAX_VALUE }
     }
 
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            LineBadge(line.ligneCom, size = 56.dp, fontSize = 18.sp)
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Ligne ${line.displayName}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text(line.mode.displayName, fontSize = 13.sp, color = modeColor, fontWeight = FontWeight.SemiBold)
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(if (isSubscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-                    .clickable { onToggleSubscription() }
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Icon(Icons.Filled.Notifications, null,
-                        tint = if (isSubscribed) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
-                    Text(if (isSubscribed) "Abonné" else "S'abonner",
-                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                        color = if (isSubscribed) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary)
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).navigationBarsPadding()) {
+        SheetHeader(
+            title = "Ligne ${line.displayName}",
+            subtitle = line.mode.displayName,
+            onClose = onClose,
+            leading = { LineBadge(line.displayName, size = 48.dp) }
+        )
+        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+        // Abonnement : même disposition que sur iOS (abonné + options + désabonnement, ou bouton principal)
+        if (isSubscribed) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    Icon(Icons.Filled.Notifications, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
+                    Text("Abonné", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 }
+                Spacer(Modifier.weight(1f))
+                FilledTonalButton(onClick = onOptions, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
+                    Icon(Icons.Filled.Tune, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text("Options", fontWeight = FontWeight.SemiBold)
+                }
+                OutlinedButton(
+                    onClick = onUnsubscribe,
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Tokens.error)
+                ) {
+                    Icon(Icons.Filled.NotificationsOff, contentDescription = "Se désabonner", modifier = Modifier.size(16.dp))
+                }
+            }
+        } else {
+            Button(onClick = onOptions, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.NotificationAdd, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("S'abonner à cette ligne", fontWeight = FontWeight.SemiBold)
             }
         }
         Spacer(Modifier.height(16.dp))
         if (ongoingAlerts.isEmpty() && upcomingAlerts.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Filled.CheckCircle, null, tint = StatusSuccess, modifier = Modifier.size(48.dp))
+                    Icon(Icons.Filled.CheckCircle, null, tint = Tokens.success, modifier = Modifier.size(48.dp))
                     Text("Service normal", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                     Text("Aucune perturbation en cours sur cette ligne", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -809,12 +881,12 @@ private fun LineDetailSheet(
         } else {
             if (ongoingAlerts.isNotEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Filled.Warning, null, tint = StatusWarning, modifier = Modifier.size(14.dp))
-                    Text("En cours", fontSize = 13.sp, color = StatusWarning, fontWeight = FontWeight.SemiBold)
+                    Icon(Icons.Filled.Warning, null, tint = Tokens.warning, modifier = Modifier.size(14.dp))
+                    Text("En cours", fontSize = 13.sp, color = Tokens.warning, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.height(8.dp))
                 ongoingAlerts.forEach { alert ->
-                    AlertDetailRow(alert)
+                    AlertDetailRow(alert, now = now)
                     Spacer(Modifier.height(8.dp))
                 }
             }
@@ -826,59 +898,157 @@ private fun LineDetailSheet(
                 }
                 Spacer(Modifier.height(8.dp))
                 upcomingAlerts.forEach { alert ->
-                    AlertDetailRow(alert)
+                    AlertDetailRow(alert, now = now, isUpcoming = true)
                     Spacer(Modifier.height(8.dp))
                 }
             }
         }
         Spacer(Modifier.height(24.dp))
+        }
     }
 }
 
 @Composable
-private fun AlertDetailRow(alert: TCLAlert) {
-    val color = when (alert.severity) {
-        AlertSeverity.MAJOR -> StatusError
-        AlertSeverity.DISRUPTION -> StatusWarning
-        AlertSeverity.INFO -> MaterialTheme.colorScheme.primary
-    }
-    Surface(shape = RoundedCornerShape(14.dp), color = color.copy(alpha = 0.08f),
-        modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
-                Text(alert.severity.displayName, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = color)
-            }
-            Spacer(Modifier.height(4.dp))
-            Text(alert.titre, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-            if (alert.message.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text(alert.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun AlertDetailRow(alert: TCLAlert, now: Long, isUpcoming: Boolean = false) {
+    var expanded by remember { mutableStateOf(false) }
+    val color = if (isUpcoming) MaterialTheme.colorScheme.onSurfaceVariant else Tokens.severity(alert.severity)
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = color.copy(alpha = 0.08f),
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable { expanded = !expanded }
+    ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Box(modifier = Modifier.width(4.dp).fillMaxHeight().background(color))
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(
+                        if (isUpcoming) Icons.Filled.Schedule else Icons.Filled.Warning,
+                        null, tint = color, modifier = Modifier.size(13.dp)
+                    )
+                    Text(
+                        if (isUpcoming) "À venir" else alert.severity.displayName,
+                        style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = color
+                    )
+                    if (alert.cause.isNotBlank()) {
+                        Text("·", color = MaterialTheme.colorScheme.outline)
+                        Text(
+                            alert.cause, style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
+                    alert.debutEpoch?.let { debut ->
+                        Text(
+                            AlertDates.startLabel(debut, now), style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+                Text(alert.titre, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                if (expanded) {
+                    if (alert.message.isNotBlank()) {
+                        Text(alert.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    alert.finEpoch?.let { fin ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Icon(Icons.Filled.Schedule, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(12.dp))
+                            Text(AlertDates.endLabel(fin, now), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                } else if (alert.message.isNotBlank()) {
+                    Text("Touchez pour lire le détail", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                }
             }
         }
     }
 }
 
-// ─── Helpers (ré-utilisables ailleurs) ───────────────────────────────────
+// ─── Options de notification d'une ligne (parité iOS SubscriptionOptionsSheet) ───────
 @Composable
-internal fun LineBadge(line: String, size: Dp, fontSize: TextUnit = 14.sp) {
-    val bg = colorFromHex(LineColors.backgroundHex(line))
-    val tx = colorFromHex(LineColors.textHex(line))
-    Box(
-        modifier = Modifier.size(size).clip(RoundedCornerShape(10.dp)).background(bg),
-        contentAlignment = Alignment.Center
-    ) { Text(line, color = tx, fontSize = fontSize, fontWeight = FontWeight.Black, maxLines = 1) }
+private fun SubscriptionOptionsSheet(
+    line: TransportLine,
+    initialTypes: Set<AlertSeverity>,
+    onSave: (Set<AlertSeverity>) -> Unit,
+    onCancel: () -> Unit
+) {
+    var selected by remember(line) { mutableStateOf(initialTypes) }
+    Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
+        SheetHeader(title = "Options de notification", onClose = onCancel)
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            LineBadge(line.displayName, size = 72.dp)
+            Text(
+                "Notifications pour la ligne ${line.displayName}",
+                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            Text(
+                "Choisissez les types d'alertes que vous souhaitez recevoir",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
+        Spacer(Modifier.height(20.dp))
+        Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            AlertSeverity.entries.forEach { severity ->
+                val isSelected = severity in selected
+                val color = Tokens.severity(severity)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .clickable { selected = if (isSelected) selected - severity else selected + severity }
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.size(44.dp).clip(CircleShape).background(color.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            when (severity) {
+                                AlertSeverity.MAJOR -> Icons.Filled.Warning
+                                AlertSeverity.DISRUPTION -> Icons.Filled.NotificationsActive
+                                AlertSeverity.INFO -> Icons.Filled.Info
+                            },
+                            null, tint = color, modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(severity.displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                        Text(severity.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Icon(
+                        if (isSelected) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
+                        null, tint = if (isSelected) color else MaterialTheme.colorScheme.outline, modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(24.dp))
+        Button(
+            onClick = { onSave(selected) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            colors = if (selected.isEmpty()) ButtonDefaults.buttonColors(containerColor = Tokens.error) else ButtonDefaults.buttonColors()
+        ) {
+            Text(if (selected.isEmpty()) "Se désabonner" else "Enregistrer", fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(vertical = 4.dp))
+        }
+        TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+            Text("Annuler")
+        }
+        Spacer(Modifier.height(8.dp))
+    }
 }
 
-internal fun transportModeColor(mode: TransportMode): Color = when (mode) {
-    TransportMode.METRO     -> ModeMetro
-    TransportMode.TRAMWAY   -> ModeTramway
-    TransportMode.FUNICULAR -> ModeFunicular
-    TransportMode.BUS_C     -> ModeBusC
-    TransportMode.BUS       -> ModeBus
-    TransportMode.NAVIGONE  -> ModeNavigone
-}
-
+// ─── Helpers (ré-utilisables ailleurs) ───────────────────────────────────
 internal fun transportModeOnColor(mode: TransportMode): Color = when (mode) {
     TransportMode.METRO   -> Color(0xFF1B1B1F)
     TransportMode.NAVIGONE -> Color(0xFF1B1B1F)

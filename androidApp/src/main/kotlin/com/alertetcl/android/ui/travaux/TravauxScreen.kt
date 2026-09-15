@@ -93,9 +93,8 @@ import com.alertetcl.android.ui.map.enableLocationComponent
 import com.alertetcl.android.ui.map.mapStyleBuilder
 import com.alertetcl.android.ui.map.recenterOnUser
 import com.alertetcl.android.ui.map.rememberManagedMapView
-import com.alertetcl.android.ui.theme.StatusError
-import com.alertetcl.android.ui.theme.StatusWarning
-import com.alertetcl.android.ui.theme.StatusSuccess
+import com.alertetcl.android.ui.theme.Tokens
+import com.alertetcl.shared.design.AppColors
 import com.alertetcl.shared.models.TravauxImportance
 import com.alertetcl.shared.models.TravauxNatureChantier
 import com.alertetcl.shared.models.TravauxType
@@ -246,7 +245,7 @@ fun TravauxScreen() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(Icons.Filled.CloudOff, null, tint = StatusWarning, modifier = Modifier.size(40.dp))
+                    Icon(Icons.Filled.CloudOff, null, tint = Tokens.warning, modifier = Modifier.size(40.dp))
                     Text("Données temporairement indisponibles", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Text(
                         errorMsg ?: "Erreur",
@@ -269,12 +268,12 @@ fun TravauxScreen() {
         ) {
             MapCircleFab(
                 icon = Icons.Filled.Public, contentDesc = "Vue satellite",
-                tint = if (isSatellite) StatusWarning else MaterialTheme.colorScheme.onSurface,
+                tint = if (isSatellite) Tokens.warning else MaterialTheme.colorScheme.onSurface,
                 onClick = { isSatellite = !isSatellite }
             )
             MapCircleFab(
                 icon = Icons.Filled.FilterList, contentDesc = "Filtres",
-                tint = if (hasActiveFilters) StatusWarning else MaterialTheme.colorScheme.onSurface,
+                tint = if (hasActiveFilters) Tokens.warning else MaterialTheme.colorScheme.onSurface,
                 onClick = { showFilterSheet = true }
             )
             MapCircleFab(
@@ -298,7 +297,7 @@ fun TravauxScreen() {
 
         val now = System.currentTimeMillis() / 1000L
         val polyFeatures = tx.flatMap { t ->
-            val colorHex = progressColorHex(t.completionPercentage(now))
+            val colorHex = AppColors.travauxProgress(t.completionPercentage(now))
             t.polygons.mapNotNull { ring ->
                 if (ring.size < 3) null
                 else {
@@ -312,7 +311,7 @@ fun TravauxScreen() {
             }
         }
         val outlineFeatures = tx.flatMap { t ->
-            val colorHex = progressColorHex(t.completionPercentage(now))
+            val colorHex = AppColors.travauxProgress(t.completionPercentage(now))
             t.polygons.mapNotNull { ring ->
                 if (ring.size < 3) null
                 else {
@@ -324,7 +323,7 @@ fun TravauxScreen() {
         }
         val markerFeatures = tx.map { t ->
             val pct = t.completionPercentage(now)
-            val colorHex = progressColorHex(pct)
+            val colorHex = AppColors.travauxProgress(pct)
             val iconId = "travaux_${t.id}"
             if (style.getImage(iconId) == null)
                 style.addImage(iconId, travauxMarkerBitmap(colorHex, t.type.iconKey, t.importance))
@@ -499,7 +498,7 @@ private fun natureChantierIcon(nc: TravauxNatureChantier): ImageVector = when (n
 private fun TravauxDetailSheet(t: Travaux) {
     val now = System.currentTimeMillis() / 1000L
     val pct = t.completionPercentage(now)
-    val pColor = Color(AndroidColor.parseColor(progressColorHex(pct)))
+    val pColor = Color(AndroidColor.parseColor(AppColors.travauxProgress(pct)))
 
     Column(
         modifier = Modifier
@@ -617,12 +616,8 @@ private fun TravauxDetailSheet(t: Travaux) {
 
 @Composable
 private fun ImportanceBadge(imp: TravauxImportance) {
-    val (label, c) = when (imp) {
-        TravauxImportance.TRES_PERTURBANT -> "Très perturbant" to StatusError
-        TravauxImportance.PERTURBANT      -> "Perturbant"      to StatusWarning
-        TravauxImportance.PEU_PERTURBANT  -> "Peu perturbant"  to StatusSuccess
-        TravauxImportance.INCONNU         -> "Non défini"      to MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val label = imp.displayName
+    val c = Tokens.travauxImportance(imp)
     Surface(color = c.copy(alpha = 0.18f), shape = MaterialTheme.shapes.small) {
         Text(
             label,
@@ -635,20 +630,6 @@ private fun ImportanceBadge(imp: TravauxImportance) {
 }
 
 /** Couleur de progression identique à iOS : 0% rouge → 100% vert, par paliers de 10%. */
-private fun progressColorHex(percentage: Double): String = when {
-    percentage < 10  -> "#DC2626"
-    percentage < 20  -> "#EF4444"
-    percentage < 30  -> "#F97316"
-    percentage < 40  -> "#FB923C"
-    percentage < 50  -> "#FBBF24"
-    percentage < 60  -> "#EAB308"
-    percentage < 70  -> "#CA8A04"
-    percentage < 80  -> "#84CC16"
-    percentage < 90  -> "#65A30D"
-    percentage < 100 -> "#22C55E"
-    else             -> "#16A34A"
-}
-
 /** Icône vectorielle Material correspondant au type de travaux (pour Compose). */
 private fun typeImageVector(iconKey: String): ImageVector = when (iconKey) {
     "tram"        -> Icons.Filled.Tram

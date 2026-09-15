@@ -10,10 +10,11 @@ data class Passage(
     val direction: String,
     val delaipassage: String,
     val heurepassage: String,
-    val type: String  // "T" théorique ou "R" temps réel
+    val type: String  // "E" estimé (temps réel) ou "T" théorique (horaire papier)
 ) {
     val id: String get() = "$stopId-$ligne-$heurepassage"
-    val isRealTime: Boolean get() = type == "R"
+    val isRealTime: Boolean get() = type == "E"
+    val isTheoretical: Boolean get() = type == "T"
 
     /** Format `HH:mm` (extrait de heurepassage `yyyy-MM-dd HH:mm:ss`). */
     val formattedTime: String get() {
@@ -43,7 +44,7 @@ data class TransitStop(
 ) : Clusterable {
     override val clusterId: String get() = id.toString()
     override val coordinate: LatLng get() = LatLng(latitude, longitude)
-    override val clusterColorHex: String get() = "#1976D2"
+    override val clusterColorHex: String get() = com.alertetcl.shared.design.AppColors.stopMarker
     override val clusterIconKey: String get() = "stop"
 
     /** Lignes uniques desservant cet arrêt. */
@@ -81,7 +82,7 @@ data class MergedStop(
 ) : Clusterable {
     override val clusterId: String get() = id
     override val coordinate: LatLng get() = LatLng(latitude, longitude)
-    override val clusterColorHex: String get() = "#1976D2"
+    override val clusterColorHex: String get() = com.alertetcl.shared.design.AppColors.stopMarker
     override val clusterIconKey: String get() = "stop"
 
     val allLines: List<String> by lazy { stops.flatMap { it.lines }.distinct() }

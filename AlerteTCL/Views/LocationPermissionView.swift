@@ -9,9 +9,9 @@ struct LocationPermissionView: View {
                 
                 ZStack {
                     Circle()
-                        .fill(.blue.gradient)
+                        .fill(Color.appAccent.gradient)
                         .frame(width: 120, height: 120)
-                        .shadow(color: .blue.opacity(0.3), radius: 16, x: 0, y: 8)
+                        .shadow(color: .appAccent.opacity(0.3), radius: 16, x: 0, y: 8)
                     
                     Image(systemName: "location.fill")
                         .font(.system(size: 50))
@@ -31,11 +31,11 @@ struct LocationPermissionView: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 16) {
-                    FeatureRow(icon: "location.circle.fill", color: .blue, title: "Centrage automatique", description: "La carte se centre sur votre position actuelle")
+                    FeatureRow(icon: "location.circle.fill", color: .appAccent, title: "Centrage automatique", description: "La carte se centre sur votre position actuelle")
                     
-                    FeatureRow(icon: "map.fill", color: .green, title: "Transports à proximité", description: "Visualisez les véhicules autour de vous en temps réel")
+                    FeatureRow(icon: "map.fill", color: .appSuccess, title: "Transports à proximité", description: "Visualisez les véhicules autour de vous en temps réel")
                     
-                    FeatureRow(icon: "lock.fill", color: .orange, title: "Confidentialité", description: "Votre position n'est jamais partagée ni stockée")
+                    FeatureRow(icon: "lock.fill", color: .appWarning, title: "Confidentialité", description: "Votre position n'est jamais partagée ni stockée")
                 }
                 .padding(.horizontal, 32)
                 
@@ -51,7 +51,7 @@ struct LocationPermissionView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.blue)
+                    .tint(Color.appAccent)
                     .controlSize(.large)
                     
                     Button("Plus tard", role: .cancel) {

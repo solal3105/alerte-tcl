@@ -13,13 +13,15 @@ import androidx.work.WorkerParameters
 import com.alertetcl.android.MainActivity
 import com.alertetcl.android.R
 import com.alertetcl.android.data.FavoritesStore
-import com.alertetcl.shared.models.AlertNotificationPhase
-import com.alertetcl.shared.models.AlertSeverity
-import com.alertetcl.shared.models.TCLAlert
+import com.alertetcl.shared.models.AlertNotifications
 import com.alertetcl.shared.services.TclApiService
 import com.alertetcl.shared.util.AppLogger
 import kotlinx.coroutines.flow.first
 
+/**
+ * Vérifie périodiquement les alertes trafic et notifie celles qui concernent une ligne abonnée,
+ * selon la règle commune [AlertNotifications] (mêmes phases, même anti-doublon que sur iOS).
+ */
 class AlertWorker(
     appContext: Context,
     params: WorkerParameters
@@ -27,50 +29,24 @@ class AlertWorker(
 
     override suspend fun doWork(): Result {
         return try {
-            val store = FavoritesStore(applicationContext)
-            val favorites = store.favoriteLines.first()
-            if (favorites.isEmpty()) return Result.success()
+            val subscriptions = FavoritesStore(applicationContext).lineSubscriptions.first()
+            if (subscriptions.isEmpty()) return Result.success()
 
-            val severityPrefs = store.lineSeverityPreferences.first()
             val alerts = TclApiService.shared.fetchAlerts()
-            val now = System.currentTimeMillis() / 1000L
 
-            // Premier lancement : marquer tout comme vu silencieusement (anti-flood)
-            val baselinePrefs = applicationContext.getSharedPreferences(BASELINE_PREFS_NAME, android.content.Context.MODE_PRIVATE)
-            if (!baselinePrefs.getBoolean(BASELINE_DONE_KEY, false)) {
-                val allKeys = alerts
-                    .filter { it.isFavorite(favorites) }
-                    .flatMap { alert ->
-                        listOf(
-                            alert.notificationKey(AlertNotificationPhase.ANNOUNCED),
-                            alert.notificationKey(AlertNotificationPhase.ACTIVE)
-                        )
-                    }.toSet()
-                val current = seenKeys().toMutableList()
-                allKeys.forEach { if (it !in current) current += it }
-                saveSeen(current)
-                baselinePrefs.edit().putBoolean(BASELINE_DONE_KEY, true).apply()
-                AppLogger.debug("AlertWorker: baseline (${allKeys.size / 2} alertes silencieuses)")
+            // Premier lancement : tout ce qui existe déjà est marqué vu, sans notification.
+            if (!baselineDone()) {
+                val baseline = AlertNotifications.baselineKeys(alerts, subscriptions)
+                saveSeen(AlertNotifications.remember(seenKeys(), baseline))
+                prefs().edit().putBoolean(BASELINE_DONE_KEY, true).apply()
+                AppLogger.debug("AlertWorker: baseline (${baseline.size / 2} alertes silencieuses)")
                 return Result.success()
             }
 
-            val alreadySeen = seenKeys().toSet()
-            alerts
-                .filter { it.isActive(now) && it.isFavorite(favorites) }
-                .forEach { alert ->
-                    val prefs = severityPrefs[alert.ligneCom]
-                        ?: setOf(AlertSeverity.MAJOR, AlertSeverity.DISRUPTION, AlertSeverity.INFO)
-                    if (alert.severity !in prefs) return@forEach
-
-                    if (alert.isUpcoming(now)) {
-                        val key = alert.notificationKey(AlertNotificationPhase.ANNOUNCED)
-                        if (key !in alreadySeen) { post(alert, AlertNotificationPhase.ANNOUNCED); markSeen(key) }
-                    }
-                    if (alert.isOngoing(now)) {
-                        val key = alert.notificationKey(AlertNotificationPhase.ACTIVE)
-                        if (key !in alreadySeen) { post(alert, AlertNotificationPhase.ACTIVE); markSeen(key) }
-                    }
-                }
+            val now = System.currentTimeMillis() / 1000L
+            val pending = AlertNotifications.pending(alerts, subscriptions, seenKeys().toSet(), now)
+            pending.forEach { post(it) }
+            if (pending.isNotEmpty()) saveSeen(AlertNotifications.remember(seenKeys(), pending.map { it.key }))
 
             Result.success()
         } catch (e: Throwable) {
@@ -79,69 +55,60 @@ class AlertWorker(
         }
     }
 
-    private fun post(alert: TCLAlert, phase: AlertNotificationPhase) {
+    private fun post(pending: AlertNotifications.Pending) {
         val ctx = applicationContext
         if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED) return
 
-        val title = when (phase) {
-            AlertNotificationPhase.ANNOUNCED -> "📅 ${alert.ligneCom} — À venir"
-            AlertNotificationPhase.ACTIVE    -> "⚠️ ${alert.ligneCom} — En cours"
-        }
-        val key = alert.notificationKey(phase)
+        val alert = pending.alert
         val intent = Intent(ctx, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
-            ctx, key.hashCode(), intent,
+            ctx, pending.key.hashCode(), intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notif = NotificationCompat.Builder(ctx, NotificationChannels.ALERTS_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle(title)
-            .setContentText(alert.titre)
+            .setContentTitle(AlertNotifications.title(alert, pending.phase))
+            .setContentText(AlertNotifications.subtitle(alert, pending.phase))
             .setStyle(NotificationCompat.BigTextStyle().bigText(alert.message))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setGroup(GROUP_PREFIX + alert.ligneCom)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .build()
-        NotificationManagerCompat.from(ctx).notify(key.hashCode(), notif)
+        NotificationManagerCompat.from(ctx).notify(pending.key.hashCode(), notif)
     }
-
-    /** Une alerte concerne l'utilisateur si l'un de ses deux libellés de ligne est en favori (parité iOS). */
-    private fun TCLAlert.isFavorite(favorites: Set<String>): Boolean =
-        ligneCom in favorites || ligneCli in favorites
 
     /** Clés déjà notifiées, de la plus ancienne à la plus récente : l'ordre pilote la purge. */
     private fun seenKeys(): List<String> {
         prefs().getString(SEEN_KEYS_KEY, null)?.let { stored ->
             return stored.split(SEPARATOR).filter { it.isNotEmpty() }
         }
-        // Migration depuis l'ancien Set non ordonné (purge aléatoire ⇒ notifications en double)
+        // Reprise de l'ancien ensemble non ordonné.
         return (prefs().getStringSet(LEGACY_SEEN_KEYS_KEY, emptySet()) ?: emptySet()).toList()
     }
 
     private fun saveSeen(keys: List<String>) {
-        val trimmed = if (keys.size > MAX_SEEN_KEYS) keys.takeLast(MAX_SEEN_KEYS / 2) else keys
         prefs().edit()
-            .putString(SEEN_KEYS_KEY, trimmed.joinToString(SEPARATOR))
+            .putString(SEEN_KEYS_KEY, keys.joinToString(SEPARATOR))
             .remove(LEGACY_SEEN_KEYS_KEY)
             .apply()
     }
 
-    private fun markSeen(key: String) {
-        val current = seenKeys().toMutableList()
-        if (key !in current) current += key
-        saveSeen(current)
-    }
+    /** Le premier passage a déjà eu lieu (nouvelle clé, ou ancien fichier de préférences). */
+    private fun baselineDone(): Boolean =
+        prefs().getBoolean(BASELINE_DONE_KEY, false) ||
+            applicationContext.getSharedPreferences(LEGACY_BASELINE_PREFS, Context.MODE_PRIVATE).getBoolean("done", false)
 
     private fun prefs() = applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     companion object {
-        private const val PREFS_NAME            = "notif_dedup"
-        private const val SEEN_KEYS_KEY         = "seen_keys_ordered"
-        private const val LEGACY_SEEN_KEYS_KEY  = "seen_keys"
-        private const val SEPARATOR             = "\n"
-        private const val MAX_SEEN_KEYS         = 500
-        private const val BASELINE_PREFS_NAME   = "notif_baseline"
-        private const val BASELINE_DONE_KEY     = "done"
+        private const val PREFS_NAME           = "notif_dedup"
+        private const val SEEN_KEYS_KEY        = "seen_keys_ordered"
+        private const val LEGACY_SEEN_KEYS_KEY = "seen_keys"
+        private const val SEPARATOR            = "\n"
+        private const val BASELINE_DONE_KEY    = "baseline_done"
+        private const val LEGACY_BASELINE_PREFS = "notif_baseline"
+        private const val GROUP_PREFIX         = "tcl-alerts-"
     }
 }

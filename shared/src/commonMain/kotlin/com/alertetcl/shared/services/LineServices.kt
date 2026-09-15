@@ -72,6 +72,7 @@ class BusLineService {
 
     /** Returns a map of `"${ligne}|A"` / `"${ligne}|R"` → terminus name.
      *  Uses the /bus-termini proxy endpoint (geometry-stripped, ≈50 KB vs 22 MB). */
+    @Throws(Exception::class)
     suspend fun fetchLineTermini(): Map<String, String> {
         mutex.withLock { terminusCache }?.let { (data, ts) ->
             if (Clock.System.now().epochSeconds - ts < cacheValidity) return data
@@ -213,4 +214,23 @@ class TransitLineService {
     }
 
     companion object { val shared = TransitLineService() }
+}
+
+/**
+ * Terminus de toutes les lignes (bus, métro, funiculaire, tramway), sous la forme
+ * `"ligne|A"` / `"ligne|R"` → nom du terminus. Sert à déduire le sens d'une destination affichée.
+ * Une section indisponible est simplement absente : le sens reste indéterminé, jamais faux.
+ */
+object LineTermini {
+    @Throws(Exception::class)
+    suspend fun all(): Map<String, String> {
+        val bus = try {
+            BusLineService.shared.fetchLineTermini()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emptyMap()
+        }
+        return bus + TransitLineService.shared.fetchLineTermini()
+    }
 }

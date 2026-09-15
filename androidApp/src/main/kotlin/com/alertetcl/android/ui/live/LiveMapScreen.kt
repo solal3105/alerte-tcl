@@ -60,10 +60,16 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.filled.Refresh
@@ -79,6 +85,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import com.alertetcl.shared.models.PositionFreshness
+import com.alertetcl.shared.util.DemoShowcase
 import com.alertetcl.shared.models.VehicleType
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -124,6 +132,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -135,22 +144,30 @@ import com.alertetcl.android.ui.map.recenterOnUser
 import com.alertetcl.android.ui.map.rememberManagedMapView
 import com.alertetcl.shared.models.BusLine
 import com.alertetcl.shared.models.LineColors
+import com.alertetcl.shared.models.LinePalette
 import com.alertetcl.shared.models.MergedStop
 import com.alertetcl.shared.models.Passage
+import com.alertetcl.shared.models.StopLineFocus
+import com.alertetcl.shared.models.DirectionMatching
 import com.alertetcl.shared.models.StopMergingEngine
 import com.alertetcl.shared.models.TransitLine
 import com.alertetcl.shared.models.TransportMode
 import com.alertetcl.shared.models.AnimatedVehicle
 import com.alertetcl.shared.models.TransitStop
 import com.alertetcl.shared.models.Vehicle
-import com.alertetcl.android.ui.theme.StatusWarning
-import com.alertetcl.android.ui.theme.StatusSuccess
+import com.alertetcl.android.ui.components.LineBadge
+import com.alertetcl.android.ui.theme.Tokens
+import com.alertetcl.android.ui.theme.compose
 import com.alertetcl.shared.services.BusLineService
 import com.alertetcl.shared.services.TransitLineService
+import com.alertetcl.shared.services.LineTermini
+import com.alertetcl.shared.services.TimetableService
 import com.alertetcl.shared.services.TransitStopService
 import com.alertetcl.shared.viewmodels.LiveVehiclesViewModel
 import com.google.gson.JsonObject
 import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
@@ -179,6 +196,8 @@ private const val BUS_C_LAYER     = "bus-c-layer"
 private const val BUS_LAYER       = "bus-layer"
 private const val VEHICLES_LAYER  = "vehicles-layer"
 private const val VEHICLES_ARROW_LAYER = "vehicles-arrow-layer"
+// Étiquette "âge de la position" sous chaque véhicule, visible au zoom serré (parité iOS).
+private const val VEHICLES_AGE_LAYER = "vehicles-age-layer"
 private const val STOPS_LAYER       = "stops-layer"        // CircleLayer mode compact
 private const val STOPS_BADGE_LAYER = "stops-badge-layer"  // SymbolLayer mode badges (zoom serré)
 
@@ -242,6 +261,8 @@ fun LiveMapScreen() {
 
     val store = remember { com.alertetcl.android.data.FavoritesStore(context) }
     val favorites by store.favoriteLines.collectAsState(initial = emptySet())
+    val storedSubscriptions by store.lineSubscriptions.collectAsState(initial = emptyMap())
+    val subscriptions = if (DemoShowcase.isAlertsCase) DemoShowcase.subscriptions() else storedSubscriptions
     val scope = rememberCoroutineScope()
     val selectedLines by store.selectedLiveLines.collectAsState(initial = emptySet())
     val availableLines = remember(vehicles) {
@@ -267,9 +288,19 @@ fun LiveMapScreen() {
     val stops = produceState<List<TransitStop>>(initialValue = emptyList()) {
         value = runCatching { TransitStopService.shared.fetchStops() }.getOrDefault(emptyList())
     }
+    // Index des fiches horaires : rafraîchit la palette officielle des couleurs de lignes.
+    LaunchedEffect(Unit) { runCatching { TimetableService.shared.fetchIndex() } }
+    // Chaque changement de palette invalide les images de lignes mises en cache dans le style.
+    val paletteVersion by LinePalette.version.collectAsState()
 
+    val stopFocus by vm.stopFocus.collectAsState()
     val filteredVehicles by remember {
-        derivedStateOf { vehicles.filter { it.vehicleType in selectedTypes && (selectedLines.isEmpty() || it.lineName in selectedLines) } }
+        derivedStateOf {
+            val focus = stopFocus
+            // Le filtre d'arrêt prime sur les autres : on veut voir ces bus, quels que soient les réglages.
+            if (focus != null) vehicles.filter(focus::matches)
+            else vehicles.filter { it.vehicleType in selectedTypes && (selectedLines.isEmpty() || it.lineName in selectedLines) }
+        }
     }
 
     // MapLibre state
@@ -294,12 +325,40 @@ fun LiveMapScreen() {
 
     // Selection state
     val selectedVehicleId = remember { mutableStateOf<String?>(null) }
+
     val selectedStop      = remember { mutableStateOf<MergedStop?>(null) }
 
     // Bottom sheet flags
     var showAlertsSheet by remember { mutableStateOf(false) }
     var showFilterSheet by remember { mutableStateOf(false) }
     var showErrorsSheet by remember { mutableStateOf(false) }
+    var timetableStart by remember { mutableStateOf<TimetableStart?>(null) }
+
+    // Mode démo : ouvrir automatiquement la fiche du cas demandé (parité iOS).
+    if (DemoShowcase.isActive) {
+        LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(6_000)
+            when (DemoShowcase.current) {
+                "fiche", "fiche-vieille" -> selectedVehicleId.value = DemoShowcase.vehicleForSheet()?.id
+                "arret"                  -> selectedStop.value = DemoShowcase.mergedStop()
+                "bus-arret"              -> DemoShowcase.stopLineFocus().let { focus ->
+                    vm.focusOnStop(focus)
+                    fitCameraOnFocus(mapLibreMap, focus, vehicles)
+                }
+                "horaires", "horaires-ligne", "horaires-arrets" -> timetableStart = TimetableStart.Search
+                "horaires-arret", "horaires-course" -> {
+                    val stop = DemoShowcase.mergedStop()
+                    val passage = DemoShowcase.passages(stop.stops[0].id)[0]
+                    selectedStop.value = stop
+                    timetableStart = TimetableStart.ForStop(passage.ligne, passage.direction, stop.stops.map { it.id }.toSet(), stop.nom)
+                }
+                "erreur401"              -> showErrorsSheet = true
+                "alertes", "alertes-ligne", "alertes-options" -> showAlertsSheet = true
+                else                     -> Unit
+            }
+        }
+    }
+
     var showRefreshInfo by remember { mutableStateOf(false) }
 
     // Permission location pour le FAB localisation
@@ -319,7 +378,8 @@ fun LiveMapScreen() {
     val mapView = rememberManagedMapView()
 
     // Filtres actifs (parité iOS hasActiveFilters — les arrêts sont automatiques, pas un filtre)
-    val hasActiveFilters = selectedTypes.size != VehicleType.entries.size ||
+    val hasActiveFilters = stopFocus != null ||
+        selectedTypes.size != VehicleType.entries.size ||
         showBusTraces || !showTramTraces || !showMetroTraces ||
         selectedLines.isNotEmpty()
 
@@ -336,10 +396,18 @@ fun LiveMapScreen() {
                         map.uiSettings.isAttributionEnabled       = false
                         map.uiSettings.isCompassEnabled           = false
                         map.uiSettings.isRotateGesturesEnabled    = false
-                        map.cameraPosition = CameraPosition.Builder()
-                            .target(LatLng(45.764043, 4.835659))
-                            .zoom(12.5)
-                            .build()
+                        map.cameraPosition = if (DemoShowcase.isActive) {
+                            // Mode démo : cadrer la scène simulée au zoom des étiquettes d'âge
+                            CameraPosition.Builder()
+                                .target(LatLng(DemoShowcase.CENTER_LAT, DemoShowcase.CENTER_LON))
+                                .zoom(16.2)
+                                .build()
+                        } else {
+                            CameraPosition.Builder()
+                                .target(LatLng(45.764043, 4.835659))
+                                .zoom(12.5)
+                                .build()
+                        }
                         map.addOnMapClickListener { latLng ->
                             val screen = map.projection.toScreenLocation(latLng)
                             val pt = PointF(screen.x, screen.y)
@@ -378,23 +446,26 @@ fun LiveMapScreen() {
             }
         }
 
-        // ── Top: Traffic Banner ───────────────────────────────────────────
-        AnimatedVisibility(
-            visible = !bannerCollapsed,
-            enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
-            exit  = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+        // ── Top: Traffic Banner + filtre « bus de cet arrêt » ─────────────
+        Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
                 .padding(horizontal = 12.dp, vertical = 8.dp)
-                .fillMaxWidth()
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+        AnimatedVisibility(
+            visible = !bannerCollapsed,
+            enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+            exit  = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+            modifier = Modifier.fillMaxWidth()
         ) {
             var dragOffsetY by remember { mutableFloatStateOf(0f) }
             TrafficBanner(
-                subscribedLines = favorites,
+                subscriptions = subscriptions,
                 alerts = alerts,
                 lastUpdateMs = lastUpdateMs,
-                hasError = vehiclesError != null || alertsError != null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .pointerInput(Unit) {
@@ -413,9 +484,7 @@ fun LiveMapScreen() {
         if (bannerCollapsed) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(top = 8.dp)
+                    .align(Alignment.CenterHorizontally)
                     .clip(RoundedCornerShape(50))
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f))
                     .clickable { bannerCollapsed = false }
@@ -429,6 +498,14 @@ fun LiveMapScreen() {
                 )
             }
         }
+        stopFocus?.let { focus ->
+            StopFocusBanner(
+                focus = focus,
+                vehicleCount = vehicles.count(focus::matches),
+                onClear = { vm.clearStopFocus() }
+            )
+        }
+        }
 
         // ── Bottom-left: Live Indicator ──────────────────────────────────
         Column(
@@ -438,6 +515,18 @@ fun LiveMapScreen() {
                 .padding(bottom = 96.dp, start = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // Messages contextuels : flux vide alors que tout fonctionne, ou données figées.
+            var statusNowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+            LaunchedEffect(Unit) {
+                while (true) { kotlinx.coroutines.delay(5_000); statusNowMs = System.currentTimeMillis() }
+            }
+            if (vehiclesError == null && !isLoading && lastUpdateMs != null && vehicles.isEmpty()) {
+                StatusCapsule("TCL ne transmet aucune position en ce moment")
+            }
+            val frozenSec = lastUpdateMs?.let { (statusNowMs - it) / 1000 } ?: 0
+            if (isLive && frozenSec > 60) {
+                StatusCapsule("Dernières données reçues il y a ${Vehicle.formattedAge(frozenSec)}")
+            }
             if (vehiclesError != null || alertsError != null) {
                 Surface(
                     shape = RoundedCornerShape(50),
@@ -450,7 +539,7 @@ fun LiveMapScreen() {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(Icons.Filled.Warning, null, tint = StatusWarning, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Filled.Warning, null, tint = Tokens.warning, modifier = Modifier.size(14.dp))
                         val n = (if (vehiclesError != null) 1 else 0) + (if (alertsError != null) 1 else 0)
                         Text("$n source${if (n > 1) "s" else ""} en erreur", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
                     }
@@ -475,8 +564,13 @@ fun LiveMapScreen() {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             MapCircleFab(
+                icon = Icons.Filled.Schedule, contentDesc = "Fiches horaires",
+                tint = MaterialTheme.colorScheme.onSurface,
+                onClick = { timetableStart = TimetableStart.Search }
+            )
+            MapCircleFab(
                 icon = Icons.Filled.Public, contentDesc = "Vue satellite",
-                tint = if (isSatellite) StatusWarning else MaterialTheme.colorScheme.onSurface,
+                tint = if (isSatellite) Tokens.warning else MaterialTheme.colorScheme.onSurface,
                 onClick = { isSatellite = !isSatellite }
             )
             MapCircleFab(
@@ -501,7 +595,7 @@ fun LiveMapScreen() {
     // ── Map update effects ──────────────────────────────────────────────
 
     // Line traces — z-order bottom → top: bus → Bus C → tram → métro/funi
-    LaunchedEffect(mapStyle, showBusTraces, showTramTraces, showMetroTraces, transitLines.value, busLines.value, selectedLines) {
+    LaunchedEffect(mapStyle, showBusTraces, showTramTraces, showMetroTraces, transitLines.value, busLines.value, selectedLines, paletteVersion) {
         val style = mapStyle ?: return@LaunchedEffect
 
         // Capture immutable snapshots avant de switcher sur Default — évite les lectures de
@@ -554,7 +648,7 @@ fun LiveMapScreen() {
     }
 
     // Vehicle markers
-    LaunchedEffect(mapStyle, filteredVehicles) {
+    LaunchedEffect(mapStyle, filteredVehicles, paletteVersion) {
         val style = mapStyle ?: return@LaunchedEffect
         val current = filteredVehicles
 
@@ -589,7 +683,7 @@ fun LiveMapScreen() {
         }
 
         val nowSec   = System.currentTimeMillis() / 1000.0
-        val features = current.map { v -> buildVehicleFeature(v, vm.animatedVehicleFor(v.id), nowSec) }
+        val features = current.map { v -> buildVehicleFeature(v, vm.animatedVehicleFor(v.id), nowSec, isDark) }
 
         if (style.getSource(VEHICLES_SRC) == null) {
             glInitMutex.withLock {
@@ -613,6 +707,7 @@ fun LiveMapScreen() {
                         PropertyFactory.iconSize(1f)
                     ))
                     // Layer 2 : corps — au-dessus de la flèche, point coloré en dezoom (< 13.5)
+                    // Les véhicules à position obsolète (> 2 min) sont estompés via "op".
                     style.addLayer(SymbolLayer(VEHICLES_LAYER, VEHICLES_SRC).withProperties(
                         PropertyFactory.iconImage(
                             Expression.step(
@@ -621,16 +716,32 @@ fun LiveMapScreen() {
                                 Expression.literal(13.5), Expression.get("icon")
                             )
                         ),
+                        PropertyFactory.iconOpacity(Expression.toNumber(Expression.get("op"))),
                         PropertyFactory.iconAllowOverlap(true),
                         PropertyFactory.iconIgnorePlacement(true),
                         PropertyFactory.iconSize(1f)
                     ))
+                    // Layer 3 : âge de la dernière position ("12 s"), zoom serré uniquement
+                    style.addLayer(SymbolLayer(VEHICLES_AGE_LAYER, VEHICLES_SRC).apply {
+                        minZoom = 15.5f
+                        setProperties(
+                            PropertyFactory.textField(Expression.get("age")),
+                            PropertyFactory.textFont(arrayOf("Noto Sans Regular")),
+                            PropertyFactory.textSize(10f),
+                            PropertyFactory.textColor(Expression.get("age_col")),
+                            PropertyFactory.textHaloColor("#000000"),
+                            PropertyFactory.textHaloWidth(1.2f),
+                            PropertyFactory.textOffset(arrayOf(0f, 2.1f)),
+                            PropertyFactory.textAllowOverlap(true),
+                            PropertyFactory.textIgnorePlacement(true)
+                        )
+                    })
                 }
             }
             vehiclesLayerReady.value = true
         } else {
             style.getSourceAs<GeoJsonSource>(VEHICLES_SRC)
-                ?.setGeoJson(buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb))
+                ?.setGeoJson(buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb, isDark))
         }
     }
 
@@ -650,10 +761,17 @@ fun LiveMapScreen() {
             val nowSec  = System.currentTimeMillis() / 1000.0
             val current = vehiclesRef.value
             if (current.isEmpty()) { kotlinx.coroutines.delay(100); continue }
-            // Skip si aucune transition active → 500 ms au lieu de 100 ms
-            if (!vm.hasAnyActiveTransition(nowSec)) { kotlinx.coroutines.delay(500); continue }
+            // Sans transition active : un rebuild par seconde suffit, uniquement
+            // pour faire vivre les étiquettes d'âge ("12 s" → "13 s").
+            if (!vm.hasAnyActiveTransition(nowSec)) {
+                source.setGeoJson(
+                    buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb, isDark)
+                )
+                kotlinx.coroutines.delay(1_000)
+                continue
+            }
             source.setGeoJson(
-                buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb)
+                buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb, isDark)
             )
             kotlinx.coroutines.delay(100)
         }
@@ -665,7 +783,7 @@ fun LiveMapScreen() {
     //   zoom ≥ 16 → badges de ligne  (parité iOS latitudeDelta ≈ 0.005)
     // Les icônes sont pré-construites en un seul bloc sur Default — le cache GPU
     // ne croît plus après le premier chargement (fini le freeze par accumulation).
-    LaunchedEffect(mapStyle, mergedStops) {
+    LaunchedEffect(mapStyle, mergedStops, paletteVersion) {
         val style = mapStyle ?: return@LaunchedEffect
         if (mergedStops.isEmpty()) return@LaunchedEffect
 
@@ -675,10 +793,10 @@ fun LiveMapScreen() {
                 val lines = stop.allLines.filter { !it.startsWith("JD", ignoreCase = true) }
                 val tier  = StopTier.from(lines)
                 val pl    = StopTier.primaryLine(lines)
-                val fill  = if (tier == StopTier.METRO && pl != null) LineColors.backgroundHex(pl) else tier.fillHex
+                val fill  = stopFillHex(tier, pl)
                 val key   = if (lines.isNotEmpty())
-                    "stop_${tier.name}_${pl ?: ""}_" + lines.take(4).joinToString("_")
-                else "stop_dot_${tier.name}_${pl ?: ""}"
+                    "stop${paletteVersion}_${tier.name}_${pl ?: ""}_" + lines.take(4).joinToString("_")
+                else "stop${paletteVersion}_dot_${tier.name}_${pl ?: ""}"
                 StopEntry(stop.id, stop.coordinate.longitude, stop.coordinate.latitude,
                           fill, tier.compactR, tier.compactSW, key, lines, tier, pl)
             }
@@ -757,11 +875,22 @@ fun LiveMapScreen() {
     }
     selectedStop.value?.let { stop ->
         ModalBottomSheet(onDismissRequest = { selectedStop.value = null }, sheetState = rememberModalBottomSheetState(), contentWindowInsets = { WindowInsets.systemBars }) {
-        MergedStopDetailSheet(stop)
+            MergedStopDetailSheet(
+                stop = stop,
+                onFocus = { focus ->
+                    selectedStop.value = null
+                    vm.focusOnStop(focus)
+                    fitCameraOnFocus(mapLibreMap, focus, vehicles)
+                },
+                onTimetable = { timetableStart = it }
+            )
         }
     }
+    timetableStart?.let { start ->
+        TimetableDialog(start = start, onDismiss = { timetableStart = null })
+    }
     if (showAlertsSheet) {
-        ModalBottomSheet(onDismissRequest = { showAlertsSheet = false }, sheetState = rememberModalBottomSheetState(), contentWindowInsets = { WindowInsets.systemBars }) {
+        ModalBottomSheet(onDismissRequest = { showAlertsSheet = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), contentWindowInsets = { WindowInsets.systemBars }) {
             Box(Modifier.fillMaxSize()) { com.alertetcl.android.ui.alerts.AlertsScreen(viewModel = alertsVm) }
         }
     }
@@ -772,6 +901,8 @@ fun LiveMapScreen() {
             contentWindowInsets = { WindowInsets.systemBars }
         ) {
             FilterSheet(
+                stopFocus = stopFocus,
+                onClearStopFocus = { vm.clearStopFocus() },
                 selectedTypes = selectedTypes,
                 onToggleType = { vm.toggleType(it) },
                 selectedLines = selectedLines,
@@ -793,6 +924,7 @@ fun LiveMapScreen() {
                 onToggleMetroTraces = { scope.launch { store.setShowMetroTraces(!showMetroTraces) } },
                 hasActiveFilters = hasActiveFilters,
                 onClearFilters = {
+                    vm.clearStopFocus()
                     VehicleType.entries.filter { it != VehicleType.METRO && it !in vm.selectedTypes.value }.forEach { vm.toggleType(it) }
                     scope.launch {
                         store.setSelectedLiveLines(emptySet())
@@ -825,7 +957,7 @@ fun LiveMapScreen() {
 
 @Composable
 private fun VehicleDetailSheet(v: Vehicle) {
-    val accentColor = Color(android.graphics.Color.parseColor(v.vehicleType.clusterColorHex))
+    val accentColor = Tokens.vehicleType(v.vehicleType)
     var vehicleModel by remember { mutableStateOf<String?>(null) }
     var vehiclePhotos by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedPhoto by remember { mutableStateOf<String?>(null) }
@@ -906,9 +1038,9 @@ private fun VehicleDetailSheet(v: Vehicle) {
                     }
                     // Pastille retard
                     val delayColor = when {
-                        v.isDelayed -> StatusWarning
+                        v.isDelayed -> Tokens.warning
                         v.isEarly   -> MaterialTheme.colorScheme.primary
-                        else        -> StatusSuccess
+                        else        -> Tokens.success
                     }
                     Surface(shape = RoundedCornerShape(50), color = delayColor.copy(alpha = 0.12f)) {
                         Row(
@@ -918,6 +1050,45 @@ private fun VehicleDetailSheet(v: Vehicle) {
                         ) {
                             Icon(Icons.Filled.AccessTime, null, tint = delayColor, modifier = Modifier.size(11.dp))
                             Text(v.delayFormatted, color = delayColor, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+
+                    // Fraîcheur de la position : âge de la dernière transmission TCL,
+                    // mis à jour chaque seconde tant que la fiche est ouverte.
+                    if (v.recordedAtEpoch != null) {
+                        var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+                        LaunchedEffect(Unit) {
+                            while (true) {
+                                nowMs = System.currentTimeMillis()
+                                kotlinx.coroutines.delay(1_000)
+                            }
+                        }
+                        val age = v.positionAgeSeconds(nowMs) ?: 0L
+                        val freshness = v.positionFreshness(nowMs)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .background(
+                                        freshness.color.compose(),
+                                        androidx.compose.foundation.shape.CircleShape
+                                    )
+                            )
+                            Text(
+                                "Position transmise par TCL il y a ${Vehicle.formattedAge(age)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (freshness == PositionFreshness.STALE) {
+                            Text(
+                                "TCL n'a rien envoyé de plus récent pour ce véhicule, sa position réelle a probablement changé.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
                         }
                     }
                 }
@@ -1205,8 +1376,16 @@ private fun WikimediaPhoto(url: String, modifier: Modifier = Modifier, contentSc
 private data class LineDirectionKey(val line: String, val direction: String)
 
 @Composable
-private fun MergedStopDetailSheet(stop: MergedStop) {
+private fun MergedStopDetailSheet(
+    stop: MergedStop,
+    /** Montre sur la carte les véhicules d'une ligne dans un sens (le parent applique le filtre et referme la fiche). */
+    onFocus: (StopLineFocus) -> Unit,
+    /** Ouvre la fiche horaire théorique d'une ligne à cet arrêt. */
+    onTimetable: (TimetableStart.ForStop) -> Unit
+) {
     val context = LocalContext.current
+    // Terminus par ligne et sens, pour déduire le sens d'une destination affichée.
+    val termini by produceState(initialValue = emptyMap<String, String>()) { value = runCatching { LineTermini.all() }.getOrDefault(emptyMap()) }
     var passagesKey by remember(stop.id) { mutableStateOf(0) }
     var passagesHadError by remember(stop.id) { mutableStateOf(false) }
     val passages = produceState<List<Passage>?>(initialValue = null, stop.id, passagesKey) {
@@ -1228,6 +1407,13 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
         }.flatten().sortedBy { it.heurepassage }
         passagesHadError = anyError
         value = all
+    }
+    // Rafraîchit les passages toutes les 30 s tant que la fiche est ouverte.
+    LaunchedEffect(stop.id) {
+        while (true) {
+            kotlinx.coroutines.delay(30_000)
+            passagesKey++
+        }
     }
     val groupedPassages = remember(passages.value) {
         val list = passages.value ?: return@remember emptyList<Pair<LineDirectionKey, List<Passage>>>()
@@ -1263,7 +1449,7 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
                 if (stop.allLines.isNotEmpty()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         stop.allLines.take(6).forEach { line ->
-                            com.alertetcl.android.ui.alerts.LineBadge(line, size = 28.dp, fontSize = 12.sp)
+                            LineBadge(line, size = 28.dp, fontSize = 12.sp)
                         }
                         if (stop.allLines.size > 6) Text("+${stop.allLines.size - 6}", style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
@@ -1351,7 +1537,24 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
             else -> {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     groupedPassages.forEach { (key, list) ->
-                        LinePassagesCard(line = key.line, direction = key.direction, passages = list)
+                        LinePassagesCard(
+                            line = key.line, direction = key.direction, passages = list,
+                            onShowOnMap = {
+                                onFocus(
+                                    StopLineFocus(
+                                        line = key.line,
+                                        direction = DirectionMatching.resolveDirection(key.line, key.direction, termini),
+                                        destination = key.direction,
+                                        stopName = stop.nom,
+                                        latitude = stop.latitude,
+                                        longitude = stop.longitude
+                                    )
+                                )
+                            },
+                            onShowTimetable = {
+                                onTimetable(TimetableStart.ForStop(key.line, key.direction, stop.stops.map { it.id }.toSet(), stop.nom))
+                            }
+                        )
                     }
                 }
             }
@@ -1361,14 +1564,20 @@ private fun MergedStopDetailSheet(stop: MergedStop) {
 }
 
 @Composable
-private fun LinePassagesCard(line: String, direction: String, passages: List<Passage>) {
+private fun LinePassagesCard(
+    line: String,
+    direction: String,
+    passages: List<Passage>,
+    onShowOnMap: (() -> Unit)? = null,
+    onShowTimetable: (() -> Unit)? = null
+) {
     Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp, shadowElevation = 1.dp,
         modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                com.alertetcl.android.ui.alerts.LineBadge(line, size = 32.dp, fontSize = 13.sp)
+                LineBadge(line, size = 32.dp, fontSize = 13.sp)
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Direction", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(direction, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 2)
@@ -1378,14 +1587,81 @@ private fun LinePassagesCard(line: String, direction: String, passages: List<Pas
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 passages.take(4).forEach { p -> PassageChip(p) }
             }
+            if (passages.take(4).any { it.isTheoretical }) {
+                Text(
+                    "Les horaires en gris sont théoriques : le véhicule n'est pas suivi en direct, vérifiez les alertes en cas de perturbation.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (onShowOnMap != null || onShowTimetable != null) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (onShowOnMap != null) CardActionButton("Voir ces bus sur la carte", Icons.Filled.Map, Modifier.weight(1f), onShowOnMap)
+                    if (onShowTimetable != null) CardActionButton("Tous les horaires", Icons.Filled.CalendarMonth, Modifier.weight(1f), onShowTimetable)
+                }
+            }
         }
     }
 }
 
 @Composable
+private fun CardActionButton(label: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
+    FilledTonalButton(onClick = onClick, modifier = modifier, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)) {
+        Icon(icon, null, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(label, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** Bandeau « bus de cet arrêt » sous le bandeau trafic (parité iOS StopFocusBanner). */
+@Composable
+private fun StopFocusBanner(focus: StopLineFocus, vehicleCount: Int, onClear: () -> Unit) {
+    val countText = when (vehicleCount) {
+        0 -> "Aucun véhicule en circulation pour l'instant"
+        1 -> "1 véhicule affiché"
+        else -> "$vehicleCount véhicules affichés"
+    }
+    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            LineBadge(focus.line, size = 28.dp, fontSize = 11.sp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Vers ${focus.destination}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("$countText, depuis l'arrêt ${focus.stopName}", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            TextButton(onClick = onClear) { Text("Tout afficher", fontSize = 12.sp) }
+        }
+    }
+}
+
+/** Cadre l'arrêt et les véhicules concernés par le filtre d'arrêt. */
+private fun fitCameraOnFocus(map: MapLibreMap?, focus: StopLineFocus, vehicles: List<Vehicle>) {
+    val m = map ?: return
+    val points = vehicles.filter(focus::matches).map { LatLng(it.latitude, it.longitude) } + LatLng(focus.latitude, focus.longitude)
+    val latSpan = points.maxOf { it.latitude } - points.minOf { it.latitude }
+    val lonSpan = points.maxOf { it.longitude } - points.minOf { it.longitude }
+    // Cadre minimal quand tout est concentré près de l'arrêt (parité iOS : 0,012°).
+    if (latSpan < 0.012 && lonSpan < 0.012) {
+        val center = LatLng(
+            (points.maxOf { it.latitude } + points.minOf { it.latitude }) / 2,
+            (points.maxOf { it.longitude } + points.minOf { it.longitude }) / 2
+        )
+        m.animateCamera(CameraUpdateFactory.newLatLngZoom(center, 14.5))
+        return
+    }
+    val bounds = LatLngBounds.Builder().apply { points.forEach { include(it) } }.build()
+    val paddingPx = (56 * android.content.res.Resources.getSystem().displayMetrics.density).toInt()
+    m.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, paddingPx))
+}
+
+@Composable
 private fun PassageChip(p: Passage) {
-    val bg = if (p.isRealTime) StatusSuccess.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant
-    val accent = if (p.isRealTime) StatusSuccess else MaterialTheme.colorScheme.onSurfaceVariant
+    val bg = if (p.isRealTime) Tokens.success.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant
+    val accent = if (p.isRealTime) Tokens.success else MaterialTheme.colorScheme.onSurfaceVariant
     Surface(shape = RoundedCornerShape(10.dp), color = bg) {
         Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1400,83 +1676,83 @@ private fun PassageChip(p: Passage) {
 
 @Composable
 private fun TrafficBanner(
-    subscribedLines: Set<String>,
+    subscriptions: Map<String, com.alertetcl.shared.models.LineSubscription>,
     alerts: List<com.alertetcl.shared.models.TCLAlert>,
     lastUpdateMs: Long?,
-    hasError: Boolean,
     modifier: Modifier = Modifier,
     onTap: () -> Unit
 ) {
-    val majorOnNetwork = remember(alerts) {
-        alerts.count { it.severity == com.alertetcl.shared.models.AlertSeverity.MAJOR }
+    // Même règle que sur iOS : le module partagé décide du ton et des textes.
+    val state = remember(subscriptions, alerts) {
+        com.alertetcl.shared.models.TrafficBanner.compute(subscriptions, alerts, System.currentTimeMillis() / 1000L)
     }
-    val mySubAlerts = remember(alerts, subscribedLines) {
-        alerts.filter { it.ligneCom in subscribedLines }
+    val accent = when (state.tone) {
+        com.alertetcl.shared.models.TrafficBanner.Tone.NORMAL -> Tokens.success
+        com.alertetcl.shared.models.TrafficBanner.Tone.WARNING -> Tokens.warning
+        com.alertetcl.shared.models.TrafficBanner.Tone.MAJOR -> Tokens.error
     }
-    val mySubMajor = mySubAlerts.count { it.severity == com.alertetcl.shared.models.AlertSeverity.MAJOR }
-
-    val (bg, fg, icon, title, subtitle, onBg) = when {
-        hasError -> BannerState(
-            MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.tertiary,
-            Icons.Filled.Warning,
-            "Données partielles",
-            "Certaines sources sont indisponibles",
-            MaterialTheme.colorScheme.onTertiaryContainer
-        )
-        mySubMajor > 0 -> BannerState(
-            MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.error,
-            Icons.Filled.Warning,
-            "$mySubMajor perturbation${if (mySubMajor > 1) "s" else ""} majeure${if (mySubMajor > 1) "s" else ""}",
-            "Sur vos lignes abonnées",
-            MaterialTheme.colorScheme.onErrorContainer
-        )
-        mySubAlerts.isNotEmpty() -> BannerState(
-            MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.tertiary,
-            Icons.Filled.NotificationsActive,
-            "${mySubAlerts.size} info${if (mySubAlerts.size > 1) "s" else ""} trafic",
-            "Sur vos lignes abonnées",
-            MaterialTheme.colorScheme.onTertiaryContainer
-        )
-        majorOnNetwork > 0 -> BannerState(
-            MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.tertiary,
-            Icons.Filled.Warning,
-            "$majorOnNetwork perturbation${if (majorOnNetwork > 1) "s" else ""} majeure${if (majorOnNetwork > 1) "s" else ""}",
-            "Sur le réseau TCL",
-            MaterialTheme.colorScheme.onTertiaryContainer
-        )
-        else -> BannerState(
-            MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.primary,
-            Icons.Filled.CheckCircle,
-            "Réseau fluide",
-            "Aucune perturbation majeure",
-            MaterialTheme.colorScheme.onPrimaryContainer
-        )
+    val icon = when (state.tone) {
+        com.alertetcl.shared.models.TrafficBanner.Tone.NORMAL -> Icons.Filled.CheckCircle
+        com.alertetcl.shared.models.TrafficBanner.Tone.WARNING -> Icons.Filled.Warning
+        com.alertetcl.shared.models.TrafficBanner.Tone.MAJOR -> Icons.Filled.Report
+    }
+    val updatedText = lastUpdateMs?.let { ms ->
+        val elapsed = (System.currentTimeMillis() - ms) / 1000L
+        when {
+            elapsed < 60L -> "à l'instant"
+            elapsed < 3600L -> "il y a ${elapsed / 60} min"
+            else -> "il y a ${elapsed / 3600} h"
+        }
     }
 
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = bg,
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shadowElevation = 4.dp,
+        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.25f)),
         modifier = modifier.clickable { onTap() }
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(11.dp)
         ) {
             Box(
-                modifier = Modifier.size(32.dp).clip(CircleShape).background(fg),
+                modifier = Modifier.size(36.dp).clip(CircleShape).background(accent.copy(alpha = 0.18f)),
                 contentAlignment = Alignment.Center
-            ) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(18.dp)) }
+            ) { Icon(icon, null, tint = accent, modifier = Modifier.size(18.dp)) }
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = onBg)
-                Text(subtitle, style = MaterialTheme.typography.labelSmall, color = onBg.copy(alpha = 0.7f))
+                Text(state.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                state.subtitle?.let {
+                    Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                }
             }
+            if (updatedText != null) {
+                Text(updatedText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+            }
+            Icon(Icons.Filled.ChevronRight, null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(16.dp))
         }
     }
 }
 
-private data class BannerState(val bg: Color, val fg: Color, val icon: ImageVector, val title: String, val subtitle: String, val onBg: Color)
+/** Capsule d'information sobre, même style que l'indicateur LIVE. */
+@Composable
+private fun StatusCapsule(text: String) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shadowElevation = 3.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(Icons.Filled.Warning, null, tint = Tokens.warning, modifier = Modifier.size(14.dp))
+            Text(text, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1493,8 +1769,8 @@ private fun LiveIndicator(
     }
     val dotColor = when {
         !isLive  -> MaterialTheme.colorScheme.onSurfaceVariant
-        hasError -> StatusWarning
-        else     -> StatusSuccess
+        hasError -> Tokens.warning
+        else     -> Tokens.success
     }
     val labelColor = dotColor
 
@@ -1565,9 +1841,9 @@ private fun RefreshInfoSheet(lastUpdateMs: Long?) {
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
-                modifier = Modifier.size(44.dp).clip(CircleShape).background(StatusSuccess.copy(alpha = 0.15f)),
+                modifier = Modifier.size(44.dp).clip(CircleShape).background(Tokens.success.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
-            ) { Icon(Icons.Filled.NotificationsActive, null, tint = StatusSuccess, modifier = Modifier.size(20.dp)) }
+            ) { Icon(Icons.Filled.NotificationsActive, null, tint = Tokens.success, modifier = Modifier.size(20.dp)) }
             Column(modifier = Modifier.weight(1f)) {
                 Text("Temps réel", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Text("Positions TCL en direct", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1579,7 +1855,7 @@ private fun RefreshInfoSheet(lastUpdateMs: Long?) {
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("15s", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = StatusSuccess)
+                Text("15s", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Tokens.success)
                 Text("intervalle", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Column(
@@ -1600,7 +1876,7 @@ private fun RefreshInfoSheet(lastUpdateMs: Long?) {
         }
         HorizontalDivider()
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(Icons.Filled.CheckCircle, null, tint = StatusSuccess, modifier = Modifier.size(16.dp))
+            Icon(Icons.Filled.CheckCircle, null, tint = Tokens.success, modifier = Modifier.size(16.dp))
             Text("Inutile de rafraîchir manuellement", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
         Spacer(Modifier.height(8.dp))
@@ -1609,6 +1885,8 @@ private fun RefreshInfoSheet(lastUpdateMs: Long?) {
 
 @Composable
 private fun FilterSheet(
+    stopFocus: StopLineFocus?,
+    onClearStopFocus: () -> Unit,
     selectedTypes: Set<VehicleType>,
     onToggleType: (VehicleType) -> Unit,
     selectedLines: Set<String>,
@@ -1660,6 +1938,29 @@ private fun FilterSheet(
                     HorizontalDivider()
                 }
             }
+            if (stopFocus != null) {
+                item {
+                    Text(
+                        "BUS D'UN ARRÊT",
+                        style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { onClearStopFocus() }
+                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        LineBadge(stopFocus.line, size = 30.dp, fontSize = 11.sp)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Vers ${stopFocus.destination}", fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("Seuls ces véhicules sont affichés. Touchez pour tout réafficher.",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    HorizontalDivider()
+                }
+            }
             item {
                 Text(
                     "TRACÉS DES LIGNES",
@@ -1694,7 +1995,7 @@ private fun FilterSheet(
                 ) {
                     Box(
                         modifier = Modifier.size(28.dp)
-                            .background(colorFromHex(type.clusterColorHex).copy(alpha = 0.18f), RoundedCornerShape(7.dp)),
+                            .background(Tokens.vehicleType(type).copy(alpha = 0.18f), RoundedCornerShape(7.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -1702,7 +2003,7 @@ private fun FilterSheet(
                                 VehicleType.TRAM, VehicleType.FUNICULAR -> Icons.Filled.Tram
                                 else -> Icons.Filled.DirectionsBus
                             },
-                            null, tint = colorFromHex(type.clusterColorHex), modifier = Modifier.size(15.dp)
+                            null, tint = Tokens.vehicleType(type), modifier = Modifier.size(15.dp)
                         )
                     }
                     Text(type.displayName, modifier = Modifier.weight(1f), fontSize = 15.sp)
@@ -1830,9 +2131,10 @@ private fun LineFilterRow(
 // Extraits pour éviter la duplication entre le LaunchedEffect(vehicles)
 // et la boucle d'interpolation 100 ms.
 
-private fun vehicleIconKey(line: String)  = "v_${line.replace(ICON_KEY_REGEX, "_")}"
-private fun vehicleDotKey(line: String)   = "vd_${line.replace(ICON_KEY_REGEX, "_")}"
-private fun vehicleArrowKey(line: String) = "va_${line.replace(ICON_KEY_REGEX, "_")}"
+// La version de la palette fait partie des clés : un changement de couleurs régénère les images.
+private fun vehicleIconKey(line: String)  = "v${LinePalette.version.value}_${line.replace(ICON_KEY_REGEX, "_")}"
+private fun vehicleDotKey(line: String)   = "vd${LinePalette.version.value}_${line.replace(ICON_KEY_REGEX, "_")}"
+private fun vehicleArrowKey(line: String) = "va${LinePalette.version.value}_${line.replace(ICON_KEY_REGEX, "_")}"
 
 private const val EMPTY_FEATURE_COLLECTION = "{\"type\":\"FeatureCollection\",\"features\":[]}"
 
@@ -1918,7 +2220,8 @@ private fun buildVehicleGeoJson(
     arrowCache: HashMap<String, String>,
     vm: LiveVehiclesViewModel,
     nowSec: Double,
-    sb: StringBuilder
+    sb: StringBuilder,
+    darkTheme: Boolean
 ): String {
     sb.setLength(0)
     sb.append("{\"type\":\"FeatureCollection\",\"features\":[")
@@ -1939,6 +2242,7 @@ private fun buildVehicleGeoJson(
         sb.append(if (bearing != 0.0) (arrowCache[v.id] ?: "no_arrow") else "no_arrow")
         sb.append("\",\"bearing\":")
         sb.append(bearing.toFloat())
+        appendFreshnessProps(sb, v, (nowSec * 1000).toLong(), darkTheme)
         sb.append("}")
         sb.append("}")
     }
@@ -1946,9 +2250,12 @@ private fun buildVehicleGeoJson(
     return sb.toString()
 }
 
-private fun buildVehicleFeature(v: Vehicle, animated: AnimatedVehicle?, nowSec: Double): Feature {
+private fun buildVehicleFeature(v: Vehicle, animated: AnimatedVehicle?, nowSec: Double, darkTheme: Boolean): Feature {
     val coord   = animated?.currentInterpolatedCoordinate(nowSec) ?: v.coordinate
     val bearing = animated?.currentInterpolatedBearing(nowSec) ?: v.bearing
+    val nowMs   = (nowSec * 1000).toLong()
+    val age     = v.positionAgeSeconds(nowMs)
+    val fresh   = v.positionFreshness(nowMs)
     val props   = JsonObject().apply {
         addProperty("id",          v.id)
         addProperty("line",        v.lineName)
@@ -1957,8 +2264,23 @@ private fun buildVehicleFeature(v: Vehicle, animated: AnimatedVehicle?, nowSec: 
         addProperty("dot_icon",    vehicleDotKey(v.lineName))
         addProperty("arrow_icon",  if (bearing != 0.0) vehicleArrowKey(v.lineName) else "no_arrow")
         addProperty("bearing",     bearing.toFloat())
+        addProperty("age",         age?.let { Vehicle.formattedAge(it) } ?: "")
+        addProperty("age_col",     fresh.color.hex(darkTheme))
+        addProperty("op",          if (fresh == PositionFreshness.STALE) 0.45f else 1f)
     }
     return Feature.fromGeometry(Point.fromLngLat(coord.longitude, coord.latitude), props)
+}
+
+/** Propriétés dynamiques de fraîcheur ajoutées au GeoJSON du hot path (âge, couleur, opacité). */
+private fun appendFreshnessProps(sb: StringBuilder, v: Vehicle, nowMs: Long, darkTheme: Boolean) {
+    val age   = v.positionAgeSeconds(nowMs)
+    val fresh = v.positionFreshness(nowMs)
+    sb.append(",\"age\":\"")
+    sb.append(age?.let { Vehicle.formattedAge(it) } ?: "")
+    sb.append("\",\"age_col\":\"")
+    sb.append(fresh.color.hex(darkTheme))
+    sb.append("\",\"op\":")
+    sb.append(if (fresh == PositionFreshness.STALE) "0.45" else "1")
 }
 
 // ── Bitmap helpers ───────────────────────────────────────────────────────
@@ -2063,6 +2385,9 @@ private enum class StopTier(
     BUS     (3.75f, 2.0f, 13, 2.0f, "#808C9E");
 
     companion object {
+        /** Métro et tramway prennent la couleur officielle de leur ligne principale. */
+        val usesLineColor = setOf(METRO, TRAMWAY)
+
         fun from(lines: List<String>): StopTier = when (TransportMode.classifyStopTier(lines)) {
             TransportMode.METRO   -> METRO
             TransportMode.TRAMWAY -> TRAMWAY
@@ -2090,14 +2415,15 @@ private fun stopCompactBitmap(tier: StopTier, primaryLine: String?): Bitmap {
         color = AndroidColor.WHITE; style = Paint.Style.FILL
     })
     // Noyau coloré
-    val fillColor = if (tier == StopTier.METRO && primaryLine != null)
-        parseAndroidColor(LineColors.backgroundHex(primaryLine))
-    else parseAndroidColor(tier.fillHex)
     canvas.drawCircle(cx, cy, rOuter - strokePx, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = fillColor; style = Paint.Style.FILL
+        color = parseAndroidColor(stopFillHex(tier, primaryLine)); style = Paint.Style.FILL
     })
     return bmp
 }
+
+/** Couleur du noyau d'un arrêt : celle de la ligne principale pour le métro et le tramway, sinon celle du tier. */
+private fun stopFillHex(tier: StopTier, primaryLine: String?): String =
+    if (tier in StopTier.usesLineColor && primaryLine != null) LineColors.backgroundHex(primaryLine) else tier.fillHex
 
 /**
  * Dot tier-aware + capsules de ligne colorées (mode zoom serré).
@@ -2147,11 +2473,8 @@ private fun stopBadgeBitmap(lines: List<String>, tier: StopTier, primaryLine: St
         color = AndroidColor.WHITE; style = Paint.Style.FILL
     })
     // Noyau coloré
-    val dotFill = if (tier == StopTier.METRO && primaryLine != null)
-        parseAndroidColor(LineColors.backgroundHex(primaryLine))
-    else parseAndroidColor(tier.fillHex)
     canvas.drawCircle(cx, cy, rOuter - strokePx, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = dotFill; style = Paint.Style.FILL
+        color = parseAndroidColor(stopFillHex(tier, primaryLine)); style = Paint.Style.FILL
     })
 
     // ── Badges ────────────────────────────────────────────────────────────

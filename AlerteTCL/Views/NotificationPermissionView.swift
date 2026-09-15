@@ -10,9 +10,9 @@ struct NotificationPermissionView: View {
                 // Icon
                 ZStack {
                     Circle()
-                        .fill(.blue.gradient)
+                        .fill(Color.appAccent.gradient)
                         .frame(width: 120, height: 120)
-                        .shadow(color: .blue.opacity(0.3), radius: 16, x: 0, y: 8)
+                        .shadow(color: .appAccent.opacity(0.3), radius: 16, x: 0, y: 8)
                     
                     Image(systemName: "bell.badge.fill")
                         .font(.system(size: 50))
@@ -34,11 +34,11 @@ struct NotificationPermissionView: View {
                 
                 // Features
                 VStack(alignment: .leading, spacing: 16) {
-                    FeatureRow(icon: "exclamationmark.triangle.fill", color: .orange, title: "Alertes en temps réel", description: "Soyez prévenu dès qu'une perturbation affecte vos lignes")
+                    FeatureRow(icon: "exclamationmark.triangle.fill", color: .appWarning, title: "Alertes en temps réel", description: "Soyez prévenu dès qu'une perturbation affecte vos lignes")
                     
-                    FeatureRow(icon: "slider.horizontal.3", color: .blue, title: "Personnalisable", description: "Choisissez les types d'alertes qui vous intéressent")
+                    FeatureRow(icon: "slider.horizontal.3", color: .appAccent, title: "Personnalisable", description: "Choisissez les types d'alertes qui vous intéressent")
                     
-                    FeatureRow(icon: "lock.fill", color: .green, title: "Confidentialité", description: "Vos données restent sur votre appareil")
+                    FeatureRow(icon: "lock.fill", color: .appSuccess, title: "Confidentialité", description: "Vos données restent sur votre appareil")
                 }
                 .padding(.horizontal, 32)
                 
@@ -57,7 +57,7 @@ struct NotificationPermissionView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.blue)
+                    .tint(Color.appAccent)
                     .controlSize(.large)
                     
                     Button("Plus tard", role: .cancel) {

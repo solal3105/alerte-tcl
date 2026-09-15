@@ -57,22 +57,35 @@ fi
 success "Worker déployé sur $WORKER_URL"
 
 # ── 5. Secrets ────────────────────────────────────────────────────────────
+# Les secrets survivent aux redéploiements : on ne les redemande que s'ils manquent
+# ou si l'utilisateur veut les changer.
 echo ""
-info "Configuration des secrets Grand Lyon (stockés chiffrés côté Cloudflare)"
-echo -e "${YELLOW}Ces credentials ne seront JAMAIS dans le code source.${RESET}"
-echo ""
+if wrangler secret list 2>/dev/null | grep -q GRANDLYON_USERNAME; then
+  echo -n "Secrets Grand Lyon déjà configurés. Les remplacer ? (o/N) "
+  read -r REPLACE_SECRETS
+else
+  REPLACE_SECRETS="o"
+fi
 
-echo -n "Email Grand Lyon Data : "
-read -r GL_USERNAME
+if [[ "$REPLACE_SECRETS" =~ ^[oOyY]$ ]]; then
+  info "Configuration des secrets Grand Lyon (stockés chiffrés côté Cloudflare)"
+  echo -e "${YELLOW}Ces credentials ne seront JAMAIS dans le code source.${RESET}"
+  echo ""
 
-echo -n "Mot de passe Grand Lyon Data : "
-read -rs GL_PASSWORD
-echo ""
+  echo -n "Email Grand Lyon Data : "
+  read -r GL_USERNAME
 
-echo "$GL_USERNAME" | wrangler secret put GRANDLYON_USERNAME
-echo "$GL_PASSWORD" | wrangler secret put GRANDLYON_PASSWORD
+  echo -n "Mot de passe Grand Lyon Data : "
+  read -rs GL_PASSWORD
+  echo ""
 
-success "Secrets enregistrés"
+  echo "$GL_USERNAME" | wrangler secret put GRANDLYON_USERNAME
+  echo "$GL_PASSWORD" | wrangler secret put GRANDLYON_PASSWORD
+
+  success "Secrets enregistrés"
+else
+  success "Secrets conservés"
+fi
 
 # ── 6. Vérification rapide ────────────────────────────────────────────────
 info "Test de la route /alerts..."
@@ -113,6 +126,7 @@ echo -e "  /metro-funi-lines: tracés métro/funi"
 echo -e "  /tram-lines      : tracés tramway"
 echo -e "  /bus-lines       : tracés bus C"
 echo -e "  /stops           : arrêts GeoServer"
+echo -e "  /horaires/...    : fiches horaires théoriques (branche GitHub horaires)"
 echo ""
 echo -e "${YELLOW}Prochaines étapes :${RESET}"
 echo "  1. Lance Xcode → Product → Build (⌘B) pour vérifier la compilation"

@@ -17,7 +17,7 @@ enum ServiceError: LocalizedError {
         case .invalidResponse:
             return "Réponse invalide du serveur"
         case .unauthorized:
-            return "Authentification requise"
+            return "Les serveurs Grand Lyon refusent l'accès en ce moment (incident côté fournisseur de données)"
         case .forbidden:
             return "Accès refusé"
         case .notFound:

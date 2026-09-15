@@ -82,6 +82,12 @@ struct LiveMapRepresentable: UIViewRepresentable {
             coord.lastSetRegion = region
         }
 
+        // Nouvelle palette de couleurs : images et tracés sont reconstruits avec les nouvelles couleurs.
+        if coord.lastPaletteVersion != viewModel.paletteVersion {
+            coord.lastPaletteVersion = viewModel.paletteVersion
+            coord.refreshLineColors()
+        }
+
         // Diff des annotations et overlays
         coord.syncVehicleAnnotations(viewModel.displayVehicles, animated: viewModel.animatedVehicles)
         coord.syncMergedStopAnnotations(stopsViewModel.visibleMergedStops)
@@ -142,6 +148,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
         var lastSetRegion: MKCoordinateRegion? = nil
         var isProgrammaticUpdate = false
         var lastAppliedSatellite: Bool = false
+        var lastPaletteVersion = 0
         private var regionDebounce: DispatchWorkItem?
 
         init(owner: LiveMapRepresentable) { self.owner = owner }
@@ -191,6 +198,34 @@ struct LiveMapRepresentable: UIViewRepresentable {
                     simplified: false
                 )
             }
+        }
+
+        // MARK: Couleurs de lignes
+
+        /// Purge les images et tracés rendus avec l'ancienne palette, puis réapplique
+        /// les vues existantes ; les tracés sont ré-ajoutés par le prochain `syncPolylineOverlays`.
+        func refreshLineColors() {
+            guard let mapView else { return }
+            MarkerImageCache.clearAll()
+            let simplified = currentZoomLevel > Self.simpleDotZoomThreshold
+            for annotation in vehicleAnnotations.values {
+                annotation.annotationView?.invalidateLineColors()
+                annotation.annotationView?.apply(
+                    vehicle: annotation.vehicle,
+                    bearing: annotation.bearing,
+                    showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold,
+                    simplified: simplified
+                )
+            }
+            let showBadges = currentZoomLevel <= Self.stopBadgeZoomThreshold
+            for annotation in stopAnnotations.values {
+                (mapView.view(for: annotation) as? MergedStopAnnotationView)?.apply(stop: annotation.stop, showBadges: showBadges)
+            }
+            let overlays = Array(busOverlaysById.values) + Array(transitOverlaysById.values)
+            busOverlaysById.removeAll()
+            transitOverlaysById.removeAll()
+            overlayColors.removeAll()
+            mapView.removeOverlays(overlays)
         }
 
         // MARK: Diff annotations

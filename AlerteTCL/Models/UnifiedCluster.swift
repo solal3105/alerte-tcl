@@ -58,7 +58,7 @@ struct MapCluster<T: Clusterable>: Identifiable {
             iconCounts[item.clusterIcon, default: 0] += 1
         }
         
-        self.dominantColor = colorCounts.max(by: { $0.value.count < $1.value.count })?.value.color ?? .blue
+        self.dominantColor = colorCounts.max(by: { $0.value.count < $1.value.count })?.value.color ?? .appAccent
         self.dominantIcon = iconCounts.max(by: { $0.value < $1.value })?.key ?? "mappin"
     }
 }
@@ -266,15 +266,15 @@ struct ParkingClusterMarker: View {
         
         switch dominantType {
         case .bike:
-            return .green
+            return .appSuccess
         case .motorized2Wheel:
-            return .orange
+            return .appWarning
         case .car:
             // Pour les voitures, couleur selon la disponibilité
             switch averageOccupancy {
-            case 0..<0.5: return .green
-            case 0.5..<0.8: return .orange
-            default: return .red
+            case 0..<0.5: return .appSuccess
+            case 0.5..<0.8: return .appWarning
+            default: return .appError
             }
         }
     }
@@ -352,8 +352,8 @@ struct TravauxClusterMarker: View {
         let tresPerturbant = cluster.items.filter { $0.importance == .tresPerturbant }.count
         let perturbant = cluster.items.filter { $0.importance == .perturbant }.count
         
-        if tresPerturbant > 0 { return .red }
-        if perturbant > 0 { return .orange }
+        if tresPerturbant > 0 { return .appError }
+        if perturbant > 0 { return .appWarning }
         return .yellow
     }
     

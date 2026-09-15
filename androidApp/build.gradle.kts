@@ -78,9 +78,6 @@ dependencies {
 
     implementation(libs.maplibre.android)
 
-    implementation(libs.glance.appwidget)
-    implementation(libs.glance.material3)
-
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
 

@@ -1,19 +1,13 @@
 package com.alertetcl.android.ui.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
-
-// ─── Fallback schemes for Android < 12 (no dynamic color) ────────────────────
 
 private val LightColorScheme = lightColorScheme(
-    primary             = TclBlue40,
+    primary             = AccentLight,
     onPrimary           = Neutral99,
     primaryContainer    = TclBlue90,
     onPrimaryContainer  = TclBlue10,
@@ -40,8 +34,8 @@ private val LightColorScheme = lightColorScheme(
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary             = TclBlue80,
-    onPrimary           = TclBlue20,
+    primary             = AccentDark,
+    onPrimary           = Neutral99,
     primaryContainer    = TclBlue20,
     onPrimaryContainer  = TclBlue90,
     secondary           = TclSecondary80,
@@ -66,32 +60,18 @@ private val DarkColorScheme = darkColorScheme(
     outlineVariant      = NeutralVariant30,
 )
 
-// ─── App theme ────────────────────────────────────────────────────────────────
-
 /**
- * Material You theme for AlerteTCL / Lyon Pocket.
- *
- * On Android 12+ (API 31) uses dynamic color extracted from the system wallpaper,
- * giving the app a true Material You feel.
- * On older devices falls back to a hand-crafted TCL blue scheme.
- * Dark mode is handled automatically via [isSystemInDarkTheme].
+ * Thème de Lyon Pocket : l'accent est le bleu de l'application sur tous les appareils, sans
+ * couleur dynamique tirée du fond d'écran, pour que l'interface soit la même que sur iOS.
+ * Le mode sombre suit le réglage du téléphone.
  */
 @Composable
 fun AlerteTCLTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        darkTheme -> DarkColorScheme
-        else      -> LightColorScheme
-    }
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
         typography  = AlerteTCLTypography,
         content     = content,
     )

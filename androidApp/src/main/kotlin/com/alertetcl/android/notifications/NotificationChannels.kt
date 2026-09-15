@@ -13,10 +13,10 @@ object NotificationChannels {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val channel = NotificationChannel(
                 ALERTS_CHANNEL_ID,
-                "Alertes TCL",
+                "Alertes trafic",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Alertes temps réel sur les lignes TCL favorites"
+                description = "Perturbations sur les lignes auxquelles vous êtes abonné"
             }
             nm.createNotificationChannel(channel)
         }

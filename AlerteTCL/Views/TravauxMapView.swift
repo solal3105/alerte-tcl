@@ -148,7 +148,7 @@ struct TravauxMapView: View {
                     } label: {
                         Image(systemName: isSatellite ? "globe.europe.africa.fill" : "globe.europe.africa")
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(isSatellite ? .orange : .primary)
+                            .foregroundStyle(isSatellite ? Color.appWarning : Color.primary)
                             .frame(width: 50, height: 50)
                             .background(.regularMaterial)
                             .clipShape(Circle())
@@ -162,7 +162,7 @@ struct TravauxMapView: View {
                     } label: {
                         Image(systemName: viewModel.hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(viewModel.hasActiveFilters ? .orange : .primary)
+                            .foregroundStyle(viewModel.hasActiveFilters ? Color.appWarning : Color.primary)
                             .frame(width: 50, height: 50)
                             .background(.regularMaterial)
                             .clipShape(Circle())
@@ -188,7 +188,7 @@ struct TravauxMapView: View {
                     } label: {
                         Image(systemName: "location.fill")
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color.appAccent)
                             .frame(width: 50, height: 50)
                             .background(.regularMaterial)
                             .clipShape(Circle())
@@ -232,7 +232,7 @@ struct TravauxMarker: View {
             switch travaux.importance {
             case .tresPerturbant:
                 Circle()
-                    .fill(.red)
+                    .fill(Color.appError)
                     .frame(width: 14, height: 14)
                     .overlay(
                         Text("!")
@@ -242,7 +242,7 @@ struct TravauxMarker: View {
                     .overlay(Circle().stroke(.white, lineWidth: 2))
             case .perturbant:
                 Circle()
-                    .fill(.orange)
+                    .fill(Color.appWarning)
                     .frame(width: 12, height: 12)
                     .overlay(Circle().stroke(.white, lineWidth: 2))
             default:
@@ -406,7 +406,7 @@ struct TravauxDetailSheet: View {
                 HStack(spacing: 6) {
                     Image(systemName: "location.fill")
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.appError)
                     Text(travaux.nom)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -415,7 +415,7 @@ struct TravauxDetailSheet: View {
                 HStack(spacing: 6) {
                     Image(systemName: "building.2.fill")
                         .font(.caption)
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.appAccent)
                     Text(travaux.commune)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -439,9 +439,9 @@ struct TravauxDetailSheet: View {
             HStack(spacing: 12) {
                 Image(systemName: "building.columns.fill")
                     .font(.system(size: 20))
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color.appAccent)
                     .frame(width: 40, height: 40)
-                    .background(Color.blue.opacity(0.15))
+                    .background(Color.appAccent.opacity(0.15))
                     .clipShape(Circle())
                 
                 Text(travaux.intervenant)
@@ -515,11 +515,11 @@ struct TravauxDetailSheet: View {
                 
                 HStack(spacing: 8) {
                     Image(systemName: "clock.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.appWarning)
                     Text("\(remaining) jours restants")
                         .font(.subheadline)
                         .fontWeight(.medium)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.appWarning)
                 }
             }
         }
@@ -575,7 +575,7 @@ struct TravauxDetailSheet: View {
             VStack(spacing: 4) {
                 HStack(spacing: 6) {
                     Image(systemName: "mappin.circle.fill")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.appError)
                     Text(travaux.nom)
                         .lineLimit(2)
                 }
@@ -590,7 +590,7 @@ struct TravauxDetailSheet: View {
             if travaux.intervenant != "Non spécifié" && !travaux.intervenant.isEmpty {
                 HStack(spacing: 6) {
                     Image(systemName: "person.circle.fill")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.appAccent)
                     Text(travaux.intervenant)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -608,7 +608,7 @@ struct TravauxDetailSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Label("Période", systemImage: "calendar")
                 .font(.headline)
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.appAccent)
             
             HStack(spacing: 20) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -651,22 +651,22 @@ struct TravauxDetailSheet: View {
             if let remaining = travaux.remainingDays, remaining > 0 {
                 HStack {
                     Image(systemName: "clock")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.appWarning)
                     Text("\(remaining) jours restants")
                         .font(.subheadline)
                         .fontWeight(.medium)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.appWarning)
                 }
             }
             
             // Avancement
             HStack {
                 Image(systemName: travaux.avancement.icon)
-                    .foregroundStyle(avancementColor)
+                    .foregroundStyle(travaux.avancement.color)
                 Text(travaux.avancement.displayName)
                     .font(.subheadline)
                     .fontWeight(.medium)
-                    .foregroundStyle(avancementColor)
+                    .foregroundStyle(travaux.avancement.color)
             }
         }
         .padding(20)
@@ -679,7 +679,7 @@ struct TravauxDetailSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Label("Impact sur la circulation", systemImage: "car.fill")
                 .font(.headline)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.appWarning)
             
             HStack {
                 Image(systemName: travaux.typeperturbation.icon)
@@ -715,7 +715,7 @@ struct TravauxDetailSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Label("Localisation", systemImage: "map.fill")
                 .font(.headline)
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.appSuccess)
             
             if let precision = travaux.precisionLocalisation, !precision.isEmpty {
                 HStack(alignment: .top, spacing: 12) {
@@ -760,58 +760,24 @@ struct TravauxDetailSheet: View {
             .padding(.vertical, 18)
             .background(
                 LinearGradient(
-                    colors: [Color.blue, Color.blue.opacity(0.8)],
+                    colors: [Color.appAccent, Color.appAccent.opacity(0.8)],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
             )
             .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .blue.opacity(0.3), radius: 8, x: 0, y: 4)
+            .shadow(color: .appAccent.opacity(0.3), radius: 8, x: 0, y: 4)
         }
         .buttonStyle(.plain)
     }
     
-    private var typeColor: Color {
-        switch travaux.type {
-        case .tramway: return .blue
-        case .metro: return .purple
-        case .voirie: return .gray
-        case .eau: return .cyan
-        case .gaz: return .orange
-        case .electricite: return .yellow
-        case .assainissement: return .brown
-        case .telecom: return .green
-        case .chauffage: return .red
-        case .pisteCyclable: return .mint
-        case .autre: return .gray
-        }
-    }
-    
-    private var importanceColor: Color {
-        switch travaux.importance {
-        case .tresPerturbant: return .red
-        case .perturbant: return .orange
-        case .peuPerturbant: return .yellow
-        case .inconnu: return .gray
-        }
-    }
-    
-    private var avancementColor: Color {
-        switch travaux.avancement {
-        case .enCours: return .orange
-        case .prevu: return .blue
-        case .termine: return .green
-        case .inconnu: return .gray
-        }
-    }
-    
     private var perturbationColor: Color {
         switch travaux.typeperturbation {
-        case .circulationInterdite: return .red
-        case .circulationReduite: return .orange
+        case .circulationInterdite: return .appError
+        case .circulationReduite: return .appWarning
         case .circulationAlternee: return .yellow
-        case .genePonctuelle: return .blue
+        case .genePonctuelle: return .appAccent
         case .autre: return .gray
         }
     }
@@ -855,7 +821,7 @@ struct TravauxFiltersSheet: View {
                                 
                                 if viewModel.selectedNatureChantier.contains(nature) {
                                     Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(.blue)
+                                        .foregroundStyle(Color.appAccent)
                                 } else {
                                     Image(systemName: "circle")
                                         .foregroundStyle(.secondary)
@@ -879,7 +845,7 @@ struct TravauxFiltersSheet: View {
                     Button("Réinitialiser les filtres") {
                         viewModel.resetFilters()
                     }
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.appError)
                 }
             }
             .navigationTitle("Filtres")

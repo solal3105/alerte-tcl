@@ -61,8 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alertetcl.android.R
 import com.alertetcl.android.ui.openUrl
-import com.alertetcl.android.ui.theme.StatusSuccess
-import com.alertetcl.android.ui.theme.StatusWarning
+import com.alertetcl.android.ui.theme.Tokens
 
 @Composable
 fun AboutScreen() {
@@ -138,7 +137,7 @@ private fun ManifestoCard() {
                 headlineContent = {
                     Text("Respectueuse, par conception", style = MaterialTheme.typography.titleMedium)
                 },
-                leadingContent = { SectionIcon(Icons.Filled.CheckCircle, StatusSuccess) },
+                leadingContent = { SectionIcon(Icons.Filled.CheckCircle, Tokens.success) },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent)
             )
             Text(
@@ -320,13 +319,13 @@ private fun SourcesCard() {
             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
         )
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-        SourceItem("Position des véhicules", "SIRI-Lite, temps réel", Icons.Filled.LocationOn, StatusSuccess)
+        SourceItem("Position des véhicules", "SIRI-Lite, temps réel", Icons.Filled.LocationOn, Tokens.success)
         HorizontalDivider(modifier = Modifier.padding(start = 72.dp, end = 16.dp))
         SourceItem("Arrêts, lignes, horaires", "GTFS", Icons.Filled.Tram, MaterialTheme.colorScheme.primary)
         HorizontalDivider(modifier = Modifier.padding(start = 72.dp, end = 16.dp))
-        SourceItem("Alertes & perturbations", "Flux officiel TCL", Icons.Filled.Warning, StatusWarning)
+        SourceItem("Alertes & perturbations", "Flux officiel TCL", Icons.Filled.Warning, Tokens.warning)
         HorizontalDivider(modifier = Modifier.padding(start = 72.dp, end = 16.dp))
-        SourceItem("Travaux", "Chantiers du réseau et de la voirie", Icons.Filled.Build, StatusWarning)
+        SourceItem("Travaux", "Chantiers du réseau et de la voirie", Icons.Filled.Build, Tokens.warning)
         HorizontalDivider(modifier = Modifier.padding(start = 72.dp, end = 16.dp))
         SourceItem("Parkings P+R", "Occupation en temps réel", Icons.Filled.DirectionsCar, MaterialTheme.colorScheme.tertiary)
         Text(

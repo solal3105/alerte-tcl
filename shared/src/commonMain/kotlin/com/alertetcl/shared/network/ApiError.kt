@@ -4,7 +4,7 @@ package com.alertetcl.shared.network
 sealed class ApiError(message: String, cause: Throwable? = null) : Exception(message, cause) {
     object InvalidUrl       : ApiError("URL invalide")
     object InvalidResponse  : ApiError("Réponse invalide du serveur")
-    object Unauthorized     : ApiError("Authentification requise")
+    object Unauthorized     : ApiError("Les serveurs Grand Lyon refusent l'accès en ce moment (incident côté fournisseur de données)")
     object Forbidden        : ApiError("Accès refusé")
     object NotFound         : ApiError("Service non trouvé")
     data class ServerError(val code: Int) : ApiError("Erreur serveur ($code)")

@@ -14,6 +14,8 @@
  *   GET /parc-relais-tr              → GeoServer tclparcrelaistr/items (temps réel)
  *   GET /bus-termini                 → bus-lines stripped (ligne+sens+nom_destination)
  *   GET /line-mapping                → mapping code_ligne→ligne (toutes lignes, sans géométrie)
+ *   GET /horaires/<fichier>          → fiches horaires théoriques (branche `horaires` du dépôt GitHub,
+ *                                      construites chaque nuit par .github/workflows/horaires.yml)
  *
  * Les credentials Grand Lyon sont stockés en secrets Cloudflare chiffrés.
  * Aucune credential n'est dans le code ni dans le binaire iOS.
@@ -23,7 +25,7 @@
  *   d'utilisateurs. Quand le cache est périmé, on sert l'ancienne réponse
  *   immédiatement et on rafraîchit en arrière-plan via ctx.waitUntil().
  *   TTL par route : vehicles/passages 15 s, parc-relais-tr 30 s,
- *                   alerts 60 s, parc-relais statique 1 h, GeoServer 24 h.
+ *                   alerts 60 s, parc-relais statique 1 h, horaires 1 h, GeoServer 24 h.
  *
  * Déploiement : bash cloudflare-worker/deploy.sh
  */
@@ -37,6 +39,11 @@ const PASSAGES_URL  = `${DOWNLOAD_BASE}/tcl_sytral.tclpassagearret/all.json`;
 // MaximumVehicles=3000 couvre largement la totalité du parc TCL (~800 véhicules en heure de pointe).
 // Sans ce paramètre, Grand Lyon répond avec ≤ 200 véhicules par défaut (MoreData: true ignoré).
 const VEHICLES_URL  = `${DATA_BASE}/siri-lite/2.0/vehicle-monitoring.json?MaximumVehicles=3000`;
+
+// Fiches horaires théoriques : fichiers JSON publiés par GitHub Actions sur la branche `horaires`.
+const HORAIRES_BASE = "https://raw.githubusercontent.com/solal3105/alerte-tcl/horaires";
+// Seuls index.json et lignes/<CLÉ>/<A|R>.json sont relayés — le worker n'est pas un proxy ouvert.
+const HORAIRES_PATH = /^\/horaires\/(index\.json|lignes\/[A-Z0-9]{1,16}\/[AR]\.json)$/;
 
 const GEO_COLLECTIONS = {
   "metro-funi-lines": "sytral:tcl_sytral.tcllignemf_2_0_0",
@@ -56,6 +63,7 @@ const ROUTE_TTL = {
   "/parc-relais-tr": 30,   // occupation P+R temps réel
   "/alerts":         60,   // alertes trafic
   "/parc-relais":    3600, // données P+R statiques
+  "/horaires":       3600, // fiches horaires, régénérées chaque nuit
 };
 const GEO_TTL = 86400; // lignes, arrêts — données quasi-statiques
 
@@ -356,6 +364,18 @@ export default {
         });
       }
       return doRefreshLineMapping(cacheKey, authHeaders, cache);
+    }
+
+    // ── /horaires/index.json | /horaires/lignes/<CLÉ>/<A|R>.json ────────────
+    // Relais des fiches horaires publiées sur GitHub. Aucune credential Grand Lyon
+    // n'est envoyée à GitHub : on passe des en-têtes publics.
+    if (pathname.startsWith("/horaires/")) {
+      if (!HORAIRES_PATH.test(pathname)) {
+        return new Response("Not Found", { status: 404 });
+      }
+      const publicHeaders = { Accept: "application/json", "User-Agent": "AlerteTCL-Proxy/1.0" };
+      const upstreamURL = HORAIRES_BASE + pathname.slice("/horaires".length);
+      return cachedProxyFetch(cacheKeyURL, upstreamURL, publicHeaders, ctx, ROUTE_TTL["/horaires"]);
     }
 
     // ── /metro-funi-lines | /tram-lines | /bus-lines | /stops ───────────────
