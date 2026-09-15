@@ -112,7 +112,7 @@ final class VehicleAnnotationView: MKAnnotationView {
         centerOffset = .zero
     }
 
-    /// Met à jour la capsule sous le marqueur : numéro du véhicule et délai depuis la dernière position.
+    /// Met à jour la capsule sous le marqueur : ligne et délai depuis la dernière position.
     /// Ne touche les layers que si le texte affiché change (≤ 1 fois/s),
     /// pour rester quasi gratuit dans la boucle d'animation à 10 Hz.
     private func updateAgeCapsule(vehicle: Vehicle, visible: Bool) {
@@ -122,10 +122,11 @@ final class VehicleAnnotationView: MKAnnotationView {
             return
         }
 
-        // Numéro du véhicule (parc) puis délai depuis la dernière position : « 2101 · 12 s »
+        // Ligne puis délai depuis la dernière position : « C12 · 12 s » (au zoom serré le
+        // marqueur ne montre plus que le pictogramme, la ligne doit rester lisible).
         let ageText = Vehicle.formattedAge(age)
-        let fleetText = vehicle.fleetNumber.map { "\($0) · " } ?? ""
-        let text = fleetText + ageText
+        let lineText = "\(vehicle.lineName) · "
+        let text = lineText + ageText
         if text != currentAgeText {
             currentAgeText = text
             let width = CGFloat(text.count) * 5.4 + 12
@@ -136,7 +137,7 @@ final class VehicleAnnotationView: MKAnnotationView {
             let freshnessColor = UIColor(vehicle.positionFreshness.color)
                 .resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
             let label = NSMutableAttributedString(
-                string: fleetText,
+                string: lineText,
                 attributes: [.font: font, .foregroundColor: UIColor.white.withAlphaComponent(0.85)]
             )
             label.append(NSAttributedString(string: ageText, attributes: [.font: font, .foregroundColor: freshnessColor]))

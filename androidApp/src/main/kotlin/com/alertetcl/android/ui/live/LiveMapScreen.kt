@@ -721,17 +721,15 @@ fun LiveMapScreen() {
                         PropertyFactory.iconIgnorePlacement(true),
                         PropertyFactory.iconSize(1f)
                     ))
-                    // Layer 3 : numéro du véhicule et âge de la dernière position (« 2101 · 12 s »), zoom serré uniquement
+                    // Layer 3 : ligne et âge de la dernière position (« C12 · 12 s »), zoom serré uniquement :
+                    // à ce niveau le marqueur ne montre plus que le pictogramme, la ligne doit rester lisible.
                     style.addLayer(SymbolLayer(VEHICLES_AGE_LAYER, VEHICLES_SRC).apply {
                         minZoom = 15.5f
                         setProperties(
                             PropertyFactory.textField(
                                 Expression.format(
                                     Expression.formatEntry(
-                                        Expression.switchCase(
-                                            Expression.eq(Expression.get("fleet"), Expression.literal("")), Expression.literal(""),
-                                            Expression.concat(Expression.get("fleet"), Expression.literal(" · "))
-                                        ),
+                                        Expression.concat(Expression.get("line"), Expression.literal(" · ")),
                                         Expression.FormatOption.formatTextColor(Expression.literal("#F2F2F2"))
                                     ),
                                     Expression.formatEntry(
@@ -2223,7 +2221,6 @@ private fun buildVehicleStaticProps(v: Vehicle): String = buildString {
     append(",\"destination\":\""); append(v.destination.jsonEscape());   append('"')
     append(",\"icon\":\"");        append(vehicleIconKey(v.lineName));   append('"')
     append(",\"dot_icon\":\"");    append(vehicleDotKey(v.lineName));    append('"')
-    append(",\"fleet\":\"");       append((v.fleetNumber ?: "").jsonEscape()); append('"')
 }
 
 /**
@@ -2278,7 +2275,6 @@ private fun buildVehicleFeature(v: Vehicle, animated: AnimatedVehicle?, nowSec: 
         addProperty("destination", v.destination)
         addProperty("icon",        vehicleIconKey(v.lineName))
         addProperty("dot_icon",    vehicleDotKey(v.lineName))
-        addProperty("fleet",       v.fleetNumber ?: "")
         addProperty("arrow_icon",  if (bearing != 0.0) vehicleArrowKey(v.lineName) else "no_arrow")
         addProperty("bearing",     bearing.toFloat())
         addProperty("age",         age?.let { Vehicle.formattedAge(it) } ?: "")
