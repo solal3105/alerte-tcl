@@ -112,7 +112,7 @@ final class VehicleAnnotationView: MKAnnotationView {
         centerOffset = .zero
     }
 
-    /// Met à jour la capsule d'âge ("il y a 12 s") sous le marqueur.
+    /// Met à jour la capsule sous le marqueur : numéro du véhicule et délai depuis la dernière position.
     /// Ne touche les layers que si le texte affiché change (≤ 1 fois/s),
     /// pour rester quasi gratuit dans la boucle d'animation à 10 Hz.
     private func updateAgeCapsule(vehicle: Vehicle, visible: Bool) {
@@ -122,16 +122,25 @@ final class VehicleAnnotationView: MKAnnotationView {
             return
         }
 
-        let text = Vehicle.formattedAge(age)
+        // Numéro du véhicule (parc) puis délai depuis la dernière position : « 2101 · 12 s »
+        let ageText = Vehicle.formattedAge(age)
+        let fleetText = vehicle.fleetNumber.map { "\($0) · " } ?? ""
+        let text = fleetText + ageText
         if text != currentAgeText {
             currentAgeText = text
             let width = CGFloat(text.count) * 5.4 + 12
             ageLayer.bounds   = CGRect(x: 0, y: 0, width: width, height: 14)
             ageLayer.position = CGPoint(x: Layout.side / 2, y: Layout.side / 2 + Layout.bodySize / 2 + 11)
             ageTextLayer.frame = CGRect(x: 0, y: 1.5, width: width, height: 11)
-            ageTextLayer.string = text
-            ageTextLayer.foregroundColor = UIColor(vehicle.positionFreshness.color)
-                .resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)).cgColor
+            let font = UIFont.systemFont(ofSize: 9, weight: .semibold)
+            let freshnessColor = UIColor(vehicle.positionFreshness.color)
+                .resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
+            let label = NSMutableAttributedString(
+                string: fleetText,
+                attributes: [.font: font, .foregroundColor: UIColor.white.withAlphaComponent(0.85)]
+            )
+            label.append(NSAttributedString(string: ageText, attributes: [.font: font, .foregroundColor: freshnessColor]))
+            ageTextLayer.string = label
         }
         if ageLayer.isHidden { ageLayer.isHidden = false }
     }
