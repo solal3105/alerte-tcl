@@ -97,3 +97,6 @@ nohup.out
 
 # Captures d'écran de référence : produites à la demande avec les modes démo (voir les README), non versionnées
 captures-tests/**/*.png
+
+# Cache local de wrangler (déploiement du relais)
+cloudflare-worker/.wrangler/
