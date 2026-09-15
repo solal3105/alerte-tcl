@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import SwiftUI
+import Shared
 
 // MARK: - Transit Line Model (Metro, Funiculaire, Tramway)
 
@@ -22,13 +23,10 @@ struct TransitLine: Identifiable, Codable {
         return converted
     }
     
-    var lineWidth: CGFloat {
-        3.0 // Lignes de métro/funiculaire
-    }
-    
-    var lineColor: Color {
-        LineColorHelper.backgroundColor(for: name)
-    }
+    /// Épaisseur et couleur officielle du tracé, règles partagées avec Android.
+    var lineWidth: CGFloat { CGFloat(MapStyle.shared.routeWidth(line: name)) }
+
+    var lineColor: Color { LineColorHelper.backgroundColor(for: name) }
 }
 
 // MARK: - API Response Models

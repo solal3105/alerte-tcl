@@ -30,6 +30,10 @@ charte TCL historique en secours. Une couleur de ligne ne sert qu'à désigner c
 de transport ont une couleur d'iconographie (`AppColors.mode`), réservée aux filtres et aux onglets,
 jamais utilisée pour représenter une ligne.
 
+Les tracés des lignes sur la carte prennent la couleur officielle de la ligne, avec une épaisseur par
+mode définie une fois (`MapStyle` : métro 5, tramway 4,5, funiculaire 4, bus C 3,5, bus 3), une légère
+transparence et, sur Android, un liseré clair qui les détache du fond.
+
 Les barèmes métier sont au même endroit : importance et avancement d'un chantier, progression d'un
 chantier (du rouge au vert en onze paliers), disponibilité et type d'un parking, nature d'un chantier
 (`TravauxNatureChantier.colorHex`).

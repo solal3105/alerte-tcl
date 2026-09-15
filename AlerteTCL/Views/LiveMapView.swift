@@ -143,6 +143,14 @@ struct LiveMapView: View {
             
             startBackgroundLoadingIfNeeded()
         }
+        // Toucher un véhicule filtre la carte sur sa ligne (bandeau « Tout afficher » pour revenir).
+        .onChange(of: selectedVehicle) { _, vehicle in
+            guard let vehicle else { return }
+            viewModel.focusOnStop(StopLineFocus(
+                line: vehicle.lineName, direction: nil, destination: vehicle.destination, stopName: "",
+                latitude: vehicle.coordinate.latitude, longitude: vehicle.coordinate.longitude
+            ))
+        }
         // Le stream est arrêté uniquement sur scenePhase.background (ci-dessous).
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
@@ -1289,22 +1297,14 @@ private struct StopFocusBanner: View {
     let vehicleCount: Int
     let onClear: () -> Void
 
-    private var countText: String {
-        switch vehicleCount {
-        case 0: return "Aucun véhicule en circulation pour l'instant"
-        case 1: return "1 véhicule affiché"
-        default: return "\(vehicleCount) véhicules affichés"
-        }
-    }
-
     var body: some View {
         HStack(spacing: 10) {
             LineBadge(line: focus.line, size: 12)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Vers \(focus.destination)")
+                Text(focus.bannerTitle)
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
-                Text("\(countText), depuis l'arrêt \(focus.stopName)")
+                Text(focus.bannerSubtitle(vehicleCount: Int32(vehicleCount)))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

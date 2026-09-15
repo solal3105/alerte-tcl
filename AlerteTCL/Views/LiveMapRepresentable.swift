@@ -1,4 +1,5 @@
 import SwiftUI
+import Shared
 import MapKit
 import Combine
 
@@ -459,6 +460,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
             }
             renderer.lineCap = .round
             renderer.lineJoin = .round
+            renderer.alpha = CGFloat(MapStyle.shared.routeOpacity)
             return renderer
         }
 

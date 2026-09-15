@@ -211,4 +211,17 @@ class TimetableTest {
         // Ligne sans terminus connus : on garde ses passages sans vérifier le sens.
         assertEquals(1, com.alertetcl.shared.models.TimetableLive.nextPassages(passages, "C25", "A", termini).size)
     }
+
+    @Test
+    fun focusBannerTextsDependOnTheOrigin() {
+        val fromStop = com.alertetcl.shared.models.StopLineFocus("C12", "A", "Hôp. Feyzin", "Bellecour", 45.75, 4.83)
+        assertEquals("Vers Hôp. Feyzin", fromStop.bannerTitle)
+        assertEquals("2 véhicules affichés, depuis l'arrêt Bellecour", fromStop.bannerSubtitle(2))
+        val fromVehicle = com.alertetcl.shared.models.StopLineFocus("C12", null, "Hôp. Feyzin", "", 45.75, 4.83)
+        assertEquals("Ligne C12", fromVehicle.bannerTitle)
+        assertEquals("Aucun véhicule en circulation pour l'instant", fromVehicle.bannerSubtitle(0))
+        assertTrue(fromVehicle.matches("C12", "R"))
+        assertEquals(5.0, com.alertetcl.shared.design.MapStyle.routeWidth("A"))
+        assertEquals(3.0, com.alertetcl.shared.design.MapStyle.routeWidth("27"))
+    }
 }

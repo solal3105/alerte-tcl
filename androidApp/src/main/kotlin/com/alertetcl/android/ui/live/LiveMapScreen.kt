@@ -147,6 +147,7 @@ import com.alertetcl.shared.models.LineColors
 import com.alertetcl.shared.models.LinePalette
 import com.alertetcl.shared.models.MergedStop
 import com.alertetcl.shared.models.Passage
+import com.alertetcl.shared.design.MapStyle
 import com.alertetcl.shared.models.StopLineFocus
 import com.alertetcl.shared.models.DirectionMatching
 import com.alertetcl.shared.models.StopMergingEngine
@@ -413,7 +414,10 @@ fun LiveMapScreen() {
                             val pt = PointF(screen.x, screen.y)
                             val vf = map.queryRenderedFeatures(pt, VEHICLES_LAYER)
                             if (vf.isNotEmpty()) {
-                                selectedVehicleId.value = vf[0].getStringProperty("id")
+                                val id = vf[0].getStringProperty("id")
+                                selectedVehicleId.value = id
+                                // Toucher un véhicule filtre la carte sur sa ligne (bandeau « Tout afficher » pour revenir).
+                                vehicles.firstOrNull { it.id == id }?.let { vm.focusOnStop(StopLineFocus.forVehicle(it)) }
                                 return@addOnMapClickListener true
                             }
                             val sf = map.queryRenderedFeatures(pt, STOPS_LAYER, STOPS_BADGE_LAYER)
@@ -611,16 +615,28 @@ fun LiveMapScreen() {
         fun addOrUpdate(src: String, layer: String, geojson: String, width: Float) {
             if (style.getSource(src) == null) {
                 style.addSource(GeoJsonSource(src, geojson))
-                val lineLayer = LineLayer(layer, src).withProperties(
-                    PropertyFactory.lineColor(Expression.get("color")),
-                    PropertyFactory.lineWidth(width),
+                // Liseré clair sous le tracé pour le détacher du fond, puis le tracé à la couleur de la ligne.
+                val casing = LineLayer("$layer-casing", src).withProperties(
+                    PropertyFactory.lineColor("#FFFFFF"),
+                    PropertyFactory.lineWidth(width + MapStyle.routeCasingExtraWidth.toFloat()),
+                    PropertyFactory.lineOpacity(MapStyle.routeCasingOpacity.toFloat()),
                     PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                     PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
                 )
-                if (style.getLayer(VEHICLES_ARROW_LAYER) != null)
+                val lineLayer = LineLayer(layer, src).withProperties(
+                    PropertyFactory.lineColor(Expression.get("color")),
+                    PropertyFactory.lineWidth(width),
+                    PropertyFactory.lineOpacity(MapStyle.routeOpacity.toFloat()),
+                    PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                    PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                )
+                if (style.getLayer(VEHICLES_ARROW_LAYER) != null) {
+                    style.addLayerBelow(casing, VEHICLES_ARROW_LAYER)
                     style.addLayerBelow(lineLayer, VEHICLES_ARROW_LAYER)
-                else
+                } else {
+                    style.addLayer(casing)
                     style.addLayer(lineLayer)
+                }
             } else {
                 style.getSourceAs<GeoJsonSource>(src)?.setGeoJson(geojson)
             }
@@ -640,10 +656,10 @@ fun LiveMapScreen() {
         // toucher un Style invalidé lève IllegalStateException.
         if (!style.isFullyLoaded) return@LaunchedEffect
         glInitMutex.withLock {
-            addOrUpdate(BUS_SRC,   BUS_LAYER,   allGeoJsons[0], 4f)
-            addOrUpdate(BUS_C_SRC, BUS_C_LAYER, allGeoJsons[1], 4f)
-            addOrUpdate(TRAM_SRC,  TRAM_LAYER,  allGeoJsons[2], 8f)
-            addOrUpdate(METRO_SRC, METRO_LAYER, allGeoJsons[3], 8f)
+            addOrUpdate(BUS_SRC,   BUS_LAYER,   allGeoJsons[0], MapStyle.routeWidth(TransportMode.BUS).toFloat())
+            addOrUpdate(BUS_C_SRC, BUS_C_LAYER, allGeoJsons[1], MapStyle.routeWidth(TransportMode.BUS_C).toFloat())
+            addOrUpdate(TRAM_SRC,  TRAM_LAYER,  allGeoJsons[2], MapStyle.routeWidth(TransportMode.TRAMWAY).toFloat())
+            addOrUpdate(METRO_SRC, METRO_LAYER, allGeoJsons[3], MapStyle.routeWidth(TransportMode.METRO).toFloat())
         }
     }
 
@@ -1629,11 +1645,6 @@ private fun CardActionButton(label: String, icon: ImageVector, modifier: Modifie
 /** Bandeau « bus de cet arrêt » sous le bandeau trafic (parité iOS StopFocusBanner). */
 @Composable
 private fun StopFocusBanner(focus: StopLineFocus, vehicleCount: Int, onClear: () -> Unit) {
-    val countText = when (vehicleCount) {
-        0 -> "Aucun véhicule en circulation pour l'instant"
-        1 -> "1 véhicule affiché"
-        else -> "$vehicleCount véhicules affichés"
-    }
     Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
@@ -1642,8 +1653,8 @@ private fun StopFocusBanner(focus: StopLineFocus, vehicleCount: Int, onClear: ()
         ) {
             LineBadge(focus.line, size = 28.dp, fontSize = 11.sp)
             Column(modifier = Modifier.weight(1f)) {
-                Text("Vers ${focus.destination}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("$countText, depuis l'arrêt ${focus.stopName}", style = MaterialTheme.typography.labelSmall,
+                Text(focus.bannerTitle, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(focus.bannerSubtitle(vehicleCount), style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             TextButton(onClick = onClear) { Text("Tout afficher", fontSize = 12.sp) }

@@ -274,7 +274,81 @@ async function cachedProxyFetch(cacheKeyURL, upstreamURL, authHeaders, ctx, ttl)
   return doRefresh(cacheKey, upstreamURL, authHeaders, cache);
 }
 
+// ── Collecte des positions ─────────────────────────────────────────────────
+// Une photo compacte du flux véhicules par minute, compressée, rangée par jour et par minute
+// (positions/AAAA-MM-JJ/HH-MM.json.gz, heure UTC). Elle servira à apprendre les temps de
+// parcours réels ; rien n'est lu par les applications.
+const POSITIONS_PREFIX = "positions";
+
+function refValue(field) {
+  if (field == null) return null;
+  return typeof field === "object" ? (field.value ?? null) : field;
+}
+
+function compactCall(call) {
+  if (!call) return null;
+  return {
+    stop:    refValue(call.StopPointRef),
+    order:   call.Order ?? null,
+    aimed:   call.AimedArrivalTime ?? call.AimedDepartureTime ?? null,
+    expected: call.ExpectedArrivalTime ?? call.ExpectedDepartureTime ?? null,
+  };
+}
+
+async function collectPositions(env) {
+  if (!env.POSITIONS || !env.GRANDLYON_USERNAME || !env.GRANDLYON_PASSWORD) return;
+  const authHeaders = {
+    Authorization: `Basic ${btoa(`${env.GRANDLYON_USERNAME}:${env.GRANDLYON_PASSWORD}`)}`,
+    Accept: "application/json",
+    "User-Agent": "AlerteTCL-Proxy/1.0",
+  };
+  const upstream = await fetch(VEHICLES_URL, { headers: authHeaders });
+  if (!upstream.ok) return;
+  const data = await upstream.json();
+
+  const vehicles = [];
+  for (const delivery of data?.Siri?.ServiceDelivery?.VehicleMonitoringDelivery ?? []) {
+    for (const activity of delivery.VehicleActivity ?? []) {
+      const journey = activity.MonitoredVehicleJourney ?? {};
+      const location = journey.VehicleLocation ?? {};
+      const onward = journey.OnwardCalls?.OnwardCall ?? journey.OnwardCalls ?? [];
+      vehicles.push({
+        id:       refValue(journey.VehicleRef) ?? refValue(activity.VehicleMonitoringRef),
+        line:     refValue(journey.LineRef),
+        dir:      refValue(journey.DirectionRef),
+        dest:     refValue(journey.DestinationRef),
+        journey:  journey.FramedVehicleJourneyRef?.DatedVehicleJourneyRef ?? null,
+        lat:      location.Latitude ?? null,
+        lon:      location.Longitude ?? null,
+        bearing:  journey.Bearing ?? null,
+        delay:    journey.Delay ?? null,
+        status:   journey.VehicleStatus ?? null,
+        at:       activity.RecordedAtTime ?? null,
+        call:     compactCall(journey.MonitoredCall),
+        onward:   Array.isArray(onward) ? onward.slice(0, 3).map(compactCall) : [],
+      });
+    }
+  }
+
+  const now = new Date();
+  const iso = now.toISOString();
+  const key = `${POSITIONS_PREFIX}/${iso.slice(0, 10)}/${iso.slice(11, 16).replace(":", "-")}.json.gz`;
+  const payload = JSON.stringify({ at: iso, count: vehicles.length, vehicles });
+  const compressed = await new Response(
+    new Blob([payload]).stream().pipeThrough(new CompressionStream("gzip"))
+  ).arrayBuffer();
+  await env.POSITIONS.put(key, compressed, {
+    httpMetadata: { contentType: "application/json", contentEncoding: "gzip" },
+    customMetadata: { count: String(vehicles.length) },
+  });
+}
+
 export default {
+  // Déclencheur planifié (wrangler.toml, chaque minute) : collecte des positions.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(collectPositions(env));
+  },
+
   async fetch(request, env, ctx) {
     const userAgent = request.headers.get("User-Agent") ?? "";
     if (!ALLOWED_UA.test(userAgent)) {

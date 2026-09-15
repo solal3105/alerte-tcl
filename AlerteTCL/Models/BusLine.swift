@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import SwiftUI
+import Shared
 
 // MARK: - Bus Line Model
 
@@ -21,13 +22,10 @@ struct BusLine: Identifiable, Codable {
         return converted
     }
     
-    var lineWidth: CGFloat {
-        4.0 // Toutes les lignes chargées sont des lignes C
-    }
-    
-    var lineColor: Color {
-        Color.gray.opacity(0.6) // Toutes les lignes chargées sont des lignes C
-    }
+    /// Épaisseur et couleur officielle du tracé, règles partagées avec Android.
+    var lineWidth: CGFloat { CGFloat(MapStyle.shared.routeWidth(line: name)) }
+
+    var lineColor: Color { LineColorHelper.backgroundColor(for: name) }
 }
 
 // MARK: - API Response Models

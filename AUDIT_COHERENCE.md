@@ -265,6 +265,12 @@ désormais avant de répondre quand l'entrée a dépassé quatre fois sa durée 
 bornée à quatre secondes. Même soir : le bouton « Voir ces bus sur la carte » n'est plus proposé pour
 le métro et les funiculaires, absents du flux de positions, et se nomme selon le mode.
 
+Même soir encore : toucher un véhicule filtre la carte sur sa ligne avec le bandeau « Tout afficher »
+(règle et textes du bandeau dans le module partagé), tracés des lignes aux couleurs officielles avec
+épaisseurs partagées, fiches horaires refaites (passages en direct en tête, grille par heure, choix du
+jour instantané). Collecte des positions des véhicules écrite dans le relais (une photo par minute vers
+un espace de stockage R2), en attente de l'activation de R2 sur le compte Cloudflare.
+
 Reste à faire, dans l'ordre : sur la carte, dire explicitement quand des filtres cachent tous les
 véhicules, avec un bouton « Tout afficher » (constaté sur téléphone après mise à jour, un filtre
 mémorisé par l'ancienne version restait actif) ; filtres de la carte alignés (multi-sélection persistée sur iOS,
