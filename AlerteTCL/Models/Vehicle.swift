@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import SwiftUI
+import Shared
 
 struct Vehicle: Identifiable, Hashable {
     let id: String
@@ -63,21 +64,28 @@ struct Vehicle: Identifiable, Hashable {
         recordedAt.map { max(0, Date().timeIntervalSince($0)) }
     }
 
-    /// Fraîcheur de la position, pour l'affichage (couleur + transparence).
-    /// Seuils : le flux SIRI TCL republie chaque véhicule toutes les ~15-60 s ;
-    /// au-delà de 2 min la position est considérée obsolète (véhicule "fantôme").
+    /// Fraîcheur de la position, pour l'affichage (couleur de l'étiquette et de la fiche).
+    /// Le flux SIRI TCL republie chaque véhicule toutes les ~15-60 s ; passé le délai
+    /// partagé `hideAfterSeconds` sans nouvelle position, elle est obsolète : le véhicule
+    /// quitte la carte et sa fiche, si elle est ouverte, le signale.
     enum PositionFreshness {
         case fresh   // < 45 s
-        case aging   // 45 s – 2 min
-        case stale   // > 2 min
+        case aging   // 45 s – 90 s
+        case stale   // ≥ 90 s, plus dessiné sur la carte
     }
+
+    /// Délai (module partagé) sans nouvelle position au-delà duquel un véhicule disparaît de la carte.
+    static let hideAfterSeconds = TimeInterval(Shared.Vehicle.companion.HIDE_AFTER_SECONDS)
 
     var positionFreshness: PositionFreshness {
         guard let age = positionAge else { return .fresh }
         if age < 45 { return .fresh }
-        if age < 120 { return .aging }
+        if age < Self.hideAfterSeconds { return .aging }
         return .stale
     }
+
+    /// False dès que la position est obsolète : le véhicule n'est plus dessiné sur la carte.
+    var isShownOnMap: Bool { positionFreshness != .stale }
 
     /// Formate un âge en texte court ("12 s", "1 min 30", "4 min").
     static func formattedAge(_ seconds: TimeInterval) -> String {

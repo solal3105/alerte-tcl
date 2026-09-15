@@ -59,9 +59,8 @@ final class LiveVehiclesViewModel: ObservableObject {
     @Published private(set) var paletteVersion = 0
     
     // Cached computed properties for performance
-    // `filteredVehicles` est un état interne : les vues lisent `displayVehicles`
-    // (qui retourne `cachedUnclusteredVehicles`, lui-même @Published). Inutile
-    // de déclencher une seconde publication par fetch.
+    // `filteredVehicles` est un état interne : les vues lisent `displayVehicles`.
+    // Inutile de déclencher une seconde publication par fetch.
     private(set) var filteredVehicles: [Vehicle] = []
     
     private var streamTask: Task<Void, Never>?
@@ -145,7 +144,9 @@ final class LiveVehiclesViewModel: ObservableObject {
         filteredVehicles = result
     }
     
-    var displayVehicles: [Vehicle] { filteredVehicles }
+    /// Relu à chaque synchronisation de la carte : un véhicule peut franchir le délai
+    /// d'obsolescence entre deux fetchs, il ne doit alors plus être redessiné.
+    var displayVehicles: [Vehicle] { filteredVehicles.filter(\.isShownOnMap) }
     
     var availableLines: [String] {
         let currentLineNames = Set(vehicles.map { $0.lineName })
@@ -250,7 +251,8 @@ final class LiveVehiclesViewModel: ObservableObject {
     /// Applique un lot de véhicules fraîchement récupéré (état, animation, filtrage).
     private func applyFetchedVehicles(_ fetched: [Vehicle]) {
         updateAnimatedVehicles(with: fetched)
-        vehicles = mergeWithGracePeriodVehicles(fetched)
+        // Les véhicules dont TCL n'a pas retransmis la position depuis `Vehicle.hideAfterSeconds` quittent la carte.
+        vehicles = mergeWithGracePeriodVehicles(fetched).filter(\.isShownOnMap)
         lastUpdate = Date()
         error = nil
         consecutiveErrors = 0

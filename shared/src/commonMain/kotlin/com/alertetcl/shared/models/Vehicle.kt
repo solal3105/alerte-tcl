@@ -68,20 +68,27 @@ data class Vehicle(
         recordedAtEpoch?.let { (nowEpochMs / 1000 - it).coerceAtLeast(0) }
 
     /**
-     * Fraîcheur de la position, pour l'affichage (couleur + transparence).
-     * Le flux SIRI TCL republie chaque véhicule toutes les ~15-60 s ;
-     * au-delà de 2 min la position est considérée obsolète (véhicule "fantôme").
+     * Fraîcheur de la position, pour l'affichage (couleur de l'étiquette et de la fiche).
+     * Le flux SIRI TCL republie chaque véhicule toutes les ~15-60 s ; passé
+     * [HIDE_AFTER_SECONDS] sans nouvelle position, elle est obsolète : le véhicule
+     * quitte la carte et sa fiche, si elle est ouverte, le signale.
      */
     fun positionFreshness(nowEpochMs: Long): PositionFreshness {
         val age = positionAgeSeconds(nowEpochMs) ?: return PositionFreshness.FRESH
         return when {
-            age < 45  -> PositionFreshness.FRESH
-            age < 120 -> PositionFreshness.AGING
-            else      -> PositionFreshness.STALE
+            age < 45                 -> PositionFreshness.FRESH
+            age < HIDE_AFTER_SECONDS -> PositionFreshness.AGING
+            else                     -> PositionFreshness.STALE
         }
     }
 
+    /** False dès que la position est obsolète : le véhicule n'est plus dessiné sur la carte. */
+    fun isShownOnMap(nowEpochMs: Long): Boolean = positionFreshness(nowEpochMs) != PositionFreshness.STALE
+
     companion object {
+        /** Délai sans nouvelle position transmise par TCL au-delà duquel un véhicule disparaît de la carte. */
+        const val HIDE_AFTER_SECONDS = 90L
+
         /** Formate un âge en texte court ("12 s", "1 min 30", "4 min"). */
         fun formattedAge(seconds: Long): String {
             if (seconds < 60) return "$seconds s"

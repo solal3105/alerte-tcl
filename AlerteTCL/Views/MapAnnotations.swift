@@ -240,11 +240,6 @@ final class VehicleAnnotationView: MKAnnotationView {
 
         updateHalo()
 
-        // Position obsolète (> 2 min sans nouvelle transmission TCL) :
-        // le véhicule reste visible mais estompé, dans les deux modes.
-        let targetOpacity: Float = vehicle.positionFreshness == .stale ? 0.45 : 1.0
-        if layer.opacity != targetOpacity { layer.opacity = targetOpacity }
-
         CATransaction.commit()
     }
 
@@ -256,7 +251,6 @@ final class VehicleAnnotationView: MKAnnotationView {
         currentAgeText    = nil
         arrowLayer.isHidden = true
         ageLayer.isHidden   = true
-        layer.opacity = 1.0
     }
 }
 

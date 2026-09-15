@@ -202,10 +202,18 @@ struct LiveMapRepresentable: UIViewRepresentable {
             regionDebounce?.cancel()
         }
 
+        private var lastExpirySweep: CFTimeInterval = 0
+
         /// Applique la position/cap interpolé à chaque VehicleAnnotation actif.
         /// Appelé ~10 fois/s. Boucle unique, O(N), sans allocation.
         private func applyAnimationTick(_ time: CFTimeInterval) {
             guard let mapView else { return }
+            // Une fois par seconde : un véhicule dont la position vient de devenir obsolète
+            // (règle partagée `Vehicle.hideAfterSeconds`) quitte la carte sans attendre le prochain fetch.
+            if time - lastExpirySweep >= 1 {
+                lastExpirySweep = time
+                removeVehicleAnnotations(ids: vehicleAnnotations.filter { !$0.value.vehicle.isShownOnMap }.map(\.key))
+            }
             let animated = owner.viewModel.animatedVehicles
             let isSimplified = currentZoomLevel > Self.simpleDotZoomThreshold
 
@@ -265,16 +273,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
             let incomingIDs = Set(vehicles.map(\.id))
             let currentIDs  = Set(vehicleAnnotations.keys)
 
-            // Suppressions
-            let toRemoveIDs = currentIDs.subtracting(incomingIDs)
-            if !toRemoveIDs.isEmpty {
-                let toRemove = toRemoveIDs.compactMap { id -> VehicleAnnotation? in
-                    guard let a = vehicleAnnotations.removeValue(forKey: id) else { return nil }
-                    a.annotationView = nil
-                    return a
-                }
-                mapView.removeAnnotations(toRemove)
-            }
+            removeVehicleAnnotations(ids: Array(currentIDs.subtracting(incomingIDs)))
 
             // Ajouts et mises à jour
             var toAdd: [VehicleAnnotation] = []
@@ -300,6 +299,17 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 }
             }
             if !toAdd.isEmpty { mapView.addAnnotations(toAdd) }
+        }
+
+        /// Retire de la carte les marqueurs des véhicules indiqués.
+        private func removeVehicleAnnotations(ids: [String]) {
+            guard let mapView, !ids.isEmpty else { return }
+            let toRemove = ids.compactMap { id -> VehicleAnnotation? in
+                guard let a = vehicleAnnotations.removeValue(forKey: id) else { return nil }
+                a.annotationView = nil
+                return a
+            }
+            mapView.removeAnnotations(toRemove)
         }
 
         func syncMergedStopAnnotations(_ stops: [MergedStop]) {

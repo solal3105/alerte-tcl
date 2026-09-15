@@ -8,9 +8,9 @@ import Shared
 /// dépendre de l'état réel du réseau TCL. Inactif en build Release.
 ///
 /// Usage : lancer l'app avec `-demo <cas>` :
-///   ages          véhicules aux fraîcheurs variées (vert / orange / rouge estompé)
+///   ages          véhicules aux fraîcheurs variées (vert / orange, le troisième a quitté la carte)
 ///   fiche         fiche véhicule ouverte, position fraîche
-///   fiche-vieille fiche véhicule ouverte, position obsolète (> 2 min)
+///   fiche-vieille fiche véhicule ouverte, position obsolète (véhicule parti de la carte)
 ///   vide          flux véhicules vide → capsule "TCL ne transmet aucune position"
 ///   erreur401     la source refuse l'accès → capsule erreur + feuille détaillée
 ///   fige          1er fetch OK puis pannes → capsule "Dernières données reçues il y a X"
@@ -65,7 +65,7 @@ enum DemoShowcase {
     }
 
     /// Véhicules factices : un frais (vert), un vieillissant (orange),
-    /// un obsolète (rouge, estompé sur la carte), un tram frais.
+    /// un obsolète (parti de la carte, sa fiche le signale), un tram frais.
     static func vehicles() -> [Vehicle] {
         let now = Date()
         func make(_ fleet: String, _ line: String, _ type: VehicleType,

@@ -329,7 +329,9 @@ fun LiveMapScreen() {
     val tickSb            = remember { StringBuilder(8192) }
 
     // Selection state
-    val selectedVehicleId = remember { mutableStateOf<String?>(null) }
+    // Fiche véhicule ouverte : suit la version la plus récente du véhicule et garde la dernière
+    // connue s'il quitte la carte (parité iOS), la fiche signale alors la position obsolète.
+    val selectedVehicle = remember { mutableStateOf<Vehicle?>(null) }
 
     val selectedStop      = remember { mutableStateOf<MergedStop?>(null) }
 
@@ -346,7 +348,7 @@ fun LiveMapScreen() {
             when (DemoShowcase.current) {
                 "fiche", "fiche-vieille" -> DemoShowcase.vehicleForSheet()?.let { v ->
                     vm.focusOnStop(StopLineFocus.forVehicle(v))
-                    selectedVehicleId.value = v.id
+                    selectedVehicle.value = v
                 }
                 "arret"                  -> selectedStop.value = DemoShowcase.mergedStop()
                 "bus-arret"              -> DemoShowcase.stopLineFocus().let { focus ->
@@ -511,10 +513,11 @@ fun LiveMapScreen() {
         stopFocus?.let { focus ->
             val vehicleId = focus.vehicleId
             if (vehicleId != null) {
+                val vehicle = vehicles.firstOrNull { it.id == vehicleId }
                 VehicleFocusBanner(
                     focus = focus,
-                    vehicle = vehicles.firstOrNull { it.id == vehicleId },
-                    onMore = { selectedVehicleId.value = vehicleId },
+                    vehicle = vehicle,
+                    onMore = { vehicle?.let { selectedVehicle.value = it } },
                     onClose = { vm.clearStopFocus() }
                 )
             } else {
@@ -717,7 +720,8 @@ fun LiveMapScreen() {
         }
 
         val nowSec   = System.currentTimeMillis() / 1000.0
-        val features = current.map { v -> buildVehicleFeature(v, vm.animatedVehicleFor(v.id), nowSec, isDark, vm.stopFocus.value?.vehicleId) }
+        val features = current.filter { it.isShownOnMap((nowSec * 1000).toLong()) }
+            .map { v -> buildVehicleFeature(v, vm.animatedVehicleFor(v.id), nowSec, isDark, vm.stopFocus.value?.vehicleId) }
 
         if (style.getSource(VEHICLES_SRC) == null) {
             glInitMutex.withLock {
@@ -750,7 +754,6 @@ fun LiveMapScreen() {
                         PropertyFactory.iconSize(1f)
                     ))
                     // Layer 2 : corps — au-dessus de la flèche, point coloré en dezoom (< 13.5)
-                    // Les véhicules à position obsolète (> 2 min) sont estompés via "op".
                     style.addLayer(SymbolLayer(VEHICLES_LAYER, VEHICLES_SRC).withProperties(
                         PropertyFactory.iconImage(
                             Expression.step(
@@ -759,7 +762,6 @@ fun LiveMapScreen() {
                                 Expression.literal(13.5), Expression.get("icon")
                             )
                         ),
-                        PropertyFactory.iconOpacity(Expression.toNumber(Expression.get("op"))),
                         PropertyFactory.iconAllowOverlap(true),
                         PropertyFactory.iconIgnorePlacement(true),
                         PropertyFactory.iconSize(1f)
@@ -923,8 +925,11 @@ fun LiveMapScreen() {
 
     // ── Bottom sheets ───────────────────────────────────────────────────
 
-    filteredVehicles.find { it.id == selectedVehicleId.value }?.let { v ->
-        ModalBottomSheet(onDismissRequest = { selectedVehicleId.value = null }, sheetState = rememberModalBottomSheetState(), contentWindowInsets = { WindowInsets.systemBars }) {
+    selectedVehicle.value?.let { selected ->
+        // La fiche suit les nouvelles positions tant que le véhicule est sur la carte.
+        val v = filteredVehicles.find { it.id == selected.id } ?: selected
+        LaunchedEffect(v) { selectedVehicle.value = v }
+        ModalBottomSheet(onDismissRequest = { selectedVehicle.value = null }, sheetState = rememberModalBottomSheetState(), contentWindowInsets = { WindowInsets.systemBars }) {
             VehicleDetailSheet(v)
         }
     }
@@ -2344,8 +2349,11 @@ private fun buildVehicleGeoJson(
 ): String {
     sb.setLength(0)
     sb.append("{\"type\":\"FeatureCollection\",\"features\":[")
+    val nowMs = (nowSec * 1000).toLong()
     var first = true
     for (v in vehicles) {
+        // Un véhicule peut franchir le délai d'obsolescence entre deux fetchs : il quitte la carte au tick suivant.
+        if (!v.isShownOnMap(nowMs)) continue
         if (!first) sb.append(',')
         first = false
         val animated = vm.animatedVehicleFor(v.id)
@@ -2361,7 +2369,7 @@ private fun buildVehicleGeoJson(
         sb.append(if (bearing != 0.0) (arrowCache[v.id] ?: "no_arrow") else "no_arrow")
         sb.append("\",\"bearing\":")
         sb.append(bearing.toFloat())
-        appendFreshnessProps(sb, v, (nowSec * 1000).toLong(), darkTheme, vm.stopFocus.value?.vehicleId)
+        appendFreshnessProps(sb, v, nowMs, darkTheme, vm.stopFocus.value?.vehicleId)
         sb.append("}")
         sb.append("}")
     }
@@ -2385,14 +2393,13 @@ private fun buildVehicleFeature(v: Vehicle, animated: AnimatedVehicle?, nowSec: 
         addProperty("bearing",     bearing.toFloat())
         addProperty("age",         age?.let { Vehicle.formattedAge(it) } ?: "")
         addProperty("age_col",     fresh.color.hex(darkTheme))
-        addProperty("op",          if (fresh == PositionFreshness.STALE) 0.45f else 1f)
         addProperty("sel",         if (v.id == focusedId) 1 else 0)
         addProperty("line_col",    LineColors.backgroundHex(v.lineName))
     }
     return Feature.fromGeometry(Point.fromLngLat(coord.longitude, coord.latitude), props)
 }
 
-/** Propriétés dynamiques de fraîcheur ajoutées au GeoJSON du hot path (âge, couleur, opacité). */
+/** Propriétés dynamiques de fraîcheur ajoutées au GeoJSON du hot path (âge, couleur). */
 private fun appendFreshnessProps(sb: StringBuilder, v: Vehicle, nowMs: Long, darkTheme: Boolean, focusedId: String?) {
     val age   = v.positionAgeSeconds(nowMs)
     val fresh = v.positionFreshness(nowMs)
@@ -2402,8 +2409,7 @@ private fun appendFreshnessProps(sb: StringBuilder, v: Vehicle, nowMs: Long, dar
     sb.append(age?.let { Vehicle.formattedAge(it) } ?: "")
     sb.append("\",\"age_col\":\"")
     sb.append(fresh.color.hex(darkTheme))
-    sb.append("\",\"op\":")
-    sb.append(if (fresh == PositionFreshness.STALE) "0.45" else "1")
+    sb.append('"')
 }
 
 // ── Bitmap helpers ───────────────────────────────────────────────────────

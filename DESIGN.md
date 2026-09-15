@@ -38,6 +38,9 @@ bandeau trafic s'efface et un bandeau décrit le véhicule (ligne, direction, fr
 retard, dernier arrêt) avec deux boutons, « Voir plus » pour sa fiche et « Fermer » pour tout
 réafficher (bouton rond en haut à droite). Le véhicule touché porte un halo à la couleur de sa ligne
 sur la carte. Le même bandeau, sans « Voir plus », sert au filtre lancé depuis la fiche d'un arrêt.
+Un véhicule dont TCL n'a pas retransmis la position depuis 90 s (règle partagée
+`Vehicle.HIDE_AFTER_SECONDS`, relue chaque seconde sur la carte) disparaît de la carte ; sa fiche,
+si elle est ouverte, garde la dernière position connue et signale qu'elle est obsolète.
 La fiche d'un véhicule s'accorde entièrement à la couleur officielle de sa ligne (pictogramme, rail
 des arrêts) ; le mode n'y apparaît qu'en texte neutre, et les états gardent leurs couleurs propres.
 

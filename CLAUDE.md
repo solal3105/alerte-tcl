@@ -132,5 +132,7 @@ Logique partagée : `TimetableService` / `LineTimetable` (KMP), consommés direc
   servent qu'aux filtres. Règle de notification : `AlertNotifications`. Bandeau trafic :
   `TrafficBanner`. Dates des alertes : `AlertDates`. Ces règles ont des tests dans `commonTest`.
 - Pas de widgets Android (décision produit du 15 septembre 2026) ; les widgets iOS restent.
+- Un véhicule sans nouvelle position depuis `Vehicle.HIDE_AFTER_SECONDS` (90 s, module partagé) quitte
+  la carte : filtre à chaque fetch dans les vues modèles et relecture chaque seconde côté carte.
 - Les composants communs sont décrits dans `DESIGN.md` : badge de ligne (`LineBadge`), en-tête de
   feuille (`SheetHeader`), états chargement / vide / erreur, textes des alertes.

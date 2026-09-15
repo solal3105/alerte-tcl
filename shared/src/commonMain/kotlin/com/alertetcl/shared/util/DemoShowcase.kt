@@ -73,7 +73,7 @@ object DemoShowcase {
         )
     }
 
-    /** Véhicules factices : frais (vert), vieillissant (orange), obsolète (rouge estompé), tram frais. */
+    /** Véhicules factices : frais (vert), vieillissant (orange), obsolète (parti de la carte, sa fiche le signale), tram frais. */
     fun vehicles(): List<Vehicle> {
         val nowSec = Clock.System.now().epochSeconds
         fun make(

@@ -141,11 +141,13 @@ class LiveVehiclesViewModel(
             id !in newIds && animated.isStale(nowSec)
         }
 
-        // Exposer : véhicules frais + véhicules en grace period.
+        // Exposer : véhicules frais + véhicules en grace period, sans ceux dont TCL
+        // n'a pas retransmis la position depuis Vehicle.HIDE_AFTER_SECONDS.
         val graceVehicles = animatedVehicles.values
             .filter { it.currentVehicle.id !in newIds }
             .map { it.currentVehicle }
-        _vehicles.value = newList + graceVehicles
+        val nowMs = (nowSec * 1000).toLong()
+        _vehicles.value = (newList + graceVehicles).filter { it.isShownOnMap(nowMs) }
     }
 
     fun animatedVehicleFor(id: String): AnimatedVehicle? = animatedVehicles[id]
