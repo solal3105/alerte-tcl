@@ -505,7 +505,10 @@ struct LiveMapRepresentable: UIViewRepresentable {
 
         // MARK: Constants
 
-        private static let punctualityZoomThreshold: Double = 0.005
+        /// En-dessous de ce latitudeDelta, la capsule « ligne · délai » s'affiche sous chaque véhicule.
+        /// Le bouton de localisation cadre 0,01° de large, soit ~0,022° de haut en portrait :
+        /// les étiquettes doivent être visibles à ce zoom.
+        private static let punctualityZoomThreshold: Double = 0.025
         /// En-dessous de ce latitudeDelta, les badges de ligne s'affichent sur les arrêts.
         private static let stopBadgeZoomThreshold:    Double = 0.005
         /// Au-dessus de ce latitudeDelta (dezoom), les véhicules s'affichent comme

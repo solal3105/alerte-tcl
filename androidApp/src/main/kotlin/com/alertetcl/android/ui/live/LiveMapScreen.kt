@@ -724,7 +724,7 @@ fun LiveMapScreen() {
                     // Layer 3 : ligne et âge de la dernière position (« C12 · 12 s »), zoom serré uniquement :
                     // à ce niveau le marqueur ne montre plus que le pictogramme, la ligne doit rester lisible.
                     style.addLayer(SymbolLayer(VEHICLES_AGE_LAYER, VEHICLES_SRC).apply {
-                        minZoom = 15.5f
+                        minZoom = 14.8f  // visible dès le zoom du bouton de localisation (15)
                         setProperties(
                             PropertyFactory.textField(
                                 Expression.format(
