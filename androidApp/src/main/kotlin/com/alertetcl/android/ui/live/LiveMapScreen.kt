@@ -1596,7 +1596,8 @@ private fun LinePassagesCard(
             }
             if (onShowOnMap != null || onShowTimetable != null) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (onShowOnMap != null) CardActionButton("Voir ces bus sur la carte", Icons.Filled.Map, Modifier.weight(1f), onShowOnMap)
+                    val showOnMapLabel = TransportMode.detectFromLine(line).showOnMapLabel
+                    if (onShowOnMap != null && showOnMapLabel != null) CardActionButton(showOnMapLabel, Icons.Filled.Map, Modifier.weight(1f), onShowOnMap)
                     if (onShowTimetable != null) CardActionButton("Tous les horaires", Icons.Filled.CalendarMonth, Modifier.weight(1f), onShowTimetable)
                 }
             }

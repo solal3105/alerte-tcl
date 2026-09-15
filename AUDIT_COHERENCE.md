@@ -258,12 +258,16 @@ Fait :
 - `DESIGN.md`, `KMP_MIGRATION.md`, `CLAUDE.md` et le README décrivent l'état réel ; l'intégration
   continue compile Android, lance les tests Kotlin et compile iOS.
 
-Piste écartée du déploiement du relais, à décider séparément : rafraîchir avant de répondre quand une
-entrée de cache a dépassé quatre fois sa durée de vie (première demande après une période creuse),
-pour ne plus montrer des passages vieux de plusieurs heures au premier affichage ; cela change la
-latence des routes existantes, donc à déployer seul et à observer.
+Corrigé en production le 15 septembre 2026 au soir, après constat sur téléphone : le relais servait
+au premier affichage d'un arrêt une réponse en cache vieille de plusieurs dizaines de minutes, que les
+applications écartaient comme passée (« Aucun passage prévu » sur beaucoup d'arrêts). Il rafraîchit
+désormais avant de répondre quand l'entrée a dépassé quatre fois sa durée de vie, avec une attente
+bornée à quatre secondes. Même soir : le bouton « Voir ces bus sur la carte » n'est plus proposé pour
+le métro et les funiculaires, absents du flux de positions, et se nomme selon le mode.
 
-Reste à faire, dans l'ordre : filtres de la carte alignés (multi-sélection persistée sur iOS,
+Reste à faire, dans l'ordre : sur la carte, dire explicitement quand des filtres cachent tous les
+véhicules, avec un bouton « Tout afficher » (constaté sur téléphone après mise à jour, un filtre
+mémorisé par l'ancienne version restait actif) ; filtres de la carte alignés (multi-sélection persistée sur iOS,
 métro masquable), services et ViewModels iOS migrés sur le module partagé (les modèles Swift
 `TCLAlert`, `Parking`, `Travaux`, `Vehicle` disparaissent alors), Travaux (dates, itinéraire,
 importance) et Parkings (lignes, regroupements, info-bulles) au même niveau sur Android, captures

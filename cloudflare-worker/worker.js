@@ -66,6 +66,8 @@ const ROUTE_TTL = {
   "/horaires":       3600, // fiches horaires, régénérées chaque nuit
 };
 const GEO_TTL = 86400; // lignes, arrêts — données quasi-statiques
+// Attente maximale d'un rafraîchissement bloquant (cache très périmé) avant de servir l'ancienne réponse.
+const REFRESH_WAIT_MS = 4000;
 
 const ALLOWED_UA        = /^AlerteTCL\//;
 const ALLOWED_SORTBY    = new Set(["heurepassage", "id"]);
@@ -239,7 +241,27 @@ async function cachedProxyFetch(cacheKeyURL, upstreamURL, authHeaders, ctx, ttl)
       });
     }
 
-    // Périmée — servir le stale immédiatement + rafraîchir en arrière-plan
+    // Très périmée (première demande après une période creuse) : servir cette entrée
+    // montrerait des passages vieux de plusieurs dizaines de minutes, que les applications
+    // écartent comme passés (« Aucun passage prévu »). On rafraîchit AVANT de répondre,
+    // avec une attente bornée ; l'ancienne réponse ne sert que si l'amont ne répond pas à temps.
+    const hardCapSeconds = Math.max(ttl * 4, 60);
+    if (ageSeconds >= hardCapSeconds) {
+      const refresh = doRefresh(cacheKey, upstreamURL, authHeaders, cache).catch(() => null);
+      ctx.waitUntil(refresh);
+      const fresh = await Promise.race([
+        refresh,
+        new Promise(resolve => setTimeout(() => resolve(null), REFRESH_WAIT_MS)),
+      ]);
+      if (fresh && fresh.ok) return fresh;
+      const body = await cached.arrayBuffer();
+      return new Response(body, {
+        status:  cached.status,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+    }
+
+    // Modérément périmée — servir le stale immédiatement + rafraîchir en arrière-plan
     ctx.waitUntil(doRefresh(cacheKey, upstreamURL, authHeaders, cache));
     const body = await cached.arrayBuffer();
     return new Response(body, {

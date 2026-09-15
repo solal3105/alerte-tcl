@@ -13,6 +13,7 @@ import com.alertetcl.shared.models.VehicleType
 import com.alertetcl.shared.network.HttpClientProvider
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
+import com.alertetcl.shared.models.TransportMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -182,5 +183,14 @@ class TimetableTest {
         assertFalse(index.isStaleOn("2026-12-01"))
         assertTrue(index.isStaleOn("2026-12-02"))
         assertTrue(com.alertetcl.shared.models.TimetableTexts.staleNotice("1er décembre").startsWith("Ces horaires ne sont plus à jour"))
+    }
+
+    @Test
+    fun showOnMapOnlyForModesTrackedLive() {
+        assertEquals(null, TransportMode.detectFromLine("A").showOnMapLabel)
+        assertEquals(null, TransportMode.detectFromLine("F1").showOnMapLabel)
+        assertEquals("Voir ces trams sur la carte", TransportMode.detectFromLine("T1").showOnMapLabel)
+        assertEquals("Voir ces bus sur la carte", TransportMode.detectFromLine("C12").showOnMapLabel)
+        assertEquals("Voir ces bus sur la carte", TransportMode.detectFromLine("27").showOnMapLabel)
     }
 }

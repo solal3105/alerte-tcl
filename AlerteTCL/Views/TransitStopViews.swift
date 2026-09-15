@@ -92,8 +92,8 @@ struct LinePassagesCard: View {
 
             if onShowOnMap != nil || onShowTimetable != nil {
                 HStack(spacing: 8) {
-                    if let onShowOnMap {
-                        cardAction("Voir ces bus sur la carte", icon: "map", action: onShowOnMap)
+                    if let onShowOnMap, let label = TransportMode.detectFromLine(line).shared.showOnMapLabel {
+                        cardAction(label, icon: "map", action: onShowOnMap)
                     }
                     if let onShowTimetable {
                         cardAction("Tous les horaires", icon: "calendar", action: onShowTimetable)

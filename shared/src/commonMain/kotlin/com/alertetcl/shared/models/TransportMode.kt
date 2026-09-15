@@ -15,6 +15,20 @@ enum class TransportMode(val displayName: String, val iconKey: String, val sortO
     BUS("Bus", "bus", 4),
     NAVIGONE("Navigone", "ferry", 5);
 
+    /**
+     * Vrai si le flux temps réel de positions (SIRI) suit les véhicules de ce mode. Le métro et
+     * les funiculaires n'y figurent jamais : proposer de les « voir sur la carte » n'aurait aucun sens.
+     */
+    val hasLiveVehicles: Boolean get() = this != METRO && this != FUNICULAR
+
+    /** Libellé du bouton qui filtre la carte sur les véhicules d'une ligne, ou null si le mode n'est pas suivi. */
+    val showOnMapLabel: String? get() = when (this) {
+        METRO, FUNICULAR -> null
+        TRAMWAY -> "Voir ces trams sur la carte"
+        NAVIGONE -> "Voir cette navette sur la carte"
+        BUS_C, BUS -> "Voir ces bus sur la carte"
+    }
+
     companion object {
         /** Détection à partir du code ligne (M*, T*, F*, C*, JD*, etc.). */
         fun detectFromLine(line: String): TransportMode {
