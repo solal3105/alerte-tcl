@@ -25,10 +25,15 @@ import Shared
 ///   alertes       écran des alertes avec deux abonnements et des perturbations simulées
 ///   alertes-ligne fiche d'une ligne abonnée (C12) depuis cet écran
 ///   alertes-options feuille « Options de notification » de cette ligne
+///   suivi         fiche arrêt avec « où est mon bus », puis suivi du premier bus dans l'activité en direct
+///   velov         stations Vélo'v affichées sur la carte
+///   velov-station fiche d'une station Vélo'v
 enum DemoShowcase {
     static let current: String? = {
         let args = ProcessInfo.processInfo.arguments
         guard let i = args.firstIndex(of: "-demo"), i + 1 < args.count else { return nil }
+        // Le module partagé simule aussi ses données (stations Vélo'v) dans le même cas.
+        Shared.DemoShowcase.shared.current = args[i + 1]
         return args[i + 1]
     }()
 

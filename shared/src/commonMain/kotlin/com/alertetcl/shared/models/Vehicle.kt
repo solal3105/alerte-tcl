@@ -22,7 +22,10 @@ data class StopInfo(
     val aimedDepartureTimeEpoch: Long? = null,
     val distanceFromStop: Int? = null,
     val order: Int? = null
-)
+) {
+    /** Identifiant TCL de l'arrêt (« ActIV:StopArea:SP:11518:SYTRAL » → 11518), commun au GeoServer et aux fiches horaires. */
+    val numericId: Int? get() = stopRef.split(":").getOrNull(3)?.toIntOrNull() ?: stopRef.toIntOrNull()
+}
 
 @Serializable
 data class Vehicle(

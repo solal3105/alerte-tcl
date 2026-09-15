@@ -1,5 +1,6 @@
 import UIKit
 import SwiftUI
+import Shared
 
 // MARK: - Stop Tier
 
@@ -134,6 +135,16 @@ enum MarkerImageCache {
         return image
     }
 
+    /// Marqueur d'une station Vélo'v : carré arrondi à la couleur de disponibilité, vélo et nombre de vélos.
+    static func velovMarker(bikes: Int, availability: AvailabilityColor) -> UIImage {
+        let key = "velov-\(bikes)-\(availability.name)" as NSString
+        if let cached = velovCache.object(forKey: key) { return cached }
+        let color = uiColor(Color(token: AppColors.shared.parkingAvailability(color: availability)))
+        let image = renderVelovMarker(bikes: bikes, color: color)
+        velovCache.setObject(image, forKey: key)
+        return image
+    }
+
     /// Vide toutes les images : à appeler quand la palette des couleurs de lignes change.
     static func clearAll() {
         vehicleBodyCache.removeAllObjects()
@@ -169,6 +180,7 @@ enum MarkerImageCache {
     private static let vehicleDotCache:   NSCache<NSString, UIImage>      = makeCache(name: "marker.dot",         limit: 128)
     private static let tooltipCache: NSCache<TooltipKey, UIImage>        = makeCache(name: "marker.tooltip",     limit: 128)
     private static let sharedDotCache: NSCache<NSString, UIImage>        = makeCache(name: "marker.stopDot",     limit: 64)
+    private static let velovCache: NSCache<NSString, UIImage>            = makeCache(name: "marker.velov",       limit: 256)
 
     private static func makeCache<K, V>(name: String, limit: Int) -> NSCache<K, V> {
         let cache = NSCache<K, V>()
@@ -252,6 +264,35 @@ enum MarkerImageCache {
                     height: s.height
                 ))
             }
+        }
+    }
+
+    private static func renderVelovMarker(bikes: Int, color: UIColor) -> UIImage {
+        let size = CGSize(width: 30, height: 30)
+        return imageRenderer(size: size).image { ctx in
+            let cg = ctx.cgContext
+            let rect = CGRect(origin: .zero, size: size).insetBy(dx: 1.5, dy: 1.5)
+            let path = UIBezierPath(roundedRect: rect, cornerRadius: 9)
+            cg.setShadow(offset: CGSize(width: 0, height: 1), blur: 2, color: UIColor.black.withAlphaComponent(0.25).cgColor)
+            color.setFill()
+            path.fill()
+            cg.setShadow(offset: .zero, blur: 0, color: nil)
+            UIColor.white.withAlphaComponent(0.9).setStroke()
+            path.lineWidth = 1.5
+            path.stroke()
+
+            let iconConfig = UIImage.SymbolConfiguration(pointSize: 9, weight: .bold)
+            if let icon = UIImage(systemName: "bicycle", withConfiguration: iconConfig)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
+                let s = icon.size
+                icon.draw(in: CGRect(x: (size.width - s.width) / 2, y: 4, width: s.width, height: s.height))
+            }
+            let text = "\(bikes)" as NSString
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 10, weight: .heavy),
+                .foregroundColor: UIColor.white,
+            ]
+            let textSize = text.size(withAttributes: attributes)
+            text.draw(at: CGPoint(x: (size.width - textSize.width) / 2, y: size.height - textSize.height - 3), withAttributes: attributes)
         }
     }
 

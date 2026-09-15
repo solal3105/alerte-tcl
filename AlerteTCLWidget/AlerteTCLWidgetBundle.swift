@@ -14,5 +14,6 @@ struct AlerteTCLWidgetBundle: WidgetBundle {
         NextDeparturesWidget()
         TCLBoardWidget()
         ParkingWidget()
+        BusTrackingLiveActivity()
     }
 }

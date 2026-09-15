@@ -19,6 +19,8 @@
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Votre position est utilisée pour centrer la carte, afficher les arrêts, véhicules et parkings à proximité. Aucune donnée de localisation n'est transmise à un serveur.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

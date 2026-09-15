@@ -13,6 +13,7 @@ import com.alertetcl.shared.models.StopLineFocus
 import com.alertetcl.shared.models.TransitStop
 import com.alertetcl.shared.models.Vehicle
 import com.alertetcl.shared.models.VehicleType
+import com.alertetcl.shared.models.VelovStation
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -26,7 +27,7 @@ import kotlin.time.Duration.Companion.minutes
  *
  * Cas : ages, fiche, fiche-vieille, vide, erreur401, fige, arret, bus-arret,
  * horaires, horaires-ligne, horaires-arrets, horaires-arret, horaires-course,
- * alertes, alertes-ligne, alertes-options : mêmes scénarios que le DemoShowcase iOS.
+ * alertes, alertes-ligne, alertes-options, suivi, velov, velov-station : mêmes scénarios que le DemoShowcase iOS.
  */
 object DemoShowcase {
     var current: String? = null
@@ -73,7 +74,11 @@ object DemoShowcase {
         )
     }
 
-    /** Véhicules factices : frais (vert), vieillissant (orange), obsolète (parti de la carte, sa fiche le signale), tram frais. */
+    /**
+     * Véhicules factices : frais (vert), vieillissant (orange), obsolète (parti de la carte, sa fiche le signale),
+     * tram frais. Le C12 annonce Bellecour A. Poncet (11518) comme prochain arrêt : la fiche de cet arrêt le montre
+     * « au prochain arrêt » (case « arret »).
+     */
     fun vehicles(): List<Vehicle> {
         val nowSec = Clock.System.now().epochSeconds
         fun make(
@@ -139,6 +144,20 @@ object DemoShowcase {
         val stop = mergedStop()
         val passage = passages(stop.stops[0].id)[0]
         return StopLineFocus(passage.ligne, "A", passage.direction, stop.nom, stop.latitude, stop.longitude)
+    }
+
+    /** Stations Vélo'v factices autour de la place Bellecour : bien fournie, presque vide, vide, fermée. */
+    fun velovStations(): List<VelovStation> {
+        val now = Clock.System.now().epochSeconds
+        fun make(id: Int, name: String, address: String, dLat: Double, dLon: Double, bikes: Int, ebikes: Int, stands: Int, open: Boolean = true) =
+            VelovStation(id = id, name = "$id - $name", address = address, lat = CENTER_LAT + dLat, lng = CENTER_LON + dLon,
+                bikes = bikes, ebikes = ebikes, mbikes = bikes - ebikes, stands = stands, capacity = bikes + stands, open = open, updated = now - 120)
+        return listOf(
+            make(2001, "BELLECOUR / ANTONIN PONCET", "Place Antonin Poncet", 0.0004, 0.0011, 12, 7, 8),
+            make(2002, "BELLECOUR / CHARITÉ", "Rue de la Charité", -0.0008, 0.0004, 2, 1, 21),
+            make(2003, "BELLECOUR / VICTOR HUGO", "Rue Victor Hugo", 0.0002, -0.0012, 0, 0, 15),
+            make(2004, "SALA / GASPARIN", "Rue Sala", -0.0011, -0.0007, 5, 2, 9, open = false),
+        )
     }
 
     /** Arrêt fusionné factice pointant sur un vrai id d'arrêt (11518, Bellecour A. Poncet). */

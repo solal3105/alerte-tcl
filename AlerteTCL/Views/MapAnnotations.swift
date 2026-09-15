@@ -1,4 +1,5 @@
 import MapKit
+import Shared
 import UIKit
 
 // MARK: - Annotations (KVO-compliant pour animation fluide des coordinates)
@@ -34,6 +35,20 @@ final class MergedStopAnnotation: NSObject, MKAnnotation {
         self.id = stop.id
         self.stop = stop
         self.coordinate = stop.coordinate
+        super.init()
+    }
+}
+
+/// Station Vélo'v : le marqueur porte le nombre de vélos disponibles.
+final class VelovAnnotation: NSObject, MKAnnotation {
+    @objc dynamic var coordinate: CLLocationCoordinate2D
+    let id: Int
+    var station: VelovStation
+
+    init(station: VelovStation) {
+        self.id = Int(station.id)
+        self.station = station
+        self.coordinate = CLLocationCoordinate2D(latitude: station.lat, longitude: station.lng)
         super.init()
     }
 }
@@ -430,5 +445,35 @@ final class MergedStopAnnotationView: MKAnnotationView {
 
         // La coordonnée map pointe sur le centre du dot
         centerOffset = CGPoint(x: 0, y: totalH / 2 - d / 2)
+    }
+}
+
+// MARK: - Vélo'v
+
+/// Carré arrondi à la couleur de disponibilité, pictogramme vélo et nombre de vélos.
+final class VelovAnnotationView: MKAnnotationView {
+    static let identifier = "velov"
+
+    private var currentKey: String?
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        backgroundColor = .clear
+        displayPriority = .defaultLow
+        centerOffset = .zero
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
+
+    func apply(station: VelovStation) {
+        let key = "\(station.bikes)-\(station.availability.name)"
+        guard key != currentKey else { return }
+        currentKey = key
+        image = MarkerImageCache.velovMarker(bikes: Int(station.bikes), availability: station.availability)
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        currentKey = nil
     }
 }

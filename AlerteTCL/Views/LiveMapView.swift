@@ -5,12 +5,14 @@ import Shared
 struct LiveMapView: View {
     @StateObject private var viewModel = LiveVehiclesViewModel()
     @StateObject private var stopsViewModel = TransitStopViewModel()
+    @StateObject private var velovViewModel = VelovViewModel()
     @EnvironmentObject var alertViewModel: AlertViewModel
     @ObservedObject private var locationService = LocationService.shared
     @Environment(\.scenePhase) private var scenePhase
     
     @State private var selectedVehicle: Vehicle?
     @State private var selectedMergedStop: MergedStop?
+    @State private var selectedVelovStation: VelovStation?
     @State private var showFilters = false
     @State private var showTimetableSearch = false
     @State private var showAlerts = false
@@ -46,10 +48,12 @@ struct LiveMapView: View {
             LiveMapRepresentable(
                 viewModel: viewModel,
                 stopsViewModel: stopsViewModel,
+                velovViewModel: velovViewModel,
                 locationService: locationService,
                 region: $mapRegion,
                 onVehicleTap: { vehicle in withAnimation { focusOnVehicle(vehicle) } },
                 selectedMergedStop: $selectedMergedStop,
+                selectedVelovStation: $selectedVelovStation,
                 isSatellite: $isSatellite
             )
             .ignoresSafeArea()
@@ -63,12 +67,20 @@ struct LiveMapView: View {
                 .presentationDragIndicator(.visible)
         }
         .sheet(item: $selectedMergedStop) { mergedStop in
-            MergedStopDetailSheet(mergedStop: mergedStop, stopsVM: stopsViewModel, onFocus: focusOnStop)
-                .presentationDetents(stopSheetDetents)
+            MergedStopDetailSheet(
+                mergedStop: mergedStop, stopsVM: stopsViewModel, liveVM: viewModel, onFocus: focusOnStop,
+                onLocateVehicle: { vehicle in focusOnApproach(vehicle: vehicle, stop: mergedStop) }
+            )
+            .presentationDetents(stopSheetDetents)
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $selectedVelovStation) { station in
+            VelovStationSheet(station: station)
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showFilters) {
-            FilterSheet(viewModel: viewModel)
+            FilterSheet(viewModel: viewModel, velovViewModel: velovViewModel)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
@@ -119,11 +131,15 @@ struct LiveMapView: View {
                             focusOnVehicle(vehicle)
                             selectedVehicle = vehicle
                         }
-                    case "arret", "horaires-arret", "horaires-course": selectedMergedStop = DemoShowcase.mergedStop()
+                    case "arret", "horaires-arret", "horaires-course", "suivi": selectedMergedStop = DemoShowcase.mergedStop()
                     case "bus-arret":              focusOnStop(DemoShowcase.stopLineFocus())
                     case "alertes", "alertes-ligne", "alertes-options": showAlerts = true
                     case "horaires", "horaires-ligne", "horaires-arrets": showTimetableSearch = true
                     case "erreur401":              showDataSourceErrors = true
+                    case "velov":                  velovViewModel.isEnabled = true
+                    case "velov-station":
+                        velovViewModel.isEnabled = true
+                        selectedVelovStation = Shared.DemoShowcase.shared.velovStations().first
                     default: break
                     }
                 }
@@ -131,6 +147,7 @@ struct LiveMapView: View {
             // Mode démo : pas de demande de position, la scène est fixée place Bellecour.
             if DemoShowcase.isActive { startBackgroundLoadingIfNeeded(); return }
             #endif
+            BusTrackingController.shared.endOrphans()
             // Localisation (non bloquant)
             locationService.requestPermission()
             locationService.startUpdatingLocation()
@@ -191,6 +208,20 @@ struct LiveMapView: View {
         if let region = viewModel.stopFocusRegion() {
             withAnimation(.easeInOut(duration: 0.8)) { mapRegion = region }
         }
+    }
+
+    /// « Où est mon bus » : referme la fiche de l'arrêt, isole le véhicule et cadre la carte sur lui et l'arrêt.
+    private func focusOnApproach(vehicle: Vehicle, stop: MergedStop) {
+        selectedMergedStop = nil
+        focusOnVehicle(vehicle)
+        let points = [vehicle.coordinate, stop.coordinate]
+        let minLat = points.map(\.latitude).min() ?? 0, maxLat = points.map(\.latitude).max() ?? 0
+        let minLon = points.map(\.longitude).min() ?? 0, maxLon = points.map(\.longitude).max() ?? 0
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2),
+            span: MKCoordinateSpan(latitudeDelta: max((maxLat - minLat) * 1.6, 0.008), longitudeDelta: max((maxLon - minLon) * 1.6, 0.008))
+        )
+        withAnimation(.easeInOut(duration: 0.8)) { mapRegion = region }
     }
 
     // MARK: - Background Data Loading
@@ -1066,6 +1097,7 @@ struct VehicleDetailSheet: View {
 
 struct FilterSheet: View {
     @ObservedObject var viewModel: LiveVehiclesViewModel
+    @ObservedObject var velovViewModel: VelovViewModel
     @ObservedObject private var favoritesService = FavoriteLinesService.shared
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
@@ -1121,6 +1153,16 @@ struct FilterSheet: View {
                     Toggle(isOn: $viewModel.showMetroTraces) {
                         Label("Métro / Funiculaire", systemImage: "tram.fill.tunnel")
                     }
+                }
+
+                Section {
+                    Toggle(isOn: $velovViewModel.isEnabled) {
+                        Label("Stations Vélo'v", systemImage: "bicycle")
+                    }
+                } header: {
+                    Text("Vélo'v")
+                } footer: {
+                    Text("Les stations apparaissent quand la carte est assez rapprochée, avec le nombre de vélos disponibles.")
                 }
 
                 Section("Type de véhicule") {

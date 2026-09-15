@@ -14,6 +14,7 @@
  *   GET /parc-relais-tr              → GeoServer tclparcrelaistr/items (temps réel)
  *   GET /bus-termini                 → bus-lines stripped (ligne+sens+nom_destination)
  *   GET /line-mapping                → mapping code_ligne→ligne (toutes lignes, sans géométrie)
+ *   GET /velov                       → jcd_jcdecaux.jcdvelov/all.json allégé (stations Vélo'v et disponibilité)
  *   GET /horaires/<fichier>          → fiches horaires théoriques (branche `horaires` du dépôt GitHub,
  *                                      construites chaque nuit par .github/workflows/horaires.yml)
  *
@@ -25,7 +26,7 @@
  *   d'utilisateurs. Quand le cache est périmé, on sert l'ancienne réponse
  *   immédiatement et on rafraîchit en arrière-plan via ctx.waitUntil().
  *   TTL par route : vehicles/passages 15 s, parc-relais-tr 30 s,
- *                   alerts 60 s, parc-relais statique 1 h, horaires 1 h, GeoServer 24 h.
+ *                   alerts 60 s, velov 60 s, parc-relais statique 1 h, horaires 1 h, GeoServer 24 h.
  *
  * Déploiement : bash cloudflare-worker/deploy.sh
  */
@@ -39,6 +40,8 @@ const PASSAGES_URL  = `${DOWNLOAD_BASE}/tcl_sytral.tclpassagearret/all.json`;
 // MaximumVehicles=3000 couvre largement la totalité du parc TCL (~800 véhicules en heure de pointe).
 // Sans ce paramètre, Grand Lyon répond avec ≤ 200 véhicules par défaut (MoreData: true ignoré).
 const VEHICLES_URL  = `${DATA_BASE}/siri-lite/2.0/vehicle-monitoring.json?MaximumVehicles=3000`;
+// Stations Vélo'v (données ouvertes publiques, ~460 stations) : le relais ne garde que les champs utiles.
+const VELOV_URL     = `${DOWNLOAD_BASE}/jcd_jcdecaux.jcdvelov/all.json?maxfeatures=1000`;
 
 // Fiches horaires théoriques : fichiers JSON publiés par GitHub Actions sur la branche `horaires`.
 const HORAIRES_BASE = "https://raw.githubusercontent.com/solal3105/alerte-tcl/horaires";
@@ -62,6 +65,7 @@ const ROUTE_TTL = {
   "/passages":       15,   // prochains passages
   "/parc-relais-tr": 30,   // occupation P+R temps réel
   "/alerts":         60,   // alertes trafic
+  "/velov":          60,   // disponibilité des stations Vélo'v
   "/parc-relais":    3600, // données P+R statiques
   "/horaires":       3600, // fiches horaires, régénérées chaque nuit
 };
@@ -108,6 +112,84 @@ async function doRefresh(cacheKey, upstreamURL, authHeaders, cache) {
 }
 
 /**
+ * Routes dérivées (réponse recomposée côté serveur) : cache frais → réponse immédiate ;
+ * cache périmé → ancienne réponse immédiate et recomposition en arrière-plan ;
+ * aucun cache → recomposition bloquante (premier utilisateur seulement).
+ */
+async function cachedDerived(request, ctx, ttl, refresh) {
+  const cache    = caches.default;
+  const cacheKey = new Request(request.url);
+  const cached = await cache.match(cacheKey);
+  if (cached) {
+    const cachedAt   = parseInt(cached.headers.get("X-Cached-At") ?? "0", 10);
+    const ageSeconds = (Date.now() - cachedAt) / 1000;
+    if (ageSeconds >= ttl) ctx.waitUntil(refresh(cacheKey, cache));
+    const body = await cached.arrayBuffer();
+    return new Response(body, {
+      status:  cached.status,
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    });
+  }
+  return refresh(cacheKey, cache);
+}
+
+/** Met en cache une réponse recomposée (JSON déjà sérialisé) et la renvoie. */
+async function storeDerived(cacheKey, cache, json) {
+  const buf = new TextEncoder().encode(json);
+  const toStore = new Response(buf, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=86400",
+      "X-Cached-At":  String(Date.now()),
+    },
+  });
+  await cache.put(cacheKey, toStore);
+  return new Response(buf, {
+    status: 200,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
+}
+
+/** Réponse d'erreur amont relayée telle quelle, sans mise en cache. */
+async function passThroughError(upstream) {
+  const body = await upstream.arrayBuffer();
+  return new Response(body, {
+    status: upstream.status,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
+}
+
+/**
+ * Variante de doRefresh pour /velov : ~460 stations et 500 Ko côté Grand Lyon,
+ * réduits aux champs affichés (≈40 Ko). Horodatage converti en secondes epoch.
+ */
+async function doRefreshVelov(cacheKey, cache) {
+  const upstream = await fetch(VELOV_URL, { method: "GET", headers: { "Accept": "application/json", "User-Agent": "AlerteTCL-proxy/1.0" } });
+  if (!upstream.ok) return passThroughError(upstream);
+  const data = await upstream.json();
+  const stations = (data.values ?? []).map(s => {
+    const avail = s.total_stands?.availabilities ?? s.main_stands?.availabilities ?? {};
+    const updated = s.last_update ? Date.parse(String(s.last_update).replace(" ", "T")) : NaN;
+    return {
+      id:       Number(s.number),
+      name:     s.name ?? "",
+      address:  s.address ?? "",
+      lat:      Number(s.lat),
+      lng:      Number(s.lng),
+      bikes:    Number(avail.bikes ?? s.available_bikes ?? 0),
+      ebikes:   Number(avail.electricalBikes ?? 0),
+      mbikes:   Number(avail.mechanicalBikes ?? 0),
+      stands:   Number(avail.stands ?? s.available_bike_stands ?? 0),
+      capacity: Number(s.total_stands?.capacity ?? s.bike_stands ?? 0),
+      open:     s.status === "OPEN",
+      updated:  Number.isNaN(updated) ? null : Math.floor(updated / 1000),
+    };
+  }).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng) && s.id > 0);
+  return storeDerived(cacheKey, cache, JSON.stringify({ stations }));
+}
+
+/**
  * Variante de doRefresh pour /bus-termini :
  * Fetche la collection bus-lines complète (22 MB) côté serveur,
  * ne conserve que ligne/sens/nom_destination (≈50 KB), cache le résultat allégé.
@@ -115,14 +197,7 @@ async function doRefresh(cacheKey, upstreamURL, authHeaders, cache) {
 async function doRefreshBusTermini(cacheKey, authHeaders, cache) {
   const upstreamURL = `${GEO_BASE}/${GEO_COLLECTIONS["bus-lines"]}/items?limit=5000&f=json&sortby=gid`;
   const upstream = await fetch(upstreamURL, { method: "GET", headers: authHeaders });
-
-  if (!upstream.ok) {
-    const body = await upstream.arrayBuffer();
-    return new Response(body, {
-      status: upstream.status,
-      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-    });
-  }
+  if (!upstream.ok) return passThroughError(upstream);
 
   const data = await upstream.json();
   const stripped = JSON.stringify({
@@ -134,22 +209,7 @@ async function doRefreshBusTermini(cacheKey, authHeaders, cache) {
       },
     })),
   });
-
-  const buf = new TextEncoder().encode(stripped);
-  const toStore = new Response(buf, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/json",
-      "Cache-Control": "public, max-age=86400",
-      "X-Cached-At":  String(Date.now()),
-    },
-  });
-  await cache.put(cacheKey, toStore.clone());
-
-  return new Response(buf, {
-    status: 200,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-  });
+  return storeDerived(cacheKey, cache, stripped);
 }
 
 /**
@@ -196,21 +256,7 @@ async function doRefreshLineMapping(cacheKey, authHeaders, cache) {
     extractMapping(data.features ?? []);
   }
 
-  const buf = new TextEncoder().encode(JSON.stringify({ mapping }));
-  const toStore = new Response(buf, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/json",
-      "Cache-Control": "public, max-age=86400",
-      "X-Cached-At":  String(Date.now()),
-    },
-  });
-  await cache.put(cacheKey, toStore);
-
-  return new Response(buf, {
-    status: 200,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-  });
+  return storeDerived(cacheKey, cache, JSON.stringify({ mapping }));
 }
 
 /**
@@ -410,56 +456,20 @@ export default {
     // Retourne ligne+sens+nom_destination pour toutes les lignes bus (géométrie strippée).
     // Payload : 22 MB côté GeoServer → ≈50 KB retourné au client.
     if (pathname === "/bus-termini") {
-      const cache    = caches.default;
-      const cacheKey = new Request(request.url);
+      return cachedDerived(request, ctx, GEO_TTL, (cacheKey, cache) => doRefreshBusTermini(cacheKey, authHeaders, cache));
+    }
 
-      const cached = await cache.match(cacheKey);
-      if (cached) {
-        const cachedAt   = parseInt(cached.headers.get("X-Cached-At") ?? "0", 10);
-        const ageSeconds = (Date.now() - cachedAt) / 1000;
-        if (ageSeconds < GEO_TTL) {
-          const body = await cached.arrayBuffer();
-          return new Response(body, {
-            status:  cached.status,
-            headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-          });
-        }
-        ctx.waitUntil(doRefreshBusTermini(cacheKey, authHeaders, cache));
-        const body = await cached.arrayBuffer();
-        return new Response(body, {
-          status:  cached.status,
-          headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-        });
-      }
-      return doRefreshBusTermini(cacheKey, authHeaders, cache);
+    // ── /velov ──────────────────────────────────────────────────────────────
+    // Stations Vélo'v et disponibilité (données publiques, sans credential), allégées.
+    if (pathname === "/velov") {
+      return cachedDerived(request, ctx, ROUTE_TTL["/velov"], doRefreshVelov);
     }
 
     // ── /line-mapping ────────────────────────────────────────────────────────
     // Retourne {"mapping": {"code_ligne": "ligne_commerciale", ...}} pour toutes
     // les lignes TCL. Utilisé par l'app pour résoudre les codes SIRI opérationnels.
     if (pathname === "/line-mapping") {
-      const cache    = caches.default;
-      const cacheKey = new Request(request.url);
-
-      const cached = await cache.match(cacheKey);
-      if (cached) {
-        const cachedAt   = parseInt(cached.headers.get("X-Cached-At") ?? "0", 10);
-        const ageSeconds = (Date.now() - cachedAt) / 1000;
-        if (ageSeconds < GEO_TTL) {
-          const body = await cached.arrayBuffer();
-          return new Response(body, {
-            status:  cached.status,
-            headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-          });
-        }
-        ctx.waitUntil(doRefreshLineMapping(cacheKey, authHeaders, cache));
-        const body = await cached.arrayBuffer();
-        return new Response(body, {
-          status:  cached.status,
-          headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-        });
-      }
-      return doRefreshLineMapping(cacheKey, authHeaders, cache);
+      return cachedDerived(request, ctx, GEO_TTL, (cacheKey, cache) => doRefreshLineMapping(cacheKey, authHeaders, cache));
     }
 
     // ── /horaires/index.json | /horaires/lignes/<CLÉ>/<A|R>.json ────────────

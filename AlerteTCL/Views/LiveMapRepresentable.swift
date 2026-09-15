@@ -22,12 +22,14 @@ import Combine
 struct LiveMapRepresentable: UIViewRepresentable {
     @ObservedObject var viewModel: LiveVehiclesViewModel
     @ObservedObject var stopsViewModel: TransitStopViewModel
+    @ObservedObject var velovViewModel: VelovViewModel
     @ObservedObject var locationService: LocationService
 
     @Binding var region: MKCoordinateRegion
     /// Toucher un véhicule : la carte se filtre sur sa ligne (la fiche s'ouvre depuis le bandeau).
     let onVehicleTap: (Vehicle) -> Void
     @Binding var selectedMergedStop: MergedStop?
+    @Binding var selectedVelovStation: VelovStation?
     @Binding var isSatellite: Bool
 
     // MARK: - Lifecycle
@@ -47,6 +49,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
 
         mapView.register(VehicleAnnotationView.self,   forAnnotationViewWithReuseIdentifier: VehicleAnnotationView.identifier)
         mapView.register(MergedStopAnnotationView.self, forAnnotationViewWithReuseIdentifier: MergedStopAnnotationView.identifier)
+        mapView.register(VelovAnnotationView.self, forAnnotationViewWithReuseIdentifier: VelovAnnotationView.identifier)
 
         applyMapStyle(to: mapView, satellite: isSatellite)
 
@@ -100,6 +103,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
         // Diff des annotations et overlays
         coord.syncVehicleAnnotations(viewModel.displayVehicles, animated: viewModel.animatedVehicles)
         coord.syncMergedStopAnnotations(stopsViewModel.visibleMergedStops)
+        coord.syncVelovAnnotations(velovViewModel.visibleStations)
         // Filtre actif : seul le tracé de la ligne filtrée reste visible, quels que soient les réglages.
         if let focus = viewModel.stopFocus {
             coord.syncPolylineOverlays(
@@ -159,6 +163,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
         // Diff state
         private var vehicleAnnotations:   [String: VehicleAnnotation]    = [:]
         private var stopAnnotations:      [String: MergedStopAnnotation] = [:]
+        private var velovAnnotations:     [Int: VelovAnnotation] = [:]
         private var busOverlaysById:      [String: MKPolyline]           = [:]
         private var transitOverlaysById:  [String: MKPolyline]           = [:]
         private var overlayColors:        [ObjectIdentifier: (UIColor, CGFloat)] = [:]
@@ -335,6 +340,32 @@ struct LiveMapRepresentable: UIViewRepresentable {
             if !toAdd.isEmpty { mapView.addAnnotations(toAdd) }
         }
 
+        func syncVelovAnnotations(_ stations: [VelovStation]) {
+            guard let mapView else { return }
+
+            let incomingIDs = Set(stations.map { Int($0.id) })
+            let currentIDs  = Set(velovAnnotations.keys)
+
+            let toRemoveIDs = currentIDs.subtracting(incomingIDs)
+            if !toRemoveIDs.isEmpty {
+                let toRemove = toRemoveIDs.compactMap { velovAnnotations.removeValue(forKey: $0) }
+                mapView.removeAnnotations(toRemove)
+            }
+
+            var toAdd: [VelovAnnotation] = []
+            for station in stations {
+                if let existing = velovAnnotations[Int(station.id)] {
+                    existing.station = station
+                    (mapView.view(for: existing) as? VelovAnnotationView)?.apply(station: station)
+                } else {
+                    let annotation = VelovAnnotation(station: station)
+                    velovAnnotations[annotation.id] = annotation
+                    toAdd.append(annotation)
+                }
+            }
+            if !toAdd.isEmpty { mapView.addAnnotations(toAdd) }
+        }
+
         // MARK: Diff overlays (polylignes)
 
         func syncPolylineOverlays(busLines: [BusLine], transitLines: [TransitLine]) {
@@ -482,6 +513,15 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 view.apply(stop: stop.stop, showBadges: currentZoomLevel <= Self.stopBadgeZoomThreshold)
                 return view
 
+            case let station as VelovAnnotation:
+                let view = mapView.dequeueReusableAnnotationView(
+                    withIdentifier: VelovAnnotationView.identifier,
+                    for: station
+                ) as? VelovAnnotationView ?? VelovAnnotationView(annotation: station, reuseIdentifier: VelovAnnotationView.identifier)
+                view.annotation = station
+                view.apply(station: station.station)
+                return view
+
             default:
                 return nil
             }
@@ -509,6 +549,8 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 owner.onVehicleTap(v.vehicle)
             case let s as MergedStopAnnotation:
                 owner.selectedMergedStop = s.stop
+            case let v as VelovAnnotation:
+                owner.selectedVelovStation = v.station
             default:
                 break
             }
@@ -527,6 +569,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
             owner.viewModel.updateZoomLevel(mapView.region.span)
             owner.viewModel.updateVisibleRegion(mapView.region)
             owner.stopsViewModel.updateVisibleStops(zoom: mapView.region.span.latitudeDelta, region: mapView.region)
+            owner.velovViewModel.updateVisible(zoom: mapView.region.span.latitudeDelta, region: mapView.region)
             refreshVehicleViews(for: mapView.region.span.latitudeDelta)
 
             // Remonte vers le binding SwiftUI uniquement si le mouvement vient

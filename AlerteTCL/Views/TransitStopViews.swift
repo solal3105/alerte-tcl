@@ -49,10 +49,18 @@ struct LinePassagesCard: View {
     let line: String
     let direction: String
     let passages: [Passage]
+    /// « Où est mon bus » : véhicules de ce sens qui n'ont pas encore atteint l'arrêt, les plus proches d'abord.
+    var approaching: [ApproachingVehicle] = []
+    /// Véhicule suivi dans l'activité en direct, s'il y en a un.
+    var trackedVehicleId: String? = nil
     /// Montre sur la carte les véhicules de cette ligne dans ce sens.
     var onShowOnMap: (() -> Void)? = nil
     /// Ouvre la fiche horaire théorique de cette ligne à cet arrêt.
     var onShowTimetable: (() -> Void)? = nil
+    /// Cadre la carte sur un véhicule en approche.
+    var onLocate: ((ApproachingVehicle) -> Void)? = nil
+    /// Suit ce véhicule jusqu'à l'arrêt dans l'activité en direct (ou arrête ce suivi).
+    var onTrack: ((ApproachingVehicle) -> Void)? = nil
     
     private var bgColor: Color {
         LineColorHelper.backgroundColor(for: line)
@@ -88,6 +96,27 @@ struct LinePassagesCard: View {
                 Text("Les horaires sans pastille verte sont théoriques : le véhicule n'est pas suivi en direct, vérifiez les alertes en cas de perturbation.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+            }
+
+            if !approaching.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Où est mon bus", systemImage: "location.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    ForEach(approaching, id: \.vehicle.id) { approach in
+                        ApproachRow(
+                            approach: approach,
+                            lineColor: bgColor,
+                            lineTextColor: LineColorHelper.textColor(for: line),
+                            isTracked: trackedVehicleId == approach.vehicle.id,
+                            onLocate: onLocate.map { locate in { locate(approach) } },
+                            onTrack: onTrack.map { track in { track(approach) } }
+                        )
+                    }
+                    Text(StopApproach.shared.NOTE)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if onShowOnMap != nil || onShowTimetable != nil {
@@ -126,6 +155,82 @@ extension LinePassagesCard {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.primary)
+    }
+}
+
+// MARK: - Où est mon bus
+
+/// Un véhicule en approche : arrêts restants, âge de la position, heure estimée, bouton de suivi.
+struct ApproachRow: View {
+    let approach: ApproachingVehicle
+    let lineColor: Color
+    let lineTextColor: Color
+    let isTracked: Bool
+    var onLocate: (() -> Void)? = nil
+    var onTrack: (() -> Void)? = nil
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let nowMs = Int64(context.date.timeIntervalSince1970 * 1000)
+            HStack(alignment: .center, spacing: 10) {
+                Button(action: { onLocate?() }) {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(approach.stopsText)
+                                    .font(.subheadline.weight(.semibold))
+                                    .lineLimit(1)
+                                    .layoutPriority(1)
+                                Spacer(minLength: 6)
+                                if let arrival = approach.arrivalText(nowEpochMs: nowMs) {
+                                    Text(arrival)
+                                        .font(.subheadline.weight(.bold))
+                                        .monospacedDigit()
+                                        .lineLimit(1)
+                                        .fixedSize()
+                                } else {
+                                    Text("Heure inconnue")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                        .fixedSize()
+                                }
+                            }
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(approach.positionText(nowEpochMs: nowMs))
+                                    .font(.caption2)
+                                    .foregroundStyle(Color(token: approach.vehicle.positionFreshness(nowEpochMs: nowMs).color))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.85)
+                                Spacer(minLength: 6)
+                                if let time = approach.estimatedTime(timeZoneId: StopApproach.shared.TIME_ZONE) {
+                                    Text("≈ \(time)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .monospacedDigit()
+                                        .fixedSize()
+                                }
+                            }
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Voir ce bus sur la carte")
+
+                if let onTrack, BusTrackingController.isSupported {
+                    Button(action: onTrack) {
+                        Image(systemName: isTracked ? "bell.badge.fill" : "bell")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(isTracked ? lineTextColor : Color.primary)
+                            .frame(width: 32, height: 32)
+                            .background(isTracked ? lineColor : Color(.tertiarySystemFill), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isTracked ? "Arrêter le suivi de ce bus" : "Suivre ce bus jusqu'à l'arrêt")
+                }
+            }
+        }
     }
 }
 
@@ -168,16 +273,25 @@ struct PassageChip: View {
 struct MergedStopDetailSheet: View {
     let mergedStop: MergedStop
     let stopsVM: TransitStopViewModel
+    /// Positions des véhicules, pour « où est mon bus » (mises à jour toutes les 15 s).
+    @ObservedObject var liveVM: LiveVehiclesViewModel
     /// Appelé quand l'utilisateur veut voir sur la carte les bus d'une ligne dans un sens
     /// (le parent applique le filtre et referme la fiche).
     var onFocus: ((StopLineFocus) -> Void)? = nil
+    /// Appelé quand l'utilisateur touche un véhicule en approche (le parent le cadre avec l'arrêt).
+    var onLocateVehicle: ((Vehicle) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var tracker = BusTrackingController.shared
     @State private var allPassages: [Passage] = []
     @State private var isLoading = false
     @State private var showWidgetSheet = false
     /// Terminus par ligne et sens, pour déduire le sens d'une destination affichée.
     @State private var termini: [String: String] = [:]
     @State private var timetableRequest: StopTimetableRequest?
+    /// Fiches horaires par ligne et sens (l'ordre des arrêts), chargées une fois par fiche ouverte.
+    @State private var timetables: [LineDirectionKey: LineTimetable] = [:]
+    @State private var timetableLookups: Set<LineDirectionKey> = []
+    @State private var approaches: [LineDirectionKey: [ApproachingVehicle]] = [:]
     
     /// Clé unique pour grouper par ligne ET direction
     private struct LineDirectionKey: Hashable {
@@ -257,7 +371,10 @@ struct MergedStopDetailSheet: View {
         }
         .task {
             termini = (try? await LineTermini.shared.all()) ?? [:]
+            loadTimetablesIfNeeded()
         }
+        .onChange(of: allPassages) { _, _ in loadTimetablesIfNeeded() }
+        .onChange(of: liveVM.vehicles) { _, _ in recomputeApproaches() }
         .sheet(isPresented: $showWidgetSheet) {
             AddToWidgetSheet(
                 stopName: mergedStop.nom,
@@ -298,6 +415,64 @@ struct MergedStopDetailSheet: View {
         isLoading = false
     }
     
+    /// Charge l'ordre des arrêts de chaque ligne et sens affichés (une seule requête par sens, gardée en cache).
+    private func loadTimetablesIfNeeded() {
+        guard !termini.isEmpty || !allPassages.isEmpty else { return }
+        for key in sortedLineDirections where !timetableLookups.contains(key) {
+            timetableLookups.insert(key)
+            Task { @MainActor in
+                let timetable = try? await TimetableService.companion.shared.findForStopIds(
+                    line: key.line, destination: key.direction,
+                    stopIds: mergedStop.stops.map { KotlinInt(value: Int32($0.id)) },
+                    stopName: mergedStop.nom, termini: termini
+                )
+                if let timetable {
+                    timetables[key] = timetable
+                    recomputeApproaches()
+                }
+            }
+        }
+    }
+
+    /// « Où est mon bus » : recalculé à chaque réception de positions, pour les sens dont l'ordre des arrêts est connu.
+    private func recomputeApproaches() {
+        guard !timetables.isEmpty else { return }
+        let lines = Set(timetables.keys.map(\.line))
+        let candidates = liveVM.vehicles.filter { lines.contains($0.lineName) }.map(\.shared)
+        let stopIds = mergedStop.stops.map { KotlinInt(value: Int32($0.id)) }
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        var result: [LineDirectionKey: [ApproachingVehicle]] = [:]
+        for (key, timetable) in timetables {
+            let list = StopApproach.shared.approaching(
+                vehicles: candidates, timetable: timetable, stopIds: stopIds, stopName: mergedStop.nom,
+                nowEpochMs: now, timeZoneId: StopApproach.shared.TIME_ZONE, limit: 3
+            )
+            if !list.isEmpty { result[key] = list }
+        }
+        approaches = result
+        #if DEBUG
+        // Mode démo « suivi » : suivre le premier bus en approche dès qu'il est connu.
+        if DemoShowcase.current == "suivi", tracker.trackedVehicleId == nil,
+           let key = sortedLineDirections.first(where: { result[$0] != nil }), let first = result[key]?.first {
+            track(first, key: key)
+        }
+        #endif
+    }
+
+    private func locate(_ approach: ApproachingVehicle) {
+        guard let onLocateVehicle, let vehicle = liveVM.vehicles.first(where: { $0.id == approach.vehicle.id }) else { return }
+        onLocateVehicle(vehicle)
+    }
+
+    private func track(_ approach: ApproachingVehicle, key: LineDirectionKey) {
+        if tracker.trackedVehicleId == approach.vehicle.id {
+            tracker.cancel()
+            return
+        }
+        guard let vehicle = liveVM.vehicles.first(where: { $0.id == approach.vehicle.id }), let timetable = timetables[key] else { return }
+        tracker.start(vehicle: vehicle, approach: approach, stop: mergedStop, timetable: timetable, liveVM: liveVM)
+    }
+
     private func stopLineFocus(for key: LineDirectionKey) -> StopLineFocus {
         StopLineFocus(
             line: key.line,
@@ -406,8 +581,12 @@ struct MergedStopDetailSheet: View {
                         line: key.line,
                         direction: key.direction,
                         passages: linePassages,
+                        approaching: approaches[key] ?? [],
+                        trackedVehicleId: tracker.trackedVehicleId,
                         onShowOnMap: onFocus.map { focus in { focus(stopLineFocus(for: key)) } },
-                        onShowTimetable: { timetableRequest = timetableRequest(for: key) }
+                        onShowTimetable: { timetableRequest = timetableRequest(for: key) },
+                        onLocate: onLocateVehicle == nil ? nil : { approach in locate(approach) },
+                        onTrack: { approach in track(approach, key: key) }
                     )
                 }
             }

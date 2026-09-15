@@ -112,6 +112,21 @@ La topologie du réseau (noms de lignes, correspondances) est disponible dans le
 La ligne RX est présente dans le flux SIRI (véhicules actifs) mais **absente du GeoServer** `/bus-lines`.
 Son tracé ne peut pas être affiché sur la carte. Problème côté données Grand Lyon.
 
+### Où est mon bus et suivi d'un bus
+
+`StopApproach` (module partagé) croise les positions SIRI (prochain arrêt, heure prévue, retard) avec
+la fiche horaire du sens pour donner, à un arrêt, le nombre d'arrêts restants et une arrivée estimée
+(horaire prévu de la course corrigé du retard). L'âge de la position reste affiché et `StopApproach.NOTE`
+rappelle que ce n'est pas un suivi en direct. Le suivi d'un bus (activité en direct iOS
+`BusTrackingAttributes`/`BusTrackingController`, notification Android `BusTrackingNotifier`) n'est mis
+à jour que tant que l'application est ouverte ; les mises à jour poussées par le relais restent à faire.
+
+### Stations Vélo'v
+
+Route `/velov` du proxy : `jcd_jcdecaux.jcdvelov/all.json` (données publiques, sans identifiant) allégé
+aux champs affichés, cache 60 s. Modèle `VelovStation`, service `VelovService`, couche de carte activée
+depuis les filtres (réglage persisté), même seuil de zoom que les arrêts.
+
 ### Fiches horaires théoriques (GTFS)
 
 Les horaires d'une journée entière (fiches horaires par ligne, sens et date) ne viennent pas

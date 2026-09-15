@@ -87,6 +87,17 @@ struct Vehicle: Identifiable, Hashable {
     /// False dès que la position est obsolète : le véhicule n'est plus dessiné sur la carte.
     var isShownOnMap: Bool { positionFreshness != .stale }
 
+    /// Version Kotlin du véhicule, pour les règles partagées (« où est mon bus », filtre au clic).
+    var shared: Shared.Vehicle {
+        Shared.Vehicle(
+            id: id, latitude: latitude, longitude: longitude, bearing: bearing, lineRef: lineRef, lineName: lineName,
+            vehicleType: vehicleType.shared, destination: destination, direction: direction, delay: Int32(delay), status: status,
+            recordedAtEpoch: recordedAt.map { KotlinLong(value: Int64($0.timeIntervalSince1970)) },
+            validUntilEpoch: validUntil.map { KotlinLong(value: Int64($0.timeIntervalSince1970)) },
+            nextStop: nextStop?.shared
+        )
+    }
+
     /// Formate un âge en texte court ("12 s", "1 min 30", "4 min").
     static func formattedAge(_ seconds: TimeInterval) -> String {
         let s = Int(seconds)
@@ -204,4 +215,16 @@ struct MonitoredCall: Codable {
 struct VehicleLocation: Codable {
     let Longitude: Double?
     let Latitude: Double?
+}
+
+extension StopInfo {
+    var shared: Shared.StopInfo {
+        Shared.StopInfo(
+            id: id, stopRef: stopRef, stopName: stopName,
+            aimedArrivalTimeEpoch: aimedArrivalTime.map { KotlinLong(value: Int64($0.timeIntervalSince1970)) },
+            aimedDepartureTimeEpoch: aimedDepartureTime.map { KotlinLong(value: Int64($0.timeIntervalSince1970)) },
+            distanceFromStop: distanceFromStop.map { KotlinInt(value: Int32($0)) },
+            order: order.map { KotlinInt(value: Int32($0)) }
+        )
+    }
 }

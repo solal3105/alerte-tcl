@@ -68,6 +68,14 @@ class FavoritesStore(private val context: Context) {
     val showMetroTraces: Flow<Boolean> =
         context.favStore.data.map { p -> p[KEY_SHOW_METRO_TRACES] != "0" }
 
+    /** Stations Vélo'v sur la carte live (false = masquées par défaut). */
+    val showVelov: Flow<Boolean> =
+        context.favStore.data.map { p -> p[KEY_SHOW_VELOV] == "1" }
+
+    suspend fun setShowVelov(show: Boolean) {
+        context.favStore.edit { p -> p[KEY_SHOW_VELOV] = if (show) "1" else "0" }
+    }
+
     suspend fun setShowBusTraces(show: Boolean) {
         context.favStore.edit { p -> p[KEY_SHOW_BUS_TRACES] = if (show) "1" else "0" }
     }
@@ -145,6 +153,7 @@ class FavoritesStore(private val context: Context) {
         private val KEY_SHOW_BUS_TRACES     = stringPreferencesKey("show_bus_traces")
         private val KEY_SHOW_TRAM_TRACES    = stringPreferencesKey("show_tram_traces")
         private val KEY_SHOW_METRO_TRACES   = stringPreferencesKey("show_metro_traces")
+        private val KEY_SHOW_VELOV          = stringPreferencesKey("show_velov")
         private val KEY_LINE_PALETTE        = stringPreferencesKey("line_palette")
     }
 }
