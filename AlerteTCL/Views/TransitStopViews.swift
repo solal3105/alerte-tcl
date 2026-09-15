@@ -51,6 +51,8 @@ struct LinePassagesCard: View {
     let passages: [Passage]
     /// « Où est mon bus » : véhicules de ce sens qui n'ont pas encore atteint l'arrêt, les plus proches d'abord.
     var approaching: [ApproachingVehicle] = []
+    /// Vrai quand l'ordre des arrêts du sens est connu : sans bus en approche, la carte le dit au lieu de se taire.
+    var approachKnown: Bool = false
     /// Véhicule suivi dans l'activité en direct, s'il y en a un.
     var trackedVehicleId: String? = nil
     /// Montre sur la carte les véhicules de cette ligne dans ce sens.
@@ -114,6 +116,15 @@ struct LinePassagesCard: View {
                         )
                     }
                     Text(StopApproach.shared.NOTE)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            } else if approachKnown, TransportMode.detectFromLine(line).shared.showOnMapLabel != nil {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("Où est mon bus", systemImage: "location.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(StopApproach.shared.NONE_APPROACHING)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -582,6 +593,7 @@ struct MergedStopDetailSheet: View {
                         direction: key.direction,
                         passages: linePassages,
                         approaching: approaches[key] ?? [],
+                        approachKnown: timetables[key] != nil,
                         trackedVehicleId: tracker.trackedVehicleId,
                         onShowOnMap: onFocus.map { focus in { focus(stopLineFocus(for: key)) } },
                         onShowTimetable: { timetableRequest = timetableRequest(for: key) },

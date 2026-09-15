@@ -1780,6 +1780,7 @@ private fun MergedStopDetailSheet(
                         LinePassagesCard(
                             line = key.line, direction = key.direction, passages = list,
                             approaching = approaches[key].orEmpty(),
+                            approachKnown = timetables[key] != null,
                             trackedVehicleId = trackedVehicleId,
                             onLocate = { approach -> vehicles.firstOrNull { it.id == approach.vehicle.id }?.let(onLocateVehicle) },
                             onTrack = { approach ->
@@ -1821,6 +1822,8 @@ private fun LinePassagesCard(
     passages: List<Passage>,
     /** « Où est mon bus » : véhicules de ce sens qui n'ont pas encore atteint l'arrêt, les plus proches d'abord. */
     approaching: List<ApproachingVehicle> = emptyList(),
+    /** Vrai quand l'ordre des arrêts du sens est connu : sans bus en approche, la carte le dit au lieu de se taire. */
+    approachKnown: Boolean = false,
     trackedVehicleId: String? = null,
     onLocate: ((ApproachingVehicle) -> Unit)? = null,
     onTrack: ((ApproachingVehicle) -> Unit)? = null,
@@ -1865,6 +1868,15 @@ private fun LinePassagesCard(
                         )
                     }
                     Text(StopApproach.NOTE, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else if (approachKnown && TransportMode.detectFromLine(line).showOnMapLabel != null) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Icons.Filled.LocationOn, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(13.dp))
+                        Text("Où est mon bus", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(StopApproach.NONE_APPROACHING, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (onShowOnMap != null || onShowTimetable != null) {

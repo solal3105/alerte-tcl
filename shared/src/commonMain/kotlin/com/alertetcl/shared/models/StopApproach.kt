@@ -51,6 +51,10 @@ data class ApproachingVehicle(
 object StopApproach {
     const val TIME_ZONE = "Europe/Paris"
 
+    /** Quand aucun véhicule du sens n'est en route vers l'arrêt : la fonction reste visible et expliquée. */
+    const val NONE_APPROACHING = "Aucun véhicule de cette ligne n'est en route vers cet arrêt pour l'instant. " +
+        "Dès qu'il y en aura un, vous verrez ici à combien d'arrêts il se trouve et vous pourrez le suivre avec la cloche."
+
     /** Phrase d'explication affichée sous les estimations, identique sur les deux plateformes. */
     const val NOTE = "Ces positions ne sont pas un suivi en direct : TCL les transmet toutes les 15 à 60 s, " +
         "le bus a pu avancer depuis. L'heure d'arrivée est celle de l'horaire prévu, corrigée du retard " +
