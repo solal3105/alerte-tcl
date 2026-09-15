@@ -60,6 +60,8 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -340,7 +342,10 @@ fun LiveMapScreen() {
         LaunchedEffect(Unit) {
             kotlinx.coroutines.delay(6_000)
             when (DemoShowcase.current) {
-                "fiche", "fiche-vieille" -> selectedVehicleId.value = DemoShowcase.vehicleForSheet()?.id
+                "fiche", "fiche-vieille" -> DemoShowcase.vehicleForSheet()?.let { v ->
+                    vm.focusOnStop(StopLineFocus.forVehicle(v))
+                    selectedVehicleId.value = v.id
+                }
                 "arret"                  -> selectedStop.value = DemoShowcase.mergedStop()
                 "bus-arret"              -> DemoShowcase.stopLineFocus().let { focus ->
                     vm.focusOnStop(focus)
@@ -415,8 +420,7 @@ fun LiveMapScreen() {
                             val vf = map.queryRenderedFeatures(pt, VEHICLES_LAYER)
                             if (vf.isNotEmpty()) {
                                 val id = vf[0].getStringProperty("id")
-                                selectedVehicleId.value = id
-                                // Toucher un véhicule filtre la carte sur sa ligne (bandeau « Tout afficher » pour revenir).
+                                // Toucher un véhicule filtre la carte sur sa ligne ; la fiche s'ouvre depuis le bandeau.
                                 vehicles.firstOrNull { it.id == id }?.let { vm.focusOnStop(StopLineFocus.forVehicle(it)) }
                                 return@addOnMapClickListener true
                             }
@@ -460,7 +464,7 @@ fun LiveMapScreen() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
         AnimatedVisibility(
-            visible = !bannerCollapsed,
+            visible = !bannerCollapsed && stopFocus == null,
             enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
             exit  = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
             modifier = Modifier.fillMaxWidth()
@@ -485,7 +489,7 @@ fun LiveMapScreen() {
                 onTap = { showAlertsSheet = true }
             )
         }
-        if (bannerCollapsed) {
+        if (bannerCollapsed && stopFocus == null) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
@@ -503,11 +507,21 @@ fun LiveMapScreen() {
             }
         }
         stopFocus?.let { focus ->
-            StopFocusBanner(
-                focus = focus,
-                vehicleCount = vehicles.count(focus::matches),
-                onClear = { vm.clearStopFocus() }
-            )
+            val vehicleId = focus.vehicleId
+            if (vehicleId != null) {
+                VehicleFocusBanner(
+                    focus = focus,
+                    vehicle = vehicles.firstOrNull { it.id == vehicleId },
+                    onMore = { selectedVehicleId.value = vehicleId },
+                    onClose = { vm.clearStopFocus() }
+                )
+            } else {
+                StopFocusBanner(
+                    focus = focus,
+                    vehicleCount = vehicles.count(focus::matches),
+                    onClear = { vm.clearStopFocus() }
+                )
+            }
         }
         }
 
@@ -599,17 +613,19 @@ fun LiveMapScreen() {
     // ── Map update effects ──────────────────────────────────────────────
 
     // Line traces — z-order bottom → top: bus → Bus C → tram → métro/funi
-    LaunchedEffect(mapStyle, showBusTraces, showTramTraces, showMetroTraces, transitLines.value, busLines.value, selectedLines, paletteVersion) {
+    LaunchedEffect(mapStyle, showBusTraces, showTramTraces, showMetroTraces, transitLines.value, busLines.value, selectedLines, paletteVersion, stopFocus) {
         val style = mapStyle ?: return@LaunchedEffect
+        // Filtre actif : seul le tracé de la ligne filtrée reste visible, quels que soient les réglages.
+        val focusedLine = stopFocus?.line
 
         // Capture immutable snapshots avant de switcher sur Default — évite les lectures de
         // Compose State depuis un thread non-Main (undefined behavior dans le snapshot system).
         val capturedBus     = busLines.value
         val capturedTransit = transitLines.value
-        val capturedFilters = selectedLines
-        val capturedBusTraces   = showBusTraces
-        val capturedTramTraces  = showTramTraces
-        val capturedMetroTraces = showMetroTraces
+        val capturedFilters = focusedLine?.let { setOf(it) } ?: selectedLines
+        val capturedBusTraces   = showBusTraces || focusedLine != null
+        val capturedTramTraces  = showTramTraces || focusedLine != null
+        val capturedMetroTraces = showMetroTraces || focusedLine != null
 
         // Sérialisation GeoJSON incluse dans le withContext(Default) — aucun JSON sur Main
         fun addOrUpdate(src: String, layer: String, geojson: String, width: Float) {
@@ -1639,6 +1655,68 @@ private fun CardActionButton(label: String, icon: ImageVector, modifier: Modifie
         Icon(icon, null, modifier = Modifier.size(14.dp))
         Spacer(Modifier.width(4.dp))
         Text(label, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/**
+ * Remplace le bandeau trafic quand un véhicule a été touché : l'essentiel du véhicule,
+ * « Voir plus » pour sa fiche, « Fermer » pour retirer le filtre (parité iOS VehicleFocusCard).
+ */
+@Composable
+private fun VehicleFocusBanner(focus: StopLineFocus, vehicle: Vehicle?, onMore: () -> Unit, onClose: () -> Unit) {
+    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(1000); nowMs = System.currentTimeMillis() } }
+    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 4.dp,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+        modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                LineBadge(focus.line, size = 30.dp, fontSize = 11.sp)
+                Column {
+                    Text(focus.bannerTitle, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Vers ${vehicle?.destination ?: focus.destination}", style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            if (vehicle != null) {
+                val age = vehicle.positionAgeSeconds(nowMs)
+                val delayColor = when {
+                    vehicle.isDelayed -> Tokens.warning
+                    vehicle.isEarly -> MaterialTheme.colorScheme.primary
+                    else -> Tokens.success
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(Modifier.size(7.dp).background(vehicle.positionFreshness(nowMs).color.compose(), CircleShape))
+                    Text(
+                        age?.let { "Position transmise par TCL il y a ${Vehicle.formattedAge(it)}" } ?: "Position transmise par TCL",
+                        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
+                    )
+                    Surface(shape = RoundedCornerShape(50), color = delayColor.copy(alpha = 0.12f)) {
+                        Text(vehicle.delayFormatted, color = delayColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                    }
+                }
+                vehicle.nextStop?.stopName?.let { name ->
+                    val at = vehicle.nextStop?.aimedArrivalTimeEpoch ?: vehicle.nextStop?.aimedDepartureTimeEpoch
+                    val time = at?.let { java.time.Instant.ofEpochSecond(it).atZone(java.time.ZoneId.systemDefault()).toLocalTime().let { t -> "%02d:%02d".format(t.hour, t.minute) } }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(Icons.Filled.LocationOn, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
+                        Text(if (time != null) "Dernier arrêt : $name · $time" else "Dernier arrêt : $name",
+                            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            } else {
+                Text("Ce véhicule n'est plus suivi pour l'instant.", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                OutlinedButton(onClick = onClose, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)) { Text("Fermer", fontSize = 12.sp) }
+                if (vehicle != null) {
+                    Button(onClick = onMore, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)) { Text("Voir plus", fontSize = 12.sp) }
+                }
+            }
+        }
     }
 }
 

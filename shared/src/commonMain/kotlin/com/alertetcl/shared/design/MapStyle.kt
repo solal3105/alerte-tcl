@@ -6,11 +6,11 @@ import com.alertetcl.shared.models.TransportMode
 object MapStyle {
     /** Épaisseur du tracé selon le mode (points iOS, pixels indépendants de la densité sur Android). */
     fun routeWidth(mode: TransportMode): Double = when (mode) {
-        TransportMode.METRO -> 5.0
-        TransportMode.TRAMWAY -> 4.5
-        TransportMode.FUNICULAR -> 4.0
-        TransportMode.BUS_C -> 3.5
-        TransportMode.BUS, TransportMode.NAVIGONE -> 3.0
+        TransportMode.METRO -> 4.0
+        TransportMode.TRAMWAY -> 3.5
+        TransportMode.FUNICULAR -> 3.0
+        TransportMode.BUS_C -> 2.5
+        TransportMode.BUS, TransportMode.NAVIGONE -> 2.0
     }
 
     fun routeWidth(line: String): Double = routeWidth(TransportMode.detectFromLine(line))

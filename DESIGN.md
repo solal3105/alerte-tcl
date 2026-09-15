@@ -31,8 +31,12 @@ de transport ont une couleur d'iconographie (`AppColors.mode`), réservée aux f
 jamais utilisée pour représenter une ligne.
 
 Les tracés des lignes sur la carte prennent la couleur officielle de la ligne, avec une épaisseur par
-mode définie une fois (`MapStyle` : métro 5, tramway 4,5, funiculaire 4, bus C 3,5, bus 3), une légère
-transparence et, sur Android, un liseré clair qui les détache du fond.
+mode définie une fois (`MapStyle` : métro 4, tramway 3,5, funiculaire 3, bus C 2,5, bus 2), une légère
+transparence et, sur Android, un liseré clair qui les détache du fond. Toucher un véhicule isole sa
+ligne : seuls ses véhicules et son tracé restent visibles, quels que soient les réglages de tracés, le
+bandeau trafic s'efface et un bandeau décrit le véhicule (ligne, direction, fraîcheur de la position,
+retard, dernier arrêt) avec deux boutons, « Voir plus » pour sa fiche et « Fermer » pour tout
+réafficher. Le même bandeau, sans « Voir plus », sert au filtre lancé depuis la fiche d'un arrêt.
 
 Les barèmes métier sont au même endroit : importance et avancement d'un chantier, progression d'un
 chantier (du rouge au vert en onze paliers), disponibilité et type d'un parking, nature d'un chantier

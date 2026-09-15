@@ -48,7 +48,7 @@ struct LiveMapView: View {
                 stopsViewModel: stopsViewModel,
                 locationService: locationService,
                 region: $mapRegion,
-                selectedVehicle: $selectedVehicle,
+                onVehicleTap: { vehicle in withAnimation { focusOnVehicle(vehicle) } },
                 selectedMergedStop: $selectedMergedStop,
                 isSatellite: $isSatellite
             )
@@ -114,7 +114,11 @@ struct LiveMapView: View {
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 4_000_000_000)
                     switch DemoShowcase.current {
-                    case "fiche", "fiche-vieille": selectedVehicle = DemoShowcase.vehicleForSheet()
+                    case "fiche", "fiche-vieille":
+                        if let vehicle = DemoShowcase.vehicleForSheet() {
+                            focusOnVehicle(vehicle)
+                            selectedVehicle = vehicle
+                        }
                     case "arret", "horaires-arret", "horaires-course": selectedMergedStop = DemoShowcase.mergedStop()
                     case "bus-arret":              focusOnStop(DemoShowcase.stopLineFocus())
                     case "alertes", "alertes-ligne", "alertes-options": showAlerts = true
@@ -142,14 +146,6 @@ struct LiveMapView: View {
             }
             
             startBackgroundLoadingIfNeeded()
-        }
-        // Toucher un véhicule filtre la carte sur sa ligne (bandeau « Tout afficher » pour revenir).
-        .onChange(of: selectedVehicle) { _, vehicle in
-            guard let vehicle else { return }
-            viewModel.focusOnStop(StopLineFocus(
-                line: vehicle.lineName, direction: nil, destination: vehicle.destination, stopName: "",
-                latitude: vehicle.coordinate.latitude, longitude: vehicle.coordinate.longitude
-            ))
         }
         // Le stream est arrêté uniquement sur scenePhase.background (ci-dessous).
         .onChange(of: scenePhase) { _, newPhase in
@@ -181,6 +177,14 @@ struct LiveMapView: View {
 
     /// Applique le filtre choisi dans la fiche d'un arrêt, referme la fiche et cadre la carte
     /// sur l'arrêt et les véhicules concernés.
+    /// Toucher un véhicule : la carte ne montre plus que sa ligne, et le bandeau décrit le véhicule.
+    private func focusOnVehicle(_ vehicle: Vehicle) {
+        viewModel.focusOnStop(StopLineFocus(
+            line: vehicle.lineName, direction: nil, destination: vehicle.destination, stopName: "",
+            latitude: vehicle.coordinate.latitude, longitude: vehicle.coordinate.longitude, vehicleId: vehicle.id
+        ))
+    }
+
     private func focusOnStop(_ focus: StopLineFocus) {
         selectedMergedStop = nil
         viewModel.focusOnStop(focus)
@@ -262,12 +266,23 @@ struct LiveMapView: View {
     
     private var overlayControls: some View {
         VStack {
-            // Bandeau trafic en haut
-            trafficBanner
+            // Bandeau trafic en haut, remplacé par le bandeau du filtre tant qu'un filtre est actif
+            if viewModel.stopFocus == nil {
+                trafficBanner
+                    .padding(.top, 8)
+                    .padding(.horizontal, 16)
+            }
+
+            if let focus = viewModel.stopFocus, let vehicleId = focus.vehicleId {
+                VehicleFocusCard(
+                    focus: focus,
+                    vehicle: viewModel.vehicles.first { $0.id == vehicleId },
+                    onMore: { vehicle in selectedVehicle = vehicle },
+                    onClose: { withAnimation { viewModel.clearStopFocus() } }
+                )
                 .padding(.top, 8)
                 .padding(.horizontal, 16)
-
-            if let focus = viewModel.stopFocus {
+            } else if let focus = viewModel.stopFocus {
                 StopFocusBanner(
                     focus: focus,
                     vehicleCount: viewModel.stopFocusVehicleCount,
@@ -1288,6 +1303,108 @@ struct FilterSheet: View {
         }
     }
     
+}
+
+// MARK: - Bandeau du véhicule touché
+
+/// Remplace le bandeau trafic quand un véhicule a été touché : l'essentiel du véhicule,
+/// « Voir plus » pour sa fiche, « Fermer » pour retirer le filtre.
+private struct VehicleFocusCard: View {
+    let focus: StopLineFocus
+    let vehicle: Vehicle?
+    let onMore: (Vehicle) -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                LineBadge(line: focus.line, size: 13)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(focus.bannerTitle)
+                        .font(.system(size: 15, weight: .bold))
+                    Text("Vers \(vehicle?.destination ?? focus.destination)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+
+            if let vehicle {
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(vehicle.positionFreshness.color)
+                                .frame(width: 7, height: 7)
+                            Text(vehicle.positionAge.map { "Position transmise par TCL il y a \(Vehicle.formattedAge($0))" }
+                                 ?? "Position transmise par TCL")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            delayPill(vehicle)
+                        }
+                        if let next = vehicle.nextStop, let name = next.stopName {
+                            HStack(spacing: 6) {
+                                Image(systemName: "mappin.circle.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Color.appAccent)
+                                Text(nextStopText(name: name, at: next.aimedArrivalTime ?? next.aimedDepartureTime))
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                }
+            } else {
+                Text("Ce véhicule n'est plus suivi pour l'instant.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                Button("Fermer", action: onClose)
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.small)
+                if let vehicle {
+                    Button("Voir plus") { onMore(vehicle) }
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.capsule)
+                        .controlSize(.small)
+                        .tint(Color.appAccent)
+                }
+            }
+            .font(.system(size: 12, weight: .semibold))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.appAccent.opacity(0.25), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
+    }
+
+    private func delayPill(_ vehicle: Vehicle) -> some View {
+        let color: Color = vehicle.isDelayed ? .appWarning : (vehicle.isEarly ? Color.appAccent : Color.appSuccess)
+        return Text(vehicle.delayFormatted)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.12), in: Capsule())
+    }
+
+    private func nextStopText(name: String, at date: Date?) -> String {
+        guard let date else { return "Dernier arrêt : \(name)" }
+        return "Dernier arrêt : \(name) · \(date.formatted(date: .omitted, time: .shortened))"
+    }
 }
 
 // MARK: - Bandeau « bus de cet arrêt »

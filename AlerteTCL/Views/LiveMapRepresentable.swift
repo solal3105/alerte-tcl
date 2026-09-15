@@ -25,7 +25,8 @@ struct LiveMapRepresentable: UIViewRepresentable {
     @ObservedObject var locationService: LocationService
 
     @Binding var region: MKCoordinateRegion
-    @Binding var selectedVehicle: Vehicle?
+    /// Toucher un véhicule : la carte se filtre sur sa ligne (la fiche s'ouvre depuis le bandeau).
+    let onVehicleTap: (Vehicle) -> Void
     @Binding var selectedMergedStop: MergedStop?
     @Binding var isSatellite: Bool
 
@@ -92,14 +93,22 @@ struct LiveMapRepresentable: UIViewRepresentable {
         // Diff des annotations et overlays
         coord.syncVehicleAnnotations(viewModel.displayVehicles, animated: viewModel.animatedVehicles)
         coord.syncMergedStopAnnotations(stopsViewModel.visibleMergedStops)
-        let visibleTransitLines = viewModel.transitLines.filter { line in
-            let isTram = line.familyTransport.localizedCaseInsensitiveContains("tram")
-            return isTram ? viewModel.showTramTraces : viewModel.showMetroTraces
+        // Filtre actif : seul le tracé de la ligne filtrée reste visible, quels que soient les réglages.
+        if let focus = viewModel.stopFocus {
+            coord.syncPolylineOverlays(
+                busLines:     viewModel.busLines.filter { focus.isLine(name: $0.name) },
+                transitLines: viewModel.transitLines.filter { focus.isLine(name: $0.name) }
+            )
+        } else {
+            let visibleTransitLines = viewModel.transitLines.filter { line in
+                let isTram = line.familyTransport.localizedCaseInsensitiveContains("tram")
+                return isTram ? viewModel.showTramTraces : viewModel.showMetroTraces
+            }
+            coord.syncPolylineOverlays(
+                busLines:     viewModel.showBusTraces ? viewModel.busLines : [],
+                transitLines: visibleTransitLines
+            )
         }
-        coord.syncPolylineOverlays(
-            busLines:     viewModel.showBusTraces ? viewModel.busLines : [],
-            transitLines: visibleTransitLines
-        )
 
         // Les tooltips de ponctualité sont gérés dans `regionDidChangeAnimated`
         // (quand le zoom change vraiment), pas ici — évite de réintroduire une
@@ -467,7 +476,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, didSelect annotation: MKAnnotation) {
             switch annotation {
             case let v as VehicleAnnotation:
-                owner.selectedVehicle = v.vehicle
+                owner.onVehicleTap(v.vehicle)
             case let s as MergedStopAnnotation:
                 owner.selectedMergedStop = s.stop
             default:

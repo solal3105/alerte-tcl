@@ -305,7 +305,8 @@ struct MergedStopDetailSheet: View {
             destination: key.direction,
             stopName: mergedStop.nom,
             latitude: mergedStop.coordinate.latitude,
-            longitude: mergedStop.coordinate.longitude
+            longitude: mergedStop.coordinate.longitude,
+            vehicleId: nil
         )
     }
 

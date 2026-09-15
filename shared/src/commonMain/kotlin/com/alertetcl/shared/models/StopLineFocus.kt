@@ -12,8 +12,13 @@ data class StopLineFocus(
     val destination: String,
     val stopName: String,
     val latitude: Double,
-    val longitude: Double
+    val longitude: Double,
+    /** Identifiant du véhicule touché sur la carte, null quand le filtre vient d'un arrêt. */
+    val vehicleId: String? = null
 ) {
+    /** Vrai pour le tracé de cette ligne : seul tracé affiché tant que le filtre est actif. */
+    fun isLine(name: String): Boolean = name.equals(line, ignoreCase = true)
+
     /** Vrai quand le filtre vient de la fiche d'un arrêt (sinon, du clic sur un véhicule). */
     val fromStop: Boolean get() = stopName.isNotEmpty()
 
@@ -39,7 +44,7 @@ data class StopLineFocus(
         /** Filtre sur toute la ligne d'un véhicule touché sur la carte. */
         fun forVehicle(vehicle: Vehicle): StopLineFocus = StopLineFocus(
             line = vehicle.lineName, direction = null, destination = vehicle.destination,
-            stopName = "", latitude = vehicle.latitude, longitude = vehicle.longitude
+            stopName = "", latitude = vehicle.latitude, longitude = vehicle.longitude, vehicleId = vehicle.id
         )
     }
 }

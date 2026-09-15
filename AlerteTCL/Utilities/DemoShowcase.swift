@@ -133,7 +133,7 @@ enum DemoShowcase {
         let stop = mergedStop()
         let passage = passages(stopId: stop.stops[0].id)[0]
         return StopLineFocus(line: passage.ligne, direction: "A", destination: passage.direction,
-                             stopName: stop.nom, latitude: stop.coordinate.latitude, longitude: stop.coordinate.longitude)
+                             stopName: stop.nom, latitude: stop.coordinate.latitude, longitude: stop.coordinate.longitude, vehicleId: nil)
     }
 
     /// Arrêt fusionné factice pointant sur un vrai id d'arrêt (11518, Bellecour A. Poncet),

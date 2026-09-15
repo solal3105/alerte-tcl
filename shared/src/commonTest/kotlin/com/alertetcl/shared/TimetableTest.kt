@@ -221,7 +221,8 @@ class TimetableTest {
         assertEquals("Ligne C12", fromVehicle.bannerTitle)
         assertEquals("Aucun véhicule en circulation pour l'instant", fromVehicle.bannerSubtitle(0))
         assertTrue(fromVehicle.matches("C12", "R"))
-        assertEquals(5.0, com.alertetcl.shared.design.MapStyle.routeWidth("A"))
-        assertEquals(3.0, com.alertetcl.shared.design.MapStyle.routeWidth("27"))
+        assertEquals(4.0, com.alertetcl.shared.design.MapStyle.routeWidth("A"))
+        assertEquals(2.0, com.alertetcl.shared.design.MapStyle.routeWidth("27"))
+        assertTrue(fromVehicle.isLine("c12"))
     }
 }
