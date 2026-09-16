@@ -218,6 +218,15 @@ private const val VELOV_LAYER = "velov-layer"              // stations Vélo'v (
 // Précompilé une seule fois — réutilisé dans les LaunchedEffect (parité iOS : aucune allocation par tick)
 private val ICON_KEY_REGEX = Regex("[^A-Za-z0-9]")
 
+/**
+ * Ordre des couches, du bas vers le haut : tracés, arrêts, stations Vélo'v, véhicules. Chaque couche
+ * s'insère sous la première couche supérieure déjà présente, ou tout en haut s'il n'y en a pas encore.
+ */
+private fun addLayerUnder(style: Style, layer: org.maplibre.android.style.layers.Layer, vararg above: String) {
+    val anchor = above.firstOrNull { style.getLayer(it) != null }
+    if (anchor != null) style.addLayerBelow(layer, anchor) else style.addLayer(layer)
+}
+
 /** Normalise un hex TCL vers #RRGGBB lisible par MapLibre */
 private fun toMapColor(hex: String): String {
     val c = hex.trim().removePrefix("#")
@@ -289,8 +298,10 @@ fun LiveMapScreen() {
     val showTramTraces  by store.showTramTraces.collectAsState(initial = true)
     val showMetroTraces by store.showMetroTraces.collectAsState(initial = true)
     val showVelov       by store.showVelov.collectAsState(initial = false)
+    val storedElectricOnly by store.velovElectricOnly.collectAsState(initial = false)
     // Stations Vélo'v : rechargées toutes les minutes tant que la couche est activée (ou en démo « velov »).
-    val velovEnabled = showVelov || DemoShowcase.current == "velov" || DemoShowcase.current == "velov-station"
+    val velovEnabled = showVelov || DemoShowcase.current in setOf("velov", "velov-electriques", "velov-station")
+    val velovElectricOnly = storedElectricOnly || DemoShowcase.current == "velov-electriques"
     val velovStations = produceState<List<VelovStation>>(initialValue = emptyList(), velovEnabled) {
         if (!velovEnabled) { value = emptyList(); return@produceState }
         while (true) {
@@ -680,13 +691,9 @@ fun LiveMapScreen() {
                     PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                     PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
                 )
-                if (style.getLayer(VEHICLES_ARROW_LAYER) != null) {
-                    style.addLayerBelow(casing, VEHICLES_ARROW_LAYER)
-                    style.addLayerBelow(lineLayer, VEHICLES_ARROW_LAYER)
-                } else {
-                    style.addLayer(casing)
-                    style.addLayer(lineLayer)
-                }
+                // Tout en bas : sous les arrêts, les stations Vélo'v et les véhicules.
+                addLayerUnder(style, casing, STOPS_LAYER, VELOV_LAYER, VEHICLES_HALO_LAYER)
+                addLayerUnder(style, lineLayer, STOPS_LAYER, VELOV_LAYER, VEHICLES_HALO_LAYER)
             } else {
                 style.getSourceAs<GeoJsonSource>(src)?.setGeoJson(geojson)
             }
@@ -938,13 +945,9 @@ fun LiveMapScreen() {
                             PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
                         )
                     badgeLayer.setMinZoom(16f)
-                    if (style.getLayer(VEHICLES_LAYER) != null) {
-                        style.addLayerBelow(circleLayer, VEHICLES_ARROW_LAYER)
-                        style.addLayerBelow(badgeLayer, VEHICLES_ARROW_LAYER)
-                    } else {
-                        style.addLayer(circleLayer)
-                        style.addLayer(badgeLayer)
-                    }
+                    // Sous les stations Vélo'v et les véhicules, au-dessus des tracés.
+                    addLayerUnder(style, circleLayer, VELOV_LAYER, VEHICLES_HALO_LAYER)
+                    addLayerUnder(style, badgeLayer, VELOV_LAYER, VEHICLES_HALO_LAYER)
                 }
             }
         } else {
@@ -954,16 +957,17 @@ fun LiveMapScreen() {
 
     // Stations Vélo'v : un marqueur par station, à la couleur de disponibilité, avec le nombre de vélos.
     // Une ligne isolée sur la carte : seuls ses véhicules et son tracé restent, sans les stations.
-    LaunchedEffect(mapStyle, velovStations.value, isDark, stopFocus) {
+    LaunchedEffect(mapStyle, velovStations.value, isDark, stopFocus, velovElectricOnly) {
         val style = mapStyle ?: return@LaunchedEffect
         if (!style.isFullyLoaded) return@LaunchedEffect
         val stations = if (stopFocus != null) emptyList() else velovStations.value
         val entries = stations.map { s ->
-            val hex = AppColors.parkingAvailability(s.availability).hex(isDark)
-            Triple(s, "velov_${s.bikes}_${hex.removePrefix("#")}", hex)
+            val count = s.shownBikes(velovElectricOnly)
+            val hex = AppColors.parkingAvailability(s.availabilityFor(velovElectricOnly)).hex(isDark)
+            Triple(s, "velov_${if (velovElectricOnly) "e" else "b"}_${count}_${hex.removePrefix("#")}", hex)
         }
         entries.distinctBy { it.second }.filter { style.getImage(it.second) == null }.forEach { (s, key, hex) ->
-            style.addImage(key, velovMarkerBitmap(s.bikes, hex))
+            style.addImage(key, velovMarkerBitmap(s.shownBikes(velovElectricOnly), hex, velovElectricOnly))
         }
         val geojson = FeatureCollection.fromFeatures(entries.map { (s, key, _) ->
             Feature.fromGeometry(Point.fromLngLat(s.lng, s.lat), JsonObject().apply {
@@ -983,7 +987,8 @@ fun LiveMapScreen() {
                     PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
                 )
                 layer.setMinZoom(13.5f)
-                if (style.getLayer(VEHICLES_ARROW_LAYER) != null) style.addLayerBelow(layer, VEHICLES_ARROW_LAYER) else style.addLayer(layer)
+                // Sous les véhicules, au-dessus des arrêts et des tracés.
+                addLayerUnder(style, layer, VEHICLES_HALO_LAYER)
             }
         } else {
             style.getSourceAs<GeoJsonSource>(VELOV_SRC)?.setGeoJson(geojson)
@@ -1062,6 +1067,8 @@ fun LiveMapScreen() {
                 onToggleMetroTraces = { scope.launch { store.setShowMetroTraces(!showMetroTraces) } },
                 showVelov = showVelov,
                 onToggleVelov = { scope.launch { store.setShowVelov(!showVelov) } },
+                velovElectricOnly = storedElectricOnly,
+                onToggleVelovElectricOnly = { scope.launch { store.setVelovElectricOnly(!storedElectricOnly) } },
                 hasActiveFilters = hasActiveFilters,
                 onClearFilters = {
                     vm.clearStopFocus()
@@ -2256,6 +2263,8 @@ private fun FilterSheet(
     onToggleMetroTraces: () -> Unit,
     showVelov: Boolean,
     onToggleVelov: () -> Unit,
+    velovElectricOnly: Boolean,
+    onToggleVelovElectricOnly: () -> Unit,
     hasActiveFilters: Boolean,
     onClearFilters: () -> Unit,
     vehicles: List<Vehicle>
@@ -2341,10 +2350,14 @@ private fun FilterSheet(
                     modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp)
                 )
                 Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                    TraceToggleRow(label = "Stations Vélo'v", checked = showVelov, onToggle = onToggleVelov)
+                    Column {
+                        TraceToggleRow(label = "Stations Vélo'v", checked = showVelov, onToggle = onToggleVelov)
+                        HorizontalDivider(modifier = Modifier.padding(start = 14.dp))
+                        TraceToggleRow(label = "Seulement les vélos électriques", checked = velovElectricOnly, onToggle = onToggleVelovElectricOnly, enabled = showVelov)
+                    }
                 }
                 Text(
-                    "Les stations apparaissent quand la carte est assez rapprochée, avec le nombre de vélos disponibles.",
+                    "Les stations apparaissent quand la carte est assez rapprochée, avec le nombre de vélos disponibles, ou seulement des électriques.",
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)
                 )
@@ -2446,14 +2459,15 @@ private fun FilterSheet(
 }
 
 @Composable
-private fun TraceToggleRow(label: String, checked: Boolean, onToggle: () -> Unit) {
+private fun TraceToggleRow(label: String, checked: Boolean, onToggle: () -> Unit, enabled: Boolean = true) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable { onToggle() }
+        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled) { onToggle() }
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = { onToggle() })
+        Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f),
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+        Switch(checked = checked, onCheckedChange = { onToggle() }, enabled = enabled)
     }
 }
 
@@ -2696,8 +2710,11 @@ private fun vehicleMarkerBitmap(line: String): Bitmap {
 }
 
 /** Triangle directionnel (pointe vers le haut = nord), coloré avec la couleur de ligne. */
-/** Marqueur d'une station Vélo'v : carré arrondi à la couleur de disponibilité, vélo et nombre de vélos (parité iOS). */
-private fun velovMarkerBitmap(bikes: Int, colorHex: String): Bitmap {
+/**
+ * Marqueur d'une station Vélo'v : carré arrondi à la couleur de disponibilité, vélo (ou éclair pour les
+ * seuls vélos électriques) et nombre de vélos (parité iOS).
+ */
+private fun velovMarkerBitmap(bikes: Int, colorHex: String, electric: Boolean): Bitmap {
     val density = android.content.res.Resources.getSystem().displayMetrics.density
     val size = (30 * density).toInt()
     val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -2708,17 +2725,32 @@ private fun velovMarkerBitmap(bikes: Int, colorHex: String): Bitmap {
     canvas.drawRoundRect(rect, 9 * density, 9 * density, fill)
     val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.argb(230, 255, 255, 255); style = Paint.Style.STROKE; strokeWidth = 1.5f * density }
     canvas.drawRoundRect(rect, 9 * density, 9 * density, stroke)
-    // Vélo stylisé : deux roues et un cadre.
-    val glyph = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 1.4f * density; strokeCap = Paint.Cap.ROUND }
     val cx = size / 2f
-    val wheelY = 12.5f * density
-    val wheelR = 3.2f * density
-    canvas.drawCircle(cx - 5.5f * density, wheelY, wheelR, glyph)
-    canvas.drawCircle(cx + 5.5f * density, wheelY, wheelR, glyph)
-    canvas.drawLine(cx - 5.5f * density, wheelY, cx - 1f * density, 7f * density, glyph)
-    canvas.drawLine(cx - 1f * density, 7f * density, cx + 5.5f * density, wheelY, glyph)
-    canvas.drawLine(cx - 1f * density, 7f * density, cx + 2.5f * density, 6f * density, glyph)
-    canvas.drawLine(cx - 5.5f * density, wheelY, cx + 1.5f * density, wheelY, glyph)
+    if (electric) {
+        // Éclair plein.
+        val bolt = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE; style = Paint.Style.FILL }
+        val path = android.graphics.Path().apply {
+            moveTo(cx + 1.5f * density, 4.5f * density)
+            lineTo(cx - 3.5f * density, 11f * density)
+            lineTo(cx - 0.5f * density, 11f * density)
+            lineTo(cx - 1.5f * density, 16.5f * density)
+            lineTo(cx + 3.5f * density, 9.5f * density)
+            lineTo(cx + 0.5f * density, 9.5f * density)
+            close()
+        }
+        canvas.drawPath(path, bolt)
+    } else {
+        // Vélo stylisé : deux roues et un cadre.
+        val glyph = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 1.4f * density; strokeCap = Paint.Cap.ROUND }
+        val wheelY = 12.5f * density
+        val wheelR = 3.2f * density
+        canvas.drawCircle(cx - 5.5f * density, wheelY, wheelR, glyph)
+        canvas.drawCircle(cx + 5.5f * density, wheelY, wheelR, glyph)
+        canvas.drawLine(cx - 5.5f * density, wheelY, cx - 1f * density, 7f * density, glyph)
+        canvas.drawLine(cx - 1f * density, 7f * density, cx + 5.5f * density, wheelY, glyph)
+        canvas.drawLine(cx - 1f * density, 7f * density, cx + 2.5f * density, 6f * density, glyph)
+        canvas.drawLine(cx - 5.5f * density, wheelY, cx + 1.5f * density, wheelY, glyph)
+    }
     val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE; textSize = 10f * density; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); textAlign = Paint.Align.CENTER }
     canvas.drawText(bikes.toString(), cx, size - 4.5f * density, text)
     return bmp

@@ -60,13 +60,13 @@ arrière-plan (activité en direct) a été essayé puis retiré le 16 septembre
 
 Les stations Vélo'v (relais `/velov`, données ouvertes du Grand Lyon, rafraîchies toutes les minutes)
 s'activent depuis les filtres de la carte, disparaissent tant qu'une ligne est isolée sur la carte, et
-apparaissent au même zoom que les arrêts : un carré
-arrondi à la couleur de disponibilité (vert dès 3 vélos, orange à 1 ou 2, rouge sans vélo, gris
-fermé, barème de `VelovStation.availability` sur les jetons des parkings) avec un vélo et le nombre de
-vélos disponibles. La fiche donne le nom lisible de la station, l'adresse, les vélos (électriques et
-mécaniques) et les places libres, l'heure de la dernière mise à jour et un itinéraire à pied.
-La fiche d'un véhicule s'accorde entièrement à la couleur officielle de sa ligne (pictogramme, rail
-des arrêts) ; le mode n'y apparaît qu'en texte neutre, et les états gardent leurs couleurs propres.
+apparaissent au même zoom que les arrêts : un carré arrondi à la couleur de disponibilité (vert dès 3
+vélos, orange à 1 ou 2, rouge sans vélo, gris fermé, barème de `VelovStation.availabilityFor` sur les
+jetons des parkings) avec un vélo et le nombre de vélos disponibles. Le filtre « Seulement les vélos
+électriques » ne compte que ceux-là, avec un éclair à la place du vélo. Sur la carte, l'ordre du bas
+vers le haut est fixe : tracés des lignes, arrêts, stations Vélo'v, véhicules. La fiche donne le nom
+lisible de la station, l'adresse, les vélos (électriques et mécaniques) et les places libres, l'heure
+de la dernière mise à jour et un itinéraire à pied.
 
 Les barèmes métier sont au même endroit : importance et avancement d'un chantier, progression d'un
 chantier (du rouge au vert en onze paliers), disponibilité et type d'un parking, nature d'un chantier

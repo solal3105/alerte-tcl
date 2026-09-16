@@ -450,7 +450,8 @@ final class MergedStopAnnotationView: MKAnnotationView {
 
 // MARK: - Vélo'v
 
-/// Carré arrondi à la couleur de disponibilité, pictogramme vélo et nombre de vélos.
+/// Carré arrondi à la couleur de disponibilité, pictogramme vélo (ou éclair pour le filtre électrique)
+/// et nombre de vélos. Toujours sous les arrêts et les véhicules, au-dessus des tracés.
 final class VelovAnnotationView: MKAnnotationView {
     static let identifier = "velov"
 
@@ -460,16 +461,19 @@ final class VelovAnnotationView: MKAnnotationView {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
         backgroundColor = .clear
         displayPriority = .defaultLow
+        zPriority = .min
         centerOffset = .zero
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
 
-    func apply(station: VelovStation) {
-        let key = "\(station.bikes)-\(station.availability.name)"
+    func apply(station: VelovStation, electricOnly: Bool) {
+        let count = Int(station.shownBikes(electricOnly: electricOnly))
+        let availability = station.availabilityFor(electricOnly: electricOnly)
+        let key = "\(count)-\(availability.name)-\(electricOnly)"
         guard key != currentKey else { return }
         currentKey = key
-        image = MarkerImageCache.velovMarker(bikes: Int(station.bikes), availability: station.availability)
+        image = MarkerImageCache.velovMarker(bikes: count, availability: availability, electric: electricOnly)
     }
 
     override func prepareForReuse() {

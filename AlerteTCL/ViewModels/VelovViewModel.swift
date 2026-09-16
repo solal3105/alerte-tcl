@@ -14,7 +14,13 @@ final class VelovViewModel: ObservableObject {
         }
     }
 
+    /// Ne compter que les vélos électriques (nombre et couleur des marqueurs). Conservé entre deux lancements.
+    @Published var electricOnly: Bool {
+        didSet { UserDefaults.standard.set(electricOnly, forKey: Self.electricKey) }
+    }
+
     private static let persistenceKey = "liveMap.showVelov"
+    private static let electricKey = "liveMap.velovElectricOnly"
     /// Même seuil de zoom que les arrêts : au-delà, la carte serait couverte de stations.
     private let zoomThreshold: Double = 0.03
     private var stations: [VelovStation] = []
@@ -24,6 +30,7 @@ final class VelovViewModel: ObservableObject {
 
     init() {
         isEnabled = UserDefaults.standard.bool(forKey: Self.persistenceKey)
+        electricOnly = UserDefaults.standard.bool(forKey: Self.electricKey)
         if isEnabled { startRefreshing() }
     }
 

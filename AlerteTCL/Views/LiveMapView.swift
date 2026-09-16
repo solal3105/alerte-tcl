@@ -137,6 +137,9 @@ struct LiveMapView: View {
                     case "horaires", "horaires-ligne", "horaires-arrets": showTimetableSearch = true
                     case "erreur401":              showDataSourceErrors = true
                     case "velov":                  velovViewModel.isEnabled = true
+                    case "velov-electriques":
+                        velovViewModel.isEnabled = true
+                        velovViewModel.electricOnly = true
                     case "velov-station":
                         velovViewModel.isEnabled = true
                         selectedVelovStation = Shared.DemoShowcase.shared.velovStations().first
@@ -1166,10 +1169,14 @@ struct FilterSheet: View {
                     Toggle(isOn: $velovViewModel.isEnabled) {
                         Label("Stations Vélo'v", systemImage: "bicycle")
                     }
+                    Toggle(isOn: $velovViewModel.electricOnly) {
+                        Label("Seulement les vélos électriques", systemImage: "bolt.fill")
+                    }
+                    .disabled(!velovViewModel.isEnabled)
                 } header: {
                     Text("Vélo'v")
                 } footer: {
-                    Text("Les stations apparaissent quand la carte est assez rapprochée, avec le nombre de vélos disponibles.")
+                    Text("Les stations apparaissent quand la carte est assez rapprochée, avec le nombre de vélos disponibles, ou seulement des électriques.")
                 }
 
                 Section("Type de véhicule") {

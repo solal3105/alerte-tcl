@@ -104,7 +104,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
         coord.syncVehicleAnnotations(viewModel.displayVehicles, animated: viewModel.animatedVehicles)
         coord.syncMergedStopAnnotations(stopsViewModel.visibleMergedStops)
         // Une ligne isolée sur la carte : seuls ses véhicules et son tracé restent, sans les stations Vélo'v.
-        coord.syncVelovAnnotations(viewModel.stopFocus == nil ? velovViewModel.visibleStations : [])
+        coord.syncVelovAnnotations(viewModel.stopFocus == nil ? velovViewModel.visibleStations : [], electricOnly: velovViewModel.electricOnly)
         // Filtre actif : seul le tracé de la ligne filtrée reste visible, quels que soient les réglages.
         if let focus = viewModel.stopFocus {
             coord.syncPolylineOverlays(
@@ -165,6 +165,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
         private var vehicleAnnotations:   [String: VehicleAnnotation]    = [:]
         private var stopAnnotations:      [String: MergedStopAnnotation] = [:]
         private var velovAnnotations:     [Int: VelovAnnotation] = [:]
+        private var velovElectricOnly = false
         private var busOverlaysById:      [String: MKPolyline]           = [:]
         private var transitOverlaysById:  [String: MKPolyline]           = [:]
         private var overlayColors:        [ObjectIdentifier: (UIColor, CGFloat)] = [:]
@@ -341,7 +342,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
             if !toAdd.isEmpty { mapView.addAnnotations(toAdd) }
         }
 
-        func syncVelovAnnotations(_ stations: [VelovStation]) {
+        func syncVelovAnnotations(_ stations: [VelovStation], electricOnly: Bool) {
             guard let mapView else { return }
 
             let incomingIDs = Set(stations.map { Int($0.id) })
@@ -353,11 +354,12 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 mapView.removeAnnotations(toRemove)
             }
 
+            velovElectricOnly = electricOnly
             var toAdd: [VelovAnnotation] = []
             for station in stations {
                 if let existing = velovAnnotations[Int(station.id)] {
                     existing.station = station
-                    (mapView.view(for: existing) as? VelovAnnotationView)?.apply(station: station)
+                    (mapView.view(for: existing) as? VelovAnnotationView)?.apply(station: station, electricOnly: electricOnly)
                 } else {
                     let annotation = VelovAnnotation(station: station)
                     velovAnnotations[annotation.id] = annotation
@@ -520,7 +522,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
                     for: station
                 ) as? VelovAnnotationView ?? VelovAnnotationView(annotation: station, reuseIdentifier: VelovAnnotationView.identifier)
                 view.annotation = station
-                view.apply(station: station.station)
+                view.apply(station: station.station, electricOnly: velovElectricOnly)
                 return view
 
             default:

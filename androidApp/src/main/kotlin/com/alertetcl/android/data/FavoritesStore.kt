@@ -76,6 +76,14 @@ class FavoritesStore(private val context: Context) {
         context.favStore.edit { p -> p[KEY_SHOW_VELOV] = if (show) "1" else "0" }
     }
 
+    /** Ne compter que les vélos électriques sur les marqueurs Vélo'v (false par défaut). */
+    val velovElectricOnly: Flow<Boolean> =
+        context.favStore.data.map { p -> p[KEY_VELOV_ELECTRIC] == "1" }
+
+    suspend fun setVelovElectricOnly(electricOnly: Boolean) {
+        context.favStore.edit { p -> p[KEY_VELOV_ELECTRIC] = if (electricOnly) "1" else "0" }
+    }
+
     suspend fun setShowBusTraces(show: Boolean) {
         context.favStore.edit { p -> p[KEY_SHOW_BUS_TRACES] = if (show) "1" else "0" }
     }
@@ -154,6 +162,7 @@ class FavoritesStore(private val context: Context) {
         private val KEY_SHOW_TRAM_TRACES    = stringPreferencesKey("show_tram_traces")
         private val KEY_SHOW_METRO_TRACES   = stringPreferencesKey("show_metro_traces")
         private val KEY_SHOW_VELOV          = stringPreferencesKey("show_velov")
+        private val KEY_VELOV_ELECTRIC      = stringPreferencesKey("velov_electric_only")
         private val KEY_LINE_PALETTE        = stringPreferencesKey("line_palette")
     }
 }

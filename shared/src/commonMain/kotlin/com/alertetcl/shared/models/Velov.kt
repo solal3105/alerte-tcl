@@ -36,13 +36,21 @@ data class VelovStation(
         }
     }
 
+    /** Vélos comptés sur la carte selon le filtre : tous, ou seulement les électriques. */
+    fun shownBikes(electricOnly: Boolean): Int = if (electricOnly) ebikes else bikes
+
     /** Vert dès 3 vélos, orange à 1 ou 2, rouge sans vélo, gris quand la station est fermée. */
-    val availability: AvailabilityColor get() = when {
-        !open -> AvailabilityColor.GRAY
-        bikes <= 0 -> AvailabilityColor.RED
-        bikes <= 2 -> AvailabilityColor.ORANGE
-        else -> AvailabilityColor.GREEN
+    fun availabilityFor(electricOnly: Boolean): AvailabilityColor {
+        val count = shownBikes(electricOnly)
+        return when {
+            !open -> AvailabilityColor.GRAY
+            count <= 0 -> AvailabilityColor.RED
+            count <= 2 -> AvailabilityColor.ORANGE
+            else -> AvailabilityColor.GREEN
+        }
     }
+
+    val availability: AvailabilityColor get() = availabilityFor(false)
 
     val bikesText: String get() = when {
         !open -> "Station fermée"

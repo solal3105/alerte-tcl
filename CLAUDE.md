@@ -124,7 +124,9 @@ en arrière-plan (activité en direct, notification) a été retiré à la deman
 
 Route `/velov` du proxy : `jcd_jcdecaux.jcdvelov/all.json` (données publiques, sans identifiant) allégé
 aux champs affichés, cache 60 s. Modèle `VelovStation`, service `VelovService`, couche de carte activée
-depuis les filtres (réglage persisté), même seuil de zoom que les arrêts.
+depuis les filtres (réglage persisté, plus « seulement les vélos électriques »), même seuil de zoom que
+les arrêts. Ordre des couches imposé, du bas vers le haut : tracés, arrêts, stations Vélo'v, véhicules
+(iOS `zPriority`, Android `addLayerUnder`) ; les stations sont masquées tant qu'une ligne est isolée.
 
 ### Fiches horaires théoriques (GTFS)
 

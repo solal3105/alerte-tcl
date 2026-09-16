@@ -26,6 +26,17 @@ class VelovTest {
     }
 
     @Test
+    fun theElectricFilterCountsOnlyElectricBikes() {
+        val station = station(8, ebikes = 2)
+        assertEquals(8, station.shownBikes(false))
+        assertEquals(2, station.shownBikes(true))
+        assertEquals(AvailabilityColor.GREEN, station.availabilityFor(false))
+        assertEquals(AvailabilityColor.ORANGE, station.availabilityFor(true))
+        assertEquals(AvailabilityColor.RED, station(5, ebikes = 0).availabilityFor(true))
+        assertEquals(AvailabilityColor.GRAY, station(5, ebikes = 5, open = false).availabilityFor(true))
+    }
+
+    @Test
     fun textsAreWrittenInFullSentences() {
         assertEquals("8 vélos disponibles, dont 6 électriques et 2 mécaniques", station(8, ebikes = 6).bikesText)
         assertEquals("1 vélo disponible, dont 1 électrique et 0 mécanique", station(1, ebikes = 1).bikesText)

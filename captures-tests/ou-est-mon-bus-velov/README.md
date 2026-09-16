@@ -13,6 +13,7 @@ Même numérotation dans les dossiers `ios/` et `android/` :
 | `01-arret-ou-est-mon-bus` | La fiche d'un arrêt avec, sous les prochains passages de la ligne, « Où est mon bus » : « Arrive, au prochain arrêt », l'heure estimée, et la ligne « Position transmise par TCL il y a 13 s ». Mode démo `arret`. |
 | `02-carte-velov` | La carte avec les stations Vélo'v : un carré à la couleur de disponibilité avec le nombre de vélos. Mode démo `velov`. |
 | `03-fiche-velov` | La fiche d'une station Vélo'v : vélos et places disponibles, dernière mise à jour, itinéraire à pied. Mode démo `velov-station`. |
+| `05-carte-velov-electriques` | La carte avec le filtre « Seulement les vélos électriques » : un éclair sur chaque station et le nombre de vélos électriques. Mode démo `velov-electriques`. |
 
 Pour reproduire : iOS, lancer l'app avec l'argument `-demo <cas>` ; Android,
 `adb shell am start -n com.alertetcl.android/.MainActivity --es demo <cas>`.

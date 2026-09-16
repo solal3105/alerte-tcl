@@ -135,12 +135,13 @@ enum MarkerImageCache {
         return image
     }
 
-    /// Marqueur d'une station Vélo'v : carré arrondi à la couleur de disponibilité, vélo et nombre de vélos.
-    static func velovMarker(bikes: Int, availability: AvailabilityColor) -> UIImage {
-        let key = "velov-\(bikes)-\(availability.name)" as NSString
+    /// Marqueur d'une station Vélo'v : carré arrondi à la couleur de disponibilité, vélo (ou éclair pour
+    /// les seuls vélos électriques) et nombre de vélos.
+    static func velovMarker(bikes: Int, availability: AvailabilityColor, electric: Bool) -> UIImage {
+        let key = "velov-\(bikes)-\(availability.name)-\(electric)" as NSString
         if let cached = velovCache.object(forKey: key) { return cached }
         let color = uiColor(Color(token: AppColors.shared.parkingAvailability(color: availability)))
-        let image = renderVelovMarker(bikes: bikes, color: color)
+        let image = renderVelovMarker(bikes: bikes, color: color, symbol: electric ? "bolt.fill" : "bicycle")
         velovCache.setObject(image, forKey: key)
         return image
     }
@@ -267,7 +268,7 @@ enum MarkerImageCache {
         }
     }
 
-    private static func renderVelovMarker(bikes: Int, color: UIColor) -> UIImage {
+    private static func renderVelovMarker(bikes: Int, color: UIColor, symbol: String) -> UIImage {
         let size = CGSize(width: 30, height: 30)
         return imageRenderer(size: size).image { ctx in
             let cg = ctx.cgContext
@@ -282,7 +283,7 @@ enum MarkerImageCache {
             path.stroke()
 
             let iconConfig = UIImage.SymbolConfiguration(pointSize: 9, weight: .bold)
-            if let icon = UIImage(systemName: "bicycle", withConfiguration: iconConfig)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
+            if let icon = UIImage(systemName: symbol, withConfiguration: iconConfig)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
                 let s = icon.size
                 icon.draw(in: CGRect(x: (size.width - s.width) / 2, y: 4, width: s.width, height: s.height))
             }
