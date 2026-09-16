@@ -39,6 +39,13 @@ enum DemoShowcase {
 
     static var isActive: Bool { current != nil }
 
+    /// `-ouvrir-arret <id>` : ouvre la fiche de cet arrêt avec les vraies données dès que les arrêts sont chargés.
+    static let stopToOpen: Int? = {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-ouvrir-arret"), i + 1 < args.count else { return nil }
+        return Int(args[i + 1])
+    }()
+
     /// Délai avant d'enchaîner un écran sur un autre : la transition précédente doit être terminée.
     static let pushDelayNanoseconds: UInt64 = 900_000_000
 

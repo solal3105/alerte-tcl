@@ -102,9 +102,8 @@ struct LinePassagesCard: View {
 
             if !approaching.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("Où est mon bus", systemImage: "location.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    Text("Où est mon bus")
+                        .font(.subheadline.weight(.semibold))
                     ForEach(approaching, id: \.vehicle.id) { approach in
                         ApproachRow(
                             approach: approach,
@@ -115,17 +114,13 @@ struct LinePassagesCard: View {
                             onTrack: onTrack.map { track in { track(approach) } }
                         )
                     }
-                    Text(StopApproach.shared.NOTE)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
                 }
             } else if approachKnown, TransportMode.detectFromLine(line).shared.showOnMapLabel != nil {
                 VStack(alignment: .leading, spacing: 4) {
-                    Label("Où est mon bus", systemImage: "location.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    Text("Où est mon bus")
+                        .font(.subheadline.weight(.semibold))
                     Text(StopApproach.shared.NONE_APPROACHING)
-                        .font(.caption2)
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -171,7 +166,8 @@ extension LinePassagesCard {
 
 // MARK: - Où est mon bus
 
-/// Un véhicule en approche : arrêts restants, âge de la position, heure estimée, bouton de suivi.
+/// Un véhicule en approche : deux grands chiffres (arrêts restants, heure estimée), une ligne sur l'âge
+/// de la position, et un vrai bouton pour le suivre. Toucher les chiffres montre le bus sur la carte.
 struct ApproachRow: View {
     let approach: ApproachingVehicle
     let lineColor: Color
@@ -183,65 +179,70 @@ struct ApproachRow: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let nowMs = Int64(context.date.timeIntervalSince1970 * 1000)
-            HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 10) {
                 Button(action: { onLocate?() }) {
-                    HStack(spacing: 10) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(alignment: .firstTextBaseline) {
-                                Text(approach.stopsText)
-                                    .font(.subheadline.weight(.semibold))
-                                    .lineLimit(1)
-                                    .layoutPriority(1)
-                                Spacer(minLength: 6)
-                                if let arrival = approach.arrivalText(nowEpochMs: nowMs) {
-                                    Text(arrival)
-                                        .font(.subheadline.weight(.bold))
-                                        .monospacedDigit()
-                                        .lineLimit(1)
-                                        .fixedSize()
-                                } else {
-                                    Text("Heure inconnue")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                        .fixedSize()
-                                }
-                            }
-                            HStack(alignment: .firstTextBaseline) {
-                                Text(approach.positionText(nowEpochMs: nowMs))
-                                    .font(.caption2)
-                                    .foregroundStyle(Color(token: approach.vehicle.positionFreshness(nowEpochMs: nowMs).color))
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.85)
-                                Spacer(minLength: 6)
-                                if let time = approach.estimatedTime(timeZoneId: StopApproach.shared.TIME_ZONE) {
-                                    Text("≈ \(time)")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .monospacedDigit()
-                                        .fixedSize()
-                                }
-                            }
-                        }
+                    HStack(alignment: .top, spacing: 16) {
+                        stat(value: approach.stopsValue, caption: approach.stopsCaption, color: .primary)
+                        stat(
+                            value: approach.estimatedTime(timeZoneId: StopApproach.shared.TIME_ZONE).map { "≈ \($0)" } ?? "—",
+                            caption: approach.arrivalText(nowEpochMs: nowMs) ?? "heure inconnue",
+                            color: Color.appAccent
+                        )
+                        Spacer(minLength: 24)
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        Image(systemName: "chevron.right")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .padding(.top, 8)
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Voir ce bus sur la carte")
 
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color(token: approach.vehicle.positionFreshness(nowEpochMs: nowMs).color))
+                        .frame(width: 7, height: 7)
+                    Text(approach.freshnessLine(nowEpochMs: nowMs))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
                 if let onTrack, BusTrackingController.isSupported {
                     Button(action: onTrack) {
-                        Image(systemName: isTracked ? "bell.badge.fill" : "bell")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(isTracked ? lineTextColor : Color.primary)
-                            .frame(width: 32, height: 32)
-                            .background(isTracked ? lineColor : Color(.tertiarySystemFill), in: Circle())
+                        Label(isTracked ? "Arrêter le suivi" : "Suivre ce bus", systemImage: isTracked ? "checkmark.circle.fill" : "bell.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(isTracked ? "Arrêter le suivi de ce bus" : "Suivre ce bus jusqu'à l'arrêt")
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.capsule)
+                    .tint(isTracked ? Color.appSuccess : lineColor)
+                    .foregroundStyle(isTracked ? Color.white : lineTextColor)
                 }
             }
+            .padding(14)
+            .background(lineColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
         }
+    }
+
+    private func stat(value: String, caption: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(caption)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+        .layoutPriority(1)
     }
 }
 
@@ -400,30 +401,31 @@ struct MergedStopDetailSheet: View {
         // suivants remplacent les données en place, sans clignotement.
         if allPassages.isEmpty { isLoading = true }
 
-        // Charger les passages de TOUS les arrêts du groupe en parallèle
+        // Charger les passages de TOUS les quais du groupe en parallèle, et afficher dès qu'un
+        // quai a répondu : l'attente perçue est celle du plus rapide, pas du plus lent.
         await withTaskGroup(of: Void.self) { group in
             for stop in mergedStop.stops {
                 let stopId = stop.id
                 group.addTask { @MainActor in
                     await stopsVM.loadAllPassagesForStop(stopId: stopId)
+                    mergeLoadedPassages()
                 }
             }
         }
-
-        // Collecter tous les passages
-        var passages: [Passage] = []
-        for stop in mergedStop.stops {
-            if let updatedStop = stopsVM.transitStops.first(where: { $0.id == stop.id }) {
-                passages.append(contentsOf: updatedStop.passages)
-            }
-        }
-
-        // Trier par heure et dédupliquer
-        allPassages = passages.sorted { p1, p2 in
-            p1.heurepassage < p2.heurepassage
-        }
-
+        mergeLoadedPassages()
         isLoading = false
+    }
+
+    /// Rassemble les passages déjà chargés de tous les quais du groupe, triés par heure.
+    @MainActor
+    private func mergeLoadedPassages() {
+        let ids = Set(mergedStop.stops.map(\.id))
+        let passages = stopsVM.transitStops
+            .filter { ids.contains($0.id) }
+            .flatMap(\.passages)
+            .sorted { $0.heurepassage < $1.heurepassage }
+        if passages != allPassages { allPassages = passages }
+        if !passages.isEmpty { isLoading = false }
     }
     
     /// Charge l'ordre des arrêts de chaque ligne et sens affichés (une seule requête par sens, gardée en cache).

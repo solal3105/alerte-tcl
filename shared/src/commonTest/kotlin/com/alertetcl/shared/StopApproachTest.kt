@@ -49,6 +49,9 @@ class StopApproachTest {
         assertEquals("14:14", approach.scheduledTime)
         assertEquals(nowSec + 14 * 60 + 120, approach.estimatedArrivalEpoch)
         assertEquals("À 2 arrêts", approach.stopsText)
+        assertEquals("2", approach.stopsValue)
+        assertEquals("arrêts avant le vôtre", approach.stopsCaption)
+        assertEquals("Position transmise par TCL il y a 40 s", approach.freshnessLine(nowMs))
         assertEquals("dans 16 min", approach.arrivalText(nowMs))
         assertEquals("position transmise il y a 40 s", approach.positionText(nowMs))
     }
@@ -60,6 +63,8 @@ class StopApproachTest {
         val result = StopApproach.approaching(listOf(gone, arriving), timetable, listOf(13), "Guillotière", nowMs)
         assertEquals(listOf("bus-2"), result.map { it.vehicle.id })
         assertEquals("Au prochain arrêt", result[0].stopsText)
+        assertEquals("Arrive", result[0].stopsValue)
+        assertEquals("au prochain arrêt", result[0].stopsCaption)
     }
 
     @Test
@@ -80,6 +85,7 @@ class StopApproachTest {
         assertEquals(2, result[0].stopsBefore)
         assertNull(result[0].estimatedArrivalEpoch)
         assertNull(result[0].arrivalText(nowMs))
+        assertEquals("Position transmise par TCL il y a 40 s", result[0].freshnessLine(nowMs))
     }
 
     @Test

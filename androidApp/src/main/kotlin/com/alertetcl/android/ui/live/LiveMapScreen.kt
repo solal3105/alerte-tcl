@@ -110,8 +110,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.ImageBitmap
@@ -168,8 +166,6 @@ import com.alertetcl.shared.services.VelovService
 import com.alertetcl.android.notifications.BusTrackingNotifier
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsWalk
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -1605,10 +1601,12 @@ private fun MergedStopDetailSheet(
     val passages = produceState<List<Passage>?>(initialValue = null, stop.id, passagesKey) {
         passagesHadError = false
         var anyError = false
-        val all = coroutineScope {
-            stop.stops.map { member ->
-                async {
-                    try {
+        // Un quai à la fois dès qu'il répond : l'attente perçue est celle du plus rapide, pas du plus lent.
+        val loaded = mutableMapOf<Int, List<Passage>>()
+        coroutineScope {
+            stop.stops.forEach { member ->
+                launch {
+                    val list = try {
                         TransitStopService.shared.fetchPassagesForStop(member.id)
                     } catch (e: CancellationException) {
                         throw e
@@ -1616,11 +1614,14 @@ private fun MergedStopDetailSheet(
                         anyError = true
                         emptyList()
                     }
+                    loaded[member.id] = list
+                    val merged = loaded.values.flatten().sortedBy { it.heurepassage }
+                    if (merged.isNotEmpty() || loaded.size == stop.stops.size) value = merged
                 }
-            }.awaitAll()
-        }.flatten().sortedBy { it.heurepassage }
+            }
+        }
         passagesHadError = anyError
-        value = all
+        if (value == null) value = emptyList()
     }
     // Rafraîchit les passages toutes les 30 s tant que la fiche est ouverte.
     LaunchedEffect(stop.id) {
@@ -1855,11 +1856,7 @@ private fun LinePassagesCard(
             }
             if (approaching.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Filled.LocationOn, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(13.dp))
-                        Text("Où est mon bus", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    Text("Où est mon bus", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     approaching.forEach { approach ->
                         ApproachRow(
                             approach = approach, line = line, isTracked = trackedVehicleId == approach.vehicle.id,
@@ -1867,16 +1864,11 @@ private fun LinePassagesCard(
                             onTrack = onTrack?.let { track -> { track(approach) } }
                         )
                     }
-                    Text(StopApproach.NOTE, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else if (approachKnown && TransportMode.detectFromLine(line).showOnMapLabel != null) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Filled.LocationOn, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(13.dp))
-                        Text("Où est mon bus", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Text(StopApproach.NONE_APPROACHING, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Où est mon bus", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(StopApproach.NONE_APPROACHING, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (onShowOnMap != null || onShowTimetable != null) {
@@ -1890,47 +1882,53 @@ private fun LinePassagesCard(
     }
 }
 
-/** Un véhicule en approche : arrêts restants, âge de la position, heure estimée, cloche de suivi (parité iOS ApproachRow). */
+/**
+ * Un véhicule en approche : deux grands chiffres (arrêts restants, heure estimée), une ligne sur l'âge
+ * de la position, et un vrai bouton pour le suivre. Toucher les chiffres montre le bus sur la carte (parité iOS).
+ */
 @Composable
 private fun ApproachRow(approach: ApproachingVehicle, line: String, isTracked: Boolean, onLocate: (() -> Unit)?, onTrack: (() -> Unit)?) {
     var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(1000); nowMs = System.currentTimeMillis() } }
     val lineColor = colorFromHex(LineColors.backgroundHex(line))
     val lineText = colorFromHex(LineColors.textHex(line))
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier.weight(1f).let { m -> if (onLocate != null) m.clickable(onClick = onLocate) else m },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(approach.stopsText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
-                    val arrival = approach.arrivalText(nowMs)
-                    if (arrival != null) Text(arrival, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                    else Text("Heure inconnue", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(approach.positionText(nowMs), style = MaterialTheme.typography.labelSmall,
-                        color = approach.vehicle.positionFreshness(nowMs).color.compose(), maxLines = 1,
-                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    approach.estimatedTime()?.let { time ->
-                        Text("≈ $time", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                    }
-                }
-            }
-        }
-        if (onTrack != null) {
-            FilledTonalIconButton(
-                onClick = onTrack, modifier = Modifier.size(32.dp),
-                colors = if (isTracked) androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(containerColor = lineColor, contentColor = lineText)
-                         else androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors()
+    Surface(shape = RoundedCornerShape(14.dp), color = lineColor.copy(alpha = 0.08f), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().let { m -> if (onLocate != null) m.clickable(onClick = onLocate) else m },
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                Icon(if (isTracked) Icons.Filled.NotificationsActive else Icons.Filled.Notifications,
-                    contentDescription = if (isTracked) "Arrêter le suivi de ce bus" else "Suivre ce bus jusqu'à l'arrêt",
-                    modifier = Modifier.size(16.dp))
+                ApproachStat(approach.stopsValue, approach.stopsCaption, MaterialTheme.colorScheme.onSurface)
+                ApproachStat(approach.estimatedTime()?.let { "≈ $it" } ?: "—", approach.arrivalText(nowMs) ?: "heure inconnue", MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.weight(1f))
+                Icon(Icons.Filled.ChevronRight, null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 8.dp))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Box(Modifier.size(7.dp).background(approach.vehicle.positionFreshness(nowMs).color.compose(), CircleShape))
+                Text(approach.freshnessLine(nowMs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (onTrack != null) {
+                Button(
+                    onClick = onTrack, modifier = Modifier.fillMaxWidth(),
+                    colors = if (isTracked) ButtonDefaults.buttonColors(containerColor = Tokens.success, contentColor = Color.White)
+                             else ButtonDefaults.buttonColors(containerColor = lineColor, contentColor = lineText)
+                ) {
+                    Icon(if (isTracked) Icons.Filled.CheckCircle else Icons.Filled.NotificationsActive, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (isTracked) "Arrêter le suivi" else "Suivre ce bus", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                }
             }
         }
+    }
+}
+
+/** Un grand chiffre et sa légende (fiche d'arrêt). */
+@Composable
+private fun ApproachStat(value: String, caption: String, color: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(value, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
+        Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
     }
 }
 

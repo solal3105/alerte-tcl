@@ -164,6 +164,14 @@ struct LiveMapView: View {
             
             startBackgroundLoadingIfNeeded()
         }
+        #if DEBUG
+        .onReceive(stopsViewModel.$mergedStops) { stops in
+            guard let id = DemoShowcase.stopToOpen, selectedMergedStop == nil,
+                  let stop = stops.first(where: { $0.stops.contains { $0.id == id } }) else { return }
+            mapRegion = MKCoordinateRegion(center: stop.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.006, longitudeDelta: 0.006))
+            selectedMergedStop = stop
+        }
+        #endif
         // Le stream est arrêté uniquement sur scenePhase.background (ci-dessous).
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {

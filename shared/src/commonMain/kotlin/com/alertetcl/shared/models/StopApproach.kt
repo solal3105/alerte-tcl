@@ -22,6 +22,21 @@ data class ApproachingVehicle(
         else -> "À $stopsBefore arrêts"
     }
 
+    /** Grand chiffre de la fiche d'arrêt : « 3 », ou « Arrive » quand l'arrêt est le prochain. */
+    val stopsValue: String get() = if (stopsBefore == 0) "Arrive" else "$stopsBefore"
+
+    /** Légende sous le grand chiffre (« Arrive au prochain arrêt », « 3 arrêts avant le vôtre »). */
+    val stopsCaption: String get() = when (stopsBefore) {
+        0 -> "au prochain arrêt"
+        1 -> "arrêt avant le vôtre"
+        else -> "arrêts avant le vôtre"
+    }
+
+    /** Une seule ligne sous les chiffres : l'âge de la position, pour rappeler qu'elle n'est pas en direct. */
+    fun freshnessLine(nowEpochMs: Long): String =
+        vehicle.positionAgeSeconds(nowEpochMs)?.let { "Position transmise par TCL il y a ${Vehicle.formattedAge(it)}" }
+            ?: "Position sans horodatage"
+
     /** Heure prévue « HH:mm », null sans course identifiée. */
     val scheduledTime: String? get() = scheduledMinutes?.let { TimetableTime.format(it) }
 
@@ -51,9 +66,8 @@ data class ApproachingVehicle(
 object StopApproach {
     const val TIME_ZONE = "Europe/Paris"
 
-    /** Quand aucun véhicule du sens n'est en route vers l'arrêt : la fonction reste visible et expliquée. */
-    const val NONE_APPROACHING = "Aucun véhicule de cette ligne n'est en route vers cet arrêt pour l'instant. " +
-        "Dès qu'il y en aura un, vous verrez ici à combien d'arrêts il se trouve et vous pourrez le suivre avec la cloche."
+    /** Quand aucun véhicule du sens n'est en route vers l'arrêt : la fonction reste visible. */
+    const val NONE_APPROACHING = "Aucun bus en route vers cet arrêt pour l'instant."
 
     /** Phrase d'explication affichée sous les estimations, identique sur les deux plateformes. */
     const val NOTE = "Ces positions ne sont pas un suivi en direct : TCL les transmet toutes les 15 à 60 s, " +
