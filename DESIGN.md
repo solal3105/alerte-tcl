@@ -45,24 +45,22 @@ si elle est ouverte, garde la dernière position connue et signale qu'elle est o
 ## Où est mon bus
 
 Dans la fiche d'un arrêt, chaque carte de ligne et de sens montre, sous les prochains passages, les
-véhicules qui n'ont pas encore atteint l'arrêt (`StopApproach`, module partagé) : « Au prochain
-arrêt » ou « À 3 arrêts », le délai depuis la dernière position transmise dans la couleur de
-fraîcheur, et à droite l'heure d'arrivée estimée avec « dans 4 min » ou « imminent ». L'estimation
-est l'horaire prévu de la course, reconnue par l'heure prévue au prochain arrêt, corrigé du retard
-constaté par TCL ; sans course reconnue, seul le nombre d'arrêts est affiché avec « Heure inconnue ».
-Rien n'est extrapolé depuis la position elle-même, et la phrase `StopApproach.NOTE` rappelle sous
-chaque liste que ces positions ne sont pas un suivi en direct. Toucher une ligne cadre la carte sur ce
-véhicule et l'arrêt ; la cloche suit le bus jusqu'à l'arrêt : activité en direct sur iPhone (écran
-verrouillé et Dynamic Island, `BusTrackingAttributes` et `BusTrackingController`), notification sur
-Android (`BusTrackingNotifier`). Le suivi est mis à jour à chaque réception de positions tant que
-l'application est ouverte ; ensuite seul le compte à rebours continue, l'activité se dit périmée après
-deux minutes, et le suivi se termine de lui-même quand le bus est passé, quand TCL ne transmet plus
-sa position depuis deux minutes, ou après 45 minutes.
+véhicules qui n'ont pas encore atteint l'arrêt (`StopApproach`, module partagé), dans une carte teintée
+à la couleur de la ligne : deux grands chiffres, le nombre d'arrêts avant le vôtre (« Arrive » quand
+c'est le prochain) et l'heure d'arrivée estimée avec « dans 4 min » ou « imminent », puis une ligne
+« Position transmise par TCL il y a 12 s » avec le point de fraîcheur. L'estimation est l'horaire
+prévu de la course, reconnue par l'heure prévue au prochain arrêt, corrigé du retard constaté par
+TCL ; sans course reconnue, seul le nombre d'arrêts est affiché, avec « heure inconnue ». Rien n'est
+extrapolé depuis la position elle-même. Toucher la carte cadre la carte sur ce véhicule et l'arrêt.
+Sans bus en approche, la section reste visible avec « Aucun bus en route vers cet arrêt pour
+l'instant » ; le métro, sans positions en direct, n'a pas cette section. Le suivi d'un bus en
+arrière-plan (activité en direct) a été essayé puis retiré le 16 septembre 2026.
 
 ## Vélo'v
 
 Les stations Vélo'v (relais `/velov`, données ouvertes du Grand Lyon, rafraîchies toutes les minutes)
-s'activent depuis les filtres de la carte et apparaissent au même zoom que les arrêts : un carré
+s'activent depuis les filtres de la carte, disparaissent tant qu'une ligne est isolée sur la carte, et
+apparaissent au même zoom que les arrêts : un carré
 arrondi à la couleur de disponibilité (vert dès 3 vélos, orange à 1 ou 2, rouge sans vélo, gris
 fermé, barème de `VelovStation.availability` sur les jetons des parkings) avec un vélo et le nombre de
 vélos disponibles. La fiche donne le nom lisible de la station, l'adresse, les vélos (électriques et
@@ -128,5 +126,5 @@ d'alertes dans la feuille « Options de notification ». Les dates des alertes s
 Les captures des parcours servent de référence de parité : `captures-tests/fiches-horaires/{ios,android}`
 pour les fiches horaires et le filtre d'arrêt, `captures-tests/alertes/{ios,android}` pour les
 abonnements et les options de notification, `captures-tests/ou-est-mon-bus-velov/{ios,android}` pour
-« où est mon bus », le suivi d'un bus et les stations Vélo'v. Elles se produisent avec les modes démo
+« où est mon bus » et les stations Vélo'v. Elles se produisent avec les modes démo
 décrits dans le README ; tout changement d'interface se vérifie en les refaisant sur les deux plateformes.

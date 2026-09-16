@@ -48,12 +48,10 @@ class StopApproachTest {
         assertEquals(2, approach.stopsBefore)
         assertEquals("14:14", approach.scheduledTime)
         assertEquals(nowSec + 14 * 60 + 120, approach.estimatedArrivalEpoch)
-        assertEquals("À 2 arrêts", approach.stopsText)
         assertEquals("2", approach.stopsValue)
         assertEquals("arrêts avant le vôtre", approach.stopsCaption)
         assertEquals("Position transmise par TCL il y a 40 s", approach.freshnessLine(nowMs))
         assertEquals("dans 16 min", approach.arrivalText(nowMs))
-        assertEquals("position transmise il y a 40 s", approach.positionText(nowMs))
     }
 
     @Test
@@ -62,7 +60,6 @@ class StopApproachTest {
         val gone = vehicle("bus-3", nextStopId = 14, aimedAtSec = nowSec + 6 * 60)
         val result = StopApproach.approaching(listOf(gone, arriving), timetable, listOf(13), "Guillotière", nowMs)
         assertEquals(listOf("bus-2"), result.map { it.vehicle.id })
-        assertEquals("Au prochain arrêt", result[0].stopsText)
         assertEquals("Arrive", result[0].stopsValue)
         assertEquals("au prochain arrêt", result[0].stopsCaption)
     }
@@ -105,6 +102,6 @@ class StopApproachTest {
         val bus = vehicle("bus-10", nextStopId = 13, aimedAtSec = nowSec + 14 * 60)
         val result = StopApproach.approaching(listOf(bus), timetable, listOf(13), "Guillotière", nowEpochMs = nowMs + 14 * 60 * 1000 - 30_000)
         assertEquals("imminent", result[0].arrivalText(nowMs + 14 * 60 * 1000 - 30_000))
-        assertTrue(StopApproach.NOTE.contains("pas un suivi en direct"))
+        assertTrue(StopApproach.NONE_APPROACHING.startsWith("Aucun bus"))
     }
 }

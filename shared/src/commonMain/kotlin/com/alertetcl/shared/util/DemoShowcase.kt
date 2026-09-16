@@ -27,7 +27,7 @@ import kotlin.time.Duration.Companion.minutes
  *
  * Cas : ages, fiche, fiche-vieille, vide, erreur401, fige, arret, bus-arret,
  * horaires, horaires-ligne, horaires-arrets, horaires-arret, horaires-course,
- * alertes, alertes-ligne, alertes-options, suivi, velov, velov-station : mêmes scénarios que le DemoShowcase iOS.
+ * alertes, alertes-ligne, alertes-options, velov, velov-station : mêmes scénarios que le DemoShowcase iOS.
  */
 object DemoShowcase {
     var current: String? = null

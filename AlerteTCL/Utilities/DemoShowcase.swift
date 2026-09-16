@@ -25,7 +25,6 @@ import Shared
 ///   alertes       écran des alertes avec deux abonnements et des perturbations simulées
 ///   alertes-ligne fiche d'une ligne abonnée (C12) depuis cet écran
 ///   alertes-options feuille « Options de notification » de cette ligne
-///   suivi         fiche arrêt avec « où est mon bus », puis suivi du premier bus dans l'activité en direct
 ///   velov         stations Vélo'v affichées sur la carte
 ///   velov-station fiche d'une station Vélo'v
 enum DemoShowcase {

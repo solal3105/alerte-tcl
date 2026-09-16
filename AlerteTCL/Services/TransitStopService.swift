@@ -85,7 +85,7 @@ actor TransitStopService {
     nonisolated func fetchPassagesForStop(stopId: Int) async throws -> [Passage] {
         #if DEBUG
         // Mode démo (-demo arret) : passages simulés estimés + théoriques.
-        if DemoShowcase.current == "arret" || DemoShowcase.current == "suivi" {
+        if DemoShowcase.current == "arret" {
             return DemoShowcase.passages(stopId: stopId)
         }
         #endif

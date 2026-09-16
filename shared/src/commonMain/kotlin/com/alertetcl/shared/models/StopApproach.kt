@@ -16,12 +16,6 @@ data class ApproachingVehicle(
      */
     val estimatedArrivalEpoch: Long?
 ) {
-    val stopsText: String get() = when (stopsBefore) {
-        0 -> "Au prochain arrêt"
-        1 -> "À 1 arrêt"
-        else -> "À $stopsBefore arrêts"
-    }
-
     /** Grand chiffre de la fiche d'arrêt : « 3 », ou « Arrive » quand l'arrêt est le prochain. */
     val stopsValue: String get() = if (stopsBefore == 0) "Arrive" else "$stopsBefore"
 
@@ -51,10 +45,6 @@ data class ApproachingVehicle(
         return if (remaining < 60) "imminent" else "dans ${remaining / 60} min"
     }
 
-    /** « position transmise il y a 40 s » : la donnée n'est pas un suivi en direct, l'âge doit rester visible. */
-    fun positionText(nowEpochMs: Long): String =
-        vehicle.positionAgeSeconds(nowEpochMs)?.let { "position transmise il y a ${Vehicle.formattedAge(it)}" }
-            ?: "position sans horodatage"
 }
 
 /**
@@ -68,11 +58,6 @@ object StopApproach {
 
     /** Quand aucun véhicule du sens n'est en route vers l'arrêt : la fonction reste visible. */
     const val NONE_APPROACHING = "Aucun bus en route vers cet arrêt pour l'instant."
-
-    /** Phrase d'explication affichée sous les estimations, identique sur les deux plateformes. */
-    const val NOTE = "Ces positions ne sont pas un suivi en direct : TCL les transmet toutes les 15 à 60 s, " +
-        "le bus a pu avancer depuis. L'heure d'arrivée est celle de l'horaire prévu, corrigée du retard " +
-        "constaté à la dernière transmission."
 
     /**
      * Véhicules de la ligne et du sens de [timetable] qui vont encore desservir l'arrêt ([stopIds] :

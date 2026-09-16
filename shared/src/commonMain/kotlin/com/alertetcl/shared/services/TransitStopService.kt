@@ -74,7 +74,7 @@ class TransitStopService {
     @Throws(Exception::class)
     suspend fun fetchPassagesForStop(stopId: Int): List<Passage> {
         // Mode démo (arret) : passages simulés estimés + théoriques.
-        if (DemoShowcase.current == "arret" || DemoShowcase.current == "suivi") return DemoShowcase.passages(stopId)
+        if (DemoShowcase.current == "arret") return DemoShowcase.passages(stopId)
         val url = "$passagesEndpoint?id=$stopId&sortby=heurepassage&sortorder=asc"
         val resp = safeRequest {
             client.get(url) {

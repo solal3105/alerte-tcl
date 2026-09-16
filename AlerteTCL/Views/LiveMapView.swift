@@ -131,7 +131,7 @@ struct LiveMapView: View {
                             focusOnVehicle(vehicle)
                             selectedVehicle = vehicle
                         }
-                    case "arret", "horaires-arret", "horaires-course", "suivi": selectedMergedStop = DemoShowcase.mergedStop()
+                    case "arret", "horaires-arret", "horaires-course": selectedMergedStop = DemoShowcase.mergedStop()
                     case "bus-arret":              focusOnStop(DemoShowcase.stopLineFocus())
                     case "alertes", "alertes-ligne", "alertes-options": showAlerts = true
                     case "horaires", "horaires-ligne", "horaires-arrets": showTimetableSearch = true
@@ -147,7 +147,6 @@ struct LiveMapView: View {
             // Mode démo : pas de demande de position, la scène est fixée place Bellecour.
             if DemoShowcase.isActive { startBackgroundLoadingIfNeeded(); return }
             #endif
-            BusTrackingController.shared.endOrphans()
             // Localisation (non bloquant)
             locationService.requestPermission()
             locationService.startUpdatingLocation()

@@ -53,16 +53,12 @@ struct LinePassagesCard: View {
     var approaching: [ApproachingVehicle] = []
     /// Vrai quand l'ordre des arrêts du sens est connu : sans bus en approche, la carte le dit au lieu de se taire.
     var approachKnown: Bool = false
-    /// Véhicule suivi dans l'activité en direct, s'il y en a un.
-    var trackedVehicleId: String? = nil
     /// Montre sur la carte les véhicules de cette ligne dans ce sens.
     var onShowOnMap: (() -> Void)? = nil
     /// Ouvre la fiche horaire théorique de cette ligne à cet arrêt.
     var onShowTimetable: (() -> Void)? = nil
     /// Cadre la carte sur un véhicule en approche.
     var onLocate: ((ApproachingVehicle) -> Void)? = nil
-    /// Suit ce véhicule jusqu'à l'arrêt dans l'activité en direct (ou arrête ce suivi).
-    var onTrack: ((ApproachingVehicle) -> Void)? = nil
     
     private var bgColor: Color {
         LineColorHelper.backgroundColor(for: line)
@@ -108,10 +104,7 @@ struct LinePassagesCard: View {
                         ApproachRow(
                             approach: approach,
                             lineColor: bgColor,
-                            lineTextColor: LineColorHelper.textColor(for: line),
-                            isTracked: trackedVehicleId == approach.vehicle.id,
-                            onLocate: onLocate.map { locate in { locate(approach) } },
-                            onTrack: onTrack.map { track in { track(approach) } }
+                            onLocate: onLocate.map { locate in { locate(approach) } }
                         )
                     }
                 }
@@ -166,15 +159,12 @@ extension LinePassagesCard {
 
 // MARK: - Où est mon bus
 
-/// Un véhicule en approche : deux grands chiffres (arrêts restants, heure estimée), une ligne sur l'âge
-/// de la position, et un vrai bouton pour le suivre. Toucher les chiffres montre le bus sur la carte.
+/// Un véhicule en approche : deux grands chiffres (arrêts restants, heure estimée) et une ligne sur l'âge
+/// de la position. Toucher la carte montre le bus sur la carte.
 struct ApproachRow: View {
     let approach: ApproachingVehicle
     let lineColor: Color
-    let lineTextColor: Color
-    let isTracked: Bool
     var onLocate: (() -> Void)? = nil
-    var onTrack: (() -> Void)? = nil
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -208,19 +198,6 @@ struct ApproachRow: View {
                     Text(approach.freshnessLine(nowEpochMs: nowMs))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                }
-
-                if let onTrack, BusTrackingController.isSupported {
-                    Button(action: onTrack) {
-                        Label(isTracked ? "Arrêter le suivi" : "Suivre ce bus", systemImage: isTracked ? "checkmark.circle.fill" : "bell.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .buttonBorderShape(.capsule)
-                    .tint(isTracked ? Color.appSuccess : lineColor)
-                    .foregroundStyle(isTracked ? Color.white : lineTextColor)
                 }
             }
             .padding(14)
@@ -293,7 +270,6 @@ struct MergedStopDetailSheet: View {
     /// Appelé quand l'utilisateur touche un véhicule en approche (le parent le cadre avec l'arrêt).
     var onLocateVehicle: ((Vehicle) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var tracker = BusTrackingController.shared
     @State private var allPassages: [Passage] = []
     @State private var isLoading = false
     @State private var showWidgetSheet = false
@@ -463,27 +439,11 @@ struct MergedStopDetailSheet: View {
             if !list.isEmpty { result[key] = list }
         }
         approaches = result
-        #if DEBUG
-        // Mode démo « suivi » : suivre le premier bus en approche dès qu'il est connu.
-        if DemoShowcase.current == "suivi", tracker.trackedVehicleId == nil,
-           let key = sortedLineDirections.first(where: { result[$0] != nil }), let first = result[key]?.first {
-            track(first, key: key)
-        }
-        #endif
     }
 
     private func locate(_ approach: ApproachingVehicle) {
         guard let onLocateVehicle, let vehicle = liveVM.vehicles.first(where: { $0.id == approach.vehicle.id }) else { return }
         onLocateVehicle(vehicle)
-    }
-
-    private func track(_ approach: ApproachingVehicle, key: LineDirectionKey) {
-        if tracker.trackedVehicleId == approach.vehicle.id {
-            tracker.cancel()
-            return
-        }
-        guard let vehicle = liveVM.vehicles.first(where: { $0.id == approach.vehicle.id }), let timetable = timetables[key] else { return }
-        tracker.start(vehicle: vehicle, approach: approach, stop: mergedStop, timetable: timetable, liveVM: liveVM)
     }
 
     private func stopLineFocus(for key: LineDirectionKey) -> StopLineFocus {
@@ -596,11 +556,9 @@ struct MergedStopDetailSheet: View {
                         passages: linePassages,
                         approaching: approaches[key] ?? [],
                         approachKnown: timetables[key] != nil,
-                        trackedVehicleId: tracker.trackedVehicleId,
                         onShowOnMap: onFocus.map { focus in { focus(stopLineFocus(for: key)) } },
                         onShowTimetable: { timetableRequest = timetableRequest(for: key) },
-                        onLocate: onLocateVehicle == nil ? nil : { approach in locate(approach) },
-                        onTrack: { approach in track(approach, key: key) }
+                        onLocate: onLocateVehicle == nil ? nil : { approach in locate(approach) }
                     )
                 }
             }

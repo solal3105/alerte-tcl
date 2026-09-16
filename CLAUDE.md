@@ -116,10 +116,9 @@ Son tracé ne peut pas être affiché sur la carte. Problème côté données Gr
 
 `StopApproach` (module partagé) croise les positions SIRI (prochain arrêt, heure prévue, retard) avec
 la fiche horaire du sens pour donner, à un arrêt, le nombre d'arrêts restants et une arrivée estimée
-(horaire prévu de la course corrigé du retard). L'âge de la position reste affiché et `StopApproach.NOTE`
-rappelle que ce n'est pas un suivi en direct. Le suivi d'un bus (activité en direct iOS
-`BusTrackingAttributes`/`BusTrackingController`, notification Android `BusTrackingNotifier`) n'est mis
-à jour que tant que l'application est ouverte ; les mises à jour poussées par le relais restent à faire.
+(horaire prévu de la course corrigé du retard). L'âge de la position reste affiché. Le suivi d'un bus
+en arrière-plan (activité en direct, notification) a été retiré à la demande de Solal le 16 septembre
+2026 : ne pas le réintroduire.
 
 ### Stations Vélo'v
 

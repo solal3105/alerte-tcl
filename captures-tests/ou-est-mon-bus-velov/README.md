@@ -1,4 +1,4 @@
-# Captures d'écran : où est mon bus, suivi d'un bus, stations Vélo'v
+# Captures d'écran : où est mon bus et stations Vélo'v
 
 Captures prises le 16 septembre 2026 sur le simulateur iPhone 15 Pro et sur l'émulateur Pixel 8, en
 mode démo : un bus C12 dont le prochain arrêt est Bellecour A. Poncet, et quatre stations Vélo'v
@@ -10,10 +10,9 @@ Même numérotation dans les dossiers `ios/` et `android/` :
 
 | Fichier | Ce qu'on voit |
 | --- | --- |
-| `01-arret-ou-est-mon-bus` | La fiche d'un arrêt avec, sous les prochains passages de la ligne, « Où est mon bus » : le bus « au prochain arrêt », le délai depuis sa dernière position, la cloche de suivi, et la phrase qui rappelle que ce n'est pas un suivi en direct. Mode démo `arret`. |
+| `01-arret-ou-est-mon-bus` | La fiche d'un arrêt avec, sous les prochains passages de la ligne, « Où est mon bus » : « Arrive, au prochain arrêt », l'heure estimée, et la ligne « Position transmise par TCL il y a 13 s ». Mode démo `arret`. |
 | `02-carte-velov` | La carte avec les stations Vélo'v : un carré à la couleur de disponibilité avec le nombre de vélos. Mode démo `velov`. |
 | `03-fiche-velov` | La fiche d'une station Vélo'v : vélos et places disponibles, dernière mise à jour, itinéraire à pied. Mode démo `velov-station`. |
-| `04-suivi-bus` | Le suivi du bus lancé depuis la fiche : activité en direct sur iPhone (pastille de la Dynamic Island), notification sur Android (volet des notifications ouvert). Mode démo `suivi`. |
 
 Pour reproduire : iOS, lancer l'app avec l'argument `-demo <cas>` ; Android,
 `adb shell am start -n com.alertetcl.android/.MainActivity --es demo <cas>`.

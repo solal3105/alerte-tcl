@@ -13,9 +13,8 @@ Mobilités, Keolis Lyon ou TCL.
 - **Transport** : carte temps réel des métros, tramways, trolleybus, bus et navette fluviale ; fiche d'un
   véhicule (retard, fraîcheur de la position, prochain arrêt) ; fiche d'un arrêt avec les prochains
   passages estimés et théoriques et, pour chaque ligne, « où est mon bus » (à combien d'arrêts se
-  trouve chaque véhicule qui vient, heure d'arrivée estimée, âge de la position) ; suivi d'un bus jusqu'à
-  l'arrêt dans une activité en direct (écran verrouillé et Dynamic Island sur iPhone, notification sur
-  Android) ; filtre « Voir ces bus sur la carte » depuis un arrêt ; fiches horaires théoriques (ligne,
+  trouve chaque véhicule qui vient, heure d'arrivée estimée, âge de la position) ; filtre « Voir ces bus
+  sur la carte » depuis un arrêt ; fiches horaires théoriques (ligne,
   sens, arrêt, date) ; filtres par type de véhicule et par ligne ; bandeau trafic ; stations Vélo'v avec
   les vélos et places disponibles.
 - **Alertes** : perturbations du réseau, abonnement à des lignes avec choix des types d'alertes

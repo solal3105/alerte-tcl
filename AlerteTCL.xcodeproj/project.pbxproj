@@ -59,9 +59,6 @@
 		AAA20002 /* ColorHex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20012 /* ColorHex.swift */; };
 		AAA20005 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20013 /* AppGroup.swift */; };
 		AAA20006 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20013 /* AppGroup.swift */; };
-		AB100011 /* BusTrackingAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB100001 /* BusTrackingAttributes.swift */; };
-		AB100012 /* BusTrackingAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB100001 /* BusTrackingAttributes.swift */; };
-		AB100013 /* BusTrackingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB100002 /* BusTrackingController.swift */; };
 		AB100014 /* VelovViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB100003 /* VelovViewModel.swift */; };
 		AB100015 /* VelovViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB100004 /* VelovViews.swift */; };
 		AAA20003 /* ColorHex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20012 /* ColorHex.swift */; };
@@ -180,8 +177,6 @@
 		A2000031 /* AppColorTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColorTokens.swift; sourceTree = "<group>"; };
 		AAA20012 /* ColorHex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorHex.swift; sourceTree = "<group>"; };
 		AAA20013 /* AppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroup.swift; sourceTree = "<group>"; };
-		AB100001 /* BusTrackingAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusTrackingAttributes.swift; sourceTree = "<group>"; };
-		AB100002 /* BusTrackingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusTrackingController.swift; sourceTree = "<group>"; };
 		AB100003 /* VelovViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VelovViewModel.swift; sourceTree = "<group>"; };
 		AB100004 /* VelovViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VelovViews.swift; sourceTree = "<group>"; };
 		A1000045 /* TransitStopViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopViewModel.swift; sourceTree = "<group>"; };
@@ -254,7 +249,6 @@
 				A2000031 /* AppColorTokens.swift */,
 				AAA20012 /* ColorHex.swift */,
 				AAA20013 /* AppGroup.swift */,
-				AB100002 /* BusTrackingController.swift */,
 				A1000021 /* AnimationClock.swift */,
 				A1000031 /* MarkerImageCache.swift */,
 				A1000012 /* SafeURL.swift */,
@@ -289,7 +283,6 @@
 			isa = PBXGroup;
 			children = (
 				4FCD05E02F17051200390BE1 /* TransitStop.swift */,
-				AB100001 /* BusTrackingAttributes.swift */,
 				4F38BD272F15B0AC00E05786 /* Travaux.swift */,
 				4F095CAE2F16E92F001D059A /* UnifiedCluster.swift */,
 				4F38BD252F159CCA00E05786 /* MetroLine.swift */,
@@ -534,7 +527,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AB100012 /* BusTrackingAttributes.swift in Sources */,
 				A1000006 /* AppLogger.swift in Sources */,
 				AAA20003 /* ColorHex.swift in Sources */,
 				AAA20006 /* AppGroup.swift in Sources */,
@@ -545,8 +537,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AB100011 /* BusTrackingAttributes.swift in Sources */,
-				AB100013 /* BusTrackingController.swift in Sources */,
 				AB100014 /* VelovViewModel.swift in Sources */,
 				AB100015 /* VelovViews.swift in Sources */,
 				4FD3050B2F1E686900EAFA92 /* WidgetStopStorage.swift in Sources */,

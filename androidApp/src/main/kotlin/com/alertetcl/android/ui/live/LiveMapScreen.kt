@@ -163,13 +163,9 @@ import com.alertetcl.shared.models.StopApproach
 import com.alertetcl.shared.models.VelovStation
 import com.alertetcl.shared.design.AppColors
 import com.alertetcl.shared.services.VelovService
-import com.alertetcl.android.notifications.BusTrackingNotifier
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.app.NotificationManagerCompat
 import com.alertetcl.android.ui.components.LineBadge
 import com.alertetcl.android.ui.theme.Tokens
 import com.alertetcl.android.ui.theme.compose
@@ -218,17 +214,6 @@ private const val STOPS_LAYER       = "stops-layer"        // CircleLayer mode c
 private const val STOPS_BADGE_LAYER = "stops-badge-layer"  // SymbolLayer mode badges (zoom serré)
 private const val VELOV_SRC   = "velov-src"
 private const val VELOV_LAYER = "velov-layer"              // stations Vélo'v (nombre de vélos), zoom ≥ 13.5
-
-/** Bus suivi jusqu'à un arrêt : la notification est mise à jour à chaque réception de positions. */
-private data class BusTracking(
-    val vehicleId: String,
-    val line: String,
-    val destination: String,
-    val stop: MergedStop,
-    val timetable: LineTimetable,
-    val startedAtMs: Long,
-    var lastSeenMs: Long
-)
 
 // Précompilé une seule fois — réutilisé dans les LaunchedEffect (parité iOS : aucune allocation par tick)
 private val ICON_KEY_REGEX = Regex("[^A-Za-z0-9]")
@@ -316,27 +301,6 @@ fun LiveMapScreen() {
     val selectedVelov = remember { mutableStateOf<VelovStation?>(null) }
     val velovRef = remember { mutableStateOf<List<VelovStation>>(emptyList()) }
     velovRef.value = velovStations.value
-
-    // Bus suivi (« où est mon bus » → cloche) : notification mise à jour tant que l'écran est ouvert.
-    val tracking = remember { mutableStateOf<BusTracking?>(null) }
-    LaunchedEffect(tracking.value, vehicles) {
-        val t = tracking.value ?: return@LaunchedEffect
-        val nowMs = System.currentTimeMillis()
-        val vehicle = vehicles.firstOrNull { it.id == t.vehicleId }
-        val approach = vehicle?.let {
-            StopApproach.approaching(listOf(it), t.timetable, t.stop.stops.map { s -> s.id }, t.stop.nom, nowMs, limit = 1).firstOrNull()
-        }
-        fun finish(text: String) {
-            BusTrackingNotifier.show(context, t.line, t.destination, t.stop.nom, null, text)
-            tracking.value = null
-        }
-        when {
-            nowMs - t.startedAtMs > 45 * 60_000L -> finish("Suivi terminé après 45 minutes")
-            approach != null -> { t.lastSeenMs = nowMs; BusTrackingNotifier.show(context, t.line, t.destination, t.stop.nom, approach, null) }
-            vehicle != null -> finish("Le bus est passé à l'arrêt ${t.stop.nom}")
-            nowMs - t.lastSeenMs > 120_000L -> finish("TCL ne transmet plus la position de ce bus")
-        }
-    }
     val isDark = isSystemInDarkTheme()
     var isSatellite    by remember { mutableStateOf(false) }
     var bannerCollapsed by remember { mutableStateOf(false) }
@@ -408,7 +372,7 @@ fun LiveMapScreen() {
                     vm.focusOnStop(StopLineFocus.forVehicle(v))
                     selectedVehicle.value = v
                 }
-                "arret", "suivi"         -> selectedStop.value = DemoShowcase.mergedStop()
+                "arret"                  -> selectedStop.value = DemoShowcase.mergedStop()
                 "velov-station"          -> selectedVelov.value = DemoShowcase.velovStations().first()
                 "bus-arret"              -> DemoShowcase.stopLineFocus().let { focus ->
                     vm.focusOnStop(focus)
@@ -989,10 +953,11 @@ fun LiveMapScreen() {
     }
 
     // Stations Vélo'v : un marqueur par station, à la couleur de disponibilité, avec le nombre de vélos.
-    LaunchedEffect(mapStyle, velovStations.value, isDark) {
+    // Une ligne isolée sur la carte : seuls ses véhicules et son tracé restent, sans les stations.
+    LaunchedEffect(mapStyle, velovStations.value, isDark, stopFocus) {
         val style = mapStyle ?: return@LaunchedEffect
         if (!style.isFullyLoaded) return@LaunchedEffect
-        val stations = velovStations.value
+        val stations = if (stopFocus != null) emptyList() else velovStations.value
         val entries = stations.map { s ->
             val hex = AppColors.parkingAvailability(s.availability).hex(isDark)
             Triple(s, "velov_${s.bikes}_${hex.removePrefix("#")}", hex)
@@ -1040,7 +1005,6 @@ fun LiveMapScreen() {
             MergedStopDetailSheet(
                 stop = stop,
                 vehicles = vehicles,
-                trackedVehicleId = tracking.value?.vehicleId,
                 onFocus = { focus ->
                     selectedStop.value = null
                     vm.focusOnStop(focus)
@@ -1051,14 +1015,6 @@ fun LiveMapScreen() {
                     selectedStop.value = null
                     vm.focusOnStop(StopLineFocus.forVehicle(vehicle))
                     fitCamera(mapLibreMap, listOf(LatLng(vehicle.latitude, vehicle.longitude), LatLng(stop.latitude, stop.longitude)))
-                },
-                onTrack = { vehicle, timetable ->
-                    val now = System.currentTimeMillis()
-                    tracking.value = BusTracking(vehicle.id, vehicle.lineName, vehicle.destination, stop, timetable, now, now)
-                },
-                onStopTracking = {
-                    tracking.value = null
-                    BusTrackingNotifier.cancel(context)
                 }
             )
         }
@@ -1566,17 +1522,12 @@ private fun MergedStopDetailSheet(
     stop: MergedStop,
     /** Positions des véhicules, pour « où est mon bus ». */
     vehicles: List<Vehicle>,
-    /** Véhicule suivi dans la notification, s'il y en a un. */
-    trackedVehicleId: String?,
     /** Montre sur la carte les véhicules d'une ligne dans un sens (le parent applique le filtre et referme la fiche). */
     onFocus: (StopLineFocus) -> Unit,
     /** Ouvre la fiche horaire théorique d'une ligne à cet arrêt. */
     onTimetable: (TimetableStart.ForStop) -> Unit,
     /** Cadre la carte sur un véhicule en approche et l'arrêt. */
-    onLocateVehicle: (Vehicle) -> Unit,
-    /** Suit ce véhicule jusqu'à l'arrêt dans une notification. */
-    onTrack: (Vehicle, LineTimetable) -> Unit,
-    onStopTracking: () -> Unit
+    onLocateVehicle: (Vehicle) -> Unit
 ) {
     val context = LocalContext.current
     // Terminus par ligne et sens, pour déduire le sens d'une destination affichée.
@@ -1584,18 +1535,6 @@ private fun MergedStopDetailSheet(
     // Ordre des arrêts de chaque ligne et sens affichés, chargé une fois par fiche ouverte (« où est mon bus »).
     val timetables = remember(stop.id) { mutableStateMapOf<LineDirectionKey, LineTimetable>() }
     val timetableLookups = remember(stop.id) { mutableSetOf<LineDirectionKey>() }
-    // Suivi d'un bus : la notification demande l'autorisation sur Android 13 et plus.
-    var pendingTrack by remember { mutableStateOf<(() -> Unit)?>(null) }
-    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) pendingTrack?.invoke()
-        pendingTrack = null
-    }
-    fun requestTracking(action: () -> Unit) {
-        if (android.os.Build.VERSION.SDK_INT >= 33 && !NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-            pendingTrack = action
-            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } else action()
-    }
     var passagesKey by remember(stop.id) { mutableStateOf(0) }
     var passagesHadError by remember(stop.id) { mutableStateOf(false) }
     val passages = produceState<List<Passage>?>(initialValue = null, stop.id, passagesKey) {
@@ -1656,15 +1595,6 @@ private fun MergedStopDetailSheet(
         timetableSnapshot.mapValues { (_, timetable) ->
             StopApproach.approaching(vehicles, timetable, stop.stops.map { it.id }, stop.nom, nowMs)
         }.filterValues { it.isNotEmpty() }
-    }
-    // Mode démo « suivi » : suivre le premier bus en approche dès qu'il est connu.
-    if (DemoShowcase.current == "suivi") {
-        LaunchedEffect(approaches) {
-            if (trackedVehicleId != null) return@LaunchedEffect
-            val (key, list) = approaches.entries.firstOrNull() ?: return@LaunchedEffect
-            val vehicle = vehicles.firstOrNull { it.id == list.first().vehicle.id } ?: return@LaunchedEffect
-            timetables[key]?.let { onTrack(vehicle, it) }
-        }
     }
 
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
@@ -1782,16 +1712,7 @@ private fun MergedStopDetailSheet(
                             line = key.line, direction = key.direction, passages = list,
                             approaching = approaches[key].orEmpty(),
                             approachKnown = timetables[key] != null,
-                            trackedVehicleId = trackedVehicleId,
                             onLocate = { approach -> vehicles.firstOrNull { it.id == approach.vehicle.id }?.let(onLocateVehicle) },
-                            onTrack = { approach ->
-                                if (trackedVehicleId == approach.vehicle.id) onStopTracking()
-                                else {
-                                    val vehicle = vehicles.firstOrNull { it.id == approach.vehicle.id }
-                                    val timetable = timetables[key]
-                                    if (vehicle != null && timetable != null) requestTracking { onTrack(vehicle, timetable) }
-                                }
-                            },
                             onShowOnMap = {
                                 onFocus(
                                     StopLineFocus(
@@ -1825,9 +1746,7 @@ private fun LinePassagesCard(
     approaching: List<ApproachingVehicle> = emptyList(),
     /** Vrai quand l'ordre des arrêts du sens est connu : sans bus en approche, la carte le dit au lieu de se taire. */
     approachKnown: Boolean = false,
-    trackedVehicleId: String? = null,
     onLocate: ((ApproachingVehicle) -> Unit)? = null,
-    onTrack: ((ApproachingVehicle) -> Unit)? = null,
     onShowOnMap: (() -> Unit)? = null,
     onShowTimetable: (() -> Unit)? = null
 ) {
@@ -1858,11 +1777,7 @@ private fun LinePassagesCard(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Où est mon bus", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     approaching.forEach { approach ->
-                        ApproachRow(
-                            approach = approach, line = line, isTracked = trackedVehicleId == approach.vehicle.id,
-                            onLocate = onLocate?.let { locate -> { locate(approach) } },
-                            onTrack = onTrack?.let { track -> { track(approach) } }
-                        )
+                        ApproachRow(approach = approach, line = line, onLocate = onLocate?.let { locate -> { locate(approach) } })
                     }
                 }
             } else if (approachKnown && TransportMode.detectFromLine(line).showOnMapLabel != null) {
@@ -1883,15 +1798,14 @@ private fun LinePassagesCard(
 }
 
 /**
- * Un véhicule en approche : deux grands chiffres (arrêts restants, heure estimée), une ligne sur l'âge
- * de la position, et un vrai bouton pour le suivre. Toucher les chiffres montre le bus sur la carte (parité iOS).
+ * Un véhicule en approche : deux grands chiffres (arrêts restants, heure estimée) et une ligne sur l'âge
+ * de la position. Toucher la carte montre le bus sur la carte (parité iOS).
  */
 @Composable
-private fun ApproachRow(approach: ApproachingVehicle, line: String, isTracked: Boolean, onLocate: (() -> Unit)?, onTrack: (() -> Unit)?) {
+private fun ApproachRow(approach: ApproachingVehicle, line: String, onLocate: (() -> Unit)?) {
     var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(1000); nowMs = System.currentTimeMillis() } }
     val lineColor = colorFromHex(LineColors.backgroundHex(line))
-    val lineText = colorFromHex(LineColors.textHex(line))
     Surface(shape = RoundedCornerShape(14.dp), color = lineColor.copy(alpha = 0.08f), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
@@ -1907,17 +1821,6 @@ private fun ApproachRow(approach: ApproachingVehicle, line: String, isTracked: B
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(Modifier.size(7.dp).background(approach.vehicle.positionFreshness(nowMs).color.compose(), CircleShape))
                 Text(approach.freshnessLine(nowMs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (onTrack != null) {
-                Button(
-                    onClick = onTrack, modifier = Modifier.fillMaxWidth(),
-                    colors = if (isTracked) ButtonDefaults.buttonColors(containerColor = Tokens.success, contentColor = Color.White)
-                             else ButtonDefaults.buttonColors(containerColor = lineColor, contentColor = lineText)
-                ) {
-                    Icon(if (isTracked) Icons.Filled.CheckCircle else Icons.Filled.NotificationsActive, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (isTracked) "Arrêter le suivi" else "Suivre ce bus", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                }
             }
         }
     }

@@ -103,7 +103,8 @@ struct LiveMapRepresentable: UIViewRepresentable {
         // Diff des annotations et overlays
         coord.syncVehicleAnnotations(viewModel.displayVehicles, animated: viewModel.animatedVehicles)
         coord.syncMergedStopAnnotations(stopsViewModel.visibleMergedStops)
-        coord.syncVelovAnnotations(velovViewModel.visibleStations)
+        // Une ligne isolée sur la carte : seuls ses véhicules et son tracé restent, sans les stations Vélo'v.
+        coord.syncVelovAnnotations(viewModel.stopFocus == nil ? velovViewModel.visibleStations : [])
         // Filtre actif : seul le tracé de la ligne filtrée reste visible, quels que soient les réglages.
         if let focus = viewModel.stopFocus {
             coord.syncPolylineOverlays(
