@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Lyon Pocket — website styles
+   Lyon Pocket : feuille de styles du site
    ========================================================================== */
 
 :root {
@@ -284,8 +284,8 @@ h1 {
   max-width: 1200px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 32px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 24px;
 }
 .strip-item {
   display: flex;
@@ -302,6 +302,10 @@ h1 {
 .strip-emoji { font-size: 24px; }
 .strip-title { font-weight: 700; font-size: 15px; }
 .strip-sub { font-size: 13px; color: rgba(255,255,255,0.6); }
+
+@media (max-width: 1100px) {
+  .strip-inner { grid-template-columns: repeat(3, 1fr); gap: 22px; }
+}
 
 @media (max-width: 840px) {
   .strip-inner { grid-template-columns: repeat(2, 1fr); gap: 20px; }
@@ -810,6 +814,8 @@ h2 {
 
 @media (max-width: 900px) {
   .whats-new { padding: 70px 24px 20px; }
+  .whats-new h2 { font-size: clamp(26px, 7.5vw, 36px); }
+  .whats-new .section-head .lead { font-size: 17px; }
   .wn-row {
     grid-template-columns: 1fr;
     gap: 36px;
@@ -848,8 +854,8 @@ h2 {
 }
 .hood-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 26px;
+  grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+  gap: 22px;
   margin-top: 38px;
 }
 .hood-item {

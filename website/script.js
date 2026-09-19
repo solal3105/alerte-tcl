@@ -58,7 +58,7 @@
 
 // ---------- Scroll reveal ----------
 (function () {
-  const targets = document.querySelectorAll('.feature, .privacy-card, .cta-inner, .section-head, .android-card');
+  const targets = document.querySelectorAll('.feature, .privacy-card, .cta-inner, .section-head, .android-card, .wn-row, .hood-card');
   targets.forEach(el => el.classList.add('reveal'));
 
   if (!('IntersectionObserver' in window)) {
