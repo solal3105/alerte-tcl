@@ -108,17 +108,18 @@ que la donnée contient (plus de « type d'usagers » ni de « type d'ouvrage »
 
 ## Onglet Info
 
-Une page éditoriale sur l'application d'abord : son icône, « Lyon Pocket » en très grand, une accroche
-en corps 19 sur ce qu'elle fait, puis des sections en petites capitales : « Lyon Pocket, c'est » (quatre
-promesses en grille : gratuite, sans publicité, sans compte, sans traçage, chacune avec un pictogramme,
-un mot fort et une phrase), deux grands chiffres (25 000 installations, un temps n° 1 des apps de
-navigation), « Qui est derrière » (une carte : ligne verte « Conseiller métropolitain écologiste ·
-Villeurbanne », « Solal Gendrin », quatre phrases à la première personne, puis LinkedIn et X), « Ses
-autres projets » (TCL 2040, Open Projets née Grands Projets, Nadir : titre en grand, une phrase,
-flèche), « Merci » (citation à filet bleu vers data.grandlyon.com), « D'où viennent les données » (six
-cellules en grille), pied de page. Faits
-vérifiés sur le web (fiche d'élu grandlyon.com, Lyon Capitale, TCL 2040, App Store, Open Projets).
-Une seule teinte, l'accent ; pas d'étiquettes-chips ; pas de section sur le mandat.
+L'application d'abord : son icône, « Lyon Pocket » en très grand, une accroche en corps 19 sur ce
+qu'elle fait, puis quatre cases d'un mot chacune (gratuite, sans publicité, sans compte, sans traçage)
+avec leur pictogramme, sans phrase d'explication ni chiffres. Ensuite, sous des titres en gras (jamais
+de petites capitales) : « Qui est derrière » (une carte : ligne verte « Conseiller métropolitain
+écologiste · Villeurbanne », « Solal Gendrin », quatre phrases à la première personne, puis LinkedIn et
+X), « Ses autres projets » (TCL 2040, Open Projets née Grands Projets, Nadir : le vrai logo de chacun,
+en blanc sur tuile bleue pour les deux premiers, l'icône de l'app pour Nadir ; images `LogoTCL2040`,
+`LogoOpenProjets`, `LogoNadir` et `drawable-nodpi/logo_*`), « D'où viennent les données » (deux
+lignes : la Métropole de Lyon pour les positions, alertes, chantiers, parkings et Vélo'v via
+data.grandlyon.com ; SYTRAL Mobilités pour les arrêts, tracés et horaires GTFS ; puis le merci et la
+mention d'indépendance), et un pied de page sur une ligne. Faits vérifiés sur le web. Une seule
+teinte, l'accent.
 
 ## Filtres de la carte Transport
 

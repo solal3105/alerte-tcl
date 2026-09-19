@@ -1,9 +1,8 @@
 import SwiftUI
 
-/// Onglet Info : une page éditoriale sur Lyon Pocket, puis sur celui qui la fait. L'application en
-/// tête (icône, nom, accroche, quatre promesses, deux chiffres), « Qui est derrière » (Solal Gendrin,
-/// ses contacts), ses autres projets, un remerciement, les sources. Une seule teinte d'interface
-/// (l'accent), le vert réservé à l'étiquette d'élu écologiste.
+/// Onglet Info : l'application d'abord (icône, nom, accroche, quatre promesses), puis qui est
+/// derrière, ses autres projets avec leurs logos, d'où viennent les données. Une seule teinte
+/// d'interface (l'accent), le vert réservé à l'étiquette d'élu écologiste.
 struct AboutView: View {
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -14,11 +13,9 @@ struct AboutView: View {
             VStack(alignment: .leading, spacing: 36) {
                 hero
                 promises
-                numbers
                 author
                 projects
-                thanks
-                sources
+                data
                 footer
             }
             .padding(.horizontal, 20)
@@ -39,8 +36,8 @@ struct AboutView: View {
             Text("Lyon Pocket")
                 .font(.system(size: 40, weight: .bold, design: .rounded))
 
-            Text("Les bus et les trams en direct sur la carte, les alertes de vos lignes, les fiches horaires, les chantiers, les parkings et les Vélo'v. Tout Lyon dans la poche, sans compte et sans publicité.")
-                .font(.system(size: 19, weight: .regular))
+            Text("Les bus et les trams en direct sur la carte, les alertes de vos lignes, les fiches horaires, les chantiers, les parkings et les Vélo'v. Tout Lyon dans la poche.")
+                .font(.system(size: 19))
                 .lineSpacing(5)
                 .foregroundStyle(.primary.opacity(0.9))
                 .fixedSize(horizontal: false, vertical: true)
@@ -66,11 +63,39 @@ struct AboutView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
+    // MARK: Promesses
+
+    private var promises: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            promise(icon: "gift.fill", title: "Gratuite")
+            promise(icon: "eye.slash.fill", title: "Sans publicité")
+            promise(icon: "person.crop.circle.badge.xmark", title: "Sans compte")
+            promise(icon: "lock.fill", title: "Sans traçage")
+        }
+    }
+
+    private func promise(icon: String, title: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Color.appAccent)
+                .frame(width: 36, height: 36)
+                .background(Color.appAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            Text(title)
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(card)
+    }
+
     // MARK: Qui est derrière
 
     private var author: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            eyebrow("Qui est derrière")
+        VStack(alignment: .leading, spacing: 14) {
+            sectionTitle("Qui est derrière")
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Conseiller métropolitain écologiste · Villeurbanne")
@@ -88,130 +113,180 @@ struct AboutView: View {
                 }
                 .padding(18)
                 Divider().padding(.leading, 18)
-                contactRow(icon: "person.crop.circle.fill", title: "LinkedIn", subtitle: "Retours, idées, bugs : je lis tout", url: URL.trusted("https://www.linkedin.com/in/solal-gendrin/"))
+                linkRow(icon: "person.crop.circle.fill", title: "LinkedIn", subtitle: "Retours, idées, bugs : je lis tout", url: URL.trusted("https://www.linkedin.com/in/solal-gendrin/"))
                 Divider().padding(.leading, 66)
-                contactRow(icon: "bubble.left.fill", title: "X", subtitle: "@_solal_", url: URL.trusted("https://x.com/_solal_"))
+                linkRow(icon: "bubble.left.fill", title: "X", subtitle: "@_solal_", url: URL.trusted("https://x.com/_solal_"))
             }
             .background(card)
         }
     }
 
-    // MARK: Promesses
-
-    private var promises: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            eyebrow("Lyon Pocket, c'est")
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                promise(icon: "gift.fill", title: "Gratuite", text: "Pour tout le monde, pour toujours.")
-                promise(icon: "eye.slash.fill", title: "Sans publicité", text: "Rien ne s'affiche entre vous et votre bus.")
-                promise(icon: "person.crop.circle.badge.xmark", title: "Sans compte", text: "On ouvre, ça marche.")
-                promise(icon: "lock.fill", title: "Sans traçage", text: "Aucune donnée collectée, donc rien à vendre.")
-            }
-        }
-    }
-
-    private func promise(icon: String, title: String, text: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(Color.appAccent)
-                .frame(height: 28)
-            Text(title)
-                .font(.system(size: 17, weight: .bold, design: .rounded))
-            Text(text)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, minHeight: 128, alignment: .topLeading)
-        .padding(16)
-        .background(card)
-    }
-
-    // MARK: Chiffres
-
-    private var numbers: some View {
-        HStack(spacing: 12) {
-            number(value: "25 000", caption: "installations, et ça continue")
-            number(value: "N° 1", caption: "des apps de navigation sur l'App Store, un temps devant Google Maps et Waze")
-        }
-    }
-
-    private func number(value: String, caption: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(value)
-                .font(.system(size: 34, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.appAccent)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Text(caption)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
-        .padding(16)
-        .background(card)
-    }
-
-    // MARK: Projets
+    // MARK: Ses autres projets
 
     private var projects: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            eyebrow("Ses autres projets")
-            project(
-                title: "TCL 2040",
-                text: "Prenez la place du président du Sytral : un budget fermé, des projets réels, des impacts chiffrés. Dessinez le réseau de 2040 et voyez ce qu'il coûte vraiment.",
-                url: URL.trusted("https://tcl-2040.com/")
-            )
-            project(
-                title: "Open Projets",
-                text: "Née « Grands Projets » pour la Métropole, devenue la carte que chaque commune peut ouvrir à ses habitants : chantiers, projets, avancement, documents. Je la construis chez Vazy, société à mission villeurbannaise.",
-                url: URL.trusted("https://openprojets.com/home")
-            )
-            project(
-                title: "Nadir",
-                text: "Rafraîchir son logement sans climatisation : l'app compare heure par heure la température chez vous et dehors, et vous dit quand ouvrir et fermer les fenêtres.",
-                url: URL.trusted("https://apps.apple.com/fr/app/nadir/id6788036137")
-            )
+        VStack(alignment: .leading, spacing: 14) {
+            sectionTitle("Ses autres projets")
+            VStack(spacing: 12) {
+                project(
+                    logo: "LogoTCL2040", logoOnAccent: true, logoPadding: 10,
+                    title: "TCL 2040",
+                    text: "Prenez la place du président du Sytral : un budget fermé, des projets réels, des impacts chiffrés. Dessinez le réseau de 2040 et voyez ce qu'il coûte vraiment.",
+                    url: URL.trusted("https://tcl-2040.com/")
+                )
+                project(
+                    logo: "LogoOpenProjets", logoOnAccent: true, logoPadding: 9,
+                    title: "Open Projets",
+                    text: "Née « Grands Projets » pour la Métropole, devenue la carte que chaque commune peut ouvrir à ses habitants : chantiers, projets, avancement, documents. Construite chez Vazy, société à mission villeurbannaise.",
+                    url: URL.trusted("https://openprojets.com/home")
+                )
+                project(
+                    logo: "LogoNadir", logoOnAccent: false, logoPadding: 0,
+                    title: "Nadir",
+                    text: "Rafraîchir son logement sans climatisation : l'app compare heure par heure la température chez vous et dehors, et vous dit quand ouvrir et fermer les fenêtres.",
+                    url: URL.trusted("https://apps.apple.com/fr/app/nadir/id6788036137")
+                )
+            }
         }
     }
 
-    private func project(title: String, text: String, url: URL) -> some View {
+    private func project(logo: String, logoOnAccent: Bool, logoPadding: CGFloat, title: String, text: String, url: URL) -> some View {
         Link(destination: url) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(title)
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Color.appAccent)
+            HStack(alignment: .top, spacing: 14) {
+                Image(logo)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(logoPadding)
+                    .frame(width: 60, height: 60)
+                    .background(logoOnAccent ? Color.appAccent : Color.clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(title)
+                            .font(.system(size: 19, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(text)
+                        .font(.footnote)
+                        .lineSpacing(3)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
                 }
-                Text(text)
-                    .font(.subheadline)
-                    .lineSpacing(3)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(18)
+            .padding(16)
             .background(card)
             .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .buttonStyle(.plain)
     }
 
-    private func contactRow(icon: String, title: String, subtitle: String, url: URL) -> some View {
+    // MARK: Les données
+
+    private var data: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionTitle("D'où viennent les données")
+            VStack(alignment: .leading, spacing: 0) {
+                dataRow(
+                    icon: "building.2.fill",
+                    title: "Métropole de Lyon",
+                    text: "Positions des bus et des trams, alertes, chantiers, parkings et Vélo'v, publiés en données ouvertes sur data.grandlyon.com.",
+                    url: URL.trusted("https://data.grandlyon.com")
+                )
+                Divider().padding(.leading, 66)
+                dataRow(
+                    icon: "tram.fill",
+                    title: "SYTRAL Mobilités",
+                    text: "Arrêts, tracés et horaires des lignes TCL, au format GTFS.",
+                    url: nil
+                )
+                Divider().padding(.leading, 18)
+                Text("Merci aux équipes qui publient tout ça librement. Lyon Pocket est une application indépendante, sans lien avec SYTRAL Mobilités, Keolis Lyon ou TCL.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(18)
+            }
+            .background(card)
+        }
+    }
+
+    private func dataRow(icon: String, title: String, text: String, url: URL?) -> some View {
+        let content = HStack(alignment: .top, spacing: 14) {
+            iconBox(icon)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.primary)
+                    if url != nil {
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text(text)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .contentShape(Rectangle())
+
+        return Group {
+            if let url {
+                Link(destination: url) { content }.buttonStyle(.plain)
+            } else {
+                content
+            }
+        }
+    }
+
+    // MARK: Pied de page
+
+    private var footer: some View {
+        HStack(spacing: 14) {
+            Link("Politique de confidentialité", destination: URL.trusted("https://solalgendrin.github.io/alerte-tcl/privacy"))
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color.appAccent)
+            Text("Version \(appVersion), faite à Villeurbanne")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.top, 4)
+    }
+
+    // MARK: Composants
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 22, weight: .bold, design: .rounded))
+    }
+
+    private var card: some View {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .fill(Color(.secondarySystemGroupedBackground))
+    }
+
+    private func iconBox(_ icon: String) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(Color.appAccent)
+            .frame(width: 38, height: 38)
+            .background(Color.appAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+    }
+
+    private func linkRow(icon: String, title: String, subtitle: String, url: URL) -> some View {
         Link(destination: url) {
             HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Color.appAccent)
-                    .frame(width: 38, height: 38)
-                    .background(Color.appAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                iconBox(icon)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.system(size: 17, weight: .semibold, design: .rounded))
@@ -230,109 +305,6 @@ struct AboutView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    // MARK: Merci
-
-    private var thanks: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            eyebrow("Merci")
-            HStack(alignment: .top, spacing: 16) {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.appAccent)
-                    .frame(width: 3)
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Rien de tout ça n'existerait sans les équipes Open Data du Grand Lyon, qui publient les positions des bus, les alertes, les chantiers, les parkings et les Vélo'v sous licence ouverte. Un travail discret, qui rend possibles des projets citoyens comme celui-ci.")
-                        .font(.system(size: 17))
-                        .lineSpacing(4)
-                        .foregroundStyle(.primary.opacity(0.9))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Link(destination: URL.trusted("https://data.grandlyon.com")) {
-                        HStack(spacing: 6) {
-                            Text("data.grandlyon.com")
-                            Image(systemName: "arrow.up.right")
-                                .font(.caption.weight(.semibold))
-                        }
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.appAccent)
-                    }
-                }
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
-    // MARK: Sources
-
-    private var sources: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            eyebrow("D'où viennent les données")
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                source(icon: "location.fill", title: "Positions des bus et trams", detail: "SIRI-Lite, en direct")
-                source(icon: "tram.fill", title: "Arrêts, lignes, horaires", detail: "GTFS")
-                source(icon: "exclamationmark.triangle.fill", title: "Alertes trafic", detail: "Flux officiel TCL")
-                source(icon: "hammer.fill", title: "Travaux", detail: "Réseau et voirie")
-                source(icon: "car.fill", title: "Parkings", detail: "Places libres en direct")
-                source(icon: "bicycle", title: "Vélo'v", detail: "Vélos et places en direct")
-            }
-            Text("Toutes ces données sont publiées par le Grand Lyon sous licence ouverte (Etalab et ODbL).")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 2)
-        }
-    }
-
-    private func source(icon: String, title: String, detail: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Color.appAccent)
-                .frame(width: 30, height: 30)
-                .background(Color.appAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, minHeight: 74, alignment: .topLeading)
-        .padding(14)
-        .background(card)
-    }
-
-    // MARK: Pied de page
-
-    private var footer: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Link("Politique de confidentialité", destination: URL.trusted("https://solalgendrin.github.io/alerte-tcl/privacy"))
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Color.appAccent)
-            Text("Lyon Pocket \(appVersion), fait à Villeurbanne. Application indépendante, sans lien avec SYTRAL Mobilités, Keolis Lyon ou TCL.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.top, 8)
-    }
-
-    // MARK: Composants
-
-    private func eyebrow(_ text: String) -> some View {
-        Text(text)
-            .font(.footnote.weight(.semibold))
-            .textCase(.uppercase)
-            .tracking(0.6)
-            .foregroundStyle(.secondary)
-    }
-
-    private var card: some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(Color(.secondarySystemGroupedBackground))
     }
 }
 

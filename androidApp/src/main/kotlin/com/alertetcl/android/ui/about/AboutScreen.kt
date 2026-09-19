@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -20,18 +18,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.ChatBubble
-import androidx.compose.material.icons.filled.DirectionsBike
-import androidx.compose.material.icons.filled.DirectionsCar
-import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -42,10 +36,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,10 +49,9 @@ import com.alertetcl.android.ui.openUrl
 import com.alertetcl.android.ui.theme.Tokens
 
 /**
- * Onglet Info : une page éditoriale sur Lyon Pocket, puis sur celui qui la fait. L'application en
- * tête (icône, nom, accroche, quatre promesses, deux chiffres), « Qui est derrière » (Solal Gendrin,
- * ses contacts), ses autres projets, un remerciement, les sources. Une seule teinte d'interface
- * (l'accent), le vert réservé à l'étiquette d'élu écologiste.
+ * Onglet Info : l'application d'abord (icône, nom, accroche, quatre promesses), puis qui est
+ * derrière, ses autres projets avec leurs logos, d'où viennent les données. Une seule teinte
+ * d'interface (l'accent), le vert réservé à l'étiquette d'élu écologiste.
  */
 @Composable
 fun AboutScreen() {
@@ -71,11 +65,9 @@ fun AboutScreen() {
     ) {
         item { Hero() }
         item { Promises() }
-        item { Numbers() }
         item { Author() }
         item { Projects() }
-        item { Thanks() }
-        item { Sources() }
+        item { DataSources() }
         item { Footer(versionName) }
     }
 }
@@ -91,17 +83,41 @@ private fun Hero() {
         )
         Text("Lyon Pocket", fontSize = 38.sp, lineHeight = 42.sp, fontWeight = FontWeight.Bold)
         Text(
-            "Les bus et les trams en direct sur la carte, les alertes de vos lignes, les fiches horaires, les chantiers, les parkings et les Vélo'v. Tout Lyon dans la poche, sans compte et sans publicité.",
+            "Les bus et les trams en direct sur la carte, les alertes de vos lignes, les fiches horaires, les chantiers, les parkings et les Vélo'v. Tout Lyon dans la poche.",
             fontSize = 18.sp, lineHeight = 27.sp
         )
     }
 }
 
 @Composable
+private fun Promises() {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Promise(Icons.Filled.CardGiftcard, "Gratuite", Modifier.weight(1f))
+            Promise(Icons.Filled.VisibilityOff, "Sans publicité", Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Promise(Icons.Filled.PersonOff, "Sans compte", Modifier.weight(1f))
+            Promise(Icons.Filled.Lock, "Sans traçage", Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun Promise(icon: ImageVector, title: String, modifier: Modifier) {
+    Card(modifier) {
+        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            AccentIcon(icon, 36, 18)
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+    }
+}
+
+@Composable
 private fun Author() {
     val context = LocalContext.current
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Eyebrow("Qui est derrière")
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        SectionTitle("Qui est derrière")
         Card(Modifier.fillMaxWidth()) {
             Column {
                 Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -116,54 +132,10 @@ private fun Author() {
                     )
                 }
                 HorizontalDivider(modifier = Modifier.padding(start = 18.dp))
-                ContactRow(Icons.Filled.Person, "LinkedIn", "Retours, idées, bugs : je lis tout") { openUrl(context, "https://www.linkedin.com/in/solal-gendrin/") }
+                LinkRow(Icons.Filled.Person, "LinkedIn", "Retours, idées, bugs : je lis tout") { openUrl(context, "https://www.linkedin.com/in/solal-gendrin/") }
                 HorizontalDivider(modifier = Modifier.padding(start = 66.dp))
-                ContactRow(Icons.Filled.ChatBubble, "X", "@_solal_") { openUrl(context, "https://x.com/_solal_") }
+                LinkRow(Icons.Filled.ChatBubble, "X", "@_solal_") { openUrl(context, "https://x.com/_solal_") }
             }
-        }
-    }
-}
-
-@Composable
-private fun Promises() {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Eyebrow("Lyon Pocket, c'est")
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Promise(Icons.Filled.CardGiftcard, "Gratuite", "Pour tout le monde, pour toujours.", Modifier.weight(1f))
-            Promise(Icons.Filled.VisibilityOff, "Sans publicité", "Rien ne s'affiche entre vous et votre bus.", Modifier.weight(1f))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Promise(Icons.Filled.PersonOff, "Sans compte", "On ouvre, ça marche.", Modifier.weight(1f))
-            Promise(Icons.Filled.Lock, "Sans traçage", "Aucune donnée collectée, donc rien à vendre.", Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable
-private fun Promise(icon: ImageVector, title: String, text: String, modifier: Modifier) {
-    Card(modifier.heightIn(min = 128.dp)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(icon, null, tint = Tokens.accent, modifier = Modifier.size(24.dp))
-            Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun Numbers() {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Number("25 000", "installations, et ça continue", Modifier.weight(1f))
-        Number("N° 1", "des apps de navigation sur le Play Store et l'App Store, un temps devant Google Maps et Waze", Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun Number(value: String, caption: String, modifier: Modifier) {
-    Card(modifier.heightIn(min = 118.dp)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(value, fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Tokens.accent, maxLines = 1)
-            Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -171,106 +143,89 @@ private fun Number(value: String, caption: String, modifier: Modifier) {
 @Composable
 private fun Projects() {
     val context = LocalContext.current
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Eyebrow("Ses autres projets")
-        Project("TCL 2040", "Prenez la place du président du Sytral : un budget fermé, des projets réels, des impacts chiffrés. Dessinez le réseau de 2040 et voyez ce qu'il coûte vraiment.") {
-            openUrl(context, "https://tcl-2040.com/")
-        }
-        Project("Open Projets", "Née « Grands Projets » pour la Métropole, devenue la carte que chaque commune peut ouvrir à ses habitants : chantiers, projets, avancement, documents. Je la construis chez Vazy, société à mission villeurbannaise.") {
-            openUrl(context, "https://openprojets.com/home")
-        }
-        Project("Nadir", "Rafraîchir son logement sans climatisation : l'app compare heure par heure la température chez vous et dehors, et vous dit quand ouvrir et fermer les fenêtres.") {
-            openUrl(context, "https://apps.apple.com/fr/app/nadir/id6788036137")
-        }
-    }
-}
-
-@Composable
-private fun Project(title: String, text: String, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable { onClick() }) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                Icon(Icons.Outlined.OpenInNew, null, tint = Tokens.accent, modifier = Modifier.size(16.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        SectionTitle("Ses autres projets")
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Project(R.drawable.logo_tcl2040, logoOnAccent = true, logoPadding = 10, title = "TCL 2040",
+                text = "Prenez la place du président du Sytral : un budget fermé, des projets réels, des impacts chiffrés. Dessinez le réseau de 2040 et voyez ce qu'il coûte vraiment.") {
+                openUrl(context, "https://tcl-2040.com/")
             }
-            Text(text, style = MaterialTheme.typography.bodyMedium, lineHeight = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Project(R.drawable.logo_openprojets, logoOnAccent = true, logoPadding = 9, title = "Open Projets",
+                text = "Née « Grands Projets » pour la Métropole, devenue la carte que chaque commune peut ouvrir à ses habitants : chantiers, projets, avancement, documents. Construite chez Vazy, société à mission villeurbannaise.") {
+                openUrl(context, "https://openprojets.com/home")
+            }
+            Project(R.drawable.logo_nadir, logoOnAccent = false, logoPadding = 0, title = "Nadir",
+                text = "Rafraîchir son logement sans climatisation : l'app compare heure par heure la température chez vous et dehors, et vous dit quand ouvrir et fermer les fenêtres.") {
+                openUrl(context, "https://apps.apple.com/fr/app/nadir/id6788036137")
+            }
         }
     }
 }
 
 @Composable
-private fun ContactRow(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+private fun Project(logo: Int, logoOnAccent: Boolean, logoPadding: Int, title: String, text: String, onClick: () -> Unit) {
+    Card(Modifier.fillMaxWidth().clickable { onClick() }) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Box(
+                modifier = Modifier.size(60.dp).clip(RoundedCornerShape(14.dp))
+                    .background(if (logoOnAccent) Tokens.accent else Color.Transparent),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = logo), contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(logoPadding.dp)
+                )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(title, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Outlined.OpenInNew, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(12.dp))
+                }
+                Text(text, style = MaterialTheme.typography.bodySmall, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DataSources() {
+    val context = LocalContext.current
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        SectionTitle("D'où viennent les données")
+        Card(Modifier.fillMaxWidth()) {
+            Column {
+                DataRow(Icons.Filled.LocationCity, "Métropole de Lyon",
+                    "Positions des bus et des trams, alertes, chantiers, parkings et Vélo'v, publiés en données ouvertes sur data.grandlyon.com.") {
+                    openUrl(context, "https://data.grandlyon.com")
+                }
+                HorizontalDivider(modifier = Modifier.padding(start = 66.dp))
+                DataRow(Icons.Filled.Tram, "SYTRAL Mobilités", "Arrêts, tracés et horaires des lignes TCL, au format GTFS.", onClick = null)
+                HorizontalDivider(modifier = Modifier.padding(start = 18.dp))
+                Text(
+                    "Merci aux équipes qui publient tout ça librement. Lyon Pocket est une application indépendante, sans lien avec SYTRAL Mobilités, Keolis Lyon ou TCL.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(18.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DataRow(icon: ImageVector, title: String, text: String, onClick: (() -> Unit)?) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable { onClick() } else Modifier).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         AccentIcon(icon, 38, 18)
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Icon(Icons.Outlined.OpenInNew, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
-    }
-}
-
-@Composable
-private fun Thanks() {
-    val context = LocalContext.current
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Eyebrow("Merci")
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Box(modifier = Modifier.width(3.dp).height(150.dp).background(Tokens.accent, RoundedCornerShape(2.dp)))
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    "Rien de tout ça n'existerait sans les équipes Open Data du Grand Lyon, qui publient les positions des bus, les alertes, les chantiers, les parkings et les Vélo'v sous licence ouverte. Un travail discret, qui rend possibles des projets citoyens comme celui-ci.",
-                    fontSize = 16.sp, lineHeight = 24.sp
-                )
-                Row(
-                    modifier = Modifier.clickable { openUrl(context, "https://data.grandlyon.com") },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("data.grandlyon.com", color = Tokens.accent, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
-                    Icon(Icons.Outlined.OpenInNew, null, tint = Tokens.accent, modifier = Modifier.size(14.dp))
-                }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                if (onClick != null) Icon(Icons.Outlined.OpenInNew, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(12.dp))
             }
-        }
-    }
-}
-
-@Composable
-private fun Sources() {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Eyebrow("D'où viennent les données")
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Source(Icons.Filled.LocationOn, "Positions des bus et trams", "SIRI-Lite, en direct", Modifier.weight(1f))
-            Source(Icons.Filled.Tram, "Arrêts, lignes, horaires", "GTFS", Modifier.weight(1f))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Source(Icons.Filled.Warning, "Alertes trafic", "Flux officiel TCL", Modifier.weight(1f))
-            Source(Icons.Filled.Build, "Travaux", "Réseau et voirie", Modifier.weight(1f))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Source(Icons.Filled.DirectionsCar, "Parkings", "Places libres en direct", Modifier.weight(1f))
-            Source(Icons.Filled.DirectionsBike, "Vélo'v", "Vélos et places en direct", Modifier.weight(1f))
-        }
-        Text(
-            "Toutes ces données sont publiées par le Grand Lyon sous licence ouverte (Etalab et ODbL).",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun Source(icon: ImageVector, title: String, detail: String, modifier: Modifier) {
-    Card(modifier.heightIn(min = 74.dp)) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            AccentIcon(icon, 30, 16)
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                Text(detail, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -278,28 +233,21 @@ private fun Source(icon: ImageVector, title: String, detail: String, modifier: M
 @Composable
 private fun Footer(version: String) {
     val context = LocalContext.current
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(
             "Politique de confidentialité",
             color = Tokens.accent, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.clickable { openUrl(context, "https://lyon-pocket.netlify.app/privacy") }
         )
-        Text(
-            "Lyon Pocket $version, fait à Villeurbanne. Application indépendante, sans lien avec SYTRAL Mobilités, Keolis Lyon ou TCL.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Text("Version $version, faite à Villeurbanne", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 // ── Composants ──────────────────────────────────────────────────────
 
 @Composable
-private fun Eyebrow(text: String) {
-    Text(
-        text.uppercase(),
-        style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
+private fun SectionTitle(text: String) {
+    Text(text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
 }
 
 @Composable
@@ -316,5 +264,22 @@ private fun AccentIcon(icon: ImageVector, size: Int, iconSize: Int) {
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, null, tint = Tokens.accent, modifier = Modifier.size(iconSize.dp))
+    }
+}
+
+@Composable
+private fun LinkRow(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        AccentIcon(icon, 38, 18)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.Outlined.OpenInNew, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
     }
 }
