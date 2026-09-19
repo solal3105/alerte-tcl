@@ -67,7 +67,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -214,18 +213,12 @@ fun ParkingScreen(type: ParkingType) {
         onDispose { parkingLifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // Countdown auto-refresh 60s (voitures et Vélo'v, comme iOS)
-    var secondsUntilRefresh by remember { mutableIntStateOf(60) }
+    // Rechargement silencieux toutes les minutes pour les données en direct (voitures et Vélo'v).
     LaunchedEffect(isLive) {
         if (!isLive) return@LaunchedEffect
-        secondsUntilRefresh = 60
         while (true) {
-            kotlinx.coroutines.delay(1000)
-            secondsUntilRefresh = (secondsUntilRefresh - 1).coerceAtLeast(0)
-            if (secondsUntilRefresh <= 0) {
-                currentRegion.value?.let { vm.loadInRegion(it, forceRefresh = true) }
-                secondsUntilRefresh = 60
-            }
+            kotlinx.coroutines.delay(60_000)
+            currentRegion.value?.let { vm.loadInRegion(it, forceRefresh = true) }
         }
     }
 
@@ -314,22 +307,13 @@ fun ParkingScreen(type: ParkingType) {
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            MapCircleFab(
-                icon = Icons.Filled.Public, contentDesc = "Vue satellite",
-                tint = if (isSatellite) Tokens.warning else MaterialTheme.colorScheme.onSurface,
-                onClick = { isSatellite = !isSatellite }
-            )
+            MapCircleFab(icon = Icons.Filled.Public, contentDesc = "Vue satellite", active = isSatellite, onClick = { isSatellite = !isSatellite })
             if (isCarSelected || isVelovSelected) {
                 val hasActiveFilters = if (isVelovSelected) velovElectricOnly else !showParcRelais || !showRealtimeParkings
-                MapCircleFab(
-                    icon = Icons.Filled.FilterList, contentDesc = "Filtres",
-                    tint = if (hasActiveFilters) Tokens.warning else MaterialTheme.colorScheme.onSurface,
-                    onClick = { showFilterSheet = true }
-                )
+                MapCircleFab(icon = Icons.Filled.FilterList, contentDesc = "Filtres", active = hasActiveFilters, onClick = { showFilterSheet = true })
             }
             MapCircleFab(
                 icon = Icons.Filled.MyLocation, contentDesc = "Ma position",
-                tint = MaterialTheme.colorScheme.primary,
                 onClick = {
                     val granted = androidx.core.content.ContextCompat.checkSelfPermission(
                         context, Manifest.permission.ACCESS_FINE_LOCATION
@@ -383,53 +367,6 @@ fun ParkingScreen(type: ParkingType) {
             }
         }
 
-        // LIVE card bottom-left (voitures et Vélo'v, comme iOS)
-        if (isLive) {
-            val liveColor = if (errorMessage != null) Tokens.warning else MaterialTheme.colorScheme.primary
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                tonalElevation = 6.dp,
-                shadowElevation = 6.dp,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .navigationBarsPadding()
-                    .padding(bottom = 96.dp, start = 16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(liveColor)
-                    )
-                    Text(
-                        "LIVE",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = liveColor
-                    )
-                    if (isLoading) {
-                        androidx.compose.material3.CircularProgressIndicator(
-                            modifier = Modifier.size(12.dp),
-                            strokeWidth = 1.5.dp,
-                            color = liveColor
-                        )
-                    } else {
-                        Text(
-                            "${secondsUntilRefresh}s",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
     }
 
     if (showFilterSheet) {

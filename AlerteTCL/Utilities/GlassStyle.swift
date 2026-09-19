@@ -19,18 +19,20 @@ extension View {
     }
 }
 
-/// Bouton rond des contrôles de carte (satellite, filtres, position), en verre.
+/// Bouton rond des contrôles de carte (satellite, filtres, position) : deux couleurs seulement,
+/// l'accent sur verre au repos, disque d'accent plein avec pictogramme blanc quand il est actif.
 struct MapGlassButton: View {
     let systemImage: String
-    let tint: Color
+    var active: Bool = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(tint)
+                .foregroundStyle(active ? Color.white : Color.appAccent)
                 .frame(width: 50, height: 50)
+                .background(active ? Color.appAccent : Color.clear, in: Circle())
         }
         .buttonStyle(.plain)
         .glassSurface(Circle(), interactive: true)

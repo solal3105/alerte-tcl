@@ -266,19 +266,10 @@ fun TravauxScreen() {
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            MapCircleFab(
-                icon = Icons.Filled.Public, contentDesc = "Vue satellite",
-                tint = if (isSatellite) Tokens.warning else MaterialTheme.colorScheme.onSurface,
-                onClick = { isSatellite = !isSatellite }
-            )
-            MapCircleFab(
-                icon = Icons.Filled.FilterList, contentDesc = "Filtres",
-                tint = if (hasActiveFilters) Tokens.warning else MaterialTheme.colorScheme.onSurface,
-                onClick = { showFilterSheet = true }
-            )
+            MapCircleFab(icon = Icons.Filled.Public, contentDesc = "Vue satellite", active = isSatellite, onClick = { isSatellite = !isSatellite })
+            MapCircleFab(icon = Icons.Filled.FilterList, contentDesc = "Filtres", active = hasActiveFilters, onClick = { showFilterSheet = true })
             MapCircleFab(
                 icon = Icons.Filled.MyLocation, contentDesc = "Ma position",
-                tint = MaterialTheme.colorScheme.primary,
                 onClick = {
                     val granted = androidx.core.content.ContextCompat.checkSelfPermission(
                         context, Manifest.permission.ACCESS_FINE_LOCATION

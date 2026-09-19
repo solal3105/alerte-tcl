@@ -47,12 +47,11 @@ struct CityView: View {
 
 // MARK: - Accueil
 
-/// La carte de la ville, immobile, sous un voile ; les tuiles de verre par-dessus, avec les chiffres du moment.
+/// La carte de la ville, immobile, sous un voile ; les tuiles de verre par-dessus.
 private struct CityChooserView: View {
     let onChoose: (CityTile) -> Void
 
     @ObservedObject private var locationService = LocationService.shared
-    @State private var overview = CityOverview.companion.EMPTY
 
     private let tiles: [CityTile] = CityTile.companion.all
     private var parkingTiles: [CityTile] { tiles.filter { $0.parkingType != nil } }
@@ -85,13 +84,10 @@ private struct CityChooserView: View {
                 .padding(20)
             }
         }
-        .task {
-            overview = (try? await CityOverviewService.companion.shared.fetch()) ?? CityOverview.companion.EMPTY
-        }
     }
 
     private func tileCard(_ tile: CityTile, wide: Bool) -> some View {
-        CityTileCard(tile: tile, liveLine: overview.liveLine(tile: tile), wide: wide) { onChoose(tile) }
+        CityTileCard(tile: tile, wide: wide) { onChoose(tile) }
     }
 }
 
@@ -125,7 +121,6 @@ private struct MapBackdrop: View {
 
 private struct CityTileCard: View {
     let tile: CityTile
-    let liveLine: String?
     let wide: Bool
     let onTap: () -> Void
 
@@ -159,12 +154,6 @@ private struct CityTileCard: View {
                 .font(.headline)
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.leading)
-            if let liveLine {
-                Text(liveLine)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(tile.color)
-                    .contentTransition(.numericText())
-            }
             Text(tile.subtitle)
                 .font(.caption)
                 .foregroundStyle(.secondary)

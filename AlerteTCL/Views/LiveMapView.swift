@@ -17,7 +17,6 @@ struct LiveMapView: View {
     @State private var showDataSourceErrors = false
     @State private var hasStartedLoading = false
     @State private var hasSetInitialLocation = false
-    @State private var showRefreshInfo = false
     
     @State private var mapRegion: MKCoordinateRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
@@ -324,62 +323,30 @@ struct LiveMapView: View {
                 .allowsHitTesting(false)
             
             HStack(alignment: .bottom) {
-                // Live indicator en bas à gauche
-                liveIndicator
+                // Messages d'état en bas à gauche (flux vide, données figées, sources en erreur)
+                statusCapsules
                 
                 Spacer()
                     .allowsHitTesting(false)
                 
-                // Boutons en bas à droite (stack vertical)
+                // Boutons en bas à droite, tous dans les deux mêmes couleurs
                 VStack(spacing: 10) {
-                    // Pastille trafic : verte, orange ou rouge, avec le nombre de lignes touchées
                     trafficPill
 
-                    // Bouton fiches horaires
-                    Button {
+                    MapGlassButton(systemImage: "calendar.badge.clock") {
                         showTimetableSearch = true
-                    } label: {
-                        Image(systemName: "calendar.badge.clock")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(.primary)
-                            .frame(width: 50, height: 50)
-                            .background(.regularMaterial)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
-                    .buttonStyle(.plain)
                     .accessibilityLabel("Fiches horaires")
 
-                    // Bouton satellite
-                    Button {
+                    MapGlassButton(systemImage: "globe.europe.africa", active: isSatellite) {
                         withAnimation { isSatellite.toggle() }
-                    } label: {
-                        Image(systemName: isSatellite ? "globe.europe.africa.fill" : "globe.europe.africa")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(isSatellite ? Color.appWarning : Color.primary)
-                            .frame(width: 50, height: 50)
-                            .background(.regularMaterial)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
-                    .buttonStyle(.plain)
 
-                    // Bouton filtres
-                    Button {
+                    MapGlassButton(systemImage: "line.3.horizontal.decrease", active: hasActiveFilters) {
                         showFilters = true
-                    } label: {
-                        Image(systemName: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(hasActiveFilters ? Color.appAccent : Color.primary)
-                            .frame(width: 50, height: 50)
-                            .background(.regularMaterial)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
-                    .buttonStyle(.plain)
                     
-                    // Bouton localisation
-                    Button {
+                    MapGlassButton(systemImage: "location.fill") {
                         if let userLocation = locationService.currentLocation, !isSimulator {
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                                 mapRegion = MKCoordinateRegion(
@@ -391,16 +358,7 @@ struct LiveMapView: View {
                             locationService.requestPermission()
                             locationService.startUpdatingLocation()
                         }
-                    } label: {
-                        Image(systemName: "location.fill")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(Color.appAccent)
-                            .frame(width: 50, height: 50)
-                            .background(.regularMaterial)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
-                    .buttonStyle(.plain)
                 }
                 .padding(.trailing, 24)
                 .padding(.bottom, 24)
@@ -410,35 +368,29 @@ struct LiveMapView: View {
     
     // MARK: - Traffic Banner
 
+    /// Pastille trafic, dans les mêmes deux couleurs que les autres boutons : pleine, avec le nombre de
+    /// lignes touchées, dès qu'il y a des perturbations.
     private var trafficPill: some View {
         let state = TrafficBanner.shared.compute(
             subscriptions: alertViewModel.subscriptionService.subscriptions,
             alerts: alertViewModel.alerts.map(\.shared),
             nowEpoch: Int64(Date().timeIntervalSince1970)
         )
-        return Button {
+        return MapGlassButton(systemImage: trafficIcon(state.tone), active: state.count > 0) {
             showAlerts = true
-        } label: {
-            Image(systemName: trafficIcon(state.tone))
-                .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(trafficColor(state.tone))
-                .frame(width: 50, height: 50)
-                .background(.regularMaterial)
-                .clipShape(Circle())
-                .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
-                .overlay(alignment: .topTrailing) {
-                    if state.count > 0 {
-                        Text("\(state.count)")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .frame(minWidth: 18, minHeight: 18)
-                            .background(trafficColor(state.tone), in: Capsule())
-                            .offset(x: 3, y: -3)
-                    }
-                }
         }
-        .buttonStyle(.plain)
+        .overlay(alignment: .topTrailing) {
+            if state.count > 0 {
+                Text("\(state.count)")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .frame(minWidth: 18, minHeight: 18)
+                    .background(Color.appAccent, in: Capsule())
+                    .overlay(Capsule().strokeBorder(.white, lineWidth: 1.5))
+                    .offset(x: 3, y: -3)
+            }
+        }
         .accessibilityLabel(state.title)
     }
 
@@ -450,17 +402,8 @@ struct LiveMapView: View {
         default: "checkmark.circle"
         }
     }
-
-    private func trafficColor(_ tone: TrafficBanner.Tone) -> Color {
-        switch tone {
-        case .normal: .appSuccess
-        case .warning: .appWarning
-        case .major: .appError
-        default: .appSuccess
-        }
-    }
     
-    private var liveIndicator: some View {
+    private var statusCapsules: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Flux vide alors que tout fonctionne : TCL ne transmet rien.
             if viewModel.isInitialLoadComplete, !viewModel.isLoading,
@@ -511,128 +454,12 @@ struct LiveMapView: View {
                 .buttonStyle(.plain)
             }
             
-            // Live badge — tap pour info
-            Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    showRefreshInfo.toggle()
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(viewModel.error != nil ? Color.appWarning : Color.appSuccess)
-                        .frame(width: 8, height: 8)
-                    
-                    Text(viewModel.isLive ? "LIVE" : "PAUSE")
-                        .font(.system(size: 12, weight: .heavy, design: .rounded))
-                        .foregroundStyle(viewModel.isLive ? (viewModel.error != nil ? Color.appWarning : Color.appSuccess) : .secondary)
-                    
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .scaleEffect(0.5)
-                    } else if let lastUpdate = viewModel.lastUpdate {
-                        TimelineView(.periodic(from: .now, by: 1)) { _ in
-                            let secs = max(0, Int(viewModel.adaptiveInterval) - Int(Date().timeIntervalSince(lastUpdate)))
-                            Text("\(secs)s")
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .contentTransition(.numericText(countsDown: true))
-                        }
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial)
-                .clipShape(Capsule())
-                .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
-            }
-            .buttonStyle(.plain)
-            .popover(isPresented: $showRefreshInfo, arrowEdge: .bottom) {
-                VStack(spacing: 0) {
-                    // Header
-                    HStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.appSuccess.opacity(0.15))
-                                .frame(width: 44, height: 44)
-                            Image(systemName: "antenna.radiowaves.left.and.right")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(Color.appSuccess)
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Temps réel")
-                                .font(.system(size: 15, weight: .semibold))
-                            Text("Positions TCL en direct")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 12)
-
-                    Divider()
-                        .padding(.horizontal, 16)
-
-                    // Stats
-                    HStack(spacing: 0) {
-                        VStack(spacing: 3) {
-                            Text("15s")
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
-                                .foregroundStyle(Color.appSuccess)
-                            Text("intervalle")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-
-                        Divider().frame(height: 36)
-
-                        VStack(spacing: 3) {
-                            if let lastUpdate = viewModel.lastUpdate {
-                                Text(lastUpdate, style: .relative)
-                                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(.primary)
-                                    .minimumScaleFactor(0.7)
-                            } else {
-                                Text("—")
-                                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.secondary)
-                            }
-                            Text("dernière maj")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-
-                    Divider()
-                        .padding(.horizontal, 16)
-
-                    // No-refresh notice
-                    HStack(spacing: 10) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(Color.appSuccess)
-                            .font(.system(size: 15))
-                        Text("Inutile de rafraîchir manuellement")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.primary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                }
-                .frame(width: 260)
-                .presentationCompactAdaptation(.popover)
-            }
         }
         .padding(.leading, 24)
         .padding(.bottom, 24)
     }
     
-    /// Capsule d'information sobre, même style que le badge LIVE.
+    /// Capsule d'information sobre, en bas à gauche de la carte.
     private func statusCapsule(icon: String, text: String) -> some View {
         HStack(spacing: 6) {
             Image(systemName: icon)

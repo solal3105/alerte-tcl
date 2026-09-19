@@ -23,7 +23,6 @@ struct ParkingMapView: View {
     /// Niveau de zoom sur la grille partagée `MapStyle`, le même que sur Android.
     @State private var mapZoom: Double = 0
     @State private var hasSetInitialLocation = false
-    @State private var showRefreshInfo = false
     @State private var isSatellite = false
     @State private var showFilters = false
     @State private var transitLines: [TransitLine] = []
@@ -228,17 +227,11 @@ struct ParkingMapView: View {
             Spacer()
             
             HStack(alignment: .bottom) {
-                // Card refresh en bas à gauche (voitures et Vélo'v : données temps réel)
-                if viewModel.hasLiveData {
-                    refreshCard
-                }
-                
                 Spacer()
                 
                 // Boutons à droite
                 VStack(spacing: 10) {
-                    MapGlassButton(systemImage: isSatellite ? "globe.europe.africa.fill" : "globe.europe.africa",
-                                   tint: isSatellite ? Color.appWarning : Color.primary) {
+                    MapGlassButton(systemImage: "globe.europe.africa", active: isSatellite) {
                         withAnimation { isSatellite.toggle() }
                     }
 
@@ -247,13 +240,12 @@ struct ParkingMapView: View {
                         let hasActiveFilters = viewModel.selectedParkingType == .velov
                             ? viewModel.velovElectricOnly
                             : !viewModel.showRealtimeParkings || !viewModel.showParcRelais
-                        MapGlassButton(systemImage: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle",
-                                       tint: hasActiveFilters ? Color.appAccent : Color.primary) {
+                        MapGlassButton(systemImage: "line.3.horizontal.decrease", active: hasActiveFilters) {
                             showFilters = true
                         }
                     }
 
-                    MapGlassButton(systemImage: "location.fill", tint: Color.appAccent) {
+                    MapGlassButton(systemImage: "location.fill") {
                         if let userLocation = locationService.currentLocation {
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                                 mapCameraPosition = .region(
@@ -274,123 +266,6 @@ struct ParkingMapView: View {
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.isLoadingInBackground)
-    }
-    
-    private var refreshCard: some View {
-        Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                showRefreshInfo.toggle()
-            }
-        } label: {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(viewModel.error != nil ? Color.appWarning : Color.appAccent)
-                    .frame(width: 8, height: 8)
-
-                Text("LIVE")
-                    .font(.system(size: 12, weight: .heavy, design: .rounded))
-                    .foregroundStyle(viewModel.error != nil ? Color.appWarning : Color.appAccent)
-
-                if viewModel.isLoading {
-                    ProgressView()
-                        .scaleEffect(0.5)
-                } else {
-                    TimelineView(.periodic(from: .now, by: 1)) { _ in
-                        Text("\(viewModel.secondsUntilNextRefresh)s")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .contentTransition(.numericText(countsDown: true))
-                    }
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-        }
-        .buttonStyle(.plain)
-        .glassSurface(Capsule(), interactive: true)
-        .padding(.leading, 24)
-        .padding(.bottom, 24)
-        .popover(isPresented: $showRefreshInfo, arrowEdge: .bottom) {
-            VStack(spacing: 0) {
-                // Header
-                HStack(spacing: 12) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.appAccent.opacity(0.15))
-                            .frame(width: 44, height: 44)
-                        Image(systemName: "parkingsign.circle.fill")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(Color.appAccent)
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Temps réel")
-                            .font(.system(size: 15, weight: .semibold))
-                        Text("Disponibilités en direct")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 12)
-
-                Divider()
-                    .padding(.horizontal, 16)
-
-                // Stats
-                HStack(spacing: 0) {
-                    VStack(spacing: 3) {
-                        Text("60s")
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundStyle(Color.appAccent)
-                        Text("intervalle")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-
-                    Divider().frame(height: 36)
-
-                    VStack(spacing: 3) {
-                        if let lastUpdate = viewModel.lastUpdate {
-                            Text(lastUpdate, style: .relative)
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.primary)
-                                .minimumScaleFactor(0.7)
-                        } else {
-                            Text("—")
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
-                                .foregroundStyle(.secondary)
-                        }
-                        Text("dernière maj")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-
-                Divider()
-                    .padding(.horizontal, 16)
-
-                // No-refresh notice
-                HStack(spacing: 10) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color.appAccent)
-                        .font(.system(size: 15))
-                    Text("Inutile de rafraîchir manuellement")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.primary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-            }
-            .frame(width: 260)
-            .presentationCompactAdaptation(.popover)
-        }
     }
 }
 

@@ -176,7 +176,9 @@ et un bandeau « Tout afficher » apparaît quand les filtres masquent tous les 
   la carte : filtre à chaque fetch dans les vues modèles et relecture chaque seconde côté carte.
 - Grille de zoom partagée `MapStyle.ZOOM_*` (niveaux MapLibre ; iOS convertit via `MapStyle.zoomLevel`) :
   tout seuil de visibilité sur la carte s'y réfère, aucune valeur de zoom en dur dans les vues.
-- Marqueur véhicule : numéro de ligne dans le disque et anneau de délai (`Vehicle.freshnessFraction`),
-  jamais d'étiquette texte ; état du trafic en pastille dans la colonne de boutons (`TrafficBanner.State.count`).
+- Marqueur véhicule : pictogramme du type dans le disque, numéro de ligne en capsule juste dessous, arc
+  de délai sombre sur le bord intérieur du disque (`Vehicle.freshnessFraction`, une seule teinte) ; état du
+  trafic en pastille dans la colonne de boutons (`TrafficBanner.State.count`). Boutons de carte en deux
+  couleurs seulement (`MapGlassButton(active:)` / `MapCircleFab(active)`), pas de capsule « LIVE ».
 - Les composants communs sont décrits dans `DESIGN.md` : badge de ligne (`LineBadge`), en-tête de
   feuille (`SheetHeader`), états chargement / vide / erreur, textes des alertes.

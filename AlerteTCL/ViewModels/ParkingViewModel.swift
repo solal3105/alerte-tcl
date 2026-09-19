@@ -25,7 +25,6 @@ final class ParkingViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
     @Published var lastUpdate: Date?
-    @Published var secondsUntilNextRefresh: Int = 60
     @Published var isViewActive = false
     @Published var currentZoomLevel: Double = 0.15
     @Published var visibleRegion: MKCoordinateRegion?
@@ -97,7 +96,6 @@ final class ParkingViewModel: ObservableObject {
     )
     
     private var refreshTask: Task<Void, Never>?
-    private var progressTask: Task<Void, Never>?
     private let refreshInterval: TimeInterval = 60
     
     private let clusteringConfig: ClusteringEngine.Configuration = .default
@@ -228,7 +226,6 @@ final class ParkingViewModel: ObservableObject {
             guard !Task.isCancelled, type == selectedParkingType else { return }
             parkings = fetchedParkings.sorted { $0.nom < $1.nom }
             lastUpdate = Date()
-            secondsUntilNextRefresh = Int(refreshInterval)
 
             // Mettre en cache
             parkingsCache[type] = parkings
@@ -308,7 +305,6 @@ final class ParkingViewModel: ObservableObject {
             guard !Task.isCancelled, selectedParkingType == .velov else { return }
             velovStations = stations
             lastUpdate = Date()
-            secondsUntilNextRefresh = Int(refreshInterval)
         } catch {
             AppLogger.debug("⚠️ Stations Vélo'v indisponibles : \(error.localizedDescription)")
             self.error = error.localizedDescription
@@ -354,35 +350,12 @@ final class ParkingViewModel: ObservableObject {
                 await self.refreshLiveData()
             }
         }
-        
-        progressTask = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self else { return }
-                guard self.isViewActive else { return }
-                let startTime = Date()
-                while !Task.isCancelled {
-                    guard self.isViewActive else { return }
-                    let elapsed = Date().timeIntervalSince(startTime)
-                    let remaining = max(0, self.refreshInterval - elapsed)
-                    
-                    self.secondsUntilNextRefresh = Int(ceil(remaining))
-                    
-                    if elapsed >= self.refreshInterval {
-                        break
-                    }
-                    
-                    // ⚠️ Mise à jour toutes les 500ms pour réduire la charge MainActor
-                    try? await Task.sleep(nanoseconds: 500_000_000)
-                }
-            }
-        }
+
     }
     
     func stopAutoRefresh() {
         refreshTask?.cancel()
         refreshTask = nil
-        progressTask?.cancel()
-        progressTask = nil
     }
     
     func onAppear() {

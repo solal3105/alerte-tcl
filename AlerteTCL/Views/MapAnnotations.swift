@@ -59,14 +59,17 @@ final class VehicleAnnotationView: MKAnnotationView {
         static let arrowW:   CGFloat = 10
         static let arrowH:   CGFloat = 7
         static let orbit:    CGFloat = 19
-        static let side:     CGFloat = 56
+        static let side:     CGFloat = 76
         static let dotSize:  CGFloat = 12   // mode simplifié
-        static let ringGap:  CGFloat = 2.5  // espace entre le disque et l'anneau de délai
-        static let ringWidth: CGFloat = 3
+        static let ringWidth: CGFloat = 3   // arc de délai, sur le bord intérieur du disque
+        static let labelGap: CGFloat = 7    // sous le disque, au-delà de la course de la flèche
+        static let labelHeight: CGFloat = 14
     }
 
     private let bodyLayer  = CALayer()
     private let arrowLayer = CALayer()
+    /// Numéro de ligne dans une capsule, juste sous le disque.
+    private let labelLayer = CALayer()
     /// Halo à la couleur de la ligne autour du véhicule sélectionné sur la carte.
     private let haloLayer  = CAShapeLayer()
 
@@ -74,13 +77,14 @@ final class VehicleAnnotationView: MKAnnotationView {
     var isFocusedVehicle = false {
         didSet { if isFocusedVehicle != oldValue { updateHalo() } }
     }
-    /// Anneau autour du corps : se remplit avec le délai depuis la dernière position (0 à 90 s), dans la couleur de fraîcheur.
+    /// Arc sur le bord du disque : s'assombrit avec le délai depuis la dernière position (0 à 90 s),
+    /// en ombre translucide, donc toujours dans la teinte de la ligne.
     private let ringLayer = CAShapeLayer()
 
     private var currentLineName:  String?
+    private var currentVehicleType: VehicleType?
     private var currentSimplified: Bool = false
     private var currentRingFraction: CGFloat = -1
-    private var currentRingFreshness: Vehicle.PositionFreshness?
 
     override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
@@ -100,6 +104,9 @@ final class VehicleAnnotationView: MKAnnotationView {
         layer.addSublayer(haloLayer)
         layer.addSublayer(bodyLayer)
         layer.addSublayer(arrowLayer)
+        layer.addSublayer(labelLayer)
+        labelLayer.contentsGravity = .resizeAspect
+        labelLayer.isHidden = true
 
         bodyLayer.bounds   = CGRect(origin: .zero, size: CGSize(width: Layout.bodySize, height: Layout.bodySize))
         bodyLayer.position = CGPoint(x: Layout.side / 2, y: Layout.side / 2)
@@ -110,10 +117,11 @@ final class VehicleAnnotationView: MKAnnotationView {
         arrowLayer.contentsGravity = .resizeAspect
         arrowLayer.isHidden        = true
 
-        let ringRadius = Layout.bodySize / 2 + Layout.ringGap
+        let ringRadius = Layout.bodySize / 2 - Layout.ringWidth / 2 - 0.75
         let ringRect = CGRect(x: Layout.side / 2 - ringRadius, y: Layout.side / 2 - ringRadius, width: ringRadius * 2, height: ringRadius * 2)
         ringLayer.path        = UIBezierPath(ovalIn: ringRect).cgPath
         ringLayer.fillColor   = UIColor.clear.cgColor
+        ringLayer.strokeColor = UIColor.black.withAlphaComponent(0.35).cgColor
         ringLayer.lineWidth   = Layout.ringWidth
         ringLayer.lineCap     = .round
         ringLayer.strokeStart = 0
@@ -127,8 +135,8 @@ final class VehicleAnnotationView: MKAnnotationView {
         centerOffset = .zero
     }
 
-    /// Anneau de délai : ne touche le layer que si la part écoulée change de 2 % ou si la couleur change,
-    /// pour rester quasi gratuit dans la boucle d'animation à 10 Hz.
+    /// Arc de délai : ne touche le layer que si la part écoulée change de 2 %, pour rester quasi
+    /// gratuit dans la boucle d'animation à 10 Hz.
     private func updateRing(vehicle: Vehicle, visible: Bool) {
         guard visible, vehicle.recordedAt != nil else {
             if !ringLayer.isHidden { ringLayer.isHidden = true }
@@ -137,11 +145,6 @@ final class VehicleAnnotationView: MKAnnotationView {
         }
         let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
         let fraction = (CGFloat(vehicle.shared.freshnessFraction(nowEpochMs: nowMs)) * 50).rounded() / 50
-        let freshness = vehicle.positionFreshness
-        if freshness != currentRingFreshness {
-            currentRingFreshness = freshness
-            ringLayer.strokeColor = UIColor(freshness.color).cgColor
-        }
         if fraction != currentRingFraction {
             currentRingFraction = fraction
             ringLayer.strokeEnd = fraction
@@ -192,6 +195,7 @@ final class VehicleAnnotationView: MKAnnotationView {
                 currentLineName = vehicle.lineName
             }
             arrowLayer.isHidden = true
+            labelLayer.isHidden = true
             updateRing(vehicle: vehicle, visible: false)
             currentSimplified = true
 
@@ -206,10 +210,17 @@ final class VehicleAnnotationView: MKAnnotationView {
                 currentLineName = nil  // forcer re-rendu du corps
             }
 
-            if currentLineName != vehicle.lineName {
-                bodyLayer.contents = MarkerImageCache.vehicleBody(lineName: vehicle.lineName).cgImage
+            if currentLineName != vehicle.lineName || currentVehicleType != vehicle.vehicleType {
+                bodyLayer.contents = MarkerImageCache.vehicleBody(lineName: vehicle.lineName, type: vehicle.vehicleType).cgImage
+                let label = MarkerImageCache.vehicleLabel(lineName: vehicle.lineName)
+                labelLayer.contents = label.cgImage
+                labelLayer.bounds   = CGRect(origin: .zero, size: label.size)
+                labelLayer.position = CGPoint(x: Layout.side / 2,
+                                              y: Layout.side / 2 + Layout.bodySize / 2 + Layout.labelGap + Layout.labelHeight / 2)
                 currentLineName = vehicle.lineName
+                currentVehicleType = vehicle.vehicleType
             }
+            labelLayer.isHidden = false
 
             if bearing != 0 {
                 arrowLayer.contents = MarkerImageCache.vehicleBearingArrow(lineName: vehicle.lineName).cgImage
@@ -236,10 +247,11 @@ final class VehicleAnnotationView: MKAnnotationView {
     override func prepareForReuse() {
         super.prepareForReuse()
         currentLineName   = nil
+        currentVehicleType = nil
         currentSimplified = false
         currentRingFraction = -1
-        currentRingFreshness = nil
         arrowLayer.isHidden = true
+        labelLayer.isHidden = true
         ringLayer.isHidden  = true
     }
 }

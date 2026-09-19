@@ -9,10 +9,6 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import android.Manifest
 import android.content.pm.PackageManager
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -57,7 +53,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Report
-import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Schedule
@@ -105,6 +100,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.Dialog
@@ -337,6 +339,7 @@ fun LiveMapScreen() {
     // Caches pour la boucle tick 100 ms — zéro allocation Gson par tick
     val vehiclePropsCache = remember { HashMap<String, String>() }
     val vehicleArrowCache = remember { HashMap<String, String>() }
+    val vehicleGlyphs = rememberVehicleGlyphs()
     val tickSb            = remember { StringBuilder(8192) }
 
     // Selection state
@@ -380,7 +383,6 @@ fun LiveMapScreen() {
         }
     }
 
-    var showRefreshInfo by remember { mutableStateOf(false) }
 
     // Permission location pour le FAB localisation
     val locationPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -550,13 +552,6 @@ fun LiveMapScreen() {
                     }
                 }
             }
-            LiveIndicator(
-                isLive = isLive,
-                isLoading = isLoading,
-                lastUpdateMs = lastUpdateMs,
-                hasError = vehiclesError != null,
-                onTap = { showRefreshInfo = true }
-            )
         }
 
         // ── Bottom-right: 3 FABs (satellite, filters, location) ─────────
@@ -569,24 +564,11 @@ fun LiveMapScreen() {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             TrafficFab(subscriptions = subscriptions, alerts = alerts, onClick = { showAlertsSheet = true })
-            MapCircleFab(
-                icon = Icons.Filled.Schedule, contentDesc = "Fiches horaires",
-                tint = MaterialTheme.colorScheme.onSurface,
-                onClick = { timetableStart = TimetableStart.Search }
-            )
-            MapCircleFab(
-                icon = Icons.Filled.Public, contentDesc = "Vue satellite",
-                tint = if (isSatellite) Tokens.warning else MaterialTheme.colorScheme.onSurface,
-                onClick = { isSatellite = !isSatellite }
-            )
-            MapCircleFab(
-                icon = Icons.Filled.FilterList, contentDesc = "Filtres",
-                tint = if (hasActiveFilters) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                onClick = { showFilterSheet = true }
-            )
+            MapCircleFab(icon = Icons.Filled.Schedule, contentDesc = "Fiches horaires", onClick = { timetableStart = TimetableStart.Search })
+            MapCircleFab(icon = Icons.Filled.Public, contentDesc = "Vue satellite", active = isSatellite, onClick = { isSatellite = !isSatellite })
+            MapCircleFab(icon = Icons.Filled.FilterList, contentDesc = "Filtres", active = hasActiveFilters, onClick = { showFilterSheet = true })
             MapCircleFab(
                 icon = Icons.Filled.MyLocation, contentDesc = "Ma position",
-                tint = MaterialTheme.colorScheme.primary,
                 onClick = {
                     val granted = androidx.core.content.ContextCompat.checkSelfPermission(
                         context, Manifest.permission.ACCESS_FINE_LOCATION
@@ -674,15 +656,15 @@ fun LiveMapScreen() {
 
         // Collecte les lignes manquantes sur Main (style.getImage doit rester sur Main),
         // puis construit les bitmaps Canvas sur Default pour ne pas bloquer le UI thread.
-        val linesToBuild = current.map { it.lineName }.distinct()
-            .filter { style.getImage(vehicleIconKey(it)) == null }
-        if (linesToBuild.isNotEmpty()) {
+        val toBuild = current.map { it.lineName to it.vehicleType }.distinct()
+            .filter { (line, type) -> style.getImage(vehicleIconKey(line, type)) == null }
+        if (toBuild.isNotEmpty()) {
             val newBitmaps = withContext(Dispatchers.Default) {
-                linesToBuild.flatMap { line ->
+                toBuild.flatMap { (line, type) ->
                     listOf(
-                        vehicleIconKey(line)  to vehicleMarkerBitmap(line),
-                        vehicleDotKey(line)   to vehicleDotBitmap(line),
-                        vehicleArrowKey(line) to bearingArrowBitmap(line)
+                        vehicleIconKey(line, type) to vehicleMarkerBitmap(line, vehicleGlyphs.getValue(type)),
+                        vehicleDotKey(line)        to vehicleDotBitmap(line),
+                        vehicleArrowKey(line)      to bearingArrowBitmap(line)
                     )
                 }
             }
@@ -745,9 +727,9 @@ fun LiveMapScreen() {
                         PropertyFactory.iconIgnorePlacement(true),
                         PropertyFactory.iconSize(1f)
                     ))
-                    // Layer 3 : anneau de délai autour du corps (sous la flèche et le corps), zoom serré uniquement.
-                    ringBitmaps(isDark).forEach { (key, bmp) -> if (style.getImage(key) == null) style.addImage(key, bmp) }
-                    style.addLayerBelow(SymbolLayer(VEHICLES_RING_LAYER, VEHICLES_SRC).apply {
+                    // Layer 3 : délai depuis la dernière position, arc sombre sur le bord du disque (au-dessus du corps), zoom serré uniquement.
+                    ringBitmaps().forEach { (key, bmp) -> if (style.getImage(key) == null) style.addImage(key, bmp) }
+                    style.addLayer(SymbolLayer(VEHICLES_RING_LAYER, VEHICLES_SRC).apply {
                         minZoom = MapStyle.ZOOM_FRESHNESS_RING.toFloat()
                         setProperties(
                             PropertyFactory.iconImage(Expression.get("ring")),
@@ -756,7 +738,7 @@ fun LiveMapScreen() {
                             PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER),
                             PropertyFactory.iconSize(1f)
                         )
-                    }, VEHICLES_ARROW_LAYER)
+                    })
                 }
             }
             vehiclesLayerReady.value = true
@@ -952,11 +934,6 @@ fun LiveMapScreen() {
                 onClearFilters = clearFilters,
                 vehicles = vehicles
             )
-        }
-    }
-    if (showRefreshInfo) {
-        ModalBottomSheet(onDismissRequest = { showRefreshInfo = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), contentWindowInsets = { WindowInsets.systemBars }) {
-            RefreshInfoSheet(lastUpdateMs = lastUpdateMs)
         }
     }
     if (showErrorsSheet) {
@@ -1867,7 +1844,7 @@ private fun PassageChip(p: Passage) {
 // ── Traffic Banner / Live Indicator / Filter Sheet ──────────────────────
 
 
-/** Pastille trafic en bas à droite : verte, orange ou rouge selon la règle partagée, avec le nombre de lignes touchées. */
+/** Pastille trafic en bas à droite, dans les mêmes deux couleurs que les autres boutons : pleine avec le nombre de lignes touchées quand il y a des perturbations. */
 @Composable
 private fun TrafficFab(
     subscriptions: Map<String, com.alertetcl.shared.models.LineSubscription>,
@@ -1877,20 +1854,15 @@ private fun TrafficFab(
     val state = remember(subscriptions, alerts) {
         com.alertetcl.shared.models.TrafficBanner.compute(subscriptions, alerts, System.currentTimeMillis() / 1000L)
     }
-    val accent = when (state.tone) {
-        com.alertetcl.shared.models.TrafficBanner.Tone.NORMAL -> Tokens.success
-        com.alertetcl.shared.models.TrafficBanner.Tone.WARNING -> Tokens.warning
-        com.alertetcl.shared.models.TrafficBanner.Tone.MAJOR -> Tokens.error
-    }
     val icon = when (state.tone) {
         com.alertetcl.shared.models.TrafficBanner.Tone.NORMAL -> Icons.Filled.CheckCircle
         com.alertetcl.shared.models.TrafficBanner.Tone.WARNING -> Icons.Filled.Warning
         com.alertetcl.shared.models.TrafficBanner.Tone.MAJOR -> Icons.Filled.Report
     }
     Box {
-        MapCircleFab(icon = icon, contentDesc = state.title, tint = accent, onClick = onClick)
+        MapCircleFab(icon = icon, contentDesc = state.title, active = state.count > 0, onClick = onClick)
         if (state.count > 0) {
-            Surface(shape = RoundedCornerShape(50), color = accent, modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)) {
+            Surface(shape = RoundedCornerShape(50), color = Tokens.accent, border = androidx.compose.foundation.BorderStroke(1.5.dp, Color.White), modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)) {
                 Text("${state.count}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
             }
@@ -1898,7 +1870,7 @@ private fun TrafficFab(
     }
 }
 
-/** Capsule d'information sobre, même style que l'indicateur LIVE. */
+/** Capsule d'information sobre en bas à gauche de la carte. */
 @Composable
 private fun StatusCapsule(text: String) {
     Surface(
@@ -1914,135 +1886,6 @@ private fun StatusCapsule(text: String) {
             Icon(Icons.Filled.Warning, null, tint = Tokens.warning, modifier = Modifier.size(14.dp))
             Text(text, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun LiveIndicator(
-    isLive: Boolean,
-    isLoading: Boolean,
-    lastUpdateMs: Long?,
-    hasError: Boolean,
-    onTap: () -> Unit
-) {
-    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) { kotlinx.coroutines.delay(1000); nowMs = System.currentTimeMillis() }
-    }
-    val dotColor = when {
-        !isLive  -> MaterialTheme.colorScheme.onSurfaceVariant
-        hasError -> Tokens.warning
-        else     -> Tokens.success
-    }
-    val labelColor = dotColor
-
-    // Surface toujours opaque — les tokens M3 surfaceContainer* sont des couleurs pleines
-    val containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-
-    val infiniteTransition = rememberInfiniteTransition(label = "livePulse")
-    val dotAlpha by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 0.25f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(700),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "dotAlpha"
-    )
-
-    Surface(
-        onClick = onTap,
-        shape = CircleShape,
-        color = containerColor,
-        shadowElevation = 3.dp,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(dotColor.copy(alpha = if (isLive && !isLoading && !hasError) dotAlpha else 1f))
-            )
-            Text(
-                if (isLive) "LIVE" else "PAUSE",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = labelColor,
-                letterSpacing = 0.8.sp
-            )
-            if (isLoading) {
-                androidx.compose.material3.CircularProgressIndicator(
-                    modifier = Modifier.size(12.dp),
-                    strokeWidth = 1.5.dp,
-                    color = dotColor
-                )
-            } else if (lastUpdateMs != null && isLive) {
-                val secs = ((15_000L - (nowMs - lastUpdateMs)).coerceAtLeast(0) / 1000L).toInt()
-                Text(
-                    "${secs}s",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun RefreshInfoSheet(lastUpdateMs: Long?) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier.size(44.dp).clip(CircleShape).background(Tokens.success.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) { Icon(Icons.Filled.NotificationsActive, null, tint = Tokens.success, modifier = Modifier.size(20.dp)) }
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Temps réel", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text("Positions TCL en direct", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        HorizontalDivider()
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("15s", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Tokens.success)
-                Text("intervalle", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                val txt = lastUpdateMs?.let {
-                    val s = (System.currentTimeMillis() - it) / 1000L
-                    when {
-                        s < 5 -> "à l'instant"
-                        s < 60 -> "il y a ${s}s"
-                        else -> "il y a ${s / 60}min"
-                    }
-                } ?: "—"
-                Text(txt, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                Text("dernière maj", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        HorizontalDivider()
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(Icons.Filled.CheckCircle, null, tint = Tokens.success, modifier = Modifier.size(16.dp))
-            Text("Inutile de rafraîchir manuellement", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        }
-        Spacer(Modifier.height(8.dp))
     }
 }
 
@@ -2295,7 +2138,7 @@ private fun LineFilterRow(
 // et la boucle d'interpolation 100 ms.
 
 // La version de la palette fait partie des clés : un changement de couleurs régénère les images.
-private fun vehicleIconKey(line: String)  = "v${LinePalette.version.value}_${line.replace(ICON_KEY_REGEX, "_")}"
+private fun vehicleIconKey(line: String, type: VehicleType) = "v${LinePalette.version.value}_${type.iconKey}_${line.replace(ICON_KEY_REGEX, "_")}"
 private fun vehicleDotKey(line: String)   = "vd${LinePalette.version.value}_${line.replace(ICON_KEY_REGEX, "_")}"
 private fun vehicleArrowKey(line: String) = "va${LinePalette.version.value}_${line.replace(ICON_KEY_REGEX, "_")}"
 
@@ -2369,7 +2212,7 @@ private fun buildVehicleStaticProps(v: Vehicle): String = buildString {
     append("\"id\":\"");           append(v.id.jsonEscape());           append('"')
     append(",\"line\":\"");        append(v.lineName.jsonEscape());      append('"')
     append(",\"destination\":\""); append(v.destination.jsonEscape());   append('"')
-    append(",\"icon\":\"");        append(vehicleIconKey(v.lineName));   append('"')
+    append(",\"icon\":\"");        append(vehicleIconKey(v.lineName, v.vehicleType));   append('"')
     append(",\"dot_icon\":\"");    append(vehicleDotKey(v.lineName));    append('"')
 }
 
@@ -2424,11 +2267,11 @@ private fun buildVehicleFeature(v: Vehicle, animated: AnimatedVehicle?, nowSec: 
         addProperty("id",          v.id)
         addProperty("line",        v.lineName)
         addProperty("destination", v.destination)
-        addProperty("icon",        vehicleIconKey(v.lineName))
+        addProperty("icon",        vehicleIconKey(v.lineName, v.vehicleType))
         addProperty("dot_icon",    vehicleDotKey(v.lineName))
         addProperty("arrow_icon",  if (bearing != 0.0) vehicleArrowKey(v.lineName) else "no_arrow")
         addProperty("bearing",     bearing.toFloat())
-        addProperty("ring",        ringKey(v, nowMs, darkTheme))
+        addProperty("ring",        ringKey(v, nowMs))
         addProperty("sel",         if (v.id == focusedId) 1 else 0)
         addProperty("line_col",    LineColors.backgroundHex(v.lineName))
     }
@@ -2439,34 +2282,34 @@ private fun buildVehicleFeature(v: Vehicle, animated: AnimatedVehicle?, nowSec: 
 private fun appendFreshnessProps(sb: StringBuilder, v: Vehicle, nowMs: Long, darkTheme: Boolean, focusedId: String?) {
     sb.append(",\"sel\":").append(if (v.id == focusedId) 1 else 0)
     sb.append(",\"line_col\":\"").append(LineColors.backgroundHex(v.lineName)).append('"')
-    sb.append(",\"ring\":\"").append(ringKey(v, nowMs, darkTheme)).append('"')
+    sb.append(",\"ring\":\"").append(ringKey(v, nowMs)).append('"')
 }
 
-/** Image de l'anneau pour ce véhicule : couleur de fraîcheur et part du délai écoulée, par pas de 1/12. */
-private fun ringKey(v: Vehicle, nowMs: Long, darkTheme: Boolean): String {
+/** Image de l'arc de délai pour ce véhicule : part du délai écoulée, par pas de 1/12. */
+private fun ringKey(v: Vehicle, nowMs: Long): String {
     if (v.recordedAtEpoch == null) return "no_arrow"
     val step = (v.freshnessFraction(nowMs) * RING_STEPS).toInt().coerceIn(0, RING_STEPS)
-    return "ring_${v.positionFreshness(nowMs).color.hex(darkTheme).removePrefix("#")}_$step"
+    return "ring_$step"
 }
 
-/** Toutes les images d'anneau : trois couleurs de fraîcheur, RING_STEPS + 1 remplissages. */
-private fun ringBitmaps(darkTheme: Boolean): List<Pair<String, Bitmap>> =
-    PositionFreshness.entries.map { it.color.hex(darkTheme) }.distinct().flatMap { hex ->
-        (0..RING_STEPS).map { step -> "ring_${hex.removePrefix("#")}_$step" to ringBitmap(hex, step) }
-    }
+/** Toutes les images d'arc : RING_STEPS + 1 remplissages, une seule teinte quelle que soit la ligne. */
+private fun ringBitmaps(): List<Pair<String, Bitmap>> = (0..RING_STEPS).map { step -> "ring_$step" to ringBitmap(step) }
 
-/** Anneau de délai : arc depuis le haut, sens horaire, 3 dp d'épaisseur, autour du disque de 40 dp. */
-private fun ringBitmap(colorHex: String, step: Int): Bitmap {
+/**
+ * Arc de délai intégré au disque : sur son bord, depuis le haut, sens horaire, 3 dp d'épaisseur, en
+ * ombre translucide, donc toujours dans la teinte de la ligne (parité iOS).
+ */
+private fun ringBitmap(step: Int): Bitmap {
     val density = android.content.res.Resources.getSystem().displayMetrics.density
-    val size = (50 * density).toInt().coerceAtLeast(1)
+    val size = (VEHICLE_DISC_DP * density).toInt().coerceAtLeast(1)
     val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     if (step <= 0) return bmp
     val canvas = Canvas(bmp)
     val stroke = 3f * density
-    val inset = stroke / 2 + density
+    val inset = density + stroke / 2 + 0.5f * density
     val rect = RectF(inset, inset, size - inset, size - inset)
     canvas.drawArc(rect, -90f, 360f * step / RING_STEPS, false, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = parseAndroidColor(colorHex); style = Paint.Style.STROKE; strokeWidth = stroke; strokeCap = Paint.Cap.ROUND
+        color = AndroidColor.argb(90, 0, 0, 0); style = Paint.Style.STROKE; strokeWidth = stroke; strokeCap = Paint.Cap.ROUND
     })
     return bmp
 }
@@ -2479,30 +2322,70 @@ private fun parseAndroidColor(hex: String): Int {
     catch (_: Exception) { AndroidColor.GRAY }
 }
 
+/** Diamètre du disque d'un véhicule, en dp (MapLibre divise par la densité). */
+private const val VEHICLE_DISC_DP = 40
+/** Espace entre le disque et l'étiquette du numéro (la flèche de cap orbite jusqu'à 27 dp du centre). */
+private const val VEHICLE_LABEL_GAP_DP = 8
+private const val VEHICLE_LABEL_HEIGHT_DP = 14
+
 /**
- * Marqueur véhicule — cercle iOS-like (96×96 px).
- * Forme : disque coloré + bordure fine noire 15% + nom de ligne centré.
- * La flèche directionnelle est sur VEHICLES_ARROW_LAYER (ne tourne pas avec le texte).
+ * Pictogrammes des types de véhicule (icônes Material, en blanc) rendus une fois en bitmap dans la
+ * composition ; les marqueurs, construits hors du fil principal, les teintent ensuite à la couleur
+ * de texte de la ligne.
  */
-private fun vehicleMarkerBitmap(line: String): Bitmap {
+@Composable
+private fun rememberVehicleGlyphs(): Map<VehicleType, Bitmap> {
+    val density = LocalDensity.current
+    val painters = VehicleType.entries.associateWith { rememberVectorPainter(vehicleTypeIcon(it)) }
+    return remember(painters, density) {
+        painters.mapValues { (_, painter) ->
+            val px = with(density) { 20.dp.roundToPx() }.coerceAtLeast(1)
+            val image = ImageBitmap(px, px)
+            CanvasDrawScope().draw(density, LayoutDirection.Ltr, androidx.compose.ui.graphics.Canvas(image), Size(px.toFloat(), px.toFloat())) {
+                with(painter) { draw(size, colorFilter = ColorFilter.tint(Color.White)) }
+            }
+            image.asAndroidBitmap()
+        }
+    }
+}
+
+/**
+ * Marqueur véhicule : disque à la couleur de la ligne portant le pictogramme de son type, et le
+ * numéro de ligne dans une capsule juste en dessous. Le bitmap est symétrique autour du disque pour
+ * que son centre reste la position du véhicule. La flèche de cap est sur VEHICLES_ARROW_LAYER.
+ */
+private fun vehicleMarkerBitmap(line: String, glyph: Bitmap): Bitmap {
     val density = android.content.res.Resources.getSystem().displayMetrics.density
     val bg = parseAndroidColor(LineColors.backgroundHex(line))
     val tx = parseAndroidColor(LineColors.textHex(line))
-    // 40dp diameter so MapLibre (which divides by density) renders it as 40dp on screen
-    val size = (40 * density).toInt().coerceAtLeast(1)
-    val bmp  = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val disc = VEHICLE_DISC_DP * density
+    val half = disc / 2 + (VEHICLE_LABEL_GAP_DP + VEHICLE_LABEL_HEIGHT_DP) * density
+    val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = tx; textSize = 10f * density; textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD
+    }
+    val labelWidth = labelPaint.measureText(line) + 10f * density
+    val width = maxOf(disc, labelWidth).toInt().coerceAtLeast(1)
+    val height = (half * 2).toInt().coerceAtLeast(1)
+    val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
-    val cx = size / 2f; val cy = size / 2f; val radius = size / 2f - density
-    canvas.drawCircle(cx, cy, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = bg; style = Paint.Style.FILL
-    })
+    val cx = width / 2f; val cy = height / 2f; val radius = disc / 2f - density
+    canvas.drawCircle(cx, cy, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bg; style = Paint.Style.FILL })
     canvas.drawCircle(cx, cy, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = AndroidColor.argb(38, 0, 0, 0); style = Paint.Style.STROKE; strokeWidth = density
     })
-    val textSize = when { line.length <= 2 -> 14f * density; line.length == 3 -> 11f * density; else -> 9f * density }
-    canvas.drawText(line, cx, cy + textSize * 0.38f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = tx; this.textSize = textSize; textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD
+    // Pictogramme teinté à la couleur de texte de la ligne.
+    canvas.drawBitmap(glyph, cx - glyph.width / 2f, cy - glyph.height / 2f, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+        colorFilter = android.graphics.PorterDuffColorFilter(tx, android.graphics.PorterDuff.Mode.SRC_IN)
     })
+    // Capsule du numéro de ligne, sous le disque.
+    val labelTop = cy + disc / 2 + VEHICLE_LABEL_GAP_DP * density
+    val labelRect = RectF(cx - labelWidth / 2, labelTop, cx + labelWidth / 2, labelTop + VEHICLE_LABEL_HEIGHT_DP * density)
+    canvas.drawRoundRect(labelRect, labelRect.height() / 2, labelRect.height() / 2, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bg; style = Paint.Style.FILL })
+    canvas.drawRoundRect(labelRect, labelRect.height() / 2, labelRect.height() / 2, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.argb(38, 0, 0, 0); style = Paint.Style.STROKE; strokeWidth = density
+    })
+    val baseline = labelRect.centerY() - (labelPaint.descent() + labelPaint.ascent()) / 2
+    canvas.drawText(line, cx, baseline, labelPaint)
     return bmp
 }
 

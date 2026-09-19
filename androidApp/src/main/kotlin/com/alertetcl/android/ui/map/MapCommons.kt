@@ -15,6 +15,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.alertetcl.android.ui.components.glass
+import com.alertetcl.android.ui.theme.Tokens
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -139,19 +140,22 @@ internal fun recenterOnUser(context: Context, map: MapLibreMap?) {
 
 // ── Contrôles ───────────────────────────────────────────────────────────────
 
-/** Bouton rond des contrôles carte (recentrage, satellite, filtres…). */
+/**
+ * Bouton rond des contrôles carte (recentrage, satellite, filtres…) : deux couleurs seulement,
+ * l'accent sur verre au repos, verre plein d'accent avec pictogramme blanc quand il est actif.
+ */
 @Composable
 internal fun MapCircleFab(
     icon: ImageVector,
     contentDesc: String,
-    tint: Color,
+    active: Boolean = false,
     onClick: () -> Unit
 ) {
     SmallFloatingActionButton(
         onClick = onClick,
         shape = CircleShape,
-        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-        contentColor = tint,
+        containerColor = if (active) Tokens.accent else MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+        contentColor = if (active) Color.White else Tokens.accent,
         modifier = Modifier.glass(CircleShape, alpha = 0f),
     ) {
         Icon(icon, contentDesc, modifier = Modifier.size(22.dp))

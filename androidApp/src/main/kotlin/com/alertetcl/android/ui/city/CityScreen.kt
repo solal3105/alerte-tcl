@@ -33,7 +33,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -52,10 +51,8 @@ import com.alertetcl.android.ui.map.rememberManagedMapView
 import com.alertetcl.android.ui.parking.ParkingScreen
 import com.alertetcl.android.ui.theme.Tokens
 import com.alertetcl.android.ui.travaux.TravauxScreen
-import com.alertetcl.shared.models.CityOverview
 import com.alertetcl.shared.models.CityTile
 import com.alertetcl.shared.models.ParkingType
-import com.alertetcl.shared.services.CityOverviewService
 import com.alertetcl.shared.util.DemoShowcase
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
@@ -103,9 +100,6 @@ private fun tileColor(tile: CityTile): Color = Tokens.cityTile(tile)
 @Composable
 private fun CityChooser(onChoose: (CityTile) -> Unit) {
     val tiles = CityTile.all
-    val overview by produceState(initialValue = CityOverview.EMPTY) {
-        value = runCatching { CityOverviewService.shared.fetch() }.getOrDefault(CityOverview.EMPTY)
-    }
     Box(modifier = Modifier.fillMaxSize()) {
         MapBackdrop()
         val background = MaterialTheme.colorScheme.background
@@ -123,11 +117,11 @@ private fun CityChooser(onChoose: (CityTile) -> Unit) {
             Spacer(Modifier.height(4.dp))
             tiles.filter { it.parkingType != null }.chunked(2).forEach { row ->
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    row.forEach { tile -> CityTileCard(tile, overview.liveLine(tile), Modifier.weight(1f)) { onChoose(tile) } }
+                    row.forEach { tile -> CityTileCard(tile, Modifier.weight(1f)) { onChoose(tile) } }
                 }
             }
             tiles.filter { it.parkingType == null }.forEach { tile ->
-                CityTileCard(tile, overview.liveLine(tile), Modifier.fillMaxWidth(), wide = true) { onChoose(tile) }
+                CityTileCard(tile, Modifier.fillMaxWidth(), wide = true) { onChoose(tile) }
             }
             Spacer(Modifier.height(96.dp))
         }
@@ -158,7 +152,7 @@ private fun MapBackdrop() {
 }
 
 @Composable
-private fun CityTileCard(tile: CityTile, liveLine: String?, modifier: Modifier, wide: Boolean = false, onClick: () -> Unit) {
+private fun CityTileCard(tile: CityTile, modifier: Modifier, wide: Boolean = false, onClick: () -> Unit) {
     val accent = tileColor(tile)
     val shape = RoundedCornerShape(28.dp)
     Box(
@@ -171,24 +165,21 @@ private fun CityTileCard(tile: CityTile, liveLine: String?, modifier: Modifier, 
         if (wide) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 TileIcon(tile, accent)
-                TileTexts(tile, liveLine, accent)
+                TileTexts(tile)
             }
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TileIcon(tile, accent)
-                TileTexts(tile, liveLine, accent)
+                TileTexts(tile)
             }
         }
     }
 }
 
 @Composable
-private fun TileTexts(tile: CityTile, liveLine: String?, accent: Color) {
+private fun TileTexts(tile: CityTile) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(tile.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        if (liveLine != null) {
-            Text(liveLine, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = accent)
-        }
         Text(tile.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

@@ -142,17 +142,15 @@ struct TravauxMapView: View {
                 
                 // Boutons à droite
                 VStack(spacing: 10) {
-                    MapGlassButton(systemImage: isSatellite ? "globe.europe.africa.fill" : "globe.europe.africa",
-                                   tint: isSatellite ? Color.appWarning : Color.primary) {
+                    MapGlassButton(systemImage: "globe.europe.africa", active: isSatellite) {
                         withAnimation { isSatellite.toggle() }
                     }
 
-                    MapGlassButton(systemImage: viewModel.hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle",
-                                   tint: viewModel.hasActiveFilters ? Color.appWarning : Color.primary) {
+                    MapGlassButton(systemImage: "line.3.horizontal.decrease", active: viewModel.hasActiveFilters) {
                         showFilters = true
                     }
 
-                    MapGlassButton(systemImage: "location.fill", tint: Color.appAccent) {
+                    MapGlassButton(systemImage: "location.fill") {
                         if let userLocation = locationService.currentLocation {
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                                 mapCameraPosition = .region(

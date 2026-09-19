@@ -83,13 +83,22 @@ enum MarkerImageCache {
 
     // MARK: - Public API
 
-    /// Corps du marqueur véhicule : disque à la couleur de la ligne portant son numéro (même rendu qu'Android).
-    /// Taille fixe 32×32 pt (le point cardinal de la ligne est géré par un layer séparé).
-    static func vehicleBody(lineName: String) -> UIImage {
-        let key = lineName as NSString
+    /// Corps du marqueur véhicule : disque à la couleur de la ligne portant le pictogramme de son type
+    /// (même rendu qu'Android). Taille fixe 32×32 pt ; la flèche de cap et le numéro sont des layers séparés.
+    static func vehicleBody(lineName: String, type: VehicleType) -> UIImage {
+        let key = "\(type.rawValue)|\(lineName)" as NSString
         if let cached = vehicleBodyCache.object(forKey: key) { return cached }
-        let image = renderVehicleBody(lineName: lineName)
+        let image = renderVehicleBody(lineName: lineName, symbol: type.icon)
         vehicleBodyCache.setObject(image, forKey: key)
+        return image
+    }
+
+    /// Numéro de ligne dans une capsule à la couleur de la ligne, affiché sous le disque. Hauteur fixe 14 pt.
+    static func vehicleLabel(lineName: String) -> UIImage {
+        let key = lineName as NSString
+        if let cached = vehicleLabelCache.object(forKey: key) { return cached }
+        let image = renderVehicleLabel(lineName: lineName)
+        vehicleLabelCache.setObject(image, forKey: key)
         return image
     }
 
@@ -140,6 +149,7 @@ enum MarkerImageCache {
     /// Vide toutes les images : à appeler quand la palette des couleurs de lignes change.
     static func clearAll() {
         vehicleBodyCache.removeAllObjects()
+        vehicleLabelCache.removeAllObjects()
         bearingArrowCache.removeAllObjects()
         vehicleDotCache.removeAllObjects()
         sharedDotCache.removeAllObjects()
@@ -151,6 +161,7 @@ enum MarkerImageCache {
     // MARK: - Caches (type-safe, purgés automatiquement en cas de pression mémoire)
 
     private static let vehicleBodyCache: NSCache<NSString, UIImage>     = makeCache(name: "marker.vehicleBody", limit: 256)
+    private static let vehicleLabelCache: NSCache<NSString, UIImage>    = makeCache(name: "marker.vehicleLabel", limit: 256)
     private static let bearingArrowCache: NSCache<NSString, UIImage>     = makeCache(name: "marker.arrow",       limit: 128)
     private static let vehicleDotCache:   NSCache<NSString, UIImage>      = makeCache(name: "marker.dot",         limit: 128)
     private static let sharedDotCache: NSCache<NSString, UIImage>        = makeCache(name: "marker.stopDot",     limit: 64)
@@ -172,21 +183,19 @@ enum MarkerImageCache {
     /// Dimensions communes (en points, scale = écran).
     private enum Dim {
         static let vehicleDiameter: CGFloat = 32
+        static let vehicleLabelHeight: CGFloat = 14
         static let stopDotOuter:    CGFloat = 9
         static let stopDotInner:    CGFloat = 5
         static let arrowWidth:      CGFloat = 10
         static let arrowHeight:     CGFloat = 7
     }
 
-    private static func renderVehicleBody(lineName: String) -> UIImage {
+    private static func renderVehicleBody(lineName: String, symbol: String) -> UIImage {
         let size = CGSize(width: Dim.vehicleDiameter, height: Dim.vehicleDiameter)
         let bg = uiColor(LineColorHelper.backgroundColor(for: lineName))
         let fg = uiColor(LineColorHelper.textColor(for: lineName))
-        let fontSize: CGFloat = lineName.count <= 2 ? 13 : (lineName.count == 3 ? 10.5 : 8.5)
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: fontSize, weight: .heavy),
-            .foregroundColor: fg,
-        ]
+        let configuration = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
+        let glyph = UIImage(systemName: symbol, withConfiguration: configuration)?.withTintColor(fg, renderingMode: .alwaysOriginal)
 
         return imageRenderer(size: size).image { ctx in
             let cg = ctx.cgContext
@@ -201,9 +210,35 @@ enum MarkerImageCache {
             cg.setLineWidth(0.5)
             cg.strokeEllipse(in: rect.insetBy(dx: 0.25, dy: 0.25))
 
-            // Numéro de ligne centré
-            let text = lineName as NSString
-            let textSize = text.size(withAttributes: attributes)
+            // Pictogramme du type de véhicule, centré
+            if let glyph {
+                let glyphSize = glyph.size
+                glyph.draw(in: CGRect(x: (size.width - glyphSize.width) / 2, y: (size.height - glyphSize.height) / 2,
+                                      width: glyphSize.width, height: glyphSize.height))
+            }
+        }
+    }
+
+    private static func renderVehicleLabel(lineName: String) -> UIImage {
+        let bg = uiColor(LineColorHelper.backgroundColor(for: lineName))
+        let fg = uiColor(LineColorHelper.textColor(for: lineName))
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 10, weight: .heavy),
+            .foregroundColor: fg,
+        ]
+        let text = lineName as NSString
+        let textSize = text.size(withAttributes: attributes)
+        let size = CGSize(width: ceil(textSize.width) + 10, height: Dim.vehicleLabelHeight)
+
+        return imageRenderer(size: size).image { ctx in
+            let cg = ctx.cgContext
+            let rect = CGRect(origin: .zero, size: size)
+            let capsule = UIBezierPath(roundedRect: rect.insetBy(dx: 0.25, dy: 0.25), cornerRadius: size.height / 2)
+            bg.setFill()
+            capsule.fill()
+            cg.setStrokeColor(UIColor.black.withAlphaComponent(0.15).cgColor)
+            cg.setLineWidth(0.5)
+            capsule.stroke()
             text.draw(at: CGPoint(x: (size.width - textSize.width) / 2, y: (size.height - textSize.height) / 2), withAttributes: attributes)
         }
     }

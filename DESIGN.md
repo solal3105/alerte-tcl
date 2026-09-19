@@ -39,13 +39,21 @@ bandeau trafic s'efface et un bandeau décrit le véhicule (ligne, direction, fr
 retard, dernier arrêt) avec deux boutons, « Voir plus » pour sa fiche et « Fermer » pour tout
 réafficher (bouton rond en haut à droite). Le véhicule touché porte un halo à la couleur de sa ligne
 sur la carte. Le même bandeau, sans « Voir plus », sert au filtre lancé depuis la fiche d'un arrêt.
-Chaque véhicule est un disque à la couleur de sa ligne portant son numéro, avec sa flèche de cap ; à
-partir du zoom `MapStyle.ZOOM_FRESHNESS_RING`, un anneau l'entoure et se remplit avec le délai depuis
-la dernière position transmise (0 à 90 s), dans la couleur de fraîcheur : aucun texte sur la carte.
-La grille de zoom est partagée (`MapStyle` : points sous 13,5, arrêts à 14,5, anneau à 15, badges de
-lignes sur les arrêts à 16), convertie sur iPhone depuis la largeur visible. L'état du trafic est une
-pastille dans la colonne de boutons en bas à droite (verte, orange ou rouge, avec le nombre de lignes
-touchées), qui ouvre les alertes ; il n'y a plus de bandeau en haut de la carte.
+Chaque véhicule est un disque à la couleur de sa ligne portant le pictogramme de son type (bus, tram,
+trolley, navigone…), son numéro de ligne dans une capsule juste en dessous, et sa flèche de cap ; à
+partir du zoom `MapStyle.ZOOM_FRESHNESS_RING`, un arc sur le bord intérieur du disque s'assombrit avec
+le délai depuis la dernière position transmise (0 à 90 s). L'arc est une ombre translucide, donc dans
+la teinte de la ligne : rien d'autre que la couleur de la ligne sur un véhicule. La grille de zoom est
+partagée (`MapStyle` : points sous 13,5, arrêts à 14,5, arc à 15, badges de lignes sur les arrêts à
+16), convertie sur iPhone depuis la largeur visible.
+
+Les boutons ronds des cartes (trafic, fiches horaires, satellite, filtres, position, et ceux des cartes
+de l'onglet « Autour de moi ») n'ont que deux couleurs : l'accent sur verre au repos, disque d'accent
+plein avec pictogramme blanc quand le bouton est actif (satellite affiché, filtres en cours,
+perturbations sur les lignes suivies, avec leur nombre en badge). Il n'y a plus de capsule « LIVE » en
+bas à gauche : le rafraîchissement est automatique et silencieux ; seuls restent les messages d'état
+(flux vide, données figées, sources en erreur). L'état du trafic ouvre les alertes ; il n'y a plus de
+bandeau en haut de la carte.
 
 Un véhicule dont TCL n'a pas retransmis la position depuis 90 s (règle partagée
 `Vehicle.HIDE_AFTER_SECONDS`, relue chaque seconde sur la carte) disparaît de la carte ; sa fiche,
