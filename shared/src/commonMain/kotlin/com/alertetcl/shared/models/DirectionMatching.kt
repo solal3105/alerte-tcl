@@ -31,8 +31,11 @@ object DirectionMatching {
             }
         }
         if (current.isNotEmpty()) result.add(current.toString())
-        return result
+        return result.map { aliases[it] ?: it }
     }
+
+    /** Abréviations usuelles des noms de lieux, ramenées au mot complet (« St-Genis » / « Saint-Genis »). */
+    private val aliases = mapOf("st" to "saint", "ste" to "sainte")
 
     /** Un mot en abrège un autre s'il en est le début (« hop » / « hopital »). */
     private fun abbreviates(x: String, y: String): Boolean =
@@ -68,6 +71,14 @@ object DirectionMatching {
             else -> null
         }
     }
+
+    /**
+     * Nom de sens à afficher pour une destination du flux passages : le terminus officiel quand il est
+     * reconnu, sinon la destination telle quelle. Deux graphies d'un même sens (« Charpennes »,
+     * « Charpennes Charles Hernu ») tombent ainsi dans le même groupe de la fiche d'arrêt.
+     */
+    fun canonicalDestination(line: String, destination: String, termini: Map<String, String>): String =
+        resolveDirection(line, destination, termini)?.let { termini["$line|$it"] } ?: destination
 
     /** Code de sens du flux SIRI SYTRAL (`outbound` = aller, `inbound` = retour). */
     fun siriDirectionCode(raw: String?): String = when (raw?.trim()?.lowercase()) {

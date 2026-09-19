@@ -98,14 +98,14 @@ struct AboutView: View {
             sectionTitle("Qui est derrière")
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 10) {
+                    Text("Solal Gendrin")
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
                     Text("Conseiller métropolitain écologiste · Villeurbanne")
                         .font(.caption.weight(.semibold))
                         .textCase(.uppercase)
                         .tracking(0.5)
                         .foregroundStyle(Color.appSuccess)
-                    Text("Solal Gendrin")
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
-                    Text("Je siège à la Métropole de Lyon pour Villeurbanne, chez les écologistes. Le soir, je code des outils pour rendre la ville plus lisible. Lyon Pocket est né comme ça, quand TCL Live a disparu : je voulais retrouver mon bus sur une carte. Vous êtes maintenant des milliers à l'utiliser, et ça me fait toujours quelque chose.")
+                    Text("Je siège à la Métropole de Lyon pour Villeurbanne, chez les écologistes. Le soir, je code des outils pour rendre la ville plus lisible. Lyon Pocket est né comme ça, quand TCL Live a disparu : je voulais retrouver mon bus sur une carte. Vous êtes maintenant des milliers à l'utiliser : merci de votre confiance.")
                         .font(.system(size: 16))
                         .lineSpacing(4)
                         .foregroundStyle(.primary.opacity(0.9))
@@ -114,6 +114,8 @@ struct AboutView: View {
                 .padding(18)
                 Divider().padding(.leading, 18)
                 linkRow(icon: "person.crop.circle.fill", title: "LinkedIn", subtitle: "Retours, idées, bugs : je lis tout", url: URL.trusted("https://www.linkedin.com/in/solal-gendrin/"))
+                Divider().padding(.leading, 66)
+                linkRow(icon: "cloud.fill", title: "Bluesky", subtitle: "@solalgendrin.bsky.social", url: URL.trusted("https://bsky.app/profile/solalgendrin.bsky.social"))
                 Divider().padding(.leading, 66)
                 linkRow(icon: "bubble.left.fill", title: "X", subtitle: "@_solal_", url: URL.trusted("https://x.com/_solal_"))
             }
@@ -128,19 +130,19 @@ struct AboutView: View {
             sectionTitle("Ses autres projets")
             VStack(spacing: 12) {
                 project(
-                    logo: "LogoTCL2040", logoOnAccent: true, logoPadding: 10,
+                    logo: "LogoTCL2040", logoBackground: Color.appAccent, logoPadding: 10,
                     title: "TCL 2040",
                     text: "Prenez la place du président du Sytral : un budget fermé, des projets réels, des impacts chiffrés. Dessinez le réseau de 2040 et voyez ce qu'il coûte vraiment.",
                     url: URL.trusted("https://tcl-2040.com/")
                 )
                 project(
-                    logo: "LogoOpenProjets", logoOnAccent: true, logoPadding: 9,
+                    logo: "LogoOpenProjets", logoBackground: .white, logoPadding: 7,
                     title: "Open Projets",
                     text: "Née « Grands Projets » pour la Métropole, devenue la carte que chaque commune peut ouvrir à ses habitants : chantiers, projets, avancement, documents. Construite chez Vazy, société à mission villeurbannaise.",
                     url: URL.trusted("https://openprojets.com/home")
                 )
                 project(
-                    logo: "LogoNadir", logoOnAccent: false, logoPadding: 0,
+                    logo: "LogoNadir", logoBackground: nil, logoPadding: 0,
                     title: "Nadir",
                     text: "Rafraîchir son logement sans climatisation : l'app compare heure par heure la température chez vous et dehors, et vous dit quand ouvrir et fermer les fenêtres.",
                     url: URL.trusted("https://apps.apple.com/fr/app/nadir/id6788036137")
@@ -149,7 +151,7 @@ struct AboutView: View {
         }
     }
 
-    private func project(logo: String, logoOnAccent: Bool, logoPadding: CGFloat, title: String, text: String, url: URL) -> some View {
+    private func project(logo: String, logoBackground: Color?, logoPadding: CGFloat, title: String, text: String, url: URL) -> some View {
         Link(destination: url) {
             HStack(alignment: .top, spacing: 14) {
                 Image(logo)
@@ -157,8 +159,9 @@ struct AboutView: View {
                     .scaledToFit()
                     .padding(logoPadding)
                     .frame(width: 60, height: 60)
-                    .background(logoOnAccent ? Color.appAccent : Color.clear)
+                    .background(logoBackground ?? Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.appNeutralBorder.opacity(logoBackground == .white ? 0.6 : 0), lineWidth: 0.5))
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(title)

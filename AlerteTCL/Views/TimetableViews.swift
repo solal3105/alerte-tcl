@@ -950,6 +950,7 @@ struct TimetableSearchSheet: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 11)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             Divider().padding(.leading, 78)
@@ -1000,6 +1001,7 @@ private struct LineDirectionsView: View {
                             }
                             .padding(.horizontal, 20)
                             .padding(.vertical, 14)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         Divider().padding(.leading, 66)
@@ -1099,6 +1101,7 @@ private struct LineStopsView: View {
                             Chevron()
                         }
                         .padding(.horizontal, 20)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }

@@ -77,7 +77,12 @@ prévu de la course, reconnue par l'heure prévue au prochain arrêt, corrigé d
 TCL ; sans course reconnue, seul le nombre d'arrêts est affiché, avec « heure inconnue ». Rien n'est
 extrapolé depuis la position elle-même. Toucher la carte cadre la carte sur ce véhicule et l'arrêt.
 Sans bus en approche, la section reste visible avec « Aucun bus en route vers cet arrêt pour
-l'instant » ; le métro, sans positions en direct, n'a pas cette section. Le suivi d'un bus en
+l'instant » ; le métro, sans positions en direct, n'a pas cette section. Les passages d'un arrêt sont
+groupés par ligne et par sens réel : chaque destination du flux est ramenée au terminus officiel quand il
+est reconnu (`DirectionMatching.canonicalDestination`, testé), donc deux cartes pour le métro B et non
+une par graphie. Chaque passage est une puce avec le délai en grand (vert quand le véhicule est suivi en
+direct) et l'heure en dessous ; les actions « Voir sur la carte » et « Tous les horaires » sont des liens
+à l'accent, sans fond. Dans les fiches horaires, toute la largeur d'une ligne de liste est tactile. Le suivi d'un bus en
 arrière-plan (activité en direct) a été essayé puis retiré le 16 septembre 2026.
 
 ## Autour de moi
@@ -111,10 +116,11 @@ que la donnée contient (plus de « type d'usagers » ni de « type d'ouvrage »
 L'application d'abord : son icône, « Lyon Pocket » en très grand, une accroche en corps 19 sur ce
 qu'elle fait, puis quatre cases d'un mot chacune (gratuite, sans publicité, sans compte, sans traçage)
 avec leur pictogramme, sans phrase d'explication ni chiffres. Ensuite, sous des titres en gras (jamais
-de petites capitales) : « Qui est derrière » (une carte : ligne verte « Conseiller métropolitain
-écologiste · Villeurbanne », « Solal Gendrin », quatre phrases à la première personne, puis LinkedIn et
-X), « Ses autres projets » (TCL 2040, Open Projets née Grands Projets, Nadir : le vrai logo de chacun,
-en blanc sur tuile bleue pour les deux premiers, l'icône de l'app pour Nadir ; images `LogoTCL2040`,
+de petites capitales) : « Qui est derrière » (une carte : « Solal Gendrin », puis la ligne verte « Conseiller métropolitain
+écologiste · Villeurbanne », quatre phrases à la première personne qui finissent par un merci, puis
+LinkedIn, Bluesky et X), « Ses autres projets » (TCL 2040, Open Projets née Grands Projets, Nadir : le vrai logo de chacun :
+TCL 2040 en blanc sur tuile bleue, Open Projets en couleur sur tuile blanche (logo carré officiel),
+l'icône de l'app pour Nadir ; images `LogoTCL2040`,
 `LogoOpenProjets`, `LogoNadir` et `drawable-nodpi/logo_*`), « D'où viennent les données » (deux
 lignes : la Métropole de Lyon pour les positions, alertes, chantiers, parkings et Vélo'v via
 data.grandlyon.com ; SYTRAL Mobilités pour les arrêts, tracés et horaires GTFS ; puis le merci et la

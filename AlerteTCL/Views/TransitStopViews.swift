@@ -86,7 +86,7 @@ struct LinePassagesCard: View {
             // Liste des passages
             HStack(spacing: 8) {
                 ForEach(passages.prefix(4)) { passage in
-                    PassageChip(passage: passage, color: bgColor)
+                    PassageChip(passage: passage)
                 }
             }
 
@@ -141,19 +141,22 @@ struct LinePassagesCard: View {
 }
 
 extension LinePassagesCard {
+    /// Action de la carte : un lien sobre à l'accent, pictogramme puis texte, sans fond.
     private func cardAction(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Label(title, systemImage: icon)
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(bgColor.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .foregroundStyle(Color.appAccent)
+            .frame(maxWidth: .infinity, minHeight: 36)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.primary)
     }
 }
 
@@ -227,33 +230,24 @@ struct ApproachRow: View {
 
 struct PassageChip: View {
     let passage: Passage
-    let color: Color
 
+    /// Délai en grand, heure en dessous ; fond vert pâle et chiffre vert quand le véhicule est suivi en direct.
     var body: some View {
-        VStack(spacing: 4) {
-            // Délai en minutes, pastille verte = suivi temps réel du véhicule
-            HStack(spacing: 3) {
-                if passage.isRealTime {
-                    Circle()
-                        .fill(Color.appSuccess)
-                        .frame(width: 5, height: 5)
-                }
-                Text(passage.delaipassage)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.secondary)
-            }
-
-            // Heure de passage
+        VStack(spacing: 3) {
+            Text(passage.delaipassage)
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(passage.isRealTime ? Color.appSuccess : Color.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Text(passage.formattedTime)
-                .font(.system(size: 9, weight: .medium))
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
         }
+        .frame(minWidth: 58)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .opacity(passage.isTheoretical ? 0.65 : 1)
-        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+        .background(passage.isRealTime ? Color.appSuccess.opacity(0.14) : Color.appNeutralFill.opacity(0.6),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -294,8 +288,12 @@ struct MergedStopDetailSheet: View {
         }
     }
     
+    /// Un groupe par ligne et par sens réel : les graphies d'une même destination sont ramenées au terminus officiel.
     private var passagesByLineDirection: [LineDirectionKey: [Passage]] {
-        Dictionary(grouping: allPassages) { LineDirectionKey(line: $0.ligne, direction: $0.direction) }
+        Dictionary(grouping: allPassages) {
+            LineDirectionKey(line: $0.ligne,
+                             direction: DirectionMatching.shared.canonicalDestination(line: $0.ligne, destination: $0.direction, termini: termini))
+        }
     }
     
     private var sortedLineDirections: [LineDirectionKey] {

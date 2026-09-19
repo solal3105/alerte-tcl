@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
@@ -121,18 +122,20 @@ private fun Author() {
         Card(Modifier.fillMaxWidth()) {
             Column {
                 Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Solal Gendrin", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
                         "CONSEILLER MÉTROPOLITAIN ÉCOLOGISTE · VILLEURBANNE",
                         style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp, color = Tokens.success
                     )
-                    Text("Solal Gendrin", fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "Je siège à la Métropole de Lyon pour Villeurbanne, chez les écologistes. Le soir, je code des outils pour rendre la ville plus lisible. Lyon Pocket est né comme ça, quand TCL Live a disparu : je voulais retrouver mon bus sur une carte. Vous êtes maintenant des milliers à l'utiliser, et ça me fait toujours quelque chose.",
+                        "Je siège à la Métropole de Lyon pour Villeurbanne, chez les écologistes. Le soir, je code des outils pour rendre la ville plus lisible. Lyon Pocket est né comme ça, quand TCL Live a disparu : je voulais retrouver mon bus sur une carte. Vous êtes maintenant des milliers à l'utiliser : merci de votre confiance.",
                         fontSize = 16.sp, lineHeight = 24.sp
                     )
                 }
                 HorizontalDivider(modifier = Modifier.padding(start = 18.dp))
                 LinkRow(Icons.Filled.Person, "LinkedIn", "Retours, idées, bugs : je lis tout") { openUrl(context, "https://www.linkedin.com/in/solal-gendrin/") }
+                HorizontalDivider(modifier = Modifier.padding(start = 66.dp))
+                LinkRow(Icons.Filled.Cloud, "Bluesky", "@solalgendrin.bsky.social") { openUrl(context, "https://bsky.app/profile/solalgendrin.bsky.social") }
                 HorizontalDivider(modifier = Modifier.padding(start = 66.dp))
                 LinkRow(Icons.Filled.ChatBubble, "X", "@_solal_") { openUrl(context, "https://x.com/_solal_") }
             }
@@ -146,15 +149,15 @@ private fun Projects() {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         SectionTitle("Ses autres projets")
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Project(R.drawable.logo_tcl2040, logoOnAccent = true, logoPadding = 10, title = "TCL 2040",
+            Project(R.drawable.logo_tcl2040, logoBackground = Tokens.accent, logoPadding = 10, title = "TCL 2040",
                 text = "Prenez la place du président du Sytral : un budget fermé, des projets réels, des impacts chiffrés. Dessinez le réseau de 2040 et voyez ce qu'il coûte vraiment.") {
                 openUrl(context, "https://tcl-2040.com/")
             }
-            Project(R.drawable.logo_openprojets, logoOnAccent = true, logoPadding = 9, title = "Open Projets",
+            Project(R.drawable.logo_openprojets, logoBackground = Color.White, logoPadding = 7, title = "Open Projets",
                 text = "Née « Grands Projets » pour la Métropole, devenue la carte que chaque commune peut ouvrir à ses habitants : chantiers, projets, avancement, documents. Construite chez Vazy, société à mission villeurbannaise.") {
                 openUrl(context, "https://openprojets.com/home")
             }
-            Project(R.drawable.logo_nadir, logoOnAccent = false, logoPadding = 0, title = "Nadir",
+            Project(R.drawable.logo_nadir, logoBackground = null, logoPadding = 0, title = "Nadir",
                 text = "Rafraîchir son logement sans climatisation : l'app compare heure par heure la température chez vous et dehors, et vous dit quand ouvrir et fermer les fenêtres.") {
                 openUrl(context, "https://apps.apple.com/fr/app/nadir/id6788036137")
             }
@@ -163,12 +166,12 @@ private fun Projects() {
 }
 
 @Composable
-private fun Project(logo: Int, logoOnAccent: Boolean, logoPadding: Int, title: String, text: String, onClick: () -> Unit) {
+private fun Project(logo: Int, logoBackground: Color?, logoPadding: Int, title: String, text: String, onClick: () -> Unit) {
     Card(Modifier.fillMaxWidth().clickable { onClick() }) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Box(
                 modifier = Modifier.size(60.dp).clip(RoundedCornerShape(14.dp))
-                    .background(if (logoOnAccent) Tokens.accent else Color.Transparent),
+                    .background(logoBackground ?: Color.Transparent),
                 contentAlignment = Alignment.Center
             ) {
                 Image(

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -60,7 +61,6 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.filled.Refresh
@@ -1440,9 +1440,10 @@ private fun MergedStopDetailSheet(
             passagesKey++
         }
     }
-    val groupedPassages = remember(passages.value) {
+    // Un groupe par ligne et par sens réel : les graphies d'une même destination sont ramenées au terminus officiel.
+    val groupedPassages = remember(passages.value, termini) {
         val list = passages.value ?: return@remember emptyList<Pair<LineDirectionKey, List<Passage>>>()
-        list.groupBy { LineDirectionKey(it.ligne, it.direction) }
+        list.groupBy { LineDirectionKey(it.ligne, DirectionMatching.canonicalDestination(it.ligne, it.direction, termini)) }
             .toList()
             .sortedWith(
                 compareBy<Pair<LineDirectionKey, List<Passage>>> {
@@ -1707,11 +1708,16 @@ private fun ApproachStat(value: String, caption: String, color: Color) {
 }
 
 @Composable
+/** Action de la carte : un lien sobre à l'accent, pictogramme puis texte, sans fond. */
 private fun CardActionButton(label: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    FilledTonalButton(onClick = onClick, modifier = modifier, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)) {
-        Icon(icon, null, modifier = Modifier.size(14.dp))
-        Spacer(Modifier.width(4.dp))
-        Text(label, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Row(
+        modifier = modifier.heightIn(min = 36.dp).clickable { onClick() },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Icon(icon, null, tint = Tokens.accent, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Tokens.accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -1845,15 +1851,15 @@ private fun fitCamera(map: MapLibreMap?, points: List<LatLng>) {
 }
 
 @Composable
+/** Délai en grand, heure en dessous ; fond vert pâle et chiffre vert quand le véhicule est suivi en direct. */
 private fun PassageChip(p: Passage) {
     val bg = if (p.isRealTime) Tokens.success.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant
-    val accent = if (p.isRealTime) Tokens.success else MaterialTheme.colorScheme.onSurfaceVariant
-    Surface(shape = RoundedCornerShape(10.dp), color = bg) {
-        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(p.delaipassage.ifBlank { "--" }, fontSize = 13.sp,
-                fontWeight = FontWeight.Bold, color = accent)
-            Text(p.formattedTime, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val accent = if (p.isRealTime) Tokens.success else MaterialTheme.colorScheme.onSurface
+    Surface(shape = RoundedCornerShape(12.dp), color = bg, modifier = Modifier.widthIn(min = 58.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(p.delaipassage.ifBlank { "--" }, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
+            Text(p.formattedTime, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
