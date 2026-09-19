@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import Shared
 
 @MainActor
 final class AlertViewModel: ObservableObject {
@@ -28,6 +29,13 @@ final class AlertViewModel: ObservableObject {
     init() {
         allLines = TransportLine.allPredefinedLines
         Task { await loadLines() }
+        // Lignes du réseau à jour (index des fiches horaires, régénéré chaque nuit) : une renumérotation
+        // n'attend pas une mise à jour de l'application.
+        Task { @MainActor in
+            if let index = try? await TimetableService.companion.shared.fetchIndex() {
+                allLines = Shared.TransportLine.companion.current(index: index).map(TransportLine.init(shared:))
+            }
+        }
         
         subscriptionService.objectWillChange
             .sink { [weak self] in

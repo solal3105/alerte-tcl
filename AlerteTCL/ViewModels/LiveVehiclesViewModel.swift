@@ -111,13 +111,35 @@ final class LiveVehiclesViewModel: ObservableObject {
         }
     }
 
-    /// Charge l'index des fiches horaires, qui porte la palette officielle des couleurs de lignes.
+    /// Charge l'index des fiches horaires, qui porte la palette officielle des couleurs de lignes,
+    /// et retire des filtres enregistrés les lignes qui n'existent plus (renumérotation du réseau).
     func loadLinePalette() async {
         do {
-            _ = try await TimetableService.companion.shared.fetchIndex()
+            let index = try await TimetableService.companion.shared.fetchIndex()
+            let kept = MapFilterTexts.shared.keepKnownLines(selected: selectedLines, index: index)
+            if kept != selectedLines {
+                AppLogger.debug("🧹 Filtres de lignes disparues du réseau retirés : \(selectedLines.subtracting(kept).sorted())")
+                selectedLines = kept
+            }
+            if let line = selectedLine, index.line(name: line) == nil { selectedLine = nil }
+            updateFilteredVehicles()
         } catch {
             AppLogger.debug("⚠️ Palette des lignes indisponible : \(error.localizedDescription)")
         }
+    }
+
+    /// Vrai quand les filtres enregistrés (type, lignes) ne laissent aucun véhicule, où que soit la carte.
+    var filtersHideAllVehicles: Bool {
+        guard stopFocus == nil, !vehicles.isEmpty,
+              selectedVehicleType != nil || selectedLine != nil || !selectedLines.isEmpty else { return false }
+        return !vehicles.contains(where: matchesUserFilters)
+    }
+
+    /// Filtres choisis par l'utilisateur (type de véhicule, ligne ou lignes), hors filtre d'arrêt.
+    private func matchesUserFilters(_ vehicle: Vehicle) -> Bool {
+        if let type = selectedVehicleType, vehicle.vehicleType != type { return false }
+        if let line = selectedLine, !line.isEmpty { return vehicle.lineName == line }
+        return selectedLines.isEmpty || selectedLines.contains(vehicle.lineName)
     }
     
     private func updateFilteredVehicles() {
@@ -127,15 +149,7 @@ final class LiveVehiclesViewModel: ObservableObject {
             // Le filtre d'arrêt prime sur les autres : on veut voir ces bus, quels que soient les réglages.
             result = result.filter { focus.matches(lineName: $0.lineName, vehicleDirection: $0.direction) }
         } else {
-            if let type = selectedVehicleType {
-                result = result.filter { $0.vehicleType == type }
-            }
-            
-            if let line = selectedLine, !line.isEmpty {
-                result = result.filter { $0.lineName == line }
-            } else if !selectedLines.isEmpty {
-                result = result.filter { selectedLines.contains($0.lineName) }
-            }
+            result = result.filter(matchesUserFilters)
         }
         
         // Filtrage viewport avec buffer standard

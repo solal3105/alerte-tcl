@@ -314,6 +314,14 @@ struct LiveMapView: View {
                     .padding(.horizontal, 16)
             }
 
+            // Filtres enregistrés qui ne laissent plus rien (ligne renumérotée, type sans véhicule) : le dire.
+            if viewModel.filtersHideAllVehicles {
+                FiltersHideAllBanner(onClear: { withAnimation { viewModel.clearFilters() } })
+                    .padding(.top, 8)
+                    .padding(.horizontal, 16)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             if let focus = viewModel.stopFocus, let vehicleId = focus.vehicleId {
                 VehicleFocusCard(
                     focus: focus,
@@ -1467,6 +1475,37 @@ private struct VehicleFocusCard: View {
 }
 
 // MARK: - Bandeau « bus de cet arrêt »
+
+/// Les filtres masquent tous les véhicules : une phrase et « Tout afficher ».
+private struct FiltersHideAllBanner: View {
+    let onClear: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                .font(.system(size: 22))
+                .foregroundStyle(Color.appWarning)
+            Text(MapFilterTexts.shared.HIDING_EVERYTHING)
+                .font(.system(size: 13, weight: .semibold))
+                .lineLimit(2)
+            Spacer(minLength: 4)
+            Button("Tout afficher", action: onClear)
+                .font(.system(size: 12, weight: .semibold))
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.appWarning.opacity(0.35), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
+    }
+}
 
 private struct StopFocusBanner: View {
     let focus: StopLineFocus

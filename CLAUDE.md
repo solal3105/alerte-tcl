@@ -138,6 +138,14 @@ Format et conventions (sens A/R, minutes ≥ 1440 après minuit) : `horaires/REA
 Logique partagée : `TimetableService` / `LineTimetable` (KMP), consommés directement par iOS
 (framework `Shared` lié par la phase Xcode « Module partagé Kotlin », cf. `KMP_MIGRATION.md`).
 
+### Lignes du réseau et renumérotations
+
+La liste embarquée `TransportLine.allPredefinedLines` ne sert que de secours hors ligne : les écrans
+d'alertes proposent `TransportLine.current(index)`, construite depuis l'index des fiches horaires
+(régénéré chaque nuit), donc à jour après une renumérotation (la 21 devenue 121 en septembre 2026).
+Les filtres de lignes enregistrés sont purgés des numéros disparus (`MapFilterTexts.keepKnownLines`)
+et un bandeau « Tout afficher » apparaît quand les filtres masquent tous les véhicules.
+
 ### Couleurs, textes et règles d'interface
 
 - Toute couleur sémantique vient de `AppColors` (module partagé) : `Color.appAccent`… et les

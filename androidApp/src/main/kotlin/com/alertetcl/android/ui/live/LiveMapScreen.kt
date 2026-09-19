@@ -193,6 +193,7 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
+import com.alertetcl.shared.models.MapFilterTexts
 
 
 private const val METRO_SRC       = "metro-src"
@@ -327,7 +328,13 @@ fun LiveMapScreen() {
         value = runCatching { TransitStopService.shared.fetchStops() }.getOrDefault(emptyList())
     }
     // Index des fiches horaires : rafraîchit la palette officielle des couleurs de lignes.
-    LaunchedEffect(Unit) { runCatching { TimetableService.shared.fetchIndex() } }
+    // ... et retire des filtres enregistrés les lignes qui n'existent plus (renumérotation du réseau).
+    LaunchedEffect(Unit) {
+        val index = runCatching { TimetableService.shared.fetchIndex() }.getOrNull() ?: return@LaunchedEffect
+        val saved = store.selectedLiveLines.first()
+        val kept = MapFilterTexts.keepKnownLines(saved, index)
+        if (kept != saved) store.setSelectedLiveLines(kept)
+    }
     // Chaque changement de palette invalide les images de lignes mises en cache dans le style.
     val paletteVersion by LinePalette.version.collectAsState()
 
@@ -426,6 +433,19 @@ fun LiveMapScreen() {
         selectedTypes.size != VehicleType.entries.size ||
         showBusTraces || !showTramTraces || !showMetroTraces ||
         selectedLines.isNotEmpty()
+    // Filtres enregistrés qui ne laissent plus rien (ligne renumérotée, type sans véhicule) : le dire.
+    val filtersHideAll = stopFocus == null && vehicles.isNotEmpty() && filteredVehicles.isEmpty() &&
+        (selectedTypes.size != VehicleType.entries.size || selectedLines.isNotEmpty())
+    val clearFilters: () -> Unit = {
+        vm.clearStopFocus()
+        VehicleType.entries.filter { it != VehicleType.METRO && it !in vm.selectedTypes.value }.forEach { vm.toggleType(it) }
+        scope.launch {
+            store.setSelectedLiveLines(emptySet())
+            store.setShowBusTraces(false)
+            store.setShowTramTraces(true)
+            store.setShowMetroTraces(true)
+        }
+    }
 
     // ── UI ────────────────────────────────────────────────────────────────
     Box(modifier = Modifier.fillMaxSize()) {
@@ -550,6 +570,7 @@ fun LiveMapScreen() {
                 )
             }
         }
+        if (filtersHideAll) FiltersHideAllBanner(onClear = clearFilters)
         stopFocus?.let { focus ->
             val vehicleId = focus.vehicleId
             if (vehicleId != null) {
@@ -1070,16 +1091,7 @@ fun LiveMapScreen() {
                 velovElectricOnly = storedElectricOnly,
                 onToggleVelovElectricOnly = { scope.launch { store.setVelovElectricOnly(!storedElectricOnly) } },
                 hasActiveFilters = hasActiveFilters,
-                onClearFilters = {
-                    vm.clearStopFocus()
-                    VehicleType.entries.filter { it != VehicleType.METRO && it !in vm.selectedTypes.value }.forEach { vm.toggleType(it) }
-                    scope.launch {
-                        store.setSelectedLiveLines(emptySet())
-                        store.setShowBusTraces(false)
-                        store.setShowTramTraces(true)
-                        store.setShowMetroTraces(true)
-                    }
-                },
+                onClearFilters = clearFilters,
                 vehicles = vehicles
             )
         }
@@ -1971,6 +1983,24 @@ private fun androidx.compose.foundation.layout.RowScope.FocusStat(value: String,
         Text(value, fontSize = if (emphasized) 22.sp else 15.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1,
             fontFamily = FontFamily.Monospace)
         Text(caption, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** Les filtres masquent tous les véhicules : une phrase et « Tout afficher » (parité iOS FiltersHideAllBanner). */
+@Composable
+private fun FiltersHideAllBanner(onClear: () -> Unit) {
+    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 4.dp,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Tokens.warning.copy(alpha = 0.35f)), modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(Icons.Filled.FilterList, null, tint = Tokens.warning, modifier = Modifier.size(22.dp))
+            Text(MapFilterTexts.HIDING_EVERYTHING, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2,
+                modifier = Modifier.weight(1f))
+            TextButton(onClick = onClear) { Text("Tout afficher", fontSize = 12.sp) }
+        }
     }
 }
 

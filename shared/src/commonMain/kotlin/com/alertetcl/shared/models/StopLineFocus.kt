@@ -1,5 +1,15 @@
 package com.alertetcl.shared.models
 
+/** Textes des filtres de la carte, identiques sur les deux plateformes. */
+object MapFilterTexts {
+    /** Quand les filtres enregistrés (type, lignes) ne laissent aucun véhicule à l'écran. */
+    const val HIDING_EVERYTHING = "Vos filtres masquent tous les véhicules"
+
+    /** Lignes de filtre encore présentes dans le réseau : les numéros disparus (renumérotation) sont retirés. */
+    fun keepKnownLines(selected: Set<String>, index: TimetableIndex): Set<String> =
+        selected.filter { index.line(it) != null }.toSet()
+}
+
 /**
  * Filtre temporaire de la carte : ne montrer que les véhicules d'une ligne, dans un sens quand il
  * vient de la fiche d'un arrêt (« Voir ces bus sur la carte »), dans les deux sens quand il vient

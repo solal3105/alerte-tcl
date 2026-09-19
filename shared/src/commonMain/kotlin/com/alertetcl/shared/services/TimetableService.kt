@@ -29,6 +29,9 @@ class TimetableService {
 
     private val mutex = Mutex()
     private var cachedIndex: TimetableIndex? = null
+
+    /** Dernier index reçu, sans requête (null avant le premier chargement). */
+    val currentIndex: TimetableIndex? get() = cachedIndex
     private var indexFetchedAt = 0L
     private val lineCache = mutableMapOf<String, LineTimetable>()
 

@@ -303,5 +303,27 @@ data class TransportLine(
 
         val allPredefinedLines: List<TransportLine> =
             metroLines + funicularLines + tramwayLines + busCLines + regularBusLines + navigoneLines
+
+        /**
+         * Lignes du réseau telles que publiées dans l'index des fiches horaires (régénéré chaque nuit à
+         * partir du GTFS) : c'est la liste à jour après une renumérotation, là où la liste embarquée
+         * ci-dessus ne bouge qu'avec une mise à jour de l'application.
+         */
+        fun fromIndex(index: TimetableIndex): List<TransportLine> = index.lines.map { summary ->
+            val name = summary.line
+            val mode = when (summary.mode) {
+                "metro" -> TransportMode.METRO
+                "tram", "trambus" -> TransportMode.TRAMWAY
+                "funicular" -> TransportMode.FUNICULAR
+                "ferry" -> TransportMode.NAVIGONE
+                else -> if (name.length >= 2 && name[0] == 'C' && name[1].isDigit()) TransportMode.BUS_C else TransportMode.BUS
+            }
+            // Les métros gardent leur code historique (« MA » pour la ligne A) : les abonnements y sont rattachés.
+            if (mode == TransportMode.METRO) create("M$name", name, mode) else create(name, name, mode)
+        }
+
+        /** Lignes à proposer : celles de l'index quand il est connu, sinon la liste embarquée. */
+        fun current(index: TimetableIndex?): List<TransportLine> =
+            index?.takeIf { it.lines.isNotEmpty() }?.let { fromIndex(it) } ?: allPredefinedLines
     }
 }

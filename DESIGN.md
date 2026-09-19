@@ -42,6 +42,10 @@ Un véhicule dont TCL n'a pas retransmis la position depuis 90 s (règle partag�
 `Vehicle.HIDE_AFTER_SECONDS`, relue chaque seconde sur la carte) disparaît de la carte ; sa fiche,
 si elle est ouverte, garde la dernière position connue et signale qu'elle est obsolète.
 
+Quand les filtres enregistrés (type de véhicule, lignes) ne laissent aucun véhicule sur la carte, un
+bandeau « Vos filtres masquent tous les véhicules » avec « Tout afficher » remplace le silence ; les
+numéros de lignes qui ont disparu du réseau sont retirés des filtres au chargement.
+
 ## Où est mon bus
 
 Dans la fiche d'un arrêt, chaque carte de ligne et de sens montre, sous les prochains passages, les
