@@ -108,16 +108,17 @@ que la donnée contient (plus de « type d'usagers » ni de « type d'ouvrage »
 
 ## Onglet Info
 
-Une page sur Solal Gendrin, écrite à la première personne, à partir de faits vérifiés (fiche d'élu
-sur grandlyon.com, Lyon Capitale, Tribune de Lyon, fiche App Store de Nadir, sites de TCL 2040 et
-d'Open Projets) : en tête ses initiales sur un disque vert, son nom, « Conseiller métropolitain
-écologiste », « Élu de Villeurbanne, mandat 2026 à 2032 », un paragraphe amical et quatre étiquettes
-(gratuite, sans pub, sans compte, sans données vendues). Puis, en sections titrées en petites
-capitales : « À la Métropole » (ses trois commissions), « Mes projets » (Lyon Pocket, TCL 2040, Grands
-Projets, Open Projets avec Vazy, Nadir, chacun avec une phrase et un lien), « On se parle ? »
-(LinkedIn, X, GitHub), « Merci » (Open Data du Grand Lyon), « D'où viennent les données », et un pied
-de page (confidentialité, version, indépendance). Une seule teinte, l'accent, pour tous les
-pictogrammes sur carré bleuté ; le vert ne sert qu'à son étiquette d'élu écologiste.
+Une page éditoriale sur l'application d'abord : son icône, « Lyon Pocket » en très grand, une accroche
+en corps 19 sur ce qu'elle fait, puis des sections en petites capitales : « Lyon Pocket, c'est » (quatre
+promesses en grille : gratuite, sans publicité, sans compte, sans traçage, chacune avec un pictogramme,
+un mot fort et une phrase), deux grands chiffres (25 000 installations, un temps n° 1 des apps de
+navigation), « Qui est derrière » (une carte : ligne verte « Conseiller métropolitain écologiste ·
+Villeurbanne », « Solal Gendrin », quatre phrases à la première personne, puis LinkedIn et X), « Ses
+autres projets » (TCL 2040, Open Projets née Grands Projets, Nadir : titre en grand, une phrase,
+flèche), « Merci » (citation à filet bleu vers data.grandlyon.com), « D'où viennent les données » (six
+cellules en grille), pied de page. Faits
+vérifiés sur le web (fiche d'élu grandlyon.com, Lyon Capitale, TCL 2040, App Store, Open Projets).
+Une seule teinte, l'accent ; pas d'étiquettes-chips ; pas de section sur le mandat.
 
 ## Filtres de la carte Transport
 
