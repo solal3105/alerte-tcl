@@ -44,8 +44,23 @@ object AppColors {
     /** Étoile des favoris. */
     val favorite = ThemedColor("#F9A825", "#FFD54F")
 
+    // ── Neutres ─────────────────────────────────────────────────────────────
+    /** Texte ou icône sans signification particulière (case non cochée, valeur absente). */
+    val neutral: ThemedColor get() = parkingUnknown
+    /** Fond discret (pastille non retenue, badge « +3 », ligne dont la couleur est inconnue). */
+    val neutralFill = ThemedColor("#E5E5EA", "#3A3A3C")
+    /** Liseré autour d'un fond clair. */
+    val neutralBorder = ThemedColor("#C7C7CC", "#48484A")
+    /** Texte sur fond clair. */
+    val onLight = "#1B1B1F"
+
     /** Marqueur d'un arrêt sur la carte (hors couleur de ligne). */
     val stopMarker = "#1976D2"
+    /** Noyau des arrêts de bus, et des bus C, sur la carte ; métro et tram prennent la couleur de leur ligne. */
+    val stopMarkerBus = "#808C9E"
+    val stopMarkerBusC = "#1A338C"
+    /** Tracé d'une ligne dont la couleur officielle n'est pas encore connue. */
+    val routeUnknown = "#999999"
 
     /** Sévérité d'une alerte trafic. */
     fun alertSeverity(severity: AlertSeverity): ThemedColor = when (severity) {

@@ -776,9 +776,9 @@ struct TravauxDetailSheet: View {
         switch travaux.typeperturbation {
         case .circulationInterdite: return .appError
         case .circulationReduite: return .appWarning
-        case .circulationAlternee: return .yellow
+        case .circulationAlternee: return .appSuccess
         case .genePonctuelle: return .appAccent
-        case .autre: return .gray
+        case .autre: return .appNeutral
         }
     }
     

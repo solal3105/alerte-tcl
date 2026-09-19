@@ -15,9 +15,9 @@ extension Color {
         })
     }
 
-    /// Jeton facultatif : gris neutre quand la valeur n'est pas renseignée.
+    /// Jeton facultatif : neutre quand la valeur n'est pas renseignée.
     static func token(_ token: ThemedColor?) -> Color {
-        token.map { Color(token: $0) } ?? .gray
+        Color(token: token ?? AppColors.shared.neutral)
     }
 
     static let appAccent = Color(token: AppColors.shared.accent)
@@ -25,6 +25,9 @@ extension Color {
     static let appWarning = Color(token: AppColors.shared.warning)
     static let appError = Color(token: AppColors.shared.error)
     static let appFavorite = Color(token: AppColors.shared.favorite)
+    static let appNeutral = Color(token: AppColors.shared.neutral)
+    static let appNeutralFill = Color(token: AppColors.shared.neutralFill)
+    static let appNeutralBorder = Color(token: AppColors.shared.neutralBorder)
     static let stopMarker = Color(hex: AppColors.shared.stopMarker)
 }
 

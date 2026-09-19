@@ -201,7 +201,7 @@ struct LineDirectionRow: View {
                 } else if isSelected {
                     Image(systemName: "checkmark.circle.fill").font(.system(size: 24)).foregroundStyle(Color.appAccent)
                 } else {
-                    Circle().stroke(Color.gray.opacity(0.3), lineWidth: 2).frame(width: 24, height: 24)
+                    Circle().stroke(Color.appNeutralBorder, lineWidth: 2).frame(width: 24, height: 24)
                 }
             }
             .padding(16)

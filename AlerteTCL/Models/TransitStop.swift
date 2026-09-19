@@ -176,7 +176,7 @@ extension TransitStop: Clusterable {
         if let firstPassage = nextPassage {
             return TransportMode.detectFromLine(firstPassage.ligne).color
         }
-        return .gray
+        return .appNeutral
     }
     
     var clusterIcon: String {

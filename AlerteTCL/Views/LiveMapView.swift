@@ -137,6 +137,7 @@ struct LiveMapView: View {
                     case "horaires", "horaires-ligne", "horaires-arrets": showTimetableSearch = true
                     case "erreur401":              showDataSourceErrors = true
                     case "velov":                  velovViewModel.isEnabled = true
+                    case "filtres":                showFilters = true
                     case "velov-electriques":
                         velovViewModel.isEnabled = true
                         velovViewModel.electricOnly = true
@@ -1196,7 +1197,7 @@ struct FilterSheet: View {
                     } label: {
                         HStack {
                             Image(systemName: "list.bullet")
-                                .foregroundStyle(.gray)
+                                .foregroundStyle(.secondary)
                                 .frame(width: 24)
                             
                             Text("Tous les types")
@@ -1268,7 +1269,7 @@ struct FilterSheet: View {
                         } header: {
                             HStack {
                                 Image(systemName: "star.fill")
-                                    .foregroundStyle(.yellow)
+                                    .foregroundStyle(Color.appFavorite)
                                     .font(.caption)
                                 Text("Favoris")
                             }
@@ -1334,22 +1335,18 @@ struct FilterSheet: View {
     
     @ViewBuilder
     private func lineRow(line: String) -> some View {
-        let lineType = viewModel.vehicleTypeForLine(line)
         let isSelected = viewModel.selectedLines.contains(line)
         
         Button {
             viewModel.toggleLineSelection(line)
         } label: {
-            HStack {
+            HStack(spacing: 12) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? Color.appAccent : Color.gray)
+                    .foregroundStyle(isSelected ? Color.appAccent : Color.appNeutral)
                     .frame(width: 24)
                 
-                if let type = lineType {
-                    Image(systemName: type.icon)
-                        .foregroundStyle(type.clusterColor)
-                        .frame(width: 24)
-                }
+                // La couleur officielle de la ligne, la même que sur la carte.
+                LineBadge(line: line, size: 12)
                 
                 Text(line)
                     .foregroundStyle(.primary)
@@ -1361,7 +1358,7 @@ struct FilterSheet: View {
                 } label: {
                     let isFavorite = favoritesService.isFavorite(line)
                     Image(systemName: isFavorite ? "star.fill" : "star")
-                        .foregroundStyle(isFavorite ? .yellow : .gray)
+                        .foregroundStyle(isFavorite ? Color.appFavorite : Color.appNeutral)
                         .font(.system(size: 16))
                 }
                 .buttonStyle(.plain)
@@ -1707,7 +1704,7 @@ private struct SubscribedLinePill: View {
                 .clipShape(Capsule())
                 .overlay(
                     Capsule().strokeBorder(
-                        LineColorHelper.needsBorder(for: lineName) ? Color(.systemGray4) : .clear,
+                        LineColorHelper.needsBorder(for: lineName) ? Color.appNeutralBorder : .clear,
                         lineWidth: 0.5
                     )
                 )

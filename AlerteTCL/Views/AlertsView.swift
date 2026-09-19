@@ -1113,7 +1113,7 @@ struct AlertLineBadgeView: View {
                 .frame(width: size, height: size)
                 .overlay(
                     RoundedRectangle(cornerRadius: size * 0.2)
-                        .stroke(Color(.systemGray3), lineWidth: needsBorder ? 1 : 0)
+                        .stroke(Color.appNeutralBorder, lineWidth: needsBorder ? 1 : 0)
                 )
             
             Text(lineName)

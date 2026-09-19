@@ -1,5 +1,6 @@
 import MapKit
 import Shared
+import SwiftUI
 import UIKit
 
 // MARK: - Annotations (KVO-compliant pour animation fluide des coordinates)
@@ -398,7 +399,7 @@ final class MergedStopAnnotationView: MKAnnotationView {
             let needsBorder: Bool
 
             if item.isOverflow {
-                bgColor     = UIColor.systemGray5
+                bgColor     = UIColor(Color.appNeutralFill)
                 txtColor    = UIColor.secondaryLabel
                 needsBorder = false
             } else {
@@ -417,7 +418,7 @@ final class MergedStopAnnotationView: MKAnnotationView {
             // Bordure fine sur les badges à fond clair (bus blanc)
             if needsBorder {
                 bg.borderWidth = 0.5
-                bg.borderColor = UIColor.systemGray4.cgColor
+                bg.borderColor = UIColor(Color.appNeutralBorder).cgColor
             }
             // Clip après borderColor pour que le texte reste dans la capsule
             bg.masksToBounds   = true

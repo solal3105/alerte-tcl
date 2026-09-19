@@ -131,7 +131,7 @@ class TimetableTest {
     @Test
     fun paletteOverridesHeuristicColors() {
         LinePalette.reset()
-        assertEquals("#8C368C", LineColors.backgroundHex("T2"), "sans palette : charte historique")
+        assertEquals("#E5E5EA", LineColors.backgroundHex("T2"), "sans palette : fond neutre, aucune charte en dur")
         val index = HttpClientProvider.json.decodeFromString(
             TimetableIndex.serializer(),
             """{"format":1,"validFrom":"2026-09-15","validTo":"2026-10-01","lines":[
@@ -148,14 +148,14 @@ class TimetableTest {
         assertEquals("#6BA230", LineColors.routeStrokeHex("T2"))
         assertTrue(LineColors.needsBorder("TS"), "fond blanc : bordure")
         assertFalse(LineColors.needsBorder("T2"))
-        assertEquals("#8C368C", LineColors.backgroundHex("T9"), "ligne absente de la palette : charte historique")
+        assertEquals("#E5E5EA", LineColors.backgroundHex("T9"), "ligne absente de la palette : fond neutre")
 
         LinePalette.apply(index)
         assertEquals(before + 1, LinePalette.version.value, "palette inchangée : pas de nouvelle version")
 
         val encoded = persisted
         LinePalette.reset()
-        assertEquals("#8C368C", LineColors.backgroundHex("T2"))
+        assertEquals("#E5E5EA", LineColors.backgroundHex("T2"))
         LinePalette.restore(encoded)
         assertEquals("#6BA230", LineColors.backgroundHex("T2"), "palette restaurée depuis la persistance")
         LinePalette.onChange = null

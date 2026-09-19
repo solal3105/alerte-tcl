@@ -697,7 +697,7 @@ private fun LineGridCell(
         null -> Tokens.error
     }
     val badgeOnColor = when (highestSeverity) {
-        AlertSeverity.DISRUPTION -> Color(0xFF1B1B1F)
+        AlertSeverity.DISRUPTION -> Tokens.onLight
         AlertSeverity.INFO       -> MaterialTheme.colorScheme.onPrimary
         else                     -> Color.White
     }
@@ -1055,8 +1055,8 @@ private fun SubscriptionOptionsSheet(
 
 // ─── Helpers (ré-utilisables ailleurs) ───────────────────────────────────
 internal fun transportModeOnColor(mode: TransportMode): Color = when (mode) {
-    TransportMode.METRO   -> Color(0xFF1B1B1F)
-    TransportMode.NAVIGONE -> Color(0xFF1B1B1F)
+    TransportMode.METRO   -> Tokens.onLight
+    TransportMode.NAVIGONE -> Tokens.onLight
     else                  -> Color.White
 }
 

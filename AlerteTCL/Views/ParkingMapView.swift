@@ -625,7 +625,7 @@ struct ParkingDetailSheet: View {
                     } else {
                         Text("—")
                             .font(.system(size: 36, weight: .bold, design: .rounded))
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color.appNeutral)
                     }
 
                     Text("/ \(parking.capaciteTotale)")
@@ -799,7 +799,7 @@ struct ParkingDetailSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Label("Services", systemImage: "sparkles")
                 .font(.headline)
-                .foregroundStyle(.purple)
+                .foregroundStyle(Color.appAccent)
             
             LazyVGrid(columns: [
                 GridItem(.flexible()),
@@ -818,7 +818,7 @@ struct ParkingDetailSheet: View {
                     ServiceCell(icon: "motorcycle", title: "2 roues", count: moto, color: .appError)
                 }
                 if let auto = parking.nbAutopartage, auto > 0 {
-                    ServiceCell(icon: "car.2", title: "Autopartage", count: auto, color: .purple)
+                    ServiceCell(icon: "car.2", title: "Autopartage", count: auto, color: .appAccent)
                 }
             }
         }

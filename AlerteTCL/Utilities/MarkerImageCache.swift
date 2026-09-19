@@ -322,9 +322,9 @@ enum MarkerImageCache {
         case .metro, .tramway:
             fillColor = uiColor(LineColorHelper.backgroundColor(for: primaryLine ?? ""))
         case .busC:
-            fillColor = UIColor(red: 0.10, green: 0.20, blue: 0.55, alpha: 1) // bleu nuit bus C
+            fillColor = UIColor(Color(hex: AppColors.shared.stopMarkerBusC))
         case .bus:
-            fillColor = UIColor(red: 0.50, green: 0.55, blue: 0.62, alpha: 1) // gris bleuté
+            fillColor = UIColor(Color(hex: AppColors.shared.stopMarkerBus))
         }
 
         return imageRenderer(size: size).image { ctx in

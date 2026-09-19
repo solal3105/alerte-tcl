@@ -195,14 +195,14 @@ struct AboutView: View {
                     title: "Travaux",
                     subtitle: "Chantiers du réseau et de la voirie",
                     icon: "hammer.fill",
-                    tint: .yellow
+                    tint: .appWarning
                 )
                 separator
                 sourceRow(
                     title: "Parkings P+R",
                     subtitle: "Occupation en temps réel",
                     icon: "car.fill",
-                    tint: .purple
+                    tint: .appAccent
                 )
             }
 
@@ -392,7 +392,7 @@ struct AboutView: View {
                 title: "Politique de confidentialité",
                 subtitle: "Aucune donnée personnelle collectée",
                 icon: "lock.shield.fill",
-                tint: .gray,
+                tint: .appNeutral,
                 url: URL.trusted("https://solalgendrin.github.io/alerte-tcl/privacy")
             )
         }

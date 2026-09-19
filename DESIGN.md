@@ -25,8 +25,9 @@ l'objet `Tokens` (`ui/theme/Tokens.kt`) qui expose les mêmes noms à Compose.
 L'accent est fixe sur les deux plateformes : Android n'emprunte pas la couleur du fond d'écran
 (couleur dynamique Material désactivée) pour que l'interface soit la même que sur iOS.
 
-Les lignes ont leurs couleurs officielles (palette `route_color` du GTFS, via `LineColors`), avec la
-charte TCL historique en secours. Une couleur de ligne ne sert qu'à désigner cette ligne. Les modes
+Les lignes ont leurs couleurs officielles (palette `route_color` du GTFS, via `LineColors`) ; tant
+qu'une ligne n'y figure pas, elle est neutre (fond discret, liseré, texte foncé), aucune charte n'est
+écrite en dur. Cette palette s'applique partout où une ligne apparaît, filtres compris. Une couleur de ligne ne sert qu'à désigner cette ligne. Les modes
 de transport ont une couleur d'iconographie (`AppColors.mode`), réservée aux filtres et aux onglets,
 jamais utilisée pour représenter une ligne.
 

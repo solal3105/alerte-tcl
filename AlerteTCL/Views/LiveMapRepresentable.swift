@@ -537,7 +537,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 renderer.strokeColor = color
                 renderer.lineWidth = width
             } else {
-                renderer.strokeColor = .systemGray
+                renderer.strokeColor = UIColor(Color(hex: AppColors.shared.routeUnknown))
                 renderer.lineWidth = 3
             }
             renderer.lineCap = .round

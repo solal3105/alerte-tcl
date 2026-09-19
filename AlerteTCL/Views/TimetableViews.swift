@@ -569,7 +569,7 @@ private struct TimetableDayList: View {
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(selected ? accent.opacity(0.18) : Color(.systemGray5), in: Capsule())
+            .background(selected ? accent.opacity(0.18) : Color.appNeutralFill, in: Capsule())
             .overlay(Capsule().strokeBorder(selected ? accent.opacity(0.6) : .clear, lineWidth: 1))
         }
         .buttonStyle(.plain)
@@ -615,7 +615,7 @@ private struct TimetableDayList: View {
                 .foregroundStyle(.secondary)
             Spacer()
             Pill(text: passage.isRealTime ? "estimé" : "théorique",
-                 background: passage.isRealTime ? Color.appSuccess.opacity(0.15) : Color(.systemGray5),
+                 background: passage.isRealTime ? Color.appSuccess.opacity(0.15) : Color.appNeutralFill,
                  foreground: passage.isRealTime ? Color.appSuccess : Color.secondary)
         }
         .padding(.horizontal, 12)
@@ -906,7 +906,7 @@ struct TimetableSearchSheet: View {
                 if !favorites.isEmpty {
                     HStack(spacing: 6) {
                         Image(systemName: "star.fill")
-                            .foregroundStyle(.yellow)
+                            .foregroundStyle(Color.appFavorite)
                             .font(.caption)
                         SectionLabel(text: "Favoris")
                     }

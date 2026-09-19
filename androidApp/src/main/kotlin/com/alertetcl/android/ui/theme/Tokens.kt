@@ -30,6 +30,8 @@ object Tokens {
     val warning: Color @Composable @ReadOnlyComposable get() = AppColors.warning.compose()
     val error: Color @Composable @ReadOnlyComposable get() = AppColors.error.compose()
     val favorite: Color @Composable @ReadOnlyComposable get() = AppColors.favorite.compose()
+    /** Texte sur fond clair (badge de sévérité ou de mode à fond vif). */
+    val onLight: Color get() = colorFromHex(AppColors.onLight)
 
     @Composable @ReadOnlyComposable
     fun severity(severity: AlertSeverity): Color = AppColors.alertSeverity(severity).compose()

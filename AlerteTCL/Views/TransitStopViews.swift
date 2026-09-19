@@ -38,7 +38,7 @@ struct LineBadge: View {
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .stroke(Color(.systemGray3), lineWidth: needsBorder ? 1 : 0)
+                    .stroke(Color.appNeutralBorder, lineWidth: needsBorder ? 1 : 0)
             )
     }
 }
@@ -240,13 +240,13 @@ struct PassageChip: View {
                 }
                 Text(passage.delaipassage)
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Color(.systemGray))
+                    .foregroundStyle(.secondary)
             }
 
             // Heure de passage
             Text(passage.formattedTime)
                 .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(Color(.systemGray))
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)

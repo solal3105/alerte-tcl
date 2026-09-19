@@ -412,8 +412,8 @@ extension Travaux: Clusterable {
         switch importance {
         case .tresPerturbant: return .appError
         case .perturbant: return .appWarning
-        case .peuPerturbant: return .yellow
-        case .inconnu: return .gray
+        case .peuPerturbant: return .appSuccess
+        case .inconnu: return .appNeutral
         }
     }
     

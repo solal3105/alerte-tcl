@@ -544,7 +544,7 @@ private fun TravauxDetailSheet(t: Travaux) {
             Surface(color = pColor, shape = RoundedCornerShape(50)) {
                 Text(
                     t.avancement.displayName,
-                    color = if (pColor.luminance() > 0.179f) Color(0xFF1B1B1F) else Color.White,
+                    color = if (pColor.luminance() > 0.179f) Tokens.onLight else Color.White,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.bodyMedium
@@ -756,7 +756,7 @@ private fun travauxMarkerBitmap(colorHex: String, typeIconKey: String, importanc
         TravauxImportance.TRES_PERTURBANT -> {
             val br = 11f; val bx = cx + 18f; val by = cy - 18f
             canvas.drawCircle(bx, by, br, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = AndroidColor.parseColor("#E53935"); style = Paint.Style.FILL
+                color = AndroidColor.parseColor(AppColors.error.light); style = Paint.Style.FILL
             })
             canvas.drawCircle(bx, by, br, Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 2f
@@ -769,7 +769,7 @@ private fun travauxMarkerBitmap(colorHex: String, typeIconKey: String, importanc
         TravauxImportance.PERTURBANT -> {
             val br = 9f; val bx = cx + 18f; val by = cy - 18f
             canvas.drawCircle(bx, by, br, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = AndroidColor.parseColor("#FB8C00"); style = Paint.Style.FILL
+                color = AndroidColor.parseColor(AppColors.warning.light); style = Paint.Style.FILL
             })
             canvas.drawCircle(bx, by, br, Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = AndroidColor.WHITE; style = Paint.Style.STROKE; strokeWidth = 2f

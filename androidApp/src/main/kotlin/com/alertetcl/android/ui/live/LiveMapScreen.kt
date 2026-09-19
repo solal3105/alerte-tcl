@@ -234,7 +234,7 @@ private fun toMapColor(hex: String): String {
     return when (c.length) {
         6 -> "#$c"
         8 -> "#${c.substring(2)}" // drop alpha
-        else -> "#888888"
+        else -> AppColors.routeUnknown
     }
 }
 
@@ -2446,7 +2446,7 @@ private fun FilterSheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(Icons.Filled.Star, null, tint = Color(0xFFFFCC00), modifier = Modifier.size(13.dp))
+                            Icon(Icons.Filled.Star, null, tint = Tokens.favorite, modifier = Modifier.size(13.dp))
                             Text("FAVORIS", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -2532,7 +2532,7 @@ private fun LineFilterRow(
             Icon(
                 if (isFavorite) Icons.Filled.Star else Icons.Outlined.Star,
                 null,
-                tint = if (isFavorite) Color(0xFFFFCC00) else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (isFavorite) Tokens.favorite else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp)
             )
         }
@@ -2847,9 +2847,9 @@ private enum class StopTier(
     val fillHex:   String
 ) {
     METRO   (6.0f, 3.0f, 20, 3.0f, ""),
-    TRAMWAY (5.5f, 2.5f, 17, 2.5f, "#663399"),
-    BUS_C   (4.7f, 2.2f, 15, 2.2f, "#1A338C"),
-    BUS     (3.75f, 2.0f, 13, 2.0f, "#808C9E");
+    TRAMWAY (5.5f, 2.5f, 17, 2.5f, ""),
+    BUS_C   (4.7f, 2.2f, 15, 2.2f, AppColors.stopMarkerBusC),
+    BUS     (3.75f, 2.0f, 13, 2.0f, AppColors.stopMarkerBus);
 
     companion object {
         /** Métro et tramway prennent la couleur officielle de leur ligne principale. */
@@ -2890,7 +2890,7 @@ private fun stopCompactBitmap(tier: StopTier, primaryLine: String?): Bitmap {
 
 /** Couleur du noyau d'un arrêt : celle de la ligne principale pour le métro et le tramway, sinon celle du tier. */
 private fun stopFillHex(tier: StopTier, primaryLine: String?): String =
-    if (tier in StopTier.usesLineColor && primaryLine != null) LineColors.backgroundHex(primaryLine) else tier.fillHex
+    if (tier in StopTier.usesLineColor) LineColors.backgroundHex(primaryLine ?: "") else tier.fillHex
 
 /**
  * Dot tier-aware + capsules de ligne colorées (mode zoom serré).
