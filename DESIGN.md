@@ -40,12 +40,10 @@ retard, dernier arrêt) avec deux boutons, « Voir plus » pour sa fiche et « F
 réafficher (bouton rond en haut à droite). Le véhicule touché porte un halo à la couleur de sa ligne
 sur la carte. Le même bandeau, sans « Voir plus », sert au filtre lancé depuis la fiche d'un arrêt.
 Chaque véhicule est un disque à la couleur de sa ligne portant le pictogramme de son type (bus, tram,
-trolley, navigone…), son numéro de ligne dans une capsule juste en dessous, et sa flèche de cap ; à
-partir du zoom `MapStyle.ZOOM_FRESHNESS_RING`, un arc sur le bord intérieur du disque s'assombrit avec
-le délai depuis la dernière position transmise (0 à 90 s). L'arc est une ombre translucide, donc dans
-la teinte de la ligne : rien d'autre que la couleur de la ligne sur un véhicule. La grille de zoom est
-partagée (`MapStyle` : points sous 13,5, arrêts à 14,5, arc à 15, badges de lignes sur les arrêts à
-16), convertie sur iPhone depuis la largeur visible.
+trolley, navigone…), son numéro de ligne dans une capsule juste en dessous, et sa flèche de cap :
+rien d'autre que la couleur de la ligne sur un véhicule. Le délai depuis la dernière position ne se
+lit que dans la fiche du véhicule. La grille de zoom est partagée (`MapStyle` : points sous 13,5,
+arrêts à 14,5, badges de lignes sur les arrêts à 16), convertie sur iPhone depuis la largeur visible.
 
 Sur la carte Transport, trois boutons ronds seulement : « Trafic et horaires » (une horloge au repos ;
 plein, avec le nombre de lignes touchées, dès qu'il y a des perturbations sur les lignes suivies ; il

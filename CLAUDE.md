@@ -176,8 +176,8 @@ et un bandeau « Tout afficher » apparaît quand les filtres masquent tous les 
   la carte : filtre à chaque fetch dans les vues modèles et relecture chaque seconde côté carte.
 - Grille de zoom partagée `MapStyle.ZOOM_*` (niveaux MapLibre ; iOS convertit via `MapStyle.zoomLevel`) :
   tout seuil de visibilité sur la carte s'y réfère, aucune valeur de zoom en dur dans les vues.
-- Marqueur véhicule : pictogramme du type dans le disque, numéro de ligne en capsule juste dessous, arc
-  de délai sombre sur le bord intérieur du disque (`Vehicle.freshnessFraction`, une seule teinte) ; état du
+- Marqueur véhicule : pictogramme du type dans le disque, numéro de ligne en capsule juste dessous, aucun
+  indicateur de délai sur la carte (décision du 20 septembre 2026, le délai reste dans la fiche) ; état du
   trafic sur le bouton « Trafic et horaires » (`TrafficBanner.State.count`), qui ouvre une feuille à deux
   onglets (alertes, fiches horaires : `NetworkSheet` iOS, `TimetableFlow` hébergé dans la feuille Android).
   Boutons de carte en deux couleurs seulement (`MapGlassButton(active:)` / `MapCircleFab(active)`), vue

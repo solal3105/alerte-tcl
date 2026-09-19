@@ -33,13 +33,12 @@ struct MapGlassButton: View {
         if #available(iOS 26, *) {
             Group {
                 if active {
-                    Button(action: action) { icon(size: 40) }.buttonStyle(.glassProminent)
+                    Button(action: action) { icon(size: 34) }.buttonStyle(.glassProminent)
                 } else {
-                    Button(action: action) { icon(size: 40) }.buttonStyle(.glass)
+                    Button(action: action) { icon(size: 34) }.buttonStyle(.glass)
                 }
             }
             .buttonBorderShape(.circle)
-            .controlSize(.large)
             .tint(Color.appAccent)
         } else {
             Button(action: action) {

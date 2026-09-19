@@ -88,10 +88,6 @@ data class Vehicle(
     /** False dès que la position est obsolète : le véhicule n'est plus dessiné sur la carte. */
     fun isShownOnMap(nowEpochMs: Long): Boolean = positionFreshness(nowEpochMs) != PositionFreshness.STALE
 
-    /** Part du délai d'obsolescence déjà écoulée, de 0 à 1 : l'anneau autour du véhicule se remplit avec elle. */
-    fun freshnessFraction(nowEpochMs: Long): Double =
-        ((positionAgeSeconds(nowEpochMs) ?: 0L).toDouble() / HIDE_AFTER_SECONDS).coerceIn(0.0, 1.0)
-
     companion object {
         /** Délai sans nouvelle position transmise par TCL au-delà duquel un véhicule disparaît de la carte. */
         const val HIDE_AFTER_SECONDS = 90L

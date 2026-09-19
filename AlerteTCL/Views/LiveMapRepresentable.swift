@@ -231,7 +231,6 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 annotation.annotationView?.apply(
                     vehicle: annotation.vehicle,
                     bearing: newBearing,
-                    showRing: currentZoomLevel >= MapStyle.shared.ZOOM_FRESHNESS_RING,
                     simplified: false
                 )
             }
@@ -250,7 +249,6 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 annotation.annotationView?.apply(
                     vehicle: annotation.vehicle,
                     bearing: annotation.bearing,
-                    showRing: currentZoomLevel >= MapStyle.shared.ZOOM_FRESHNESS_RING,
                     simplified: simplified
                 )
             }
@@ -289,8 +287,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
                     existing.annotationView?.apply(
                         vehicle: vehicle,
                         bearing: bearing,
-                        showRing: currentZoomLevel >= MapStyle.shared.ZOOM_FRESHNESS_RING,
-                        simplified: isSimplified
+                            simplified: isSimplified
                     )
                 } else {
                     let annotation = VehicleAnnotation(vehicle: vehicle, coordinate: coord, bearing: bearing)
@@ -407,30 +404,13 @@ struct LiveMapRepresentable: UIViewRepresentable {
             // Passages simplifié ↔ complet
             let prevSimplified = prevZoom < MapStyle.shared.ZOOM_VEHICLE_BODY
             let nextSimplified = zoom     < MapStyle.shared.ZOOM_VEHICLE_BODY
-            let nextRing = zoom >= MapStyle.shared.ZOOM_FRESHNESS_RING
             if prevSimplified != nextSimplified {
                 for annotation in vehicleAnnotations.values {
                     annotation.annotationView?.apply(
                         vehicle: annotation.vehicle,
                         bearing: annotation.bearing,
-                        showRing: nextRing,
                         simplified: nextSimplified
                     )
-                }
-            }
-
-            // Anneau de délai (zoom serré uniquement, ne s'applique pas au mode simplifié)
-            if !nextSimplified {
-                let prevRing = prevZoom >= MapStyle.shared.ZOOM_FRESHNESS_RING
-                if prevRing != nextRing {
-                    for annotation in vehicleAnnotations.values {
-                        annotation.annotationView?.apply(
-                            vehicle: annotation.vehicle,
-                            bearing: annotation.bearing,
-                            showRing: nextRing,
-                            simplified: false
-                        )
-                    }
                 }
             }
 
@@ -468,8 +448,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 view.annotation = vehicle
                 view.isFocusedVehicle = vehicle.vehicle.id == focusedVehicleId
                 view.apply(vehicle: vehicle.vehicle, bearing: vehicle.bearing,
-                           showRing: currentZoomLevel >= MapStyle.shared.ZOOM_FRESHNESS_RING,
-                           simplified: currentZoomLevel < MapStyle.shared.ZOOM_VEHICLE_BODY)
+                                  simplified: currentZoomLevel < MapStyle.shared.ZOOM_VEHICLE_BODY)
                 vehicle.annotationView = view
                 return view
 

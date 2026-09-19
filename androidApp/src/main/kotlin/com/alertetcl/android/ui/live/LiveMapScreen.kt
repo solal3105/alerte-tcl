@@ -210,9 +210,6 @@ private const val BUS_LAYER       = "bus-layer"
 private const val VEHICLES_HALO_LAYER = "vehicles-halo-layer"
 private const val VEHICLES_LAYER  = "vehicles-layer"
 private const val VEHICLES_ARROW_LAYER = "vehicles-arrow-layer"
-// Anneau de délai depuis la dernière position autour de chaque véhicule, visible au zoom serré (parité iOS).
-private const val VEHICLES_RING_LAYER = "vehicles-ring-layer"
-private const val RING_STEPS = 12
 private const val STOPS_LAYER       = "stops-layer"        // CircleLayer mode compact
 private const val STOPS_BADGE_LAYER = "stops-badge-layer"  // SymbolLayer mode badges (zoom serré)
 
@@ -693,7 +690,7 @@ fun LiveMapScreen() {
 
         val nowSec   = System.currentTimeMillis() / 1000.0
         val features = current.filter { it.isShownOnMap((nowSec * 1000).toLong()) }
-            .map { v -> buildVehicleFeature(v, vm.animatedVehicleFor(v.id), nowSec, isDark, vm.stopFocus.value?.vehicleId) }
+            .map { v -> buildVehicleFeature(v, vm.animatedVehicleFor(v.id), nowSec, vm.stopFocus.value?.vehicleId) }
 
         if (style.getSource(VEHICLES_SRC) == null) {
             glInitMutex.withLock {
@@ -738,24 +735,12 @@ fun LiveMapScreen() {
                         PropertyFactory.iconIgnorePlacement(true),
                         PropertyFactory.iconSize(1f)
                     ))
-                    // Layer 3 : délai depuis la dernière position, arc sombre sur le bord du disque (au-dessus du corps), zoom serré uniquement.
-                    ringBitmaps().forEach { (key, bmp) -> if (style.getImage(key) == null) style.addImage(key, bmp) }
-                    style.addLayer(SymbolLayer(VEHICLES_RING_LAYER, VEHICLES_SRC).apply {
-                        minZoom = MapStyle.ZOOM_FRESHNESS_RING.toFloat()
-                        setProperties(
-                            PropertyFactory.iconImage(Expression.get("ring")),
-                            PropertyFactory.iconAllowOverlap(true),
-                            PropertyFactory.iconIgnorePlacement(true),
-                            PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER),
-                            PropertyFactory.iconSize(1f)
-                        )
-                    })
                 }
             }
             vehiclesLayerReady.value = true
         } else {
             style.getSourceAs<GeoJsonSource>(VEHICLES_SRC)
-                ?.setGeoJson(buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb, isDark))
+                ?.setGeoJson(buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb))
         }
     }
 
@@ -779,13 +764,13 @@ fun LiveMapScreen() {
             // pour faire vivre les étiquettes d'âge ("12 s" → "13 s").
             if (!vm.hasAnyActiveTransition(nowSec)) {
                 source.setGeoJson(
-                    buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb, isDark)
+                    buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb)
                 )
                 kotlinx.coroutines.delay(1_000)
                 continue
             }
             source.setGeoJson(
-                buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb, isDark)
+                buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb)
             )
             kotlinx.coroutines.delay(100)
         }
@@ -2244,8 +2229,7 @@ private fun buildVehicleGeoJson(
     arrowCache: HashMap<String, String>,
     vm: LiveVehiclesViewModel,
     nowSec: Double,
-    sb: StringBuilder,
-    darkTheme: Boolean
+    sb: StringBuilder
 ): String {
     sb.setLength(0)
     sb.append("{\"type\":\"FeatureCollection\",\"features\":[")
@@ -2269,7 +2253,7 @@ private fun buildVehicleGeoJson(
         sb.append(if (bearing != 0.0) (arrowCache[v.id] ?: "no_arrow") else "no_arrow")
         sb.append("\",\"bearing\":")
         sb.append(bearing.toFloat())
-        appendFreshnessProps(sb, v, nowMs, darkTheme, vm.stopFocus.value?.vehicleId)
+        appendDynamicProps(sb, v, vm.stopFocus.value?.vehicleId)
         sb.append("}")
         sb.append("}")
     }
@@ -2277,10 +2261,9 @@ private fun buildVehicleGeoJson(
     return sb.toString()
 }
 
-private fun buildVehicleFeature(v: Vehicle, animated: AnimatedVehicle?, nowSec: Double, darkTheme: Boolean, focusedId: String?): Feature {
+private fun buildVehicleFeature(v: Vehicle, animated: AnimatedVehicle?, nowSec: Double, focusedId: String?): Feature {
     val coord   = animated?.currentInterpolatedCoordinate(nowSec) ?: v.coordinate
     val bearing = animated?.currentInterpolatedBearing(nowSec) ?: v.bearing
-    val nowMs   = (nowSec * 1000).toLong()
     val props   = JsonObject().apply {
         addProperty("id",          v.id)
         addProperty("line",        v.lineName)
@@ -2289,47 +2272,16 @@ private fun buildVehicleFeature(v: Vehicle, animated: AnimatedVehicle?, nowSec: 
         addProperty("dot_icon",    vehicleDotKey(v.lineName))
         addProperty("arrow_icon",  if (bearing != 0.0) vehicleArrowKey(v.lineName) else "no_arrow")
         addProperty("bearing",     bearing.toFloat())
-        addProperty("ring",        ringKey(v, nowMs))
         addProperty("sel",         if (v.id == focusedId) 1 else 0)
         addProperty("line_col",    LineColors.backgroundHex(v.lineName))
     }
     return Feature.fromGeometry(Point.fromLngLat(coord.longitude, coord.latitude), props)
 }
 
-/** Propriétés dynamiques ajoutées au GeoJSON du hot path : sélection, couleur de ligne, anneau de délai. */
-private fun appendFreshnessProps(sb: StringBuilder, v: Vehicle, nowMs: Long, darkTheme: Boolean, focusedId: String?) {
+/** Propriétés dynamiques ajoutées au GeoJSON du hot path : sélection et couleur de ligne. */
+private fun appendDynamicProps(sb: StringBuilder, v: Vehicle, focusedId: String?) {
     sb.append(",\"sel\":").append(if (v.id == focusedId) 1 else 0)
     sb.append(",\"line_col\":\"").append(LineColors.backgroundHex(v.lineName)).append('"')
-    sb.append(",\"ring\":\"").append(ringKey(v, nowMs)).append('"')
-}
-
-/** Image de l'arc de délai pour ce véhicule : part du délai écoulée, par pas de 1/12. */
-private fun ringKey(v: Vehicle, nowMs: Long): String {
-    if (v.recordedAtEpoch == null) return "no_arrow"
-    val step = (v.freshnessFraction(nowMs) * RING_STEPS).toInt().coerceIn(0, RING_STEPS)
-    return "ring_$step"
-}
-
-/** Toutes les images d'arc : RING_STEPS + 1 remplissages, une seule teinte quelle que soit la ligne. */
-private fun ringBitmaps(): List<Pair<String, Bitmap>> = (0..RING_STEPS).map { step -> "ring_$step" to ringBitmap(step) }
-
-/**
- * Arc de délai intégré au disque : sur son bord, depuis le haut, sens horaire, 3 dp d'épaisseur, en
- * ombre translucide, donc toujours dans la teinte de la ligne (parité iOS).
- */
-private fun ringBitmap(step: Int): Bitmap {
-    val density = android.content.res.Resources.getSystem().displayMetrics.density
-    val size = (VEHICLE_DISC_DP * density).toInt().coerceAtLeast(1)
-    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-    if (step <= 0) return bmp
-    val canvas = Canvas(bmp)
-    val stroke = 3f * density
-    val inset = density + stroke / 2 + 0.5f * density
-    val rect = RectF(inset, inset, size - inset, size - inset)
-    canvas.drawArc(rect, -90f, 360f * step / RING_STEPS, false, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.argb(90, 0, 0, 0); style = Paint.Style.STROKE; strokeWidth = stroke; strokeCap = Paint.Cap.ROUND
-    })
-    return bmp
 }
 
 // ── Bitmap helpers ───────────────────────────────────────────────────────

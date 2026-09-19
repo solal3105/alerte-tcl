@@ -10,8 +10,6 @@ object MapStyle {
     const val ZOOM_VEHICLE_BODY = 13.5
     /** À partir de ce zoom, les arrêts (et, dans l'onglet Parkings, les stations) apparaissent. */
     const val ZOOM_STOPS = 14.5
-    /** À partir de ce zoom, l'anneau de délai depuis la dernière position entoure chaque véhicule. */
-    const val ZOOM_FRESHNESS_RING = 15.0
     /** À partir de ce zoom, les arrêts portent les badges de leurs lignes. */
     const val ZOOM_STOP_BADGES = 16.0
 

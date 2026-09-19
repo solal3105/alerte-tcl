@@ -720,3 +720,164 @@ h2 {
   .android-section { padding: 0 24px 60px; }
   .android-card { grid-template-columns: 1fr; padding: 40px 28px; gap: 36px; }
 }
+
+/* --- Nouveautés (version 1.3) -------------------------------------------- */
+.whats-new {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 110px 48px 40px;
+}
+.version-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: linear-gradient(120deg, rgba(10, 138, 61, 0.12), rgba(43, 127, 255, 0.12));
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.wn-row {
+  display: grid;
+  grid-template-columns: 1fr 0.85fr;
+  gap: 72px;
+  align-items: center;
+  margin: 0 auto 104px;
+}
+.wn-row:last-of-type { margin-bottom: 40px; }
+.wn-row.reverse .wn-text { order: 2; }
+.wn-row.reverse .wn-media { order: 1; }
+.wn-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 15px;
+  margin-bottom: 18px;
+}
+.wn-text h3 {
+  font-size: clamp(26px, 3vw, 36px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 16px;
+}
+.wn-text p {
+  font-size: 17px;
+  color: var(--ink-soft);
+  max-width: 520px;
+}
+.wn-text p + p { margin-top: 14px; }
+.wn-tags {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+.wn-tags li {
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.wn-media {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+.wn-media .phone-frame { transform: rotate(0deg); width: 290px; }
+.wn-media .phone-frame:hover { transform: translateY(-8px); }
+.wn-media::after {
+  content: '';
+  position: absolute;
+  inset: 12% 6%;
+  background: radial-gradient(circle, rgba(43, 127, 255, 0.28), transparent 62%);
+  filter: blur(46px);
+  z-index: -1;
+}
+.wn-row.reverse .wn-media::after {
+  background: radial-gradient(circle, rgba(58, 184, 94, 0.3), transparent 62%);
+}
+
+@media (max-width: 900px) {
+  .whats-new { padding: 70px 24px 20px; }
+  .wn-row {
+    grid-template-columns: 1fr;
+    gap: 36px;
+    margin-bottom: 72px;
+    text-align: center;
+  }
+  .wn-row.reverse .wn-text { order: 1; }
+  .wn-row.reverse .wn-media { order: 2; }
+  .wn-text p { margin-left: auto; margin-right: auto; }
+  .wn-tags { justify-content: center; }
+  .wn-media .phone-frame { width: 260px; }
+}
+
+/* --- Sous le capot (fiabilité) ------------------------------------------- */
+.under-hood {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 20px 48px 110px;
+}
+.hood-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 54px 52px;
+}
+.hood-card h3 {
+  font-size: clamp(24px, 2.6vw, 32px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+}
+.hood-card > p {
+  color: var(--ink-soft);
+  font-size: 17px;
+  max-width: 720px;
+}
+.hood-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 26px;
+  margin-top: 38px;
+}
+.hood-item {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px 24px 26px;
+  box-shadow: var(--shadow-sm);
+}
+.hood-item strong {
+  display: block;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+.hood-item p { font-size: 14.5px; color: var(--muted); }
+.hood-check {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: rgba(10, 138, 61, 0.1);
+  color: var(--green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 900px) {
+  .under-hood { padding: 10px 24px 80px; }
+  .hood-card { padding: 34px 24px 36px; }
+}
