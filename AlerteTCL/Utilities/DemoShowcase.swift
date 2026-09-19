@@ -27,6 +27,7 @@ import Shared
 ///   alertes-options feuille « Options de notification » de cette ligne
 ///   filtres       feuille des filtres de la carte (lignes aux couleurs officielles)
 ///   ville         accueil à tuiles de l'onglet « Autour de moi »
+///   info          onglet Info
 ///   velov         onglet « Autour de moi », carte des stations Vélo'v
 ///   velov-electriques  les mêmes, en ne comptant que les vélos électriques
 ///   velov-station fiche d'une station Vélo'v

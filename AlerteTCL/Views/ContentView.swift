@@ -27,12 +27,15 @@ struct ContentView: View {
                 }
                 .tag(2)
         }
-        .tint(.primary)
+        .tint(Color.appAccent)
         .tabViewStyle(.automatic)
         .onAppear {
             #if DEBUG
-            // Mode démo « velov… » ou « ville » : l'onglet « Autour de moi » s'ouvre de lui-même.
-            if let demo = DemoShowcase.current, demo.hasPrefix("velov") || demo == "ville" { selectedTab = 1 }
+            // Mode démo : « velov… » ou « ville » ouvrent « Autour de moi », « info » ouvre l'onglet Info.
+            if let demo = DemoShowcase.current {
+                if demo.hasPrefix("velov") || demo == "ville" { selectedTab = 1 }
+                if demo == "info" { selectedTab = 2 }
+            }
             #endif
         }
         .onChange(of: selectedParkingId) { _, newParkingId in

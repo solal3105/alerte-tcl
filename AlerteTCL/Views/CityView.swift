@@ -64,9 +64,6 @@ private struct CityChooserView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Autour de moi")
                         .font(.largeTitle.bold())
-                    Text("Choisissez ce que la carte doit afficher.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
                         .padding(.bottom, 6)
                     ForEach(Array(stride(from: 0, to: parkingTiles.count, by: 2)), id: \.self) { index in
                         HStack(alignment: .top, spacing: 14) {
@@ -143,33 +140,36 @@ private struct CityTileCard: View {
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(RoundedRectangle(cornerRadius: 28))
         }
         .buttonStyle(.plain)
-        .glassSurface(RoundedRectangle(cornerRadius: 28), interactive: true)
+        .glassSurface(RoundedRectangle(cornerRadius: 28), tint: tile.color.opacity(0.22))
     }
 
     private var texts: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(tile.title)
-                .font(.headline)
+                .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.leading)
             Text(tile.subtitle)
-                .font(.caption)
+                .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.leading)
         }
     }
 }
 
+/// Pictogramme blanc sur un disque plein à la couleur de la tuile.
 private struct TileIcon: View {
     let tile: CityTile
 
     var body: some View {
         Image(systemName: tile.icon)
-            .font(.system(size: 22, weight: .semibold))
-            .foregroundStyle(tile.color)
-            .frame(width: 46, height: 46)
-            .background(tile.color.opacity(0.14), in: Circle())
+            .font(.system(size: 24, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 52, height: 52)
+            .background(tile.color, in: Circle())
+            .shadow(color: tile.color.opacity(0.35), radius: 8, x: 0, y: 4)
     }
 }

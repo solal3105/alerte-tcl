@@ -1016,10 +1016,10 @@ struct FilterSheet: View {
                 }
 
                 Section("Carte") {
-                    Toggle("Vue satellite", isOn: $isSatellite)
-                    Toggle("Tracés des bus", isOn: $viewModel.showBusTraces)
-                    Toggle("Tracés des trams", isOn: $viewModel.showTramTraces)
-                    Toggle("Tracés du métro et du funiculaire", isOn: $viewModel.showMetroTraces)
+                    Toggle(isOn: $isSatellite) { filterLabel("Vue satellite", systemImage: "globe.europe.africa.fill") }
+                    Toggle(isOn: $viewModel.showBusTraces) { filterLabel("Tracés des bus", systemImage: "bus.fill") }
+                    Toggle(isOn: $viewModel.showTramTraces) { filterLabel("Tracés des trams", systemImage: "tram.fill") }
+                    Toggle(isOn: $viewModel.showMetroTraces) { filterLabel("Tracés du métro et du funiculaire", systemImage: "tram.fill.tunnel") }
                 }
 
                 if !presentTypes.isEmpty {
@@ -1128,6 +1128,18 @@ struct FilterSheet: View {
         !viewModel.showMetroTraces
     }
     
+    /// Libellé d'une ligne de filtre : pictogramme sur carré teinté, comme les types de véhicule.
+    private func filterLabel(_ title: String, systemImage: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.appAccent)
+                .frame(width: 30, height: 30)
+                .background(Color.appAccent.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+            Text(title)
+        }
+    }
+
     @ViewBuilder
     private func lineRow(line: String) -> some View {
         let isSelected = viewModel.selectedLines.contains(line)

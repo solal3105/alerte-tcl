@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Tram
+import androidx.compose.material.icons.filled.Subway
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.FilledTonalIconButton
@@ -1980,13 +1981,13 @@ private fun FilterSheet(
             item {
                 FilterSectionTitle("Carte")
                 FilterCard {
-                    TraceToggleRow(label = "Vue satellite", checked = isSatellite, onToggle = onToggleSatellite)
-                    HorizontalDivider(modifier = Modifier.padding(start = 14.dp))
-                    TraceToggleRow(label = "Tracés des bus", checked = showBusTraces, onToggle = onToggleBusTraces)
-                    HorizontalDivider(modifier = Modifier.padding(start = 14.dp))
-                    TraceToggleRow(label = "Tracés des trams", checked = showTramTraces, onToggle = onToggleTramTraces)
-                    HorizontalDivider(modifier = Modifier.padding(start = 14.dp))
-                    TraceToggleRow(label = "Tracés du métro et du funiculaire", checked = showMetroTraces, onToggle = onToggleMetroTraces)
+                    TraceToggleRow(icon = Icons.Filled.Public, label = "Vue satellite", checked = isSatellite, onToggle = onToggleSatellite)
+                    HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                    TraceToggleRow(icon = Icons.Filled.DirectionsBus, label = "Tracés des bus", checked = showBusTraces, onToggle = onToggleBusTraces)
+                    HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                    TraceToggleRow(icon = Icons.Filled.Tram, label = "Tracés des trams", checked = showTramTraces, onToggle = onToggleTramTraces)
+                    HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                    TraceToggleRow(icon = Icons.Filled.Subway, label = "Tracés du métro et du funiculaire", checked = showMetroTraces, onToggle = onToggleMetroTraces)
                 }
             }
             if (presentTypes.isNotEmpty()) {
@@ -2084,12 +2085,19 @@ private fun FilterCard(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun TraceToggleRow(label: String, checked: Boolean, onToggle: () -> Unit) {
+private fun TraceToggleRow(icon: ImageVector, label: String, checked: Boolean, onToggle: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable { onToggle() }
             .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        Box(
+            modifier = Modifier.size(30.dp).background(Tokens.accent.copy(alpha = 0.14f), RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = Tokens.accent, modifier = Modifier.size(16.dp))
+        }
         Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = { onToggle() })
     }

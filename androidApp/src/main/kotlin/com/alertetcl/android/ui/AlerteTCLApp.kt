@@ -74,7 +74,13 @@ fun AlerteTCLApp(initialRoute: String? = null) {
     // Deep-link: switch tab on incoming route. En démo « velov… » ou « ville », l'onglet « Autour de moi » s'ouvre de lui-même.
     androidx.compose.runtime.LaunchedEffect(initialRoute) {
         val target = initialRoute
-            ?: com.alertetcl.shared.util.DemoShowcase.current?.takeIf { it.startsWith("velov") || it == "ville" }?.let { "ville" }
+            ?: com.alertetcl.shared.util.DemoShowcase.current?.let { demo ->
+                when {
+                    demo.startsWith("velov") || demo == "ville" -> "ville"
+                    demo == "info" -> "about"
+                    else -> null
+                }
+            }
             ?: return@LaunchedEffect
         if (tabs.any { it.route == target }) {
             nav.navigate(target) {

@@ -84,7 +84,8 @@ arrière-plan (activité en direct) a été essayé puis retiré le 16 septembre
 
 L'onglet « Autour de moi » (Transport, Autour de moi, Info : trois onglets) s'ouvre sur la carte de la
 ville, immobile et centrée sur la position, sous un voile qui s'épaissit vers le bas ; par-dessus, des
-tuiles de verre, une par entrée de `CityTile` (module partagé, dans l'ordre de l'énumération) :
+tuiles de verre teinté à la couleur de l'entrée, avec un pictogramme blanc sur un disque plein, une par
+entrée de `CityTile` (module partagé, dans l'ordre de l'énumération) :
 « Parkings voiture », « Stations Vélo'v », « Arceaux vélos », « Places deux-roues motorisés » sur deux
 colonnes, puis « Travaux » en pleine largeur. Chaque tuile porte son titre, une ligne descriptive
 (`CityTile.title` / `subtitle`, couleur `AppColors.cityTile`) et, quand la donnée est là, le chiffre du
@@ -96,16 +97,27 @@ Une tuile ouvre la carte correspondante (parkings ou chantiers). Sur iOS elle es
 transparente. Sur Android, une capsule de verre en haut rappelle la tuile et ramène à l'accueil, et le
 geste retour du système fait de même.
 
-Tout l'onglet est en verre : tuiles, capsules (retour Android, « LIVE ») et boutons ronds des cartes
-reposent sur le même style (iOS `glassSurface`, Liquid Glass dès iOS 26 et matériau translucide avec
-liseré clair avant ; Android `Modifier.glass`, fond translucide et liseré en dégradé). Jamais de verre
-dans du verre : l'icône d'une tuile est sur un disque teinté uni. La fiche d'un parking ne montre que ce
+Tout l'onglet est en verre : tuiles et capsule de retour Android reposent sur `glassSurface` (iOS,
+Liquid Glass dès iOS 26 et matériau translucide avec liseré clair avant) ou `Modifier.glass` (Android,
+fond translucide et liseré en dégradé). Les boutons ronds des cartes sont, sur iOS 26, les styles de
+bouton en verre du système (`.glass` au repos, `.glassProminent` actif), qui répondent au toucher sans
+délai ; jamais un effet de verre posé par-dessus un bouton. Jamais de verre dans du verre : l'icône
+d'une tuile est sur un disque plein. L'accent de l'application est la teinte de toute l'interface
+(interrupteurs compris), pas la couleur « primaire » du système. La fiche d'un parking ne montre que ce
 que la donnée contient (plus de « type d'usagers » ni de « type d'ouvrage » inventés).
+
+## Onglet Info
+
+Solal Gendrin en tête (initiales sur un disque vert, nom, « Conseiller métropolitain écologiste »,
+une phrase, un bouton LinkedIn), puis l'application, Open Projets (carte à l'accent), l'Open Data du
+Grand Lyon (carte verte), les sources de données, les liens et la version. Aucune couleur en dur :
+jetons `accent`, `success`, `warning`, `neutral`.
 
 ## Filtres de la carte Transport
 
 Une feuille en quatre parties, dans cet ordre : « Bus d'un arrêt » quand une ligne est isolée ;
-« Carte » (vue satellite, tracés des bus, des trams, du métro et du funiculaire) ; « Véhicules affichés »
+« Carte » (vue satellite, tracés des bus, des trams, du métro et du funiculaire, chaque ligne avec son
+pictogramme sur carré teinté) ; « Véhicules affichés »
 (un interrupteur par type présent sur la carte, avec le nombre de véhicules) ; « Lignes » (recherche,
 favoris, toutes les lignes, dix d'abord). « Tout réafficher » dans la barre quand un filtre est actif.
 Les lignes scolaires « Junior Direct » (JD…) n'apparaissent ni sur les arrêts ni dans les prochains

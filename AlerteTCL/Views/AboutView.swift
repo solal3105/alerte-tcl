@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Onglet Info : Solal Gendrin d'abord, puis l'application, Open Projets, l'Open Data du Grand Lyon,
+/// les sources et les liens. Toutes les couleurs viennent des jetons partagés.
 struct AboutView: View {
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -12,14 +14,12 @@ struct AboutView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 28) {
+                VStack(spacing: 24) {
                     heroSection
-                    manifestoCard
-                    creatorCard
+                    appCard
                     openProjetsCard
                     openDataTribute
                     sourcesCard
-                    contactCard
                     linksFooter
                     versionFooter
                 }
@@ -31,62 +31,75 @@ struct AboutView: View {
         }
     }
 
-    // MARK: Hero
+    // MARK: Solal Gendrin
 
     private var heroSection: some View {
-        VStack(spacing: 14) {
-            appIconView
-                .frame(width: 96, height: 96)
-                .shadow(color: .black.opacity(0.12), radius: 18, x: 0, y: 8)
+        VStack(spacing: 18) {
+            Text("SG")
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: 104, height: 104)
+                .background(
+                    LinearGradient(colors: [Color.appSuccess, Color.appSuccess.opacity(0.7)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                    in: Circle()
+                )
+                .shadow(color: Color.appSuccess.opacity(0.35), radius: 18, x: 0, y: 8)
 
-            VStack(spacing: 4) {
-                Text("Lyon Pocket")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                Text("Les transports lyonnais, en direct.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+            VStack(spacing: 8) {
+                Text("Solal Gendrin")
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                Text("Conseiller métropolitain écologiste")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.appSuccess)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(Color.appSuccess.opacity(0.12), in: Capsule())
             }
+
+            Text("Élu écologiste à la Métropole de Lyon, je développe Lyon Pocket pour rendre les transports en commun, le vélo et le stationnement plus simples à utiliser au quotidien.")
+                .font(.callout)
+                .foregroundStyle(.primary.opacity(0.85))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 8)
+
+            Link(destination: URL.trusted("https://www.linkedin.com/in/solal-gendrin/")) {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.crop.circle.badge.checkmark")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Me suivre sur LinkedIn")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 13)
+                .background(Color.appAccent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 12)
-        .padding(.bottom, 4)
+        .padding(.top, 16)
+        .padding(.horizontal, 4)
     }
 
-    private var appIconView: some View {
-        Group {
-            if let img = UIImage(named: "AppIcon")
-                ?? Bundle.main.iconImage() {
-                Image(uiImage: img)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(LinearGradient(
-                        colors: [Color.appSuccess, Color.appSuccess.opacity(0.75)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing))
-                    .overlay(
-                        Image(systemName: "tram.fill")
-                            .font(.system(size: 42, weight: .semibold))
-                            .foregroundStyle(.white)
-                    )
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-    }
+    // MARK: L'application
 
-    // MARK: Manifesto
-
-    private var manifestoCard: some View {
+    private var appCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 10) {
-                badge(icon: "checkmark.seal.fill", tint: .appSuccess)
-                Text("Respectueuse, par conception")
-                    .font(.headline)
+            HStack(spacing: 12) {
+                appIconView
+                    .frame(width: 44, height: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Lyon Pocket")
+                        .font(.headline)
+                    Text("Les transports lyonnais, en direct.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
-            Text("Lyon Pocket est gratuit, sans publicité, sans compte. Aucune donnée personnelle n'est collectée. C'est tout.")
+            Text("Une application indépendante, née d'un usage quotidien des TCL : gratuite, sans publicité, sans compte. Aucune donnée personnelle n'est collectée.")
                 .font(.callout)
                 .foregroundStyle(.primary.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
@@ -102,146 +115,29 @@ struct AboutView: View {
         .background(cardBackground)
     }
 
-    // MARK: Open data tribute (highlighted)
-
-    private var openDataTribute: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(.white.opacity(0.18))
-                        .frame(width: 36, height: 36)
-                    Image(systemName: "heart.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-                Text("Merci à l'Open Data du Grand Lyon")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Text("Cette app n'existerait pas sans le travail remarquable des équipes Open Data du Grand Lyon. Position des bus en temps réel, alertes, travaux, parkings : tout est mis à disposition librement, sous licence ouverte. Un travail souvent invisible, qui rend possible des projets citoyens comme celui-ci.")
-                .font(.callout)
-                .foregroundStyle(.white.opacity(0.92))
-                .fixedSize(horizontal: false, vertical: true)
-
-            Link(destination: URL.trusted("https://data.grandlyon.com")) {
-                HStack(spacing: 6) {
-                    Text("data.grandlyon.com")
-                        .font(.subheadline.weight(.semibold))
-                    Image(systemName: "arrow.up.right")
-                        .font(.caption.weight(.semibold))
-                }
-                .foregroundStyle(Color.appSuccess)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .background(.white, in: Capsule())
+    private var appIconView: some View {
+        Group {
+            if let img = UIImage(named: "AppIcon") ?? Bundle.main.iconImage() {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.appSuccess)
+                    .overlay(
+                        Image(systemName: "tram.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.white)
+                    )
             }
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(red: 0.04, green: 0.55, blue: 0.30),
-                    Color(red: 0.06, green: 0.42, blue: 0.55)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: Color.appSuccess.opacity(0.18), radius: 16, x: 0, y: 8)
-    }
-
-    // MARK: Sources
-
-    private var sourcesCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                badge(icon: "antenna.radiowaves.left.and.right", tint: .appAccent)
-                Text("Sources de données")
-                    .font(.headline)
-                Spacer()
-            }
-            .padding(.horizontal, 18)
-            .padding(.top, 18)
-            .padding(.bottom, 12)
-
-            VStack(spacing: 0) {
-                sourceRow(
-                    title: "Position des véhicules",
-                    subtitle: "SIRI-Lite, temps réel",
-                    icon: "location.fill",
-                    tint: .appSuccess
-                )
-                separator
-                sourceRow(
-                    title: "Arrêts, lignes, horaires",
-                    subtitle: "GTFS",
-                    icon: "tram.fill",
-                    tint: .indigo
-                )
-                separator
-                sourceRow(
-                    title: "Alertes & perturbations",
-                    subtitle: "Flux officiel TCL",
-                    icon: "exclamationmark.triangle.fill",
-                    tint: .appWarning
-                )
-                separator
-                sourceRow(
-                    title: "Travaux",
-                    subtitle: "Chantiers du réseau et de la voirie",
-                    icon: "hammer.fill",
-                    tint: .appWarning
-                )
-                separator
-                sourceRow(
-                    title: "Parkings P+R",
-                    subtitle: "Occupation en temps réel",
-                    icon: "car.fill",
-                    tint: .appAccent
-                )
-            }
-
-            Text("Toutes les données sont publiées par le Grand Lyon sous licence ouverte (Etalab / ODbL).")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .background(cardBackground)
-    }
-
-    // MARK: Creator
-
-    private var creatorCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 10) {
-                badge(icon: "person.fill", tint: .indigo)
-                Text("Derrière Lyon Pocket")
-                    .font(.headline)
-            }
-
-            Text("**Solal Gendrin**, conseiller métropolitain à Lyon. Lyon Pocket est un projet personnel, né d'un usage quotidien des TCL.")
-                .font(.callout)
-                .foregroundStyle(.primary.opacity(0.85))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     // MARK: Open Projets
 
     private var openProjetsCard: some View {
         VStack(alignment: .leading, spacing: 18) {
-
-            // Header
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 11, style: .continuous)
@@ -264,11 +160,10 @@ struct AboutView: View {
                         .foregroundStyle(.white)
                     Text("Mon autre projet")
                         .font(.caption.weight(.medium))
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(.white.opacity(0.7))
                 }
             }
 
-            // Pitch
             VStack(alignment: .leading, spacing: 10) {
                 Text("Vous travaillez dans une collectivité ou vous êtes élu ?")
                     .font(.subheadline.weight(.bold))
@@ -276,125 +171,124 @@ struct AboutView: View {
 
                 Text("Avec Vazy, société à mission villeurbannaise, on a construit Open Projets : une carte interactive que chaque commune peut déployer pour informer ses habitants sur ses chantiers et projets d'aménagement.")
                     .font(.callout)
-                    .foregroundStyle(.white.opacity(0.88))
+                    .foregroundStyle(.white.opacity(0.9))
                     .fixedSize(horizontal: false, vertical: true)
                     .lineSpacing(3)
 
                 Text("La carte reprend votre logo, vos couleurs, vos catégories. Vos agents ajoutent les projets en quelques clics. Les habitants consultent depuis leur téléphone, sans compte, sans téléchargement.")
                     .font(.callout)
-                    .foregroundStyle(.white.opacity(0.88))
+                    .foregroundStyle(.white.opacity(0.9))
                     .fixedSize(horizontal: false, vertical: true)
                     .lineSpacing(3)
             }
 
-            // Deux CTAs
             VStack(spacing: 10) {
-                Link(destination: URL.trusted("https://openprojets.com/home")) {
-                    HStack(spacing: 6) {
-                        Text("Découvrir Open Projets")
-                            .font(.subheadline.weight(.semibold))
-                        Image(systemName: "arrow.up.right")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .foregroundStyle(Color(red: 0.14, green: 0.18, blue: 0.58))
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 11)
-                    .frame(maxWidth: .infinity)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-                .buttonStyle(.plain)
-
-                Link(destination: URL.trusted("https://openprojets.com/default")) {
-                    HStack(spacing: 6) {
-                        Text("Voir la carte de la Métropole de Lyon")
-                            .font(.subheadline.weight(.medium))
-                        Image(systemName: "arrow.up.right")
-                            .font(.subheadline.weight(.medium))
-                    }
-                    .foregroundStyle(.white.opacity(0.85))
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 11)
-                    .frame(maxWidth: .infinity)
-                    .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-                .buttonStyle(.plain)
+                tintedLink("Découvrir Open Projets", url: URL.trusted("https://openprojets.com/home"), filled: true)
+                tintedLink("Voir la carte de la Métropole de Lyon", url: URL.trusted("https://openprojets.com/default"), filled: false)
             }
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            LinearGradient(
-                colors: [
-                    Color(red: 0.12, green: 0.20, blue: 0.60),
-                    Color(red: 0.28, green: 0.14, blue: 0.62)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            LinearGradient(colors: [Color.appAccent, Color.appAccent.opacity(0.78)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
         )
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: Color(red: 0.18, green: 0.22, blue: 0.65).opacity(0.28), radius: 18, x: 0, y: 8)
+        .shadow(color: Color.appAccent.opacity(0.25), radius: 18, x: 0, y: 8)
     }
 
-    // MARK: Contact
+    // MARK: Open Data
 
-    private var contactCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
+    private var openDataTribute: some View {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
-                badge(icon: "bubble.left.and.bubble.right.fill", tint: .pink)
-                Text("Une idée ? Un bug ?")
+                ZStack {
+                    Circle()
+                        .fill(.white.opacity(0.18))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                Text("Merci à l'Open Data du Grand Lyon")
                     .font(.headline)
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            Text("Suggestions, retours, propositions d'évolution : écrivez-moi sur LinkedIn, je lis tout.")
+            Text("Cette app n'existerait pas sans le travail remarquable des équipes Open Data du Grand Lyon. Position des bus en temps réel, alertes, travaux, parkings, Vélo'v : tout est mis à disposition librement, sous licence ouverte. Un travail souvent invisible, qui rend possible des projets citoyens comme celui-ci.")
                 .font(.callout)
-                .foregroundStyle(.primary.opacity(0.85))
+                .foregroundStyle(.white.opacity(0.92))
                 .fixedSize(horizontal: false, vertical: true)
 
-            Link(destination: URL.trusted("https://www.linkedin.com/in/solal-gendrin/")) {
-                HStack(spacing: 8) {
-                    Image(systemName: "paperplane.fill")
+            Link(destination: URL.trusted("https://data.grandlyon.com")) {
+                HStack(spacing: 6) {
+                    Text("data.grandlyon.com")
                         .font(.subheadline.weight(.semibold))
-                    Text("Me contacter sur LinkedIn")
-                        .font(.subheadline.weight(.semibold))
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption.weight(.semibold))
                 }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(
-                    LinearGradient(
-                        colors: [Color.appAccent, Color.appAccent.opacity(0.75)],
-                        startPoint: .leading,
-                        endPoint: .trailing),
-                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                )
+                .foregroundStyle(Color.appSuccess)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(.white, in: Capsule())
             }
-            .buttonStyle(.plain)
         }
-        .padding(18)
+        .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(colors: [Color.appSuccess, Color.appSuccess.opacity(0.78)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: Color.appSuccess.opacity(0.2), radius: 16, x: 0, y: 8)
+    }
+
+    // MARK: Sources
+
+    private var sourcesCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                badge(icon: "antenna.radiowaves.left.and.right", tint: .appAccent)
+                Text("Sources de données")
+                    .font(.headline)
+                Spacer()
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 18)
+            .padding(.bottom, 12)
+
+            VStack(spacing: 0) {
+                sourceRow(title: "Position des véhicules", subtitle: "SIRI-Lite, temps réel", icon: "location.fill", tint: .appSuccess)
+                separator
+                sourceRow(title: "Arrêts, lignes, horaires", subtitle: "GTFS", icon: "tram.fill", tint: .appAccent)
+                separator
+                sourceRow(title: "Alertes et perturbations", subtitle: "Flux officiel TCL", icon: "exclamationmark.triangle.fill", tint: .appWarning)
+                separator
+                sourceRow(title: "Travaux", subtitle: "Chantiers du réseau et de la voirie", icon: "hammer.fill", tint: .appWarning)
+                separator
+                sourceRow(title: "Parkings et Vélo'v", subtitle: "Disponibilité en temps réel", icon: "car.fill", tint: .appAccent)
+            }
+
+            Text("Toutes les données sont publiées par le Grand Lyon sous licence ouverte (Etalab / ODbL).")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
         .background(cardBackground)
     }
 
-    // MARK: Links footer
+    // MARK: Liens
 
     private var linksFooter: some View {
         VStack(spacing: 0) {
-            footerLink(
-                title: "Site officiel",
-                subtitle: "lyon-pocket.netlify.app",
-                icon: "globe",
-                tint: .teal,
-                url: URL.trusted("https://lyon-pocket.netlify.app/")
-            )
+            footerLink(title: "Site officiel", subtitle: "lyon-pocket.netlify.app", icon: "globe", tint: .appAccent,
+                       url: URL.trusted("https://lyon-pocket.netlify.app/"))
             separator
-            footerLink(
-                title: "Politique de confidentialité",
-                subtitle: "Aucune donnée personnelle collectée",
-                icon: "lock.shield.fill",
-                tint: .appNeutral,
-                url: URL.trusted("https://solalgendrin.github.io/alerte-tcl/privacy")
-            )
+            footerLink(title: "Politique de confidentialité", subtitle: "Aucune donnée personnelle collectée", icon: "lock.shield.fill", tint: .appNeutral,
+                       url: URL.trusted("https://solalgendrin.github.io/alerte-tcl/privacy"))
         }
         .background(cardBackground)
     }
@@ -446,9 +340,25 @@ struct AboutView: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(
-                Capsule().fill(Color(.tertiarySystemGroupedBackground))
-            )
+            .background(Capsule().fill(Color(.tertiarySystemGroupedBackground)))
+    }
+
+    /// Lien sur une carte colorée : plein (blanc) ou discret (blanc translucide).
+    private func tintedLink(_ title: String, url: URL, filled: Bool) -> some View {
+        Link(destination: url) {
+            HStack(spacing: 6) {
+                Text(title)
+                    .font(.subheadline.weight(filled ? .semibold : .medium))
+                Image(systemName: "arrow.up.right")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .foregroundStyle(filled ? Color.appAccent : Color.white.opacity(0.9))
+            .padding(.horizontal, 18)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity)
+            .background(filled ? Color.white : Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     private func sourceRow(title: String, subtitle: String, icon: String, tint: Color) -> some View {
@@ -461,7 +371,6 @@ struct AboutView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(tint)
             }
-
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.subheadline.weight(.medium))
@@ -470,7 +379,6 @@ struct AboutView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
             Spacer()
         }
         .padding(.horizontal, 18)
@@ -488,7 +396,6 @@ struct AboutView: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(tint)
                 }
-
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.subheadline.weight(.medium))
@@ -497,9 +404,7 @@ struct AboutView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-
                 Spacer()
-
                 Image(systemName: "arrow.up.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)

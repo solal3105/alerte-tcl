@@ -113,8 +113,7 @@ private fun CityChooser(onChoose: (CityTile) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text("Autour de moi", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("Choisissez ce que la carte doit afficher.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(6.dp))
             tiles.filter { it.parkingType != null }.chunked(2).forEach { row ->
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     row.forEach { tile -> CityTileCard(tile, Modifier.weight(1f)) { onChoose(tile) } }
@@ -159,6 +158,7 @@ private fun CityTileCard(tile: CityTile, modifier: Modifier, wide: Boolean = fal
         modifier = modifier
             .heightIn(min = if (wide) 96.dp else 172.dp)
             .glass(shape, alpha = 0.86f)
+            .background(accent.copy(alpha = 0.14f))
             .clickable { onClick() }
             .padding(18.dp)
     ) {
@@ -184,13 +184,14 @@ private fun TileTexts(tile: CityTile) {
     }
 }
 
+/** Pictogramme blanc sur un disque plein à la couleur de la tuile. */
 @Composable
-private fun TileIcon(tile: CityTile, accent: Color, size: Int = 46, iconSize: Int = 24) {
+private fun TileIcon(tile: CityTile, accent: Color, size: Int = 52, iconSize: Int = 26) {
     Box(
-        modifier = Modifier.size(size.dp).background(accent.copy(alpha = 0.14f), CircleShape),
+        modifier = Modifier.size(size.dp).background(accent, CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        Icon(tileIcon(tile), null, tint = accent, modifier = Modifier.size(iconSize.dp))
+        Icon(tileIcon(tile), null, tint = Color.White, modifier = Modifier.size(iconSize.dp))
     }
 }
 

@@ -15,7 +15,9 @@ enum ParkingType: String, Codable, CaseIterable {
         switch self {
         case .car: return "car.fill"
         case .bike: return "bicycle"
-        case .motorized2Wheel: return "scooter"
+        case .motorized2Wheel:
+            // Une moto ; le symbole manque sur les iOS les plus anciens, où une mobylette le remplace.
+            return UIImage(systemName: "motorcycle.fill") != nil ? "motorcycle.fill" : "moped.fill"
         case .velov: return "figure.outdoor.cycle"
         }
     }
