@@ -17,7 +17,7 @@ struct ContentView: View {
             
             CityView(selectedParkingId: $selectedParkingId)
                 .tabItem {
-                    Label("Ville", systemImage: "building.2.fill")
+                    Label("Autour de moi", systemImage: "mappin.and.ellipse")
                 }
                 .tag(1)
 
@@ -31,7 +31,7 @@ struct ContentView: View {
         .tabViewStyle(.automatic)
         .onAppear {
             #if DEBUG
-            // Mode démo « velov… » ou « ville » : l'onglet Ville s'ouvre de lui-même.
+            // Mode démo « velov… » ou « ville » : l'onglet « Autour de moi » s'ouvre de lui-même.
             if let demo = DemoShowcase.current, demo.hasPrefix("velov") || demo == "ville" { selectedTab = 1 }
             #endif
         }

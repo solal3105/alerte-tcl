@@ -69,26 +69,32 @@ Sans bus en approche, la section reste visible avec « Aucun bus en route vers c
 l'instant » ; le métro, sans positions en direct, n'a pas cette section. Le suivi d'un bus en
 arrière-plan (activité en direct) a été essayé puis retiré le 16 septembre 2026.
 
-## Ville
+## Autour de moi
 
-L'onglet Ville (Transport, Ville, Info : trois onglets) s'ouvre sur un accueil à tuiles, une par entrée
-de `CityTile` (module partagé, dans l'ordre de l'énumération) : « Parkings voiture », « Stations
-Vélo'v », « Arceaux vélos », « Places deux-roues motorisés » sur deux colonnes, puis « Travaux » en
-pleine largeur, chacune avec une ligne qui dit ce qu'on va voir. Les textes sont `CityTile.title` /
-`subtitle`, les couleurs `AppColors.cityTile`. Une tuile ouvre la carte correspondante (parkings ou
-chantiers) ; en haut, une capsule rappelle la tuile affichée et ramène à l'accueil.
+L'onglet « Autour de moi » (Transport, Autour de moi, Info : trois onglets) s'ouvre sur la carte de la
+ville, immobile et centrée sur la position, sous un voile qui s'épaissit vers le bas ; par-dessus, des
+tuiles de verre, une par entrée de `CityTile` (module partagé, dans l'ordre de l'énumération) :
+« Parkings voiture », « Stations Vélo'v », « Arceaux vélos », « Places deux-roues motorisés » sur deux
+colonnes, puis « Travaux » en pleine largeur. Chaque tuile porte son titre, une ligne descriptive
+(`CityTile.title` / `subtitle`, couleur `AppColors.cityTile`) et, quand la donnée est là, le chiffre du
+moment en couleur : places libres, vélos disponibles, chantiers en cours (`CityOverview.liveLine`,
+chargé par `CityOverviewService`, chaque source indépendante).
 
-Tout cet onglet est en verre : les tuiles, la capsule de retour, la capsule « LIVE » et les boutons ronds
-des cartes reposent sur le même style (iOS `glassSurface`, Liquid Glass dès iOS 26 et matériau
-translucide avec liseré clair avant ; Android `Modifier.glass`, fond translucide et liseré en dégradé).
-L'accueil pose ces surfaces sur des taches de couleur floues (`GlassBackdrop`), aux couleurs des tuiles,
-pour que le verre ait quelque chose à laisser voir. La fiche d'un parking ne montre que ce que la donnée
-contient (plus de « type d'usagers » ni de « type d'ouvrage » inventés).
+Une tuile ouvre la carte correspondante (parkings ou chantiers). Sur iOS elle est poussée dans une
+`NavigationStack` : bouton de retour système, geste de balayage, titre de la tuile en ligne, barre
+transparente. Sur Android, une capsule de verre en haut rappelle la tuile et ramène à l'accueil, et le
+geste retour du système fait de même.
+
+Tout l'onglet est en verre : tuiles, capsules (retour Android, « LIVE ») et boutons ronds des cartes
+reposent sur le même style (iOS `glassSurface`, Liquid Glass dès iOS 26 et matériau translucide avec
+liseré clair avant ; Android `Modifier.glass`, fond translucide et liseré en dégradé). Jamais de verre
+dans du verre : l'icône d'une tuile est sur un disque teinté uni. La fiche d'un parking ne montre que ce
+que la donnée contient (plus de « type d'usagers » ni de « type d'ouvrage » inventés).
 
 ## Vélo'v
 
 Les stations Vélo'v (relais `/velov`, données ouvertes du Grand Lyon, rafraîchies toutes les minutes)
-sont une tuile de l'onglet Ville, à côté des parkings voiture, des arceaux vélos, des places
+sont une tuile de l'onglet « Autour de moi », à côté des parkings voiture, des arceaux vélos, des places
 deux-roues (décision du 19 septembre 2026 : la carte Transport ne montre que le réseau TCL). De loin, chaque
 station est un point à la couleur de disponibilité (vert dès 3 vélos, orange à 1 ou 2, rouge sans vélo,
 gris fermé, barème de `VelovStation.availabilityFor` sur les jetons des parkings) ; dès le zoom des arrêts

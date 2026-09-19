@@ -1,27 +1,28 @@
 import SwiftUI
+import MapKit
 import Shared
 
 extension CityTile: Identifiable {
     public var id: String { name }
 }
 
-/// Onglet Ville : un accueil à tuiles (stationnement, Vélo'v, chantiers), puis la carte de la tuile
-/// choisie sous une capsule de retour. En démo « velov… », la carte des stations s'ouvre directement.
+/// Onglet « Autour de moi » : un accueil à tuiles de verre posées sur une carte immobile (stationnement,
+/// Vélo'v, chantiers, avec leurs chiffres en direct), puis la carte de la tuile choisie, poussée dans la
+/// navigation : bouton de retour système et geste de balayage. En démo « velov… », la carte des
+/// stations s'ouvre directement.
 struct CityView: View {
     @Binding var selectedParkingId: String?
     @State private var selectedTile: CityTile?
 
     var body: some View {
-        ZStack {
-            if let tile = selectedTile {
-                content(for: tile)
-                VStack {
-                    CityHeader(tile: tile) { choose(nil) }
-                    Spacer()
+        NavigationStack {
+            CityChooserView { tile in selectedTile = tile }
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(item: $selectedTile) { tile in
+                    content(for: tile)
+                        .navigationTitle(tile.title)
+                        .navigationBarTitleDisplayMode(.inline)
                 }
-            } else {
-                CityChooserView { tile in choose(tile) }
-            }
         }
         .onAppear {
             #if DEBUG
@@ -32,10 +33,6 @@ struct CityView: View {
             // Lien vers un parking : la carte des parkings voiture s'ouvre sans passer par l'accueil.
             if id != nil, selectedTile?.parkingType != Shared.ParkingType.car { selectedTile = .parkingCar }
         }
-    }
-
-    private func choose(_ tile: CityTile?) {
-        withAnimation(.easeInOut(duration: 0.25)) { selectedTile = tile }
     }
 
     @ViewBuilder
@@ -50,9 +47,12 @@ struct CityView: View {
 
 // MARK: - Accueil
 
-/// Une tuile en verre par entrée, les chantiers en pleine largeur, sur des taches de couleur floues.
+/// La carte de la ville, immobile, sous un voile ; les tuiles de verre par-dessus, avec les chiffres du moment.
 private struct CityChooserView: View {
     let onChoose: (CityTile) -> Void
+
+    @ObservedObject private var locationService = LocationService.shared
+    @State private var overview = CityOverview.companion.EMPTY
 
     private let tiles: [CityTile] = CityTile.companion.all
     private var parkingTiles: [CityTile] { tiles.filter { $0.parkingType != nil } }
@@ -60,10 +60,10 @@ private struct CityChooserView: View {
 
     var body: some View {
         ZStack {
-            GlassBackdrop(colors: tiles.map(\.color))
+            MapBackdrop(center: locationService.currentLocation?.coordinate)
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("Ville")
+                    Text("Autour de moi")
                         .font(.largeTitle.bold())
                     Text("Choisissez ce que la carte doit afficher.")
                         .font(.subheadline)
@@ -71,25 +71,61 @@ private struct CityChooserView: View {
                         .padding(.bottom, 6)
                     ForEach(Array(stride(from: 0, to: parkingTiles.count, by: 2)), id: \.self) { index in
                         HStack(alignment: .top, spacing: 14) {
-                            CityTileCard(tile: parkingTiles[index], wide: false) { onChoose(parkingTiles[index]) }
+                            tileCard(parkingTiles[index], wide: false)
                             if index + 1 < parkingTiles.count {
-                                CityTileCard(tile: parkingTiles[index + 1], wide: false) { onChoose(parkingTiles[index + 1]) }
+                                tileCard(parkingTiles[index + 1], wide: false)
                             }
                         }
                     }
                     ForEach(otherTiles) { tile in
-                        CityTileCard(tile: tile, wide: true) { onChoose(tile) }
+                        tileCard(tile, wide: true)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
             }
         }
+        .task {
+            overview = (try? await CityOverviewService.companion.shared.fetch()) ?? CityOverview.companion.EMPTY
+        }
+    }
+
+    private func tileCard(_ tile: CityTile, wide: Bool) -> some View {
+        CityTileCard(tile: tile, liveLine: overview.liveLine(tile: tile), wide: wide) { onChoose(tile) }
+    }
+}
+
+/// Carte sans interaction, centrée sur la position si elle est connue, sinon sur la place Bellecour.
+private struct MapBackdrop: View {
+    let center: CLLocationCoordinate2D?
+
+    private var region: MKCoordinateRegion {
+        MKCoordinateRegion(
+            center: center ?? CLLocationCoordinate2D(latitude: 45.7578, longitude: 4.8320),
+            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            Map(initialPosition: .region(region), interactionModes: [])
+                .mapStyle(.standard(pointsOfInterest: .excludingAll))
+                .mapControlVisibility(.hidden)
+            // Voile qui s'épaissit vers le bas pour garder les textes lisibles.
+            Rectangle()
+                .fill(.background)
+                .mask(LinearGradient(stops: [
+                    .init(color: .black.opacity(0.45), location: 0),
+                    .init(color: .black.opacity(0.90), location: 1),
+                ], startPoint: .top, endPoint: .bottom))
+        }
+        .ignoresSafeArea()
     }
 }
 
 private struct CityTileCard: View {
     let tile: CityTile
+    let liveLine: String?
     let wide: Bool
     let onTap: () -> Void
 
@@ -99,86 +135,52 @@ private struct CityTileCard: View {
                 if wide {
                     HStack(spacing: 14) {
                         TileIcon(tile: tile)
-                        VStack(alignment: .leading, spacing: 2) {
-                            titleText
-                            subtitleText
-                        }
+                        texts
                         Spacer(minLength: 0)
                     }
                 } else {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 12) {
                         TileIcon(tile: tile)
-                        titleText
-                        subtitleText
+                        texts
                     }
-                    .frame(maxWidth: .infinity, minHeight: 168, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, minHeight: 172, alignment: .topLeading)
                 }
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
-        .glassSurface(RoundedRectangle(cornerRadius: 26), interactive: true)
+        .glassSurface(RoundedRectangle(cornerRadius: 28), interactive: true)
     }
 
-    private var titleText: some View {
-        Text(tile.title)
-            .font(.headline)
-            .foregroundStyle(.primary)
-            .multilineTextAlignment(.leading)
-    }
-
-    private var subtitleText: some View {
-        Text(tile.subtitle)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.leading)
+    private var texts: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(tile.title)
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.leading)
+            if let liveLine {
+                Text(liveLine)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(tile.color)
+                    .contentTransition(.numericText())
+            }
+            Text(tile.subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading)
+        }
     }
 }
 
 private struct TileIcon: View {
     let tile: CityTile
-    var size: CGFloat = 46
-    var iconSize: CGFloat = 22
 
     var body: some View {
         Image(systemName: tile.icon)
-            .font(.system(size: iconSize, weight: .semibold))
+            .font(.system(size: 22, weight: .semibold))
             .foregroundStyle(tile.color)
-            .frame(width: size, height: size)
-            .glassSurface(Circle())
-    }
-}
-
-// MARK: - Capsule de retour
-
-/// Capsule en verre en haut de la carte : la tuile affichée, un toucher ramène à l'accueil.
-private struct CityHeader: View {
-    let tile: CityTile
-    let onBack: () -> Void
-
-    var body: some View {
-        HStack {
-            Button(action: onBack) {
-                HStack(spacing: 8) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    TileIcon(tile: tile, size: 28, iconSize: 13)
-                    Text(tile.title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.primary)
-                }
-                .padding(.leading, 12)
-                .padding(.trailing, 16)
-                .padding(.vertical, 8)
-            }
-            .buttonStyle(.plain)
-            .glassSurface(Capsule(), interactive: true)
-            .accessibilityLabel("Retour à l'accueil de l'onglet Ville")
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
+            .frame(width: 46, height: 46)
+            .background(tile.color.opacity(0.14), in: Circle())
     }
 }

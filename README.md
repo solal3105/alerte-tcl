@@ -19,8 +19,9 @@ Mobilités, Keolis Lyon ou TCL.
   les vélos et places disponibles.
 - **Alertes** : perturbations du réseau, abonnement à des lignes avec choix des types d'alertes
   notifiées.
-- **Ville** : un accueil à tuiles vers les parkings voiture et parcs relais en temps réel, les stations
-  Vélo'v, les arceaux vélos, les places deux-roues motorisés et les chantiers.
+- **Autour de moi** : un accueil à tuiles, sur la carte de la ville, vers les parkings voiture et parcs
+  relais en temps réel, les stations Vélo'v, les arceaux vélos, les places deux-roues motorisés et les
+  chantiers, avec leurs chiffres du moment.
 - **Widgets** (iOS seulement) : prochains passages, panneau d'affichage et parking sur l'écran d'accueil.
 - **Notifications** : abonnement par ligne, avec le choix des types d'alertes, sur les deux plateformes.
 

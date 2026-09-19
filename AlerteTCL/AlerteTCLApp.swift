@@ -133,6 +133,9 @@ struct AlerteTCLApp: App {
     }
     
     private func configureAppearance() {
+        // Dès iOS 26, les barres sont en verre (Liquid Glass) par défaut : toute apparence forcée
+        // ici les ramènerait au style opaque d'avant. On ne règle que les versions précédentes.
+        if #available(iOS 26, *) { return }
         let navAppearance = UINavigationBarAppearance()
         navAppearance.configureWithOpaqueBackground()
         navAppearance.backgroundColor = UIColor.systemBackground

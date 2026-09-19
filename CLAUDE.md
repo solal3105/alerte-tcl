@@ -124,22 +124,24 @@ en arrière-plan (activité en direct, notification) a été retiré à la deman
 
 Route `/velov` du proxy : `jcd_jcdecaux.jcdvelov/all.json` (données publiques, sans identifiant) allégé
 aux champs affichés, cache 60 s. Modèle `VelovStation`, service `VelovService`. Les stations sont le
-type `ParkingType.VELOV` de l'onglet Ville (décision du 19 septembre 2026 : plus rien d'autre que le
+type `ParkingType.VELOV` de l'onglet « Autour de moi » (décision du 19 septembre 2026 : plus rien d'autre que le
 réseau TCL sur la carte Transport, ne pas les y remettre) : chargées par les vues modèles parkings
 (`ParkingViewModel` partagé pour Android, `ParkingViewModel.swift` pour iOS), rafraîchies toutes les
 minutes, point coloré de loin et carré avec le nombre de vélos dès `MapStyle.ZOOM_STOPS`, filtre
 « seulement les vélos électriques » persisté (`FavoritesStore.velovElectricOnly`, `UserDefaults`
 `parking.velovElectricOnly`).
 
-### Onglet Ville
+### Onglet « Autour de moi »
 
-Trois onglets : Transport, Ville, Info. Ville = accueil à tuiles (`CityTile`, module partagé : quatre
-types de stationnement et les chantiers, textes `title`/`subtitle`, couleur `AppColors.cityTile`) puis
-la carte choisie (`ParkingMapView(parkingType:)` / `TravauxMapView` ; `ParkingScreen(type)` /
-`TravauxScreen`) sous une capsule de retour posée par `CityView` / `CityScreen`. Style verre partagé :
-`glassSurface` + `GlassBackdrop` + `MapGlassButton` (iOS, `GlassStyle.swift`), `Modifier.glass` +
-`GlassBackdrop` (Android, `ui/components/Glass.kt`). La fiche d'un parking n'affiche que des données
-réelles (pas de « type d'usagers » ni de « type d'ouvrage »).
+Trois onglets : Transport, Autour de moi, Info (route Android `ville`, `CityView` / `CityScreen`).
+Accueil = carte immobile en fond + tuiles de verre (`CityTile`, module partagé : quatre types de
+stationnement et les chantiers, textes `title`/`subtitle`, couleur `AppColors.cityTile`) avec les
+chiffres du moment (`CityOverviewService` → `CityOverview.liveLine`, testé). Puis la carte choisie
+(`ParkingMapView(parkingType:)` / `TravauxMapView` ; `ParkingScreen(type)` / `TravauxScreen`) : iOS la
+pousse dans une `NavigationStack` (retour système), Android pose une capsule de retour et un
+`BackHandler`. Style verre partagé : `glassSurface` + `MapGlassButton` (iOS, `GlassStyle.swift`),
+`Modifier.glass` (Android, `ui/components/Glass.kt`) ; jamais de verre dans du verre. La fiche d'un
+parking n'affiche que des données réelles (pas de « type d'usagers » ni de « type d'ouvrage »).
 
 ### Fiches horaires théoriques (GTFS)
 

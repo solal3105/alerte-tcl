@@ -19,30 +19,6 @@ extension View {
     }
 }
 
-/// Taches de couleur floues derrière les surfaces en verre, pour que le verre ait quelque chose à laisser voir.
-struct GlassBackdrop: View {
-    let colors: [Color]
-
-    private let placements: [(x: CGFloat, y: CGFloat, size: CGFloat)] = [
-        (-80, -40, 420), (160, 120, 380), (-60, 420, 360), (140, 620, 400), (20, 260, 300),
-    ]
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            Rectangle().fill(.background)
-            ForEach(colors.indices, id: \.self) { index in
-                let placement = placements[index % placements.count]
-                Circle()
-                    .fill(colors[index].opacity(0.55))
-                    .frame(width: placement.size, height: placement.size)
-                    .blur(radius: 60)
-                    .offset(x: placement.x, y: placement.y)
-            }
-        }
-        .ignoresSafeArea()
-    }
-}
-
 /// Bouton rond des contrôles de carte (satellite, filtres, position), en verre.
 struct MapGlassButton: View {
     let systemImage: String
