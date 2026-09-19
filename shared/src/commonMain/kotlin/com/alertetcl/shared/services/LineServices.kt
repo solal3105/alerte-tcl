@@ -219,18 +219,23 @@ class TransitLineService {
 /**
  * Terminus de toutes les lignes (bus, métro, funiculaire, tramway), sous la forme
  * `"ligne|A"` / `"ligne|R"` → nom du terminus. Sert à déduire le sens d'une destination affichée.
- * Une section indisponible est simplement absente : le sens reste indéterminé, jamais faux.
+ * Une ligne absente des données GeoServer prend le terminus de sa fiche horaire (GTFS) ; une section
+ * indisponible est simplement absente : le sens reste indéterminé, jamais faux.
  */
 object LineTermini {
     @Throws(Exception::class)
     suspend fun all(): Map<String, String> {
-        val bus = try {
-            BusLineService.shared.fetchLineTermini()
+        val bus = section { BusLineService.shared.fetchLineTermini() }
+        val timetable = section { TimetableService.shared.fetchIndex().termini() }
+        return timetable + bus + TransitLineService.shared.fetchLineTermini()
+    }
+
+    private suspend fun section(fetch: suspend () -> Map<String, String>): Map<String, String> =
+        try {
+            fetch()
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
             emptyMap()
         }
-        return bus + TransitLineService.shared.fetchLineTermini()
-    }
 }

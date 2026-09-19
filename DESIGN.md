@@ -82,7 +82,13 @@ de la ligne, et une rame qui s'arrête avant (dernier métro vers Debourg) reste
 mention « jusqu'à Debourg » sous son délai. Chaque ligne montre le badge, le terminus, les trois prochains
 délais (le premier en gras, un point vert devant ceux suivis en direct) et un chevron ; un toucher déplie
 « Où est mon bus » et les deux liens « Voir sur la carte » et « Tous les horaires », à l'accent, sans
-fond. Dans les fiches horaires, toute la largeur d'une ligne de liste est tactile. Le suivi d'un bus en
+fond. Les sens d'un arrêt sont connus à toute heure : ils viennent des dessertes de ses quais et des
+terminus des lignes (GeoServer, puis l'index des fiches horaires en repli, `LineTermini`), pas seulement
+des passages annoncés. Un sens sans passage annoncé (la nuit, une ligne peu fréquente) reste affiché avec
+les prochains départs de sa fiche horaire (`TimetableNext`, module partagé, testé : ce qu'il reste de la
+journée de service, sinon les premiers de demain, légende « prévu » ou « demain »), et un sens qui ne fait
+qu'arriver à cet arrêt (terminus) n'est pas affiché. Le choix des sens pour les widgets suit la même liste.
+Dans les fiches horaires, toute la largeur d'une ligne de liste est tactile. Le suivi d'un bus en
 arrière-plan (activité en direct) a été essayé puis retiré le 16 septembre 2026.
 
 ## Autour de moi

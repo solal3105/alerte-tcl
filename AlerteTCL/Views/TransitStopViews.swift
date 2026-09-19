@@ -46,7 +46,8 @@ struct LineBadge: View {
 // MARK: - Prochains passages : une ligne par sens
 
 /// Un sens d'une ligne à cet arrêt : le terminus, les trois prochains passages, et au toucher les
-/// détails (où est mon bus, voir sur la carte, tous les horaires).
+/// détails (où est mon bus, voir sur la carte, tous les horaires). Sans passage annoncé, les
+/// prochains départs de la fiche horaire prennent le relais.
 struct PassageGroupRow: View {
     let group: PassageGroup
     let expanded: Bool
@@ -54,6 +55,8 @@ struct PassageGroupRow: View {
     var approaching: [ApproachingVehicle] = []
     /// Vrai quand l'ordre des arrêts du sens est connu : sans bus en approche, la ligne le dit au lieu de se taire.
     var approachKnown: Bool = false
+    /// Prochains départs théoriques, affichés seulement quand aucun passage n'est annoncé.
+    var next: NextDepartures? = nil
     let onToggle: () -> Void
     var onShowOnMap: (() -> Void)? = nil
     var onShowTimetable: (() -> Void)? = nil
@@ -81,11 +84,26 @@ struct PassageGroupRow: View {
             }
             .buttonStyle(.plain)
 
-            HStack(alignment: .top, spacing: 18) {
-                ForEach(Array(group.passages.prefix(3).enumerated()), id: \.element.id) { index, passage in
-                    passageCell(passage, first: index == 0)
+            if !group.passages.isEmpty {
+                HStack(alignment: .top, spacing: 18) {
+                    ForEach(Array(group.passages.prefix(3).enumerated()), id: \.element.id) { index, passage in
+                        cell(passage.delaipassage, first: index == 0, live: passage.isRealTime,
+                             caption: group.shortDestination(passage: passage).map { "jusqu'à \($0)" })
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+            } else if let next {
+                HStack(alignment: .top, spacing: 18) {
+                    ForEach(Array(next.departures.prefix(3).enumerated()), id: \.element.tripIndex) { index, departure in
+                        cell(departure.time, first: index == 0, live: false,
+                             caption: next.isTomorrow ? TimetableNext.shared.CAPTION_TOMORROW : TimetableNext.shared.CAPTION_TODAY)
+                    }
+                    Spacer(minLength: 0)
+                }
+            } else {
+                Text(approachKnown ? TimetableNext.shared.NONE_PLANNED : "Aucun passage annoncé pour l'instant.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             if expanded {
@@ -97,20 +115,21 @@ struct PassageGroupRow: View {
         .animation(.easeInOut(duration: 0.2), value: expanded)
     }
 
-    /// Délai en chiffres, point vert quand le véhicule est suivi en direct, destination courte s'il ne va pas au terminus.
-    private func passageCell(_ passage: Shared.Passage, first: Bool) -> some View {
+    /// Délai ou heure en chiffres, point vert quand le véhicule est suivi en direct, légende en dessous
+    /// (destination courte d'un passage, « prévu » ou « demain » d'un départ théorique).
+    private func cell(_ value: String, first: Bool, live: Bool, caption: String?) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 5) {
-                if passage.isRealTime {
+                if live {
                     Circle().fill(Color.appSuccess).frame(width: 6, height: 6)
                 }
-                Text(passage.delaipassage)
+                Text(value)
                     .font(.system(size: first ? 17 : 15, weight: first ? .semibold : .regular, design: .rounded))
                     .foregroundStyle(first ? Color.primary : Color.secondary)
                     .monospacedDigit()
             }
-            if let short = group.shortDestination(passage: passage) {
-                Text("jusqu'à \(short)")
+            if let caption {
+                Text(caption)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -259,19 +278,33 @@ struct MergedStopDetailSheet: View {
     /// Sens dépliés dans la liste des prochains passages.
     @State private var expandedGroups: Set<String> = []
     
-    private var availableLineDirections: [WidgetLineDirection] {
+    /// Un choix par ligne et par sens pour les widgets : le quai qui sert ce sens, le terminus du sens.
+    /// Les sens viennent des dessertes des quais, donc connus même sans passage annoncé.
+    private var widgetOptions: [WidgetStop] {
         passageGroups.map { group in
-            let stopId = group.passages.first.map { Int($0.stopId) } ?? mergedStop.stops[0].id
-            return WidgetLineDirection(stopId: stopId, line: group.line, direction: group.terminus, terminusName: group.terminus)
+            let stopId = group.stopId.map { Int(truncating: $0) } ?? mergedStop.stops[0].id
+            return WidgetStop(stopId: stopId, stopName: mergedStop.nom, line: group.line, direction: group.terminus)
         }
     }
     
     /// Un groupe par ligne et par sens réel (module partagé) : le sens vient du quai du passage, le
-    /// terminus du sens ; une rame qui s'arrête avant reste dans son sens.
+    /// terminus du sens ; une rame qui s'arrête avant reste dans son sens. Les sens desservis sans
+    /// passage annoncé sont présents aussi, vides, pour montrer la fiche horaire ; un sens qui ne fait
+    /// qu'arriver ici (terminus) n'est pas affiché.
     private var passageGroups: [PassageGroup] {
+        allGroups.filter { group in
+            guard group.passages.isEmpty, let timetable = timetables[group.key] else { return true }
+            return !TimetableNext.shared.isArrivalOnly(timetable: timetable, stopIds: stopIds, stopName: mergedStop.nom)
+        }
+    }
+
+    /// Tous les sens connus, y compris ceux qui ne font qu'arriver ; sert à charger les fiches horaires.
+    private var allGroups: [PassageGroup] {
         let dessertes = Dictionary(uniqueKeysWithValues: mergedStop.stops.map { (KotlinInt(value: Int32($0.id)), $0.desserte) })
         return StopPassages.shared.group(passages: allPassages.map(\.shared), dessertes: dessertes, termini: termini)
     }
+
+    private var stopIds: [KotlinInt] { mergedStop.stops.map { KotlinInt(value: Int32($0.id)) } }
     
     var body: some View {
         NavigationStack {
@@ -281,7 +314,7 @@ struct MergedStopDetailSheet: View {
                     
                     if isLoading {
                         loadingState
-                    } else if allPassages.isEmpty {
+                    } else if passageGroups.isEmpty {
                         emptyState
                     } else {
                         passagesSection
@@ -325,10 +358,7 @@ struct MergedStopDetailSheet: View {
         .onChange(of: allPassages) { _, _ in loadTimetablesIfNeeded() }
         .onChange(of: liveVM.vehicles) { _, _ in recomputeApproaches() }
         .sheet(isPresented: $showWidgetSheet) {
-            AddToWidgetSheet(
-                stopName: mergedStop.nom,
-                availableLineDirections: availableLineDirections
-            )
+            AddToWidgetSheet(stopName: mergedStop.nom, options: widgetOptions)
         }
     }
     
@@ -368,12 +398,12 @@ struct MergedStopDetailSheet: View {
     /// Charge l'ordre des arrêts de chaque ligne et sens affichés (une seule requête par sens, gardée en cache).
     private func loadTimetablesIfNeeded() {
         guard !termini.isEmpty || !allPassages.isEmpty else { return }
-        for group in passageGroups where !timetableLookups.contains(group.key) {
+        for group in allGroups where !timetableLookups.contains(group.key) {
             timetableLookups.insert(group.key)
             Task { @MainActor in
                 let timetable = try? await TimetableService.companion.shared.findForStopIds(
                     line: group.line, destination: group.terminus,
-                    stopIds: mergedStop.stops.map { KotlinInt(value: Int32($0.id)) },
+                    stopIds: stopIds,
                     stopName: mergedStop.nom, termini: termini
                 )
                 if let timetable {
@@ -389,7 +419,6 @@ struct MergedStopDetailSheet: View {
         guard !timetables.isEmpty else { return }
         let lines = Set(timetables.values.map(\.line))
         let candidates = liveVM.vehicles.filter { lines.contains($0.lineName) }.map(\.shared)
-        let stopIds = mergedStop.stops.map { KotlinInt(value: Int32($0.id)) }
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         var result: [String: [ApproachingVehicle]] = [:]
         for (key, timetable) in timetables {
@@ -516,6 +545,7 @@ struct MergedStopDetailSheet: View {
                         expanded: expandedGroups.contains(group.key),
                         approaching: approaches[group.key] ?? [],
                         approachKnown: timetables[group.key] != nil,
+                        next: group.passages.isEmpty ? nextDepartures(for: group) : nil,
                         onToggle: {
                             if expandedGroups.contains(group.key) { expandedGroups.remove(group.key) } else { expandedGroups.insert(group.key) }
                         },
@@ -530,11 +560,24 @@ struct MergedStopDetailSheet: View {
             }
             .padding(.horizontal, 16)
             .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            Text("Un point vert marque un passage suivi en direct ; les autres suivent l'horaire prévu.")
+            Text("Un point vert marque un passage suivi en direct ; les autres suivent l'horaire prévu. Sans passage annoncé, les heures viennent de la fiche horaire.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
         }
+    }
+
+    /// Prochains départs de la fiche horaire d'un sens sans passage annoncé (le soir, une ligne peu fréquente).
+    private func nextDepartures(for group: PassageGroup) -> NextDepartures? {
+        guard let timetable = timetables[group.key] else { return nil }
+        return TimetableNext.shared.upcoming(
+            timetable: timetable,
+            stopIds: stopIds,
+            stopName: mergedStop.nom,
+            nowEpochMs: Int64(Date().timeIntervalSince1970 * 1000),
+            timeZoneId: StopApproach.shared.TIME_ZONE,
+            limit: 3
+        )
     }
     
     private var loadingState: some View {
@@ -559,11 +602,11 @@ struct MergedStopDetailSheet: View {
                 .font(.system(size: 40))
                 .foregroundStyle(.secondary)
             
-            Text("Aucun passage prévu")
+            Text("Aucune ligne connue")
                 .font(.headline)
                 .foregroundStyle(.secondary)
             
-            Text("Les horaires seront affichés quand des véhicules seront en approche")
+            Text("Nous ne savons pas encore quelles lignes passent ici. Réessayez dans un instant.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)

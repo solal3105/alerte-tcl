@@ -28,8 +28,23 @@ class StopPassagesTest {
     @Test
     fun quaiADeuxSensRetombeSurLaDestination() {
         val groups = StopPassages.group(listOf(p(30472, "St-Genis-Laval Hop. Sud", "05"), p(30472, "Gare d'Oullins", "08")), dessertes, termini)
-        assertEquals(listOf("A", null), groups.map { it.directionCode })
-        assertEquals("Gare d'Oullins", groups[1].terminus)
+        assertEquals(listOf("A", "R", null), groups.map { it.directionCode })
+        assertEquals("Gare d'Oullins", groups[2].terminus)
+        assertEquals(emptyList<Passage>(), groups[1].passages)
+    }
+
+    @Test
+    fun sansPassageLesSensDesQuaisRestentPresents() {
+        val groups = StopPassages.group(emptyList(), mapOf(46028 to "B:A,JD975:R,C12:R"), termini + ("C12|R" to "Bellecour"))
+        assertEquals(listOf("B|A", "C12|R"), groups.map { it.key })
+        assertEquals(listOf(46028, 46028), groups.map { it.stopId })
+        assertEquals("Bellecour", groups[1].terminus)
+    }
+
+    @Test
+    fun unSensSansTerminusConnuNestPasInvente() {
+        val groups = StopPassages.group(emptyList(), mapOf(46028 to "B:A,7:R"), termini)
+        assertEquals(listOf("B|A"), groups.map { it.key })
     }
 
     @Test

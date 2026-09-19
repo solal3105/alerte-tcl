@@ -77,6 +77,10 @@ data class TimetableIndex(
         val key = TimetableKeys.keyFor(name)
         return lines.firstOrNull { it.key == key }
     }
+
+    /** Terminus de chaque sens des fiches, `"ligne|A"` / `"ligne|R"` → destination affichée. */
+    fun termini(): Map<String, String> =
+        lines.flatMap { line -> line.directions.filter { it.headsign.isNotBlank() }.map { "${line.line}|${it.dir}" to it.headsign } }.toMap()
 }
 
 @Serializable
@@ -189,6 +193,16 @@ data class LineTimetable(
         val byId = stops.indices.filter { stops[it].id in stopIds }
         if (byId.isNotEmpty() || stopName == null) return byId
         return stops.indices.filter { DirectionMatching.namesMatch(stops[it].name, stopName) }
+    }
+
+    /**
+     * Vrai quand l'arrêt n'est que le terminus de ce sens : les courses y arrivent, aucune n'en part
+     * (un arrêt de départ d'une boucle qui y revient n'est pas concerné). Faux si la fiche ne connaît
+     * pas l'arrêt.
+     */
+    fun isArrivalOnly(stopIndexes: Collection<Int>): Boolean {
+        val used = patterns.filter { pattern -> pattern.any { it in stopIndexes } }
+        return used.isNotEmpty() && used.all { pattern -> pattern.indices.filter { pattern[it] in stopIndexes }.all { it == pattern.lastIndex } }
     }
 
     /** Variante Swift : journée de service au format `yyyy-MM-dd`. */

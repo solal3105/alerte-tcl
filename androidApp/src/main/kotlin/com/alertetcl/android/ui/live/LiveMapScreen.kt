@@ -161,6 +161,8 @@ import com.alertetcl.shared.models.LineTimetable
 import com.alertetcl.shared.models.StopApproach
 import com.alertetcl.shared.models.StopPassages
 import com.alertetcl.shared.models.PassageGroup
+import com.alertetcl.shared.models.NextDepartures
+import com.alertetcl.shared.models.TimetableNext
 import com.alertetcl.shared.design.AppColors
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateListOf
@@ -1432,13 +1434,14 @@ private fun MergedStopDetailSheet(
         }
     }
     // Un groupe par ligne et par sens réel (module partagé) : le sens vient du quai du passage, le
-    // terminus du sens ; une rame qui s'arrête avant reste dans son sens.
-    val groupedPassages = remember(passages.value, termini) {
+    // terminus du sens ; une rame qui s'arrête avant reste dans son sens. Les sens desservis sans
+    // passage annoncé sont présents aussi, vides, pour montrer la fiche horaire.
+    val allGroups = remember(passages.value, termini) {
         val list = passages.value ?: return@remember emptyList<PassageGroup>()
         StopPassages.group(list, stop.stops.associate { it.id to it.desserte }, termini)
     }
-    LaunchedEffect(groupedPassages, termini) {
-        for (group in groupedPassages) {
+    LaunchedEffect(allGroups, termini) {
+        for (group in allGroups) {
             if (!timetableLookups.add(group.key)) continue
             launch {
                 runCatching {
@@ -1448,11 +1451,26 @@ private fun MergedStopDetailSheet(
         }
     }
     val timetableSnapshot: Map<String, LineTimetable> = timetables.toMap()
+    // Un sens qui ne fait qu'arriver ici (terminus) n'est pas affiché : personne n'y monte.
+    val groupedPassages = remember(allGroups, timetableSnapshot) {
+        allGroups.filter { group ->
+            val timetable = timetableSnapshot[group.key]
+            group.passages.isNotEmpty() || timetable == null || !TimetableNext.isArrivalOnly(timetable, stop.stops.map { it.id }, stop.nom)
+        }
+    }
     val approaches = remember(vehicles, timetableSnapshot) {
         val nowMs = System.currentTimeMillis()
         timetableSnapshot.mapValues { (_, timetable) ->
             StopApproach.approaching(vehicles, timetable, stop.stops.map { it.id }, stop.nom, nowMs)
         }.filterValues { it.isNotEmpty() }
+    }
+    // Prochains départs de la fiche horaire des sens sans passage annoncé (le soir, une ligne peu fréquente).
+    val nextDepartures = remember(groupedPassages, timetableSnapshot) {
+        val nowMs = System.currentTimeMillis()
+        groupedPassages.filter { it.passages.isEmpty() }.mapNotNull { group ->
+            val timetable = timetableSnapshot[group.key] ?: return@mapNotNull null
+            TimetableNext.upcoming(timetable, stop.stops.map { it.id }, stop.nom, nowMs, StopApproach.TIME_ZONE)?.let { group.key to it }
+        }.toMap()
     }
 
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
@@ -1544,9 +1562,9 @@ private fun MergedStopDetailSheet(
                             Icons.Filled.AccessTime, null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(36.dp)
                         )
-                        Text("Aucun passage prévu", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Aucune ligne connue", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
-                            "Les horaires seront affichés quand des véhicules seront en approche",
+                            "Nous ne savons pas encore quelles lignes passent ici. Réessayez dans un instant.",
                             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
@@ -1564,6 +1582,7 @@ private fun MergedStopDetailSheet(
                                 expanded = group.key in expandedGroups,
                                 approaching = approaches[group.key].orEmpty(),
                                 approachKnown = timetables[group.key] != null,
+                                next = nextDepartures[group.key],
                                 onToggle = { if (group.key in expandedGroups) expandedGroups.remove(group.key) else expandedGroups.add(group.key) },
                                 onLocate = { approach -> vehicles.firstOrNull { it.id == approach.vehicle.id }?.let(onLocateVehicle) },
                                 onShowOnMap = {
@@ -1586,7 +1605,7 @@ private fun MergedStopDetailSheet(
                     }
                 }
                 Text(
-                    "Un point vert marque un passage suivi en direct ; les autres suivent l'horaire prévu.",
+                    "Un point vert marque un passage suivi en direct ; les autres suivent l'horaire prévu. Sans passage annoncé, les heures viennent de la fiche horaire.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp)
                 )
@@ -1598,7 +1617,8 @@ private fun MergedStopDetailSheet(
 
 /**
  * Un sens d'une ligne à cet arrêt : le terminus, les trois prochains passages, et au toucher les
- * détails (où est mon bus, voir sur la carte, tous les horaires). Parité iOS `PassageGroupRow`.
+ * détails (où est mon bus, voir sur la carte, tous les horaires). Sans passage annoncé, les prochains
+ * départs de la fiche horaire ([next]) prennent le relais. Parité iOS `PassageGroupRow`.
  */
 @Composable
 private fun PassageGroupRow(
@@ -1606,6 +1626,7 @@ private fun PassageGroupRow(
     expanded: Boolean,
     approaching: List<ApproachingVehicle>,
     approachKnown: Boolean,
+    next: NextDepartures?,
     onToggle: () -> Unit,
     onLocate: (ApproachingVehicle) -> Unit,
     onShowOnMap: () -> Unit,
@@ -1624,8 +1645,21 @@ private fun PassageGroupRow(
                 modifier = Modifier.size(20.dp).rotate(if (expanded) 180f else 0f)
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.Top) {
-            group.passages.take(3).forEachIndexed { index, p -> PassageCell(p, first = index == 0, shortDestination = group.shortDestination(p)) }
+        when {
+            group.passages.isNotEmpty() -> Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.Top) {
+                group.passages.take(3).forEachIndexed { index, p ->
+                    TimeCell(p.delaipassage.ifBlank { "--" }, first = index == 0, live = p.isRealTime, caption = group.shortDestination(p)?.let { "jusqu'à $it" })
+                }
+            }
+            next != null -> Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.Top) {
+                next.departures.take(3).forEachIndexed { index, d ->
+                    TimeCell(d.time, first = index == 0, live = false, caption = if (next.isTomorrow) TimetableNext.CAPTION_TOMORROW else TimetableNext.CAPTION_TODAY)
+                }
+            }
+            else -> Text(
+                if (approachKnown) TimetableNext.NONE_PLANNED else "Aucun passage annoncé pour l'instant.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         if (expanded) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 2.dp)) {
@@ -1649,21 +1683,24 @@ private fun PassageGroupRow(
     }
 }
 
-/** Délai en chiffres, point vert quand le véhicule est suivi en direct, destination courte s'il ne va pas au terminus. */
+/**
+ * Délai ou heure en chiffres, point vert quand le véhicule est suivi en direct, légende en dessous
+ * (destination courte d'un passage, « prévu » ou « demain » d'un départ théorique).
+ */
 @Composable
-private fun PassageCell(p: Passage, first: Boolean, shortDestination: String?) {
+private fun TimeCell(value: String, first: Boolean, live: Boolean, caption: String?) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            if (p.isRealTime) Box(Modifier.size(6.dp).background(Tokens.success, CircleShape))
+            if (live) Box(Modifier.size(6.dp).background(Tokens.success, CircleShape))
             Text(
-                p.delaipassage.ifBlank { "--" },
+                value,
                 fontSize = if (first) 17.sp else 15.sp,
                 fontWeight = if (first) FontWeight.SemiBold else FontWeight.Normal,
                 color = if (first) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        if (shortDestination != null) {
-            Text("jusqu'à $shortDestination", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        if (caption != null) {
+            Text(caption, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }
 }
