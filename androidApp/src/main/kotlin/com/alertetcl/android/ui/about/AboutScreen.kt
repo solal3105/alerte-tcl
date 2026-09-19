@@ -1,6 +1,5 @@
 package com.alertetcl.android.ui.about
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -20,50 +18,43 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DirectionsCar
-import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Park
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.outlined.OpenInNew
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.alertetcl.android.R
 import com.alertetcl.android.ui.openUrl
 import com.alertetcl.android.ui.theme.Tokens
 
 /**
- * Onglet Info : Solal Gendrin d'abord, puis l'application, Open Projets, l'Open Data du Grand Lyon,
- * les sources et les liens. Toutes les couleurs viennent des jetons partagés.
+ * Onglet Info : Solal Gendrin, son mandat, ses projets, comment le joindre, puis les remerciements
+ * et les sources. Une seule teinte d'interface (l'accent), le vert pour son étiquette d'élu écologiste.
  */
 @Composable
 fun AboutScreen() {
@@ -73,202 +64,115 @@ fun AboutScreen() {
     val versionCode = runCatching { pm.getPackageInfo(context.packageName, 0).longVersionCode }.getOrNull()?.toString() ?: ""
 
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .background(MaterialTheme.colorScheme.background),
+        modifier = Modifier.fillMaxSize().statusBarsPadding().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 120.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        item { HeroSection() }
-        item { AppCard() }
-        item { OpenProjetsCard() }
-        item { OpenDataTribute() }
-        item { SourcesCard() }
-        item { LinksFooter() }
-        item { VersionFooter(versionName, versionCode) }
+        item { Hero() }
+        item { AboutSection("À la Métropole") { MandateCard() } }
+        item { AboutSection("Mes projets") { ProjectsCard() } }
+        item { AboutSection("On se parle ?") { ContactCard() } }
+        item { AboutSection("Merci") { OpenDataCard() } }
+        item { AboutSection("D'où viennent les données") { SourcesCard() } }
+        item { Footer(versionName, versionCode) }
     }
 }
 
 @Composable
-private fun HeroSection() {
-    val context = LocalContext.current
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp, horizontal = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(104.dp)
-                .background(Brush.linearGradient(listOf(Tokens.success, Tokens.success.copy(alpha = 0.7f))), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("SG", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Solal Gendrin", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-            Surface(shape = RoundedCornerShape(50), color = Tokens.success.copy(alpha = 0.12f)) {
-                Text(
-                    "Conseiller métropolitain écologiste",
-                    color = Tokens.success, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
-                )
+private fun Hero() {
+    Column(modifier = Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Box(modifier = Modifier.size(72.dp).background(Tokens.success, CircleShape), contentAlignment = Alignment.Center) {
+                Text("SG", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Solal Gendrin", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("Conseiller métropolitain écologiste", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Tokens.success)
+                Text("Élu de Villeurbanne, mandat 2026 à 2032", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Text(
-            "Élu écologiste à la Métropole de Lyon, je développe Lyon Pocket pour rendre les transports en commun, le vélo et le stationnement plus simples à utiliser au quotidien.",
+            "Bonjour, moi c'est Solal. Je siège à la Métropole de Lyon pour Villeurbanne, dans le groupe des écologistes. Le reste du temps, je construis des outils pour rendre la ville plus lisible. Lyon Pocket est né un soir, quand TCL Live a disparu et que je voulais simplement retrouver mon bus sur une carte. Depuis, plus de 25 000 personnes l'ont installée, et l'app a même passé quelques jours en tête des applications de navigation sur l'App Store, devant Google Maps et Waze.",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 8.dp)
+            lineHeight = 21.sp
         )
-        Button(
-            onClick = { openUrl(context, "https://www.linkedin.com/in/solal-gendrin/") },
-            colors = ButtonDefaults.buttonColors(containerColor = Tokens.accent, contentColor = Color.White),
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Filled.Send, null, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Me suivre sur LinkedIn", fontWeight = FontWeight.SemiBold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Pill("Gratuite"); Pill("Sans pub"); Pill("Sans compte"); Pill("Sans données vendues")
         }
     }
 }
 
 @Composable
-private fun AppCard() {
-    ElevatedCard(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Image(
-                    painter = painterResource(id = R.mipmap.ic_launcher),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp))
-                )
-                Column {
-                    Text("Lyon Pocket", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text("Les transports lyonnais, en direct.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
+private fun MandateCard() {
+    AboutCard {
+        InfoRow(Icons.Filled.Home, "Habitat et logement", "Renouvellement urbain et politique de la ville")
+        RowDivider()
+        InfoRow(Icons.Filled.AccountBalance, "Grands projets et rayonnement", "Tourisme et relations internationales")
+        RowDivider()
+        InfoRow(Icons.Filled.Park, "Espace public", "Territoires, propreté urbaine et qualité de l'espace public")
+    }
+}
+
+@Composable
+private fun ProjectsCard() {
+    val context = LocalContext.current
+    AboutCard {
+        ProjectRow(Icons.Filled.Tram, "Lyon Pocket",
+            "Cette application : les bus et les trams en direct, les alertes, les fiches horaires, les chantiers, les parkings et les Vélo'v.") {
+            openUrl(context, "https://lyon-pocket.netlify.app/")
+        }
+        RowDivider()
+        ProjectRow(Icons.Filled.SportsEsports, "TCL 2040",
+            "Mettez-vous à la place du président du Sytral : un budget fermé, des projets réels, des impacts chiffrés. Dessinez le réseau de 2040 et voyez ce qu'il coûte vraiment.") {
+            openUrl(context, "https://tcl-2040.com/")
+        }
+        RowDivider()
+        ProjectRow(Icons.Filled.Map, "Grands Projets",
+            "La carte des projets urbains et de mobilité autour de vous, avec leur avancement, leur calendrier et les documents officiels.") {
+            openUrl(context, "https://grandsprojets.com/")
+        }
+        RowDivider()
+        ProjectRow(Icons.Filled.LocationCity, "Open Projets, avec Vazy",
+            "La même idée, offerte aux communes : la carte de leurs chantiers et de leurs projets, que les habitants consultent sans compte. Construite chez Vazy, société à mission villeurbannaise, où je dirige le produit et la technique.") {
+            openUrl(context, "https://openprojets.com/home")
+        }
+        RowDivider()
+        ProjectRow(Icons.Filled.Air, "Nadir",
+            "Rafraîchir son logement sans climatisation : l'app compare heure par heure la température chez vous et dehors, et vous dit quand ouvrir et fermer les fenêtres.") {
+            openUrl(context, "https://apps.apple.com/fr/app/nadir/id6788036137")
+        }
+    }
+}
+
+@Composable
+private fun ContactCard() {
+    val context = LocalContext.current
+    AboutCard {
+        LinkRow(Icons.Filled.Person, "LinkedIn", "Pour me suivre et m'écrire, je lis tout") { openUrl(context, "https://www.linkedin.com/in/solal-gendrin/") }
+        RowDivider()
+        LinkRow(Icons.Filled.ChatBubble, "X", "@_solal_") { openUrl(context, "https://x.com/_solal_") }
+        RowDivider()
+        LinkRow(Icons.Filled.Code, "GitHub", "solal3105") { openUrl(context, "https://github.com/solal3105") }
+    }
+}
+
+@Composable
+private fun OpenDataCard() {
+    val context = LocalContext.current
+    AboutCard {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Une application indépendante, née d'un usage quotidien des TCL : gratuite, sans publicité, sans compte. Aucune donnée personnelle n'est collectée.",
+                "Rien de tout ça n'existerait sans les équipes Open Data du Grand Lyon, qui publient les positions des bus, les alertes, les chantiers, les parkings et les Vélo'v sous licence ouverte. C'est un travail discret qui rend possibles des projets citoyens comme celui-ci.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                lineHeight = 21.sp
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SuggestionChip(onClick = {}, label = { Text("Gratuit") })
-                SuggestionChip(onClick = {}, label = { Text("Sans pub") })
-                SuggestionChip(onClick = {}, label = { Text("Sans tracking") })
-            }
-        }
-    }
-}
-
-@Composable
-private fun OpenProjetsCard() {
-    val context = LocalContext.current
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                brush = Brush.linearGradient(listOf(Tokens.accent, Tokens.accent.copy(alpha = 0.78f))),
-                shape = RoundedCornerShape(20.dp)
-            )
-            .padding(20.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(
-                    modifier = Modifier.size(42.dp).background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(11.dp)),
-                    contentAlignment = Alignment.Center
-                ) { Icon(Icons.Filled.Map, null, tint = Color.White, modifier = Modifier.size(19.dp)) }
-                Column {
-                    Text("Open Projets by Vazy", fontWeight = FontWeight.SemiBold, color = Color.White, fontSize = 15.sp)
-                    Text("Mon autre projet", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.7f), fontWeight = FontWeight.Medium)
-                }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Vous travaillez dans une collectivité ou vous êtes élu ?", fontWeight = FontWeight.Bold, color = Color.White, style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    "Avec Vazy, société à mission villeurbannaise, on a construit Open Projets : une carte interactive que chaque commune peut déployer pour informer ses habitants sur ses chantiers et projets d'aménagement.",
-                    color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, lineHeight = 18.sp
-                )
-                Text(
-                    "La carte reprend votre logo, vos couleurs, vos catégories. Vos agents ajoutent les projets en quelques clics. Les habitants consultent depuis leur téléphone, sans compte, sans téléchargement.",
-                    color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, lineHeight = 18.sp
-                )
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                TintedLink("Découvrir Open Projets", filled = true) { openUrl(context, "https://openprojets.com/home") }
-                TintedLink("Voir la carte de la Métropole de Lyon", filled = false) { openUrl(context, "https://openprojets.com/default") }
-            }
-        }
-    }
-}
-
-/** Lien sur une carte colorée : plein (blanc sur accent) ou discret (blanc translucide). */
-@Composable
-private fun TintedLink(title: String, filled: Boolean, onClick: () -> Unit) {
-    val text = if (filled) Tokens.accent else Color.White.copy(alpha = 0.9f)
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = if (filled) Color.White else Color.White.copy(alpha = 0.14f),
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }
-    ) {
-        Row(
-            modifier = Modifier.padding(vertical = 11.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(title, color = text, fontWeight = if (filled) FontWeight.SemiBold else FontWeight.Medium, style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.width(6.dp))
-            Icon(Icons.Outlined.OpenInNew, null, tint = text, modifier = Modifier.size(14.dp))
-        }
-    }
-}
-
-@Composable
-private fun OpenDataTribute() {
-    val context = LocalContext.current
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                brush = Brush.linearGradient(listOf(Tokens.success, Tokens.success.copy(alpha = 0.78f))),
-                shape = RoundedCornerShape(20.dp)
-            )
-            .padding(20.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(
-                    modifier = Modifier.size(36.dp).background(Color.White.copy(alpha = 0.18f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) { Icon(Icons.Filled.Favorite, null, tint = Color.White, modifier = Modifier.size(18.dp)) }
-                Text("Merci à l'Open Data du Grand Lyon", fontWeight = FontWeight.SemiBold, color = Color.White, fontSize = 15.sp)
-            }
-            Text(
-                "Cette app n'existerait pas sans le travail remarquable des équipes Open Data du Grand Lyon. " +
-                    "Position des bus en temps réel, alertes, travaux, parkings, Vélo'v : tout est mis à disposition librement, " +
-                    "sous licence ouverte. Un travail souvent invisible, qui rend possible des projets citoyens comme celui-ci.",
-                color = Color.White.copy(alpha = 0.92f),
-                fontSize = 13.sp
-            )
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = Color.White,
-                modifier = Modifier.clickable { openUrl(context, "https://data.grandlyon.com") }
+            Row(
+                modifier = Modifier.clickable { openUrl(context, "https://data.grandlyon.com") },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("data.grandlyon.com", color = Tokens.success, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                    Icon(Icons.Outlined.OpenInNew, null, tint = Tokens.success, modifier = Modifier.size(14.dp))
-                }
+                Text("data.grandlyon.com", color = Tokens.accent, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                Icon(Icons.Outlined.OpenInNew, null, tint = Tokens.accent, modifier = Modifier.size(14.dp))
             }
         }
     }
@@ -276,25 +180,19 @@ private fun OpenDataTribute() {
 
 @Composable
 private fun SourcesCard() {
-    ElevatedCard(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
-        ListItem(
-            headlineContent = { Text("Sources de données", style = MaterialTheme.typography.titleMedium) },
-            leadingContent = { SectionIcon(Icons.Filled.Wifi, Tokens.accent) },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-        )
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-        SourceItem("Position des véhicules", "SIRI-Lite, temps réel", Icons.Filled.LocationOn, Tokens.success)
-        HorizontalDivider(modifier = Modifier.padding(start = 72.dp, end = 16.dp))
-        SourceItem("Arrêts, lignes, horaires", "GTFS", Icons.Filled.Tram, Tokens.accent)
-        HorizontalDivider(modifier = Modifier.padding(start = 72.dp, end = 16.dp))
-        SourceItem("Alertes et perturbations", "Flux officiel TCL", Icons.Filled.Warning, Tokens.warning)
-        HorizontalDivider(modifier = Modifier.padding(start = 72.dp, end = 16.dp))
-        SourceItem("Travaux", "Chantiers du réseau et de la voirie", Icons.Filled.Build, Tokens.warning)
-        HorizontalDivider(modifier = Modifier.padding(start = 72.dp, end = 16.dp))
-        SourceItem("Parkings et Vélo'v", "Disponibilité en temps réel", Icons.Filled.DirectionsCar, Tokens.accent)
+    AboutCard {
+        InfoRow(Icons.Filled.LocationOn, "Position des véhicules", "SIRI-Lite, en direct")
+        RowDivider()
+        InfoRow(Icons.Filled.Tram, "Arrêts, lignes, horaires", "GTFS")
+        RowDivider()
+        InfoRow(Icons.Filled.Warning, "Alertes et perturbations", "Flux officiel TCL")
+        RowDivider()
+        InfoRow(Icons.Filled.Build, "Travaux", "Chantiers du réseau et de la voirie")
+        RowDivider()
+        InfoRow(Icons.Filled.DirectionsCar, "Parkings et Vélo'v", "Disponibilité en direct")
         Text(
-            "Toutes les données sont publiées par le Grand Lyon sous licence ouverte (Etalab / ODbL).",
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            "Toutes ces données sont publiées par le Grand Lyon sous licence ouverte (Etalab / ODbL).",
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -302,42 +200,25 @@ private fun SourcesCard() {
 }
 
 @Composable
-private fun LinksFooter() {
+private fun Footer(version: String, build: String) {
     val context = LocalContext.current
-    ElevatedCard(shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
-        LinkItem(
-            title = "Site officiel",
-            subtitle = "lyon-pocket.netlify.app",
-            icon = Icons.Filled.Public,
-            tint = Tokens.accent,
-            onClick = { openUrl(context, "https://lyon-pocket.netlify.app/") }
-        )
-        HorizontalDivider(modifier = Modifier.padding(start = 72.dp, end = 16.dp))
-        LinkItem(
-            title = "Politique de confidentialité",
-            subtitle = "Aucune donnée personnelle collectée",
-            icon = Icons.Filled.Lock,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            onClick = { openUrl(context, "https://lyon-pocket.netlify.app/privacy") }
-        )
-    }
-}
-
-@Composable
-private fun VersionFooter(version: String, build: String) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Text(
-            "Lyon Pocket $version" + if (build.isNotEmpty()) " ($build)" else "",
-            style = MaterialTheme.typography.labelSmall,
+            "Politique de confidentialité",
+            color = Tokens.accent, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.clickable { openUrl(context, "https://lyon-pocket.netlify.app/privacy") }
+        )
+        Text(
+            "Lyon Pocket $version" + (if (build.isNotEmpty()) " ($build)" else "") + " · Fait à Villeurbanne",
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Text("Fait à Villeurbanne, avec ♥", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
         Text(
-            "Application indépendante, sans aucune affiliation à SYTRAL Mobilités, Keolis Lyon ou TCL.",
+            "Application indépendante, sans lien avec SYTRAL Mobilités, Keolis Lyon ou TCL.",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.outline,
             textAlign = TextAlign.Center
@@ -345,52 +226,100 @@ private fun VersionFooter(version: String, build: String) {
     }
 }
 
-// ── helpers ────────────────────────────────────────────────────────
+// ── Composants ──────────────────────────────────────────────────────
 
 @Composable
-private fun SectionIcon(icon: ImageVector, tint: Color) {
-    Box(
-        modifier = Modifier.size(36.dp).background(tint.copy(alpha = 0.12f), CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
+private fun AboutSection(title: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            title.uppercase(),
+            style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 4.dp)
+        )
+        content()
     }
 }
 
 @Composable
-private fun SourceItem(title: String, subtitle: String, icon: ImageVector, tint: Color) {
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = { Text(subtitle) },
-        leadingContent = {
-            Box(
-                modifier = Modifier.size(36.dp).background(tint.copy(alpha = 0.12f), MaterialTheme.shapes.small),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, null, tint = tint, modifier = Modifier.size(16.dp))
-            }
-        },
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-    )
+private fun AboutCard(content: @Composable () -> Unit) {
+    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), modifier = Modifier.fillMaxWidth()) {
+        Column { content() }
+    }
 }
 
 @Composable
-private fun LinkItem(title: String, subtitle: String, icon: ImageVector, tint: Color, onClick: () -> Unit) {
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = { Text(subtitle) },
-        leadingContent = {
-            Box(
-                modifier = Modifier.size(36.dp).background(tint.copy(alpha = 0.12f), MaterialTheme.shapes.small),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, null, tint = tint, modifier = Modifier.size(16.dp))
+private fun RowDivider() {
+    HorizontalDivider(modifier = Modifier.padding(start = 62.dp))
+}
+
+@Composable
+private fun IconBox(icon: ImageVector) {
+    Box(
+        modifier = Modifier.size(34.dp).background(Tokens.accent.copy(alpha = 0.12f), RoundedCornerShape(9.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, null, tint = Tokens.accent, modifier = Modifier.size(17.dp))
+    }
+}
+
+@Composable
+private fun Pill(text: String) {
+    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)) {
+        Text(
+            text, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+        )
+    }
+}
+
+@Composable
+private fun InfoRow(icon: ImageVector, title: String, subtitle: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        IconBox(icon)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun ProjectRow(icon: ImageVector, title: String, text: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        IconBox(icon)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Icon(Icons.Outlined.OpenInNew, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(12.dp))
             }
-        },
-        trailingContent = {
-            Icon(Icons.Outlined.OpenInNew, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-        },
-        modifier = Modifier.clickable { onClick() },
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-    )
+            Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 18.sp)
+        }
+    }
+}
+
+@Composable
+private fun LinkRow(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        IconBox(icon)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.Outlined.OpenInNew, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+    }
 }

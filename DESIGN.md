@@ -84,8 +84,8 @@ arrière-plan (activité en direct) a été essayé puis retiré le 16 septembre
 
 L'onglet « Autour de moi » (Transport, Autour de moi, Info : trois onglets) s'ouvre sur la carte de la
 ville, immobile et centrée sur la position, sous un voile qui s'épaissit vers le bas ; par-dessus, des
-tuiles de verre teinté à la couleur de l'entrée, avec un pictogramme blanc sur un disque plein, une par
-entrée de `CityTile` (module partagé, dans l'ordre de l'énumération) :
+tuiles de verre neutre, avec un pictogramme à l'accent sur un disque bleuté (une seule couleur pour
+tout l'accueil), une par entrée de `CityTile` (module partagé, dans l'ordre de l'énumération) :
 « Parkings voiture », « Stations Vélo'v », « Arceaux vélos », « Places deux-roues motorisés » sur deux
 colonnes, puis « Travaux » en pleine largeur. Chaque tuile porte son titre, une ligne descriptive
 (`CityTile.title` / `subtitle`, couleur `AppColors.cityTile`) et, quand la donnée est là, le chiffre du
@@ -102,16 +102,22 @@ Liquid Glass dès iOS 26 et matériau translucide avec liseré clair avant) ou `
 fond translucide et liseré en dégradé). Les boutons ronds des cartes sont, sur iOS 26, les styles de
 bouton en verre du système (`.glass` au repos, `.glassProminent` actif), qui répondent au toucher sans
 délai ; jamais un effet de verre posé par-dessus un bouton. Jamais de verre dans du verre : l'icône
-d'une tuile est sur un disque plein. L'accent de l'application est la teinte de toute l'interface
+d'une tuile est sur un disque uni. L'accent de l'application est la teinte de toute l'interface
 (interrupteurs compris), pas la couleur « primaire » du système. La fiche d'un parking ne montre que ce
 que la donnée contient (plus de « type d'usagers » ni de « type d'ouvrage » inventés).
 
 ## Onglet Info
 
-Solal Gendrin en tête (initiales sur un disque vert, nom, « Conseiller métropolitain écologiste »,
-une phrase, un bouton LinkedIn), puis l'application, Open Projets (carte à l'accent), l'Open Data du
-Grand Lyon (carte verte), les sources de données, les liens et la version. Aucune couleur en dur :
-jetons `accent`, `success`, `warning`, `neutral`.
+Une page sur Solal Gendrin, écrite à la première personne, à partir de faits vérifiés (fiche d'élu
+sur grandlyon.com, Lyon Capitale, Tribune de Lyon, fiche App Store de Nadir, sites de TCL 2040 et
+d'Open Projets) : en tête ses initiales sur un disque vert, son nom, « Conseiller métropolitain
+écologiste », « Élu de Villeurbanne, mandat 2026 à 2032 », un paragraphe amical et quatre étiquettes
+(gratuite, sans pub, sans compte, sans données vendues). Puis, en sections titrées en petites
+capitales : « À la Métropole » (ses trois commissions), « Mes projets » (Lyon Pocket, TCL 2040, Grands
+Projets, Open Projets avec Vazy, Nadir, chacun avec une phrase et un lien), « On se parle ? »
+(LinkedIn, X, GitHub), « Merci » (Open Data du Grand Lyon), « D'où viennent les données », et un pied
+de page (confidentialité, version, indépendance). Une seule teinte, l'accent, pour tous les
+pictogrammes sur carré bleuté ; le vert ne sert qu'à son étiquette d'élu écologiste.
 
 ## Filtres de la carte Transport
 

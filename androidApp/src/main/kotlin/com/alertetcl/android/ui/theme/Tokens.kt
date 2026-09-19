@@ -10,7 +10,6 @@ import com.alertetcl.shared.design.AppColors
 import com.alertetcl.shared.design.ThemedColor
 import com.alertetcl.shared.models.AlertSeverity
 import com.alertetcl.shared.models.AvailabilityColor
-import com.alertetcl.shared.models.CityTile
 import com.alertetcl.shared.models.ParkingType
 import com.alertetcl.shared.models.TransportMode
 import com.alertetcl.shared.models.TravauxImportance
@@ -47,9 +46,6 @@ object Tokens {
 
     @Composable @ReadOnlyComposable
     fun parkingType(type: ParkingType): Color = AppColors.parkingType(type).compose()
-
-    @Composable @ReadOnlyComposable
-    fun cityTile(tile: CityTile): Color = AppColors.cityTile(tile).compose()
 
     @Composable @ReadOnlyComposable
     fun travauxImportance(importance: TravauxImportance): Color =

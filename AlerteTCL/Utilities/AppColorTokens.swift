@@ -177,8 +177,6 @@ extension ParkingType {
 }
 
 extension CityTile {
-    var color: Color { Color(token: AppColors.shared.cityTile(tile: self)) }
-
     /// Pictogramme de la tuile : celui de son type de stationnement, un marteau pour les chantiers.
     var icon: String { parkingType.flatMap(ParkingType.init(shared:))?.icon ?? "hammer.fill" }
 }

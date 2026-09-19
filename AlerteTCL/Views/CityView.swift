@@ -143,7 +143,7 @@ private struct CityTileCard: View {
             .contentShape(RoundedRectangle(cornerRadius: 28))
         }
         .buttonStyle(.plain)
-        .glassSurface(RoundedRectangle(cornerRadius: 28), tint: tile.color.opacity(0.22))
+        .glassSurface(RoundedRectangle(cornerRadius: 28))
     }
 
     private var texts: some View {
@@ -160,16 +160,15 @@ private struct CityTileCard: View {
     }
 }
 
-/// Pictogramme blanc sur un disque plein à la couleur de la tuile.
+/// Pictogramme à l'accent sur un disque bleuté : une seule couleur pour tout l'accueil.
 private struct TileIcon: View {
     let tile: CityTile
 
     var body: some View {
         Image(systemName: tile.icon)
             .font(.system(size: 24, weight: .semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.appAccent)
             .frame(width: 52, height: 52)
-            .background(tile.color, in: Circle())
-            .shadow(color: tile.color.opacity(0.35), radius: 8, x: 0, y: 4)
+            .background(Color.appAccent.opacity(0.12), in: Circle())
     }
 }

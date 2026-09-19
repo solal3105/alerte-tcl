@@ -38,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -92,9 +91,6 @@ private fun tileIcon(tile: CityTile): ImageVector = when (tile.parkingType) {
     ParkingType.MOTORIZED_2W -> Icons.Filled.TwoWheeler
     null                     -> Icons.Filled.Build
 }
-
-@Composable
-private fun tileColor(tile: CityTile): Color = Tokens.cityTile(tile)
 
 /** Accueil : la carte de la ville, immobile, sous un voile ; les tuiles de verre par-dessus. */
 @Composable
@@ -152,24 +148,22 @@ private fun MapBackdrop() {
 
 @Composable
 private fun CityTileCard(tile: CityTile, modifier: Modifier, wide: Boolean = false, onClick: () -> Unit) {
-    val accent = tileColor(tile)
     val shape = RoundedCornerShape(28.dp)
     Box(
         modifier = modifier
             .heightIn(min = if (wide) 96.dp else 172.dp)
             .glass(shape, alpha = 0.86f)
-            .background(accent.copy(alpha = 0.14f))
             .clickable { onClick() }
             .padding(18.dp)
     ) {
         if (wide) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                TileIcon(tile, accent)
+                TileIcon(tile)
                 TileTexts(tile)
             }
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                TileIcon(tile, accent)
+                TileIcon(tile)
                 TileTexts(tile)
             }
         }
@@ -184,21 +178,20 @@ private fun TileTexts(tile: CityTile) {
     }
 }
 
-/** Pictogramme blanc sur un disque plein à la couleur de la tuile. */
+/** Pictogramme à l'accent sur un disque bleuté : une seule couleur pour tout l'accueil. */
 @Composable
-private fun TileIcon(tile: CityTile, accent: Color, size: Int = 52, iconSize: Int = 26) {
+private fun TileIcon(tile: CityTile, size: Int = 52, iconSize: Int = 26) {
     Box(
-        modifier = Modifier.size(size.dp).background(accent, CircleShape),
+        modifier = Modifier.size(size.dp).background(Tokens.accent.copy(alpha = 0.12f), CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        Icon(tileIcon(tile), null, tint = Color.White, modifier = Modifier.size(iconSize.dp))
+        Icon(tileIcon(tile), null, tint = Tokens.accent, modifier = Modifier.size(iconSize.dp))
     }
 }
 
 /** Capsule en verre en haut de la carte : la tuile affichée, un toucher ramène à l'accueil. */
 @Composable
 private fun CityHeader(tile: CityTile, modifier: Modifier, onBack: () -> Unit) {
-    val accent = tileColor(tile)
     Row(
         modifier = modifier
             .glass(RoundedCornerShape(50), alpha = 0.78f)
@@ -208,7 +201,7 @@ private fun CityHeader(tile: CityTile, modifier: Modifier, onBack: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour à l'accueil", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-        TileIcon(tile, accent, size = 28, iconSize = 16)
+        TileIcon(tile, size = 28, iconSize = 16)
         Text(tile.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
     }
 }
