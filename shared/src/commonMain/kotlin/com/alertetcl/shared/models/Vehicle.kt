@@ -50,21 +50,24 @@ data class Vehicle(
     /** Numéro de parc extrait du VehicleRef SIRI (ex. "ActIV:Vehicle:Bus:1512:LOC" → "1512"). */
     val fleetNumber: String? get() = id.split(":").getOrNull(3)?.takeIf { it.isNotEmpty() }
 
-    val delayFormatted: String get() = when {
-        delay == 0  -> "À l'heure"
-        delay > 0   -> {
-            val minutes = delay / 60
-            if (minutes > 0) "+$minutes min" else "+$delay sec"
-        }
-        else -> {
-            val abs = -delay
-            val minutes = abs / 60
-            if (minutes > 0) "-$minutes min" else "$delay sec"
-        }
+    /** Ponctualité : le chiffre, ce qu'il veut dire, et la phrase entière (cf. [VehicleTexts]). */
+    val delayAmount: String get() = VehicleTexts.punctualityAmount(delay)
+    val delayCaption: String get() = VehicleTexts.punctualityCaption(delay)
+    val delayText: String get() = VehicleTexts.punctuality(delay)
+
+    val isDelayed: Boolean get() = VehicleTexts.isDelayed(delay)
+    val isEarly:   Boolean get() = VehicleTexts.isEarly(delay)
+
+    /**
+     * Arrivée au prochain arrêt (epoch, secondes) : son horaire prévu corrigé du retard constaté,
+     * comme l'estimation de « Où est mon bus ». Null quand TCL ne donne pas d'horaire pour cet arrêt.
+     */
+    val nextStopArrivalEpoch: Long? get() = nextStop?.let { stop ->
+        (stop.aimedArrivalTimeEpoch ?: stop.aimedDepartureTimeEpoch)?.plus(delay)
     }
 
-    val isDelayed: Boolean get() = delay > 60
-    val isEarly:   Boolean get() = delay < -60
+    /** Légende de cette heure : « arrivée à Bellecour ». Null sans nom d'arrêt. */
+    val nextStopArrivalCaption: String? get() = nextStop?.stopName?.let { VehicleTexts.arrivalCaption(it) }
 
     /** Âge de la dernière position transmise par TCL (RecordedAtTime SIRI), en secondes. */
     fun positionAgeSeconds(nowEpochMs: Long): Long? =

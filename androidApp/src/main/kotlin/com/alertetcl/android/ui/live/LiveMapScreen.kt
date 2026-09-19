@@ -1052,7 +1052,7 @@ private fun VehicleDetailSheet(v: Vehicle) {
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Icon(Icons.Filled.AccessTime, null, tint = delayColor, modifier = Modifier.size(11.dp))
-                            Text(v.delayFormatted, color = delayColor, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                            Text(v.delayText, color = delayColor, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
                         }
                     }
 
@@ -1762,11 +1762,13 @@ private fun VehicleFocusBanner(focus: StopLineFocus, vehicle: Vehicle?, onMore: 
                 }
                 Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     FocusStat(age?.let { Vehicle.formattedAge(it) } ?: "—", "dernière position", vehicle.positionFreshness(nowMs).color.compose(), emphasized = true)
-                    FocusStat(vehicle.delayFormatted, if (vehicle.isDelayed) "retard" else if (vehicle.isEarly) "avance" else "horaire", delayColor, emphasized = false)
-                    vehicle.nextStop?.stopName?.let { name ->
-                        val at = vehicle.nextStop?.aimedArrivalTimeEpoch ?: vehicle.nextStop?.aimedDepartureTimeEpoch
-                        val time = at?.let { java.time.Instant.ofEpochSecond(it).atZone(java.time.ZoneId.systemDefault()).toLocalTime().let { t -> "%02d:%02d".format(t.hour, t.minute) } } ?: "—"
-                        FocusStat(time, name, MaterialTheme.colorScheme.onSurface, emphasized = false)
+                    FocusStat(vehicle.delayAmount, vehicle.delayCaption, delayColor, emphasized = false)
+                    val arrival = vehicle.nextStopArrivalEpoch
+                    val arrivalCaption = vehicle.nextStopArrivalCaption
+                    if (arrival != null && arrivalCaption != null) {
+                        val time = java.time.Instant.ofEpochSecond(arrival).atZone(java.time.ZoneId.systemDefault())
+                            .toLocalTime().let { t -> "%02d:%02d".format(t.hour, t.minute) }
+                        FocusStat(time, arrivalCaption, MaterialTheme.colorScheme.onSurface, emphasized = false)
                     }
                 }
             } else {

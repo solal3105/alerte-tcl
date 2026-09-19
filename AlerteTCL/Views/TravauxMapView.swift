@@ -3,9 +3,12 @@ import MapKit
 import CoreLocation
 
 struct TravauxMapView: View {
+    /// Lien vers un chantier (widget) : sa fiche s'ouvre dès que les chantiers sont chargés.
+    @Binding var link: WidgetLink?
     @StateObject private var viewModel = TravauxViewModel()
     @ObservedObject private var locationService = LocationService.shared
     @State private var selectedTravaux: Travaux?
+    @State private var pendingWorkId: String?
     @State private var showFilters = false
     @State private var mapCameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -38,12 +41,41 @@ struct TravauxMapView: View {
                 .presentationDragIndicator(.visible)
         }
         .onAppear {
+            consumeLink()
             viewModel.onAppear()
         }
+        .onChange(of: link) { _, _ in
+            consumeLink()
+            resolvePendingWork()
+        }
+        .onChange(of: viewModel.travaux) { _, _ in resolvePendingWork() }
         .withInitialLocation(
             mapCameraPosition: $mapCameraPosition,
             hasSetInitialLocation: $hasSetInitialLocation
         )
+    }
+
+    /// Un lien sans chantier ouvre seulement la carte ; avec un chantier, sa fiche suit dès les données.
+    private func consumeLink() {
+        guard case .works(let id) = link else { return }
+        pendingWorkId = id
+        link = nil
+    }
+
+    private func resolvePendingWork() {
+        guard let id = pendingWorkId, let travaux = viewModel.travaux.first(where: { $0.id == id }) else { return }
+        pendingWorkId = nil
+        hasSetInitialLocation = true
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+            mapCameraPosition = .region(MKCoordinateRegion(
+                center: travaux.centroid,
+                span: MKCoordinateSpan(latitudeDelta: 0.006, longitudeDelta: 0.006)
+            ))
+        }
+        Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            await MainActor.run { selectedTravaux = travaux }
+        }
     }
     
     private var mapContent: some View {
@@ -835,5 +867,5 @@ struct TravauxFiltersSheet: View {
 // MARK: - Preview
 
 #Preview {
-    TravauxMapView()
+    TravauxMapView(link: .constant(nil))
 }

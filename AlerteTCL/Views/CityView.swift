@@ -11,7 +11,8 @@ extension CityTile: Identifiable {
 /// navigation : bouton de retour système et geste de balayage. En démo « velov… », la carte des
 /// stations s'ouvre directement.
 struct CityView: View {
-    @Binding var selectedParkingId: String?
+    /// Lien vers un parking, une station Vélo'v ou un chantier : la carte concernée s'ouvre sans passer par l'accueil.
+    @Binding var link: WidgetLink?
     @State private var selectedTile: CityTile?
 
     var body: some View {
@@ -28,19 +29,29 @@ struct CityView: View {
             #if DEBUG
             if DemoShowcase.current?.hasPrefix("velov") == true { selectedTile = .velov }
             #endif
+            open(link)
         }
-        .onChange(of: selectedParkingId) { _, id in
-            // Lien vers un parking : la carte des parkings voiture s'ouvre sans passer par l'accueil.
-            if id != nil, selectedTile?.parkingType != Shared.ParkingType.car { selectedTile = .parkingCar }
+        .onChange(of: link) { _, link in open(link) }
+    }
+
+    /// La tuile qui correspond au lien ; la carte ouverte consomme ensuite le lien avec ses données.
+    private func open(_ link: WidgetLink?) {
+        let wanted: CityTile?
+        switch link {
+        case .parking: wanted = .parkingCar
+        case .velov: wanted = .velov
+        case .works: wanted = .travaux
+        default: wanted = nil
         }
+        if let wanted, selectedTile != wanted { selectedTile = wanted }
     }
 
     @ViewBuilder
     private func content(for tile: CityTile) -> some View {
         if let type = tile.parkingType.flatMap(ParkingType.init(shared:)) {
-            ParkingMapView(parkingType: type, selectedParkingId: $selectedParkingId)
+            ParkingMapView(parkingType: type, link: $link)
         } else {
-            TravauxMapView()
+            TravauxMapView(link: $link)
         }
     }
 }

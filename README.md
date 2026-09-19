@@ -22,7 +22,7 @@ Mobilités, Keolis Lyon ou TCL.
 - **Autour de moi** : un accueil à tuiles, sur la carte de la ville, vers les parkings voiture et parcs
   relais en temps réel, les stations Vélo'v, les arceaux vélos, les places deux-roues motorisés et les
   chantiers, avec leurs chiffres du moment.
-- **Widgets** (iOS seulement) : prochains passages, panneau d'affichage et parking sur l'écran d'accueil.
+- **Widgets** (iOS seulement) : prochains passages, tableau de départs, trafic sur mes lignes, places de parking, station Vélo'v et travaux autour de moi, sur l'écran d'accueil et l'écran verrouillé.
 - **Notifications** : abonnement par ligne, avec le choix des types d'alertes, sur les deux plateformes.
 
 ## Architecture
@@ -32,6 +32,7 @@ shared/            Logique métier Kotlin Multiplatform : modèles, services ré
                    couleurs de lignes, fiches horaires, tests (commonTest)
 AlerteTCL/         Application iOS (SwiftUI, MapKit) : lie le framework Kotlin `Shared`
 AlerteTCLWidget/   Extension widgets iOS (Swift seul, sans le module Kotlin)
+WidgetCommon/      Vues et modèles des widgets, compilés dans l'app (galerie) et dans l'extension
 androidApp/        Application Android (Jetpack Compose, MapLibre)
 cloudflare-worker/ Proxy Cloudflare : détient les identifiants Grand Lyon, met en cache les flux
 horaires/          Construction nocturne des fiches horaires à partir du GTFS SYTRAL

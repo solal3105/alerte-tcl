@@ -4,11 +4,13 @@ import WidgetKit
 /// Les widgets de Lyon Pocket : identifiant WidgetKit, textes de la galerie et tailles proposées.
 ///
 /// La même liste sert à l'extension (déclaration des widgets, rechargement des chronologies)
-/// et à l'application (galerie « Widgets » de l'onglet Info).
+/// et à l'application (galerie « Widgets » de l'onglet Info). Les trois premiers gardent les
+/// identifiants (et les noms de réglages) des widgets d'avant la refonte : un widget déjà posé
+/// sur un écran d'accueil continue de se mettre à jour après la mise à jour de l'application.
 enum WidgetKind: String, CaseIterable, Identifiable {
-    case departures = "LyonPocket.Departures"
-    case board = "LyonPocket.Board"
-    case parking = "LyonPocket.Parking"
+    case departures = "NextDeparturesWidget"
+    case board = "TCLBoardWidget"
+    case parking = "ParkingWidget"
     case velov = "LyonPocket.Velov"
     case works = "LyonPocket.Works"
     case traffic = "LyonPocket.Traffic"

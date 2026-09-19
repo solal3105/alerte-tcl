@@ -6,8 +6,4 @@ import Foundation
 /// mise à jour par `cloudflare-worker/deploy.sh` au déploiement.
 enum ProxyEndpoint {
     static let baseURL = "https://tcl-proxy.solalgendrin.workers.dev"
-
-    static func url(_ path: String) -> URL? {
-        URL(string: baseURL + path)
-    }
 }

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.systemBars
@@ -93,6 +94,7 @@ import com.alertetcl.shared.models.AvailabilityColor
 import com.alertetcl.shared.models.Parking
 import com.alertetcl.shared.models.ParkingState
 import com.alertetcl.shared.models.ParkingType
+import com.alertetcl.shared.models.VelovFilter
 import com.alertetcl.shared.models.VelovStation
 import com.alertetcl.shared.viewmodels.ParkingViewModel
 import com.alertetcl.android.data.FavoritesStore
@@ -154,7 +156,7 @@ fun ParkingScreen(type: ParkingType) {
     val isLoading by vm.isLoading.collectAsState()
     val errorMessage by vm.errorMessage.collectAsState()
     val velovStations by vm.velovStations.collectAsState()
-    val velovElectricOnly by store.velovElectricOnly.collectAsState(initial = false)
+    val velovFilter by store.velovFilter.collectAsState(initial = VelovFilter.ALL)
     val velovRef = remember { mutableStateOf<List<VelovStation>>(emptyList()) }
     velovRef.value = velovStations
     var selectedVelov by remember { mutableStateOf<VelovStation?>(null) }
@@ -186,7 +188,7 @@ fun ParkingScreen(type: ParkingType) {
         LaunchedEffect(Unit) {
             val demo = DemoShowcase.current ?: return@LaunchedEffect
             if (demo.startsWith("velov")) {
-                store.setVelovElectricOnly(demo == "velov-electriques")
+                store.setVelovFilter(if (demo == "velov-electriques") VelovFilter.ELECTRIC else VelovFilter.ALL)
                 if (demo == "velov-station") {
                     kotlinx.coroutines.delay(6_000)
                     selectedVelov = DemoShowcase.velovStations().first()
@@ -298,7 +300,20 @@ fun ParkingScreen(type: ParkingType) {
         // Indicateur de chargement au bord haut ; la capsule de retour est posée par l'onglet Ville.
         if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
 
-        // Bottom-right FABs (parité iOS) : satellite, filtres (voitures et Vélo'v), position
+        // Vélo'v : le choix de ce que les stations affichent, sous la capsule de retour.
+        if (isVelovSelected) {
+            VelovFilterBar(
+                selected = velovFilter,
+                onSelect = { scope.launch { store.setVelovFilter(it) } },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(start = 16.dp, end = 16.dp, top = 64.dp)
+                    .fillMaxWidth()
+            )
+        }
+
+        // Bottom-right FABs (parité iOS) : satellite, filtres (voitures), position
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -308,8 +323,8 @@ fun ParkingScreen(type: ParkingType) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             MapCircleFab(icon = Icons.Filled.Public, contentDesc = "Vue satellite", active = isSatellite, onClick = { isSatellite = !isSatellite })
-            if (isCarSelected || isVelovSelected) {
-                val hasActiveFilters = if (isVelovSelected) velovElectricOnly else !showParcRelais || !showRealtimeParkings
+            if (isCarSelected) {
+                val hasActiveFilters = !showParcRelais || !showRealtimeParkings
                 MapCircleFab(icon = Icons.Filled.FilterList, contentDesc = "Filtres", active = hasActiveFilters, onClick = { showFilterSheet = true })
             }
             MapCircleFab(
@@ -376,15 +391,11 @@ fun ParkingScreen(type: ParkingType) {
             contentWindowInsets = { WindowInsets.systemBars }
         ) {
             ParkingFilterSheet(
-                velovSelected = isVelovSelected,
                 showParcRelais = showParcRelais,
                 onToggleParcRelais = { vm.toggleParcRelais() },
                 showRealtimeParkings = showRealtimeParkings,
                 onToggleRealtime = { vm.toggleRealtimeParkings() },
-                velovElectricOnly = velovElectricOnly,
-                onToggleVelovElectricOnly = { scope.launch { store.setVelovElectricOnly(!velovElectricOnly) } },
                 onReset = {
-                    if (isVelovSelected) scope.launch { store.setVelovElectricOnly(false) }
                     if (!showParcRelais) vm.toggleParcRelais()
                     if (!showRealtimeParkings) vm.toggleRealtimeParkings()
                 }
@@ -444,19 +455,19 @@ fun ParkingScreen(type: ParkingType) {
 
     // Stations Vélo'v : point coloré de loin (CircleLayer), carré avec le nombre de vélos dès le zoom des arrêts.
     val lastVelovKeys = remember { mutableStateOf(emptySet<String>()) }
-    LaunchedEffect(mapStyle, velovStations, velovElectricOnly, isDark) {
+    LaunchedEffect(mapStyle, velovStations, velovFilter, isDark) {
         val style = mapStyle ?: return@LaunchedEffect
         if (!style.isFullyLoaded) return@LaunchedEffect
         val entries = velovStations.map { s ->
-            val count = s.shownBikes(velovElectricOnly)
-            val hex = AppColors.parkingAvailability(s.availabilityFor(velovElectricOnly)).hex(isDark)
-            Triple(s, "velov_${if (velovElectricOnly) "e" else "b"}_${count}_${hex.removePrefix("#")}", hex)
+            val count = s.shownCount(velovFilter)
+            val hex = AppColors.parkingAvailability(s.availabilityFor(velovFilter)).hex(isDark)
+            Triple(s, "velov_${velovFilter.name}_${count}_${hex.removePrefix("#")}", hex)
         }
         val keys = entries.map { it.second }.toSet()
         (lastVelovKeys.value - keys).forEach { style.removeImage(it) }
         lastVelovKeys.value = keys
         entries.distinctBy { it.second }.filter { style.getImage(it.second) == null }.forEach { (s, key, hex) ->
-            style.addImage(key, velovMarkerBitmap(s.shownBikes(velovElectricOnly), hex, velovElectricOnly))
+            style.addImage(key, velovMarkerBitmap(s.shownCount(velovFilter), hex, velovFilter))
         }
         val features = FeatureCollection.fromFeatures(entries.map { (s, key, hex) ->
             Feature.fromGeometry(Point.fromLngLat(s.lng, s.lat), JsonObject().apply {
@@ -821,19 +832,16 @@ private fun ParkingInfoRow(icon: ImageVector, label: String, value: String) {
     }
 }
 
-/** Filtres du type courant : parkings temps réel et P+R pour les voitures, vélos électriques pour les Vélo'v. */
+/** Filtres de la carte des voitures : parkings temps réel et parcs relais. */
 @Composable
 private fun ParkingFilterSheet(
-    velovSelected: Boolean,
     showParcRelais: Boolean,
     onToggleParcRelais: () -> Unit,
     showRealtimeParkings: Boolean,
     onToggleRealtime: () -> Unit,
-    velovElectricOnly: Boolean,
-    onToggleVelovElectricOnly: () -> Unit,
     onReset: () -> Unit
 ) {
-    val hasActiveFilters = if (velovSelected) velovElectricOnly else !showParcRelais || !showRealtimeParkings
+    val hasActiveFilters = !showParcRelais || !showRealtimeParkings
     Column(modifier = Modifier.padding(20.dp)) {
         Text("Filtres", fontWeight = FontWeight.Bold, fontSize = 18.sp)
         Spacer(Modifier.height(16.dp))
@@ -852,22 +860,6 @@ private fun ParkingFilterSheet(
                     Text("Réinitialiser les filtres", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Medium)
                 }
             }
-        }
-        if (velovSelected) {
-            Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Seulement les vélos électriques", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                        Text("Chaque station affiche alors son nombre de vélos électriques, avec un éclair", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Switch(checked = velovElectricOnly, onCheckedChange = { onToggleVelovElectricOnly() })
-                }
-            }
-            Spacer(Modifier.height(20.dp))
-            return@Column
         }
         Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
             Column {

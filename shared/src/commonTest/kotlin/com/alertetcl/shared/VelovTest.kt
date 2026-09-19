@@ -1,6 +1,7 @@
 package com.alertetcl.shared
 
 import com.alertetcl.shared.models.AvailabilityColor
+import com.alertetcl.shared.models.VelovFilter
 import com.alertetcl.shared.models.VelovStation
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -26,20 +27,41 @@ class VelovTest {
     }
 
     @Test
-    fun theElectricFilterCountsOnlyElectricBikes() {
-        val station = station(8, ebikes = 2)
-        assertEquals(8, station.shownBikes(false))
-        assertEquals(2, station.shownBikes(true))
-        assertEquals(AvailabilityColor.GREEN, station.availabilityFor(false))
-        assertEquals(AvailabilityColor.ORANGE, station.availabilityFor(true))
-        assertEquals(AvailabilityColor.RED, station(5, ebikes = 0).availabilityFor(true))
-        assertEquals(AvailabilityColor.GRAY, station(5, ebikes = 5, open = false).availabilityFor(true))
+    fun eachFilterCountsWhatItAnnounces() {
+        val station = station(8, ebikes = 2, stands = 1)
+        assertEquals(8, station.shownCount(VelovFilter.ALL))
+        assertEquals(6, station.shownCount(VelovFilter.MECHANICAL))
+        assertEquals(2, station.shownCount(VelovFilter.ELECTRIC))
+        assertEquals(1, station.shownCount(VelovFilter.STANDS))
+    }
+
+    @Test
+    fun classicBikesAreDeducedWhenTheOperatorOmitsThem() {
+        val station = station(8, ebikes = 3).copy(mbikes = 0)
+        assertEquals(5, station.shownCount(VelovFilter.MECHANICAL))
+    }
+
+    @Test
+    fun availabilityFollowsTheChosenFilter() {
+        val station = station(8, ebikes = 2, stands = 0)
+        assertEquals(AvailabilityColor.GREEN, station.availabilityFor(VelovFilter.ALL))
+        assertEquals(AvailabilityColor.ORANGE, station.availabilityFor(VelovFilter.ELECTRIC))
+        assertEquals(AvailabilityColor.RED, station.availabilityFor(VelovFilter.STANDS))
+        assertEquals(AvailabilityColor.RED, station(5, ebikes = 0).availabilityFor(VelovFilter.ELECTRIC))
+        assertEquals(AvailabilityColor.GRAY, station(5, ebikes = 5, open = false).availabilityFor(VelovFilter.ELECTRIC))
+    }
+
+    @Test
+    fun anUnknownSavedFilterFallsBackToAll() {
+        assertEquals(VelovFilter.ELECTRIC, VelovFilter.fromName("ELECTRIC"))
+        assertEquals(VelovFilter.ALL, VelovFilter.fromName(null))
+        assertEquals(VelovFilter.ALL, VelovFilter.fromName("CARGO"))
     }
 
     @Test
     fun textsAreWrittenInFullSentences() {
-        assertEquals("8 vélos disponibles, dont 6 électriques et 2 mécaniques", station(8, ebikes = 6).bikesText)
-        assertEquals("1 vélo disponible, dont 1 électrique et 0 mécanique", station(1, ebikes = 1).bikesText)
+        assertEquals("8 vélos disponibles", station(8, ebikes = 6).bikesText)
+        assertEquals("1 vélo disponible", station(1, ebikes = 1).bikesText)
         assertEquals("Aucun vélo disponible", station(0).bikesText)
         assertEquals("Station fermée", station(4, open = false).bikesText)
         assertEquals("5 places libres pour rendre un vélo", station(3).standsText)

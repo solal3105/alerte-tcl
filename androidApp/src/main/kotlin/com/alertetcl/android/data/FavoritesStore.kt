@@ -8,6 +8,7 @@ import com.alertetcl.shared.models.AlertSeverity
 import com.alertetcl.shared.models.LineRegistry
 import com.alertetcl.shared.models.LineSubscription
 import com.alertetcl.shared.models.LineSubscriptions
+import com.alertetcl.shared.models.VelovFilter
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -68,12 +69,12 @@ class FavoritesStore(private val context: Context) {
     val showMetroTraces: Flow<Boolean> =
         context.favStore.data.map { p -> p[KEY_SHOW_METRO_TRACES] != "0" }
 
-    /** Onglet Parkings, type Vélo'v : ne compter que les vélos électriques (false par défaut). */
-    val velovElectricOnly: Flow<Boolean> =
-        context.favStore.data.map { p -> p[KEY_VELOV_ELECTRIC] == "1" }
+    /** Carte Vélo'v : ce que les marqueurs comptent (tous les vélos par défaut). */
+    val velovFilter: Flow<VelovFilter> =
+        context.favStore.data.map { p -> VelovFilter.fromName(p[KEY_VELOV_FILTER]) }
 
-    suspend fun setVelovElectricOnly(electricOnly: Boolean) {
-        context.favStore.edit { p -> p[KEY_VELOV_ELECTRIC] = if (electricOnly) "1" else "0" }
+    suspend fun setVelovFilter(filter: VelovFilter) {
+        context.favStore.edit { p -> p[KEY_VELOV_FILTER] = filter.name }
     }
 
     suspend fun setShowBusTraces(show: Boolean) {
@@ -153,7 +154,7 @@ class FavoritesStore(private val context: Context) {
         private val KEY_SHOW_BUS_TRACES     = stringPreferencesKey("show_bus_traces")
         private val KEY_SHOW_TRAM_TRACES    = stringPreferencesKey("show_tram_traces")
         private val KEY_SHOW_METRO_TRACES   = stringPreferencesKey("show_metro_traces")
-        private val KEY_VELOV_ELECTRIC      = stringPreferencesKey("velov_electric_only")
+        private val KEY_VELOV_FILTER        = stringPreferencesKey("velov_filter")
         private val KEY_LINE_PALETTE        = stringPreferencesKey("line_palette")
     }
 }

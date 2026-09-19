@@ -18,10 +18,12 @@ final class ParkingViewModel: ObservableObject {
     @Published var showParcRelais: Bool = true
     /// Stations Vélo'v (type « Vélo'v » seulement), rechargées toutes les minutes comme les parkings voiture.
     @Published private(set) var velovStations: [VelovStation] = []
-    /// Ne compter que les vélos électriques sur les marqueurs Vélo'v. Conservé entre deux lancements.
-    @Published var velovElectricOnly: Bool = UserDefaults.standard.bool(forKey: "parking.velovElectricOnly") {
-        didSet { UserDefaults.standard.set(velovElectricOnly, forKey: "parking.velovElectricOnly") }
-    }
+    /// Ce que les marqueurs Vélo'v comptent : tous les vélos, une motorisation, ou les places libres.
+    /// Le choix est conservé entre deux lancements.
+    @Published private(set) var velovFilter: VelovFilter = VelovFilter.companion.fromName(
+        name: UserDefaults.standard.string(forKey: ParkingViewModel.velovFilterKey)
+    )
+    private static let velovFilterKey = "parking.velovFilter"
     @Published var isLoading = false
     @Published var error: String?
     @Published var lastUpdate: Date?
@@ -323,6 +325,13 @@ final class ParkingViewModel: ObservableObject {
 
     /// Voitures et Vélo'v ont une disponibilité en direct, rechargée toutes les minutes.
     var hasLiveData: Bool { selectedParkingType == .car || selectedParkingType == .velov }
+
+    /// Change ce que les marqueurs Vélo'v comptent, et retient le choix.
+    func selectVelovFilter(_ filter: VelovFilter) {
+        guard filter != velovFilter else { return }
+        velovFilter = filter
+        UserDefaults.standard.set(filter.name, forKey: Self.velovFilterKey)
+    }
 
     /// Recharge le type courant quand il a des données en direct.
     func refreshLiveData() async {

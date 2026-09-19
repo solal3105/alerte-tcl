@@ -135,13 +135,13 @@ enum MarkerImageCache {
     }
 
 
-    /// Marqueur d'une station Vélo'v : carré arrondi à la couleur de disponibilité, vélo (ou éclair pour
-    /// les seuls vélos électriques) et nombre de vélos.
-    static func velovMarker(bikes: Int, availability: AvailabilityColor, electric: Bool) -> UIImage {
-        let key = "velov-\(bikes)-\(availability.name)-\(electric)" as NSString
+    /// Marqueur d'une station Vélo'v : carré arrondi à la couleur de disponibilité, le pictogramme du
+    /// filtre courant et le nombre compté.
+    static func velovMarker(count: Int, availability: AvailabilityColor, symbol: String) -> UIImage {
+        let key = "velov-\(count)-\(availability.name)-\(symbol)" as NSString
         if let cached = velovCache.object(forKey: key) { return cached }
         let color = uiColor(Color(token: AppColors.shared.parkingAvailability(color: availability)))
-        let image = renderVelovMarker(bikes: bikes, color: color, symbol: electric ? "bolt.fill" : "bicycle")
+        let image = renderVelovMarker(bikes: count, color: color, symbol: symbol)
         velovCache.setObject(image, forKey: key)
         return image
     }

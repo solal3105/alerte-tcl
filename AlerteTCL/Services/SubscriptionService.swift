@@ -45,6 +45,7 @@ final class SubscriptionService: ObservableObject {
         if DemoShowcase.isAlertsCase { return }  // jamais enregistré en démo
         #endif
         UserDefaults.standard.set(rules.encode(subscriptions: updated), forKey: subscriptionsKey)
+        WidgetBridge.shared.publishSubscriptions(Set(updated.keys))
     }
 
     func isSubscribed(to lineId: String) -> Bool {

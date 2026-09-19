@@ -83,14 +83,6 @@ enum WidgetSeverity: Int, Codable, Hashable, Comparable {
         case .info: "Information"
         }
     }
-
-    var symbol: String {
-        switch self {
-        case .major: "xmark.octagon.fill"
-        case .disruption: "exclamationmark.triangle.fill"
-        case .info: "info.circle.fill"
-        }
-    }
 }
 
 /// Palette officielle des lignes, relue depuis le JSON que l'application enregistre

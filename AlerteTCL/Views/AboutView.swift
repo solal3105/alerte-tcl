@@ -4,25 +4,66 @@ import SwiftUI
 /// derrière, ses autres projets avec leurs logos, d'où viennent les données. Une seule teinte
 /// d'interface (l'accent), le vert réservé à l'étiquette d'élu écologiste.
 struct AboutView: View {
+    /// Ouvre la galerie des widgets (lien depuis un widget non réglé).
+    @Binding var showWidgets: Bool
+
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 36) {
-                hero
-                promises
-                author
-                projects
-                data
-                footer
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 36) {
+                    hero
+                    promises
+                    widgets
+                    author
+                    projects
+                    data
+                    footer
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 28)
+                .padding(.bottom, 40)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 28)
-            .padding(.bottom, 40)
+            .background(Color(.systemGroupedBackground))
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(isPresented: $showWidgets) { WidgetGalleryView() }
         }
-        .background(Color(.systemGroupedBackground))
+    }
+
+    // MARK: Widgets
+
+    private var widgets: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionTitle("Sur l'écran d'accueil")
+            NavigationLink {
+                WidgetGalleryView()
+            } label: {
+                HStack(spacing: 14) {
+                    iconBox("square.grid.2x2.fill")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Widgets")
+                            .font(.system(size: 17, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.primary)
+                        Text("Vos prochains passages, un parking, une station Vélo'v, les chantiers autour de vous et le trafic de vos lignes, sans ouvrir l'application.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(16)
+                .background(card)
+                .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     // MARK: L'application
@@ -326,5 +367,5 @@ private extension Bundle {
 }
 
 #Preview {
-    AboutView()
+    AboutView(showWidgets: .constant(false))
 }

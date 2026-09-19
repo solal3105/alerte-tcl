@@ -31,7 +31,8 @@ struct AlerteTCLApp: App {
     @AppStorage("hasShownLocationPrompt") private var hasShownLocationPrompt = false
     @State private var showNotificationPrompt = false
     @State private var showLocationPrompt = false
-    @State private var selectedParkingId: String?
+    /// Lien profond reçu (widgets) ; ContentView le route vers le bon onglet.
+    @State private var deepLink: WidgetLink?
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -41,6 +42,13 @@ struct AlerteTCLApp: App {
         LinePalette.shared.onChange = { encoded in
             AppGroup.paletteStorage.set(encoded, forKey: AppGroup.linePaletteKey)
             Task { @MainActor in LinePaletteObserver.shared.paletteDidChange() }
+        }
+        // Les widgets ne lient pas le module Kotlin : leurs couleurs et les lignes suivies leur sont publiées.
+        Task { @MainActor in
+            WidgetBridge.shared.publishTheme()
+            WidgetBridge.shared.publishSubscriptions(SubscriptionService.shared.subscribedLineIds)
+            // À chaque lancement, les widgets repartent des données du moment (et d'une nouvelle version de l'app).
+            WidgetBridge.shared.reload(WidgetKind.allCases)
         }
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: alertRefreshIdentifier,
@@ -57,14 +65,14 @@ struct AlerteTCLApp: App {
     
     var body: some Scene {
         WindowGroup {
-            ContentView(selectedParkingId: $selectedParkingId)
+            ContentView(deepLink: $deepLink)
                 .onAppear {
                     #if DEBUG
                     // Mode démo (-demo parking) : ouvrir la fiche du P+R St-Genis
                     // (parc sans disponibilité temps réel) via le deep link parking.
                     if DemoShowcase.current == "parking" {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                            selectedParkingId = "parc-relais-HLS"
+                            deepLink = .parking("parc-relais-HLS")
                         }
                     }
                     #endif
@@ -94,6 +102,8 @@ struct AlerteTCLApp: App {
                 }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active { scheduleAlertRefresh() }
+                    // L'écran d'accueil arrive : les widgets de passages repartent de l'heure exacte.
+                    if phase == .background { WidgetBridge.shared.reloadTimeSensitive() }
                 }
                 .sheet(isPresented: $showLocationPrompt) {
                     LocationPermissionView()
@@ -115,21 +125,12 @@ struct AlerteTCLApp: App {
         }
     }
 
-    private static let parkingIdRegex = /^[A-Za-z0-9_-]{1,64}$/
-
     private func handleDeepLink(_ url: URL) {
-        guard url.scheme == "alertetcl" else { return }
-
-        let pathComponents = url.pathComponents
-
-        if pathComponents.count >= 3, pathComponents[1] == "parking" {
-            let id = pathComponents[2]
-            guard (try? Self.parkingIdRegex.wholeMatch(in: id)) != nil else {
-                AppLogger.error("Deep link parking id rejeté: \(id)", category: .app)
-                return
-            }
-            selectedParkingId = id
+        guard let link = WidgetLink(url: url) else {
+            AppLogger.error("Lien profond rejeté : \(url.absoluteString)", category: .app)
+            return
         }
+        deepLink = link
     }
     
     private func configureAppearance() {

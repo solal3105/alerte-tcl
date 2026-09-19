@@ -3,15 +3,61 @@ import MapKit
 import Shared
 
 extension VelovStation: Identifiable {}
+extension VelovFilter: Identifiable {
+    public var id: String { name }
+}
+
+/// Pictogramme d'un filtre : un cycliste pour tous les vélos, un vélo pour les classiques, un éclair
+/// pour les électriques, un P pour les places libres.
+func velovFilterSymbol(_ filter: VelovFilter) -> String {
+    if filter == .electric { return "bolt.fill" }
+    if filter == .stands { return "parkingsign" }
+    return filter == .mechanical ? "bicycle" : "figure.outdoor.cycle"
+}
+
+/// Barre posée en haut de la carte Vélo'v : elle choisit ce que chaque station affiche, tous ses vélos,
+/// ses vélos classiques, ses vélos électriques ou ses places libres.
+struct VelovFilterBar: View {
+    let selected: VelovFilter
+    let onSelect: (VelovFilter) -> Void
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(VelovFilter.companion.ordered) { filter in
+                let active = filter == selected
+                Button {
+                    onSelect(filter)
+                } label: {
+                    VStack(spacing: 2) {
+                        Image(systemName: velovFilterSymbol(filter))
+                            .font(.system(size: 16, weight: .medium))
+                        Text(filter.title)
+                            .font(.caption2.weight(active ? .semibold : .regular))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
+                    .foregroundStyle(active ? Color.white : Color.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .background(active ? Color.appAccent : Color.clear, in: RoundedRectangle(cornerRadius: 20))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(filter.caption)
+            }
+        }
+        .padding(4)
+        .glassSurface(RoundedRectangle(cornerRadius: 24))
+    }
+}
 
 /// Marqueur d'une station sur la carte des parkings : un point à la couleur de disponibilité de loin,
-/// le carré avec le nombre de vélos (ou d'électriques, avec un éclair) au zoom des arrêts.
+/// le carré avec le nombre compté par le filtre courant au zoom des arrêts.
 struct VelovMarker: View {
     let station: VelovStation
-    let electricOnly: Bool
+    let filter: VelovFilter
     let compact: Bool
 
-    private var availability: AvailabilityColor { station.availabilityFor(electricOnly: electricOnly) }
+    private var availability: AvailabilityColor { station.availabilityFor(filter: filter) }
     private var color: Color { Color(token: AppColors.shared.parkingAvailability(color: availability)) }
 
     var body: some View {
@@ -23,9 +69,9 @@ struct VelovMarker: View {
                 .overlay(Circle().stroke(.white, lineWidth: 2))
         } else {
             Image(uiImage: MarkerImageCache.velovMarker(
-                bikes: Int(station.shownBikes(electricOnly: electricOnly)),
+                count: Int(station.shownCount(filter: filter)),
                 availability: availability,
-                electric: electricOnly
+                symbol: velovFilterSymbol(filter == .all ? .mechanical : filter)
             ))
         }
     }
@@ -63,8 +109,9 @@ struct VelovStationSheet: View {
                     .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 24))
 
-                    HStack(spacing: 12) {
-                        stat(value: "\(station.bikes)", caption: station.bikes > 1 ? "vélos disponibles" : "vélo disponible", color: color)
+                    HStack(spacing: 10) {
+                        stat(value: "\(station.mechanicalBikes)", caption: "classiques", color: color)
+                        stat(value: "\(station.ebikes)", caption: "électriques", color: color)
                         stat(value: "\(station.stands)", caption: station.stands > 1 ? "places libres" : "place libre", color: .primary)
                     }
 
@@ -109,7 +156,7 @@ struct VelovStationSheet: View {
     private func stat(value: String, caption: String, color: Color) -> some View {
         VStack(spacing: 4) {
             Text(value)
-                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .font(.system(size: 30, weight: .bold, design: .rounded))
                 .foregroundStyle(color)
             Text(caption)
                 .font(.caption)

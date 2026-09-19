@@ -11,8 +11,9 @@ struct ParkingMapView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedParking: Parking?
     @State private var selectedVelovStation: VelovStation?
-    /// Deep link parking reçu avant que les données soient chargées — résolu dès leur arrivée.
+    /// Lien vers un parking ou une station reçu avant que les données soient chargées, résolu dès leur arrivée.
     @State private var pendingParkingId: String?
+    @State private var pendingVelovId: Int?
     @State private var mapCameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 45.764043, longitude: 4.835659),
@@ -26,11 +27,11 @@ struct ParkingMapView: View {
     @State private var isSatellite = false
     @State private var showFilters = false
     @State private var transitLines: [TransitLine] = []
-    @Binding var selectedParkingId: String?
+    @Binding var link: WidgetLink?
 
-    init(parkingType: ParkingType, selectedParkingId: Binding<String?>) {
+    init(parkingType: ParkingType, link: Binding<WidgetLink?>) {
         self.parkingType = parkingType
-        _selectedParkingId = selectedParkingId
+        _link = link
         _viewModel = StateObject(wrappedValue: ParkingViewModel(type: parkingType))
     }
     
@@ -59,7 +60,7 @@ struct ParkingMapView: View {
             // Mode démo « velov… » : la carte est centrée sur la scène place Bellecour, puis la fiche
             // d'une station s'ouvre pour « velov-station ».
             if let demo = DemoShowcase.current, demo.hasPrefix("velov") {
-                viewModel.velovElectricOnly = demo == "velov-electriques"
+                viewModel.selectVelovFilter(demo == "velov-electriques" ? .electric : .all)
                 mapCameraPosition = .region(MKCoordinateRegion(center: DemoShowcase.center, span: MKCoordinateSpan(latitudeDelta: 0.006, longitudeDelta: 0.006)))
                 hasSetInitialLocation = true
                 if demo == "velov-station" {
@@ -70,11 +71,8 @@ struct ParkingMapView: View {
                 }
             }
             #endif
-            // Lien vers un parking reçu avant l'ouverture de cette carte.
-            if let parkingId = selectedParkingId {
-                pendingParkingId = parkingId
-                selectedParkingId = nil
-            }
+            // Lien reçu avant l'ouverture de cette carte.
+            consumeLink()
             viewModel.onAppear()
             Task {
                 transitLines = (try? await TransitLineService.shared.fetchTransitLines()) ?? []
@@ -94,15 +92,40 @@ struct ParkingMapView: View {
             mapCameraPosition: $mapCameraPosition,
             hasSetInitialLocation: $hasSetInitialLocation
         )
-        .onChange(of: selectedParkingId) { _, newParkingId in
-            if let parkingId = newParkingId {
-                pendingParkingId = parkingId
-                selectedParkingId = nil
-                resolvePendingParking()
-            }
+        .onChange(of: link) { _, _ in
+            consumeLink()
+            resolvePendingParking()
+            resolvePendingVelov()
         }
         .onChange(of: viewModel.parkings) { _, _ in resolvePendingParking() }
         .onChange(of: viewModel.parcRelais) { _, _ in resolvePendingParking() }
+        .onChange(of: viewModel.velovStations) { _, _ in resolvePendingVelov() }
+    }
+
+    /// Garde le parking ou la station du lien jusqu'à ce que les données permettent d'ouvrir sa fiche.
+    private func consumeLink() {
+        switch link {
+        case .parking(let id): pendingParkingId = id
+        case .velov(let id): pendingVelovId = id
+        default: return
+        }
+        link = nil
+    }
+
+    private func resolvePendingVelov() {
+        guard let id = pendingVelovId,
+              let station = viewModel.velovStations.first(where: { Int($0.id) == id }) else { return }
+        pendingVelovId = nil
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+            mapCameraPosition = .region(MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: station.lat, longitude: station.lng),
+                span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
+            ))
+        }
+        Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            await MainActor.run { selectedVelovStation = station }
+        }
     }
 
     
@@ -160,7 +183,7 @@ struct ParkingMapView: View {
                     let compact = mapZoom < MapStyle.shared.ZOOM_STOPS
                     ForEach(viewModel.visibleVelovStations) { station in
                         Annotation("", coordinate: CLLocationCoordinate2D(latitude: station.lat, longitude: station.lng)) {
-                            VelovMarker(station: station, electricOnly: viewModel.velovElectricOnly, compact: compact)
+                            VelovMarker(station: station, filter: viewModel.velovFilter, compact: compact)
                                 .onTapGesture { selectedVelovStation = station }
                         }
                     }
@@ -224,6 +247,13 @@ struct ParkingMapView: View {
     
     private var overlayControls: some View {
         VStack {
+            // Vélo'v : le choix de ce que les stations affichent, en haut de la carte.
+            if viewModel.selectedParkingType == .velov {
+                VelovFilterBar(selected: viewModel.velovFilter) { viewModel.selectVelovFilter($0) }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+            }
+
             Spacer()
             
             HStack(alignment: .bottom) {
@@ -235,11 +265,9 @@ struct ParkingMapView: View {
                         withAnimation { isSatellite.toggle() }
                     }
 
-                    // Filtres : voitures et Vélo'v seulement
-                    if viewModel.selectedParkingType == .car || viewModel.selectedParkingType == .velov {
-                        let hasActiveFilters = viewModel.selectedParkingType == .velov
-                            ? viewModel.velovElectricOnly
-                            : !viewModel.showRealtimeParkings || !viewModel.showParcRelais
+                    // Filtres : voitures seulement, les Vélo'v ont leur barre en haut de la carte
+                    if viewModel.selectedParkingType == .car {
+                        let hasActiveFilters = !viewModel.showRealtimeParkings || !viewModel.showParcRelais
                         MapGlassButton(systemImage: "line.3.horizontal.decrease", active: hasActiveFilters) {
                             showFilters = true
                         }
@@ -442,10 +470,6 @@ struct ParkingDetailSheet: View {
                         dismiss()
                     }
                 }
-            }
-            .onAppear {
-                // Une seule écriture par présentation (l'init était rejoué à chaque recomposition)
-                RecentItemsService.shared.saveRecentParking(id: parking.id, name: parking.nom)
             }
         }
     }
@@ -784,15 +808,13 @@ private struct ServiceCell: View {
 
 // MARK: - Parking Filter Sheet
 
-/// Filtres du type courant : parkings temps réel et P+R pour les voitures, vélos électriques pour les Vélo'v.
+/// Filtres de la carte des voitures : parkings temps réel et parcs relais.
 struct ParkingFilterSheet: View {
     @ObservedObject var viewModel: ParkingViewModel
     @Environment(\.dismiss) private var dismiss
 
-    private var isVelov: Bool { viewModel.selectedParkingType == .velov }
-
     private var hasActiveFilters: Bool {
-        isVelov ? viewModel.velovElectricOnly : !viewModel.showRealtimeParkings || !viewModel.showParcRelais
+        !viewModel.showRealtimeParkings || !viewModel.showParcRelais
     }
 
     var body: some View {
@@ -802,9 +824,8 @@ struct ParkingFilterSheet: View {
                     Section {
                         Button {
                             withAnimation {
-                                viewModel.velovElectricOnly     = false
                                 viewModel.showRealtimeParkings = true
-                                viewModel.showParcRelais        = true
+                                viewModel.showParcRelais       = true
                             }
                         } label: {
                             HStack {
@@ -817,17 +838,6 @@ struct ParkingFilterSheet: View {
                     }
                 }
 
-                if isVelov {
-                    Section {
-                        Toggle(isOn: $viewModel.velovElectricOnly) {
-                            Label("Seulement les vélos électriques", systemImage: "bolt.fill")
-                        }
-                    } header: {
-                        Text("Vélo'v")
-                    } footer: {
-                        Text("Chaque station affiche alors son nombre de vélos électriques, avec un éclair.")
-                    }
-                } else {
                 Section {
                     // Parkings temps réel
                     Button {
@@ -891,7 +901,6 @@ struct ParkingFilterSheet: View {
                 } header: {
                     Text("Afficher sur la carte")
                 }
-                }
             }
             .navigationTitle("Filtres")
             .navigationBarTitleDisplayMode(.inline)
@@ -907,7 +916,7 @@ struct ParkingFilterSheet: View {
 
 // MARK: - Preview
 #Preview {
-    ParkingMapView(parkingType: .car, selectedParkingId: .constant(nil))
+    ParkingMapView(parkingType: .car, link: .constant(nil))
 }
 
 

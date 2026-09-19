@@ -7,5 +7,9 @@
 		<key>NSExtensionPointIdentifier</key>
 		<string>com.apple.widgetkit-extension</string>
 	</dict>
+	<key>NSWidgetWantsLocation</key>
+	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Votre position sert aux widgets « Station Vélo'v » (la station la plus proche) et « Travaux autour de moi ». Elle n'est transmise à aucun serveur.</string>
 </dict>
 </plist>

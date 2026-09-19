@@ -10,9 +10,9 @@ import Foundation
 /// Configuration réseau partagée pour tous les services
 enum NetworkConfiguration {
     // MARK: - Proxy URL
-    /// URL du proxy Cloudflare Worker qui détient les credentials Grand Lyon.
-    /// Mise à jour automatiquement par cloudflare-worker/deploy.sh au déploiement.
-    static let proxyBaseURL = "https://tcl-proxy.solalgendrin.workers.dev"
+    /// URL du proxy Cloudflare Worker qui détient les credentials Grand Lyon, partagée avec
+    /// l'extension widget (`ProxyEndpoint`, mis à jour par cloudflare-worker/deploy.sh).
+    static let proxyBaseURL = ProxyEndpoint.baseURL
 
     // MARK: - Timeout values (en secondes)
     /// Timeout rapide pour véhicules/alertes (données légères, critiques)

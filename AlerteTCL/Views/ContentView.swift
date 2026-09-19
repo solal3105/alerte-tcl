@@ -3,25 +3,30 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var viewModel: AlertViewModel
     @State private var selectedTab = 0
-    @Binding var selectedParkingId: String?
+    /// Lien profond reçu par l'application (widgets, notifications) ; routé vers l'onglet concerné puis effacé.
+    @Binding var deepLink: WidgetLink?
+    @State private var stopLink: Int?
+    @State private var trafficLink = false
+    @State private var cityLink: WidgetLink?
+    @State private var showWidgets = false
     @Environment(\.scenePhase) private var scenePhase
     
     var body: some View {
         TabView(selection: $selectedTab) {
-            LiveMapView()
+            LiveMapView(stopLink: $stopLink, trafficLink: $trafficLink)
                 .tabItem {
                     Label("Transport", systemImage: "tram.fill")
                 }
                 .tag(0)
                 .environmentObject(viewModel)
             
-            CityView(selectedParkingId: $selectedParkingId)
+            CityView(link: $cityLink)
                 .tabItem {
                     Label("Autour de moi", systemImage: "mappin.and.ellipse")
                 }
                 .tag(1)
 
-            AboutView()
+            AboutView(showWidgets: $showWidgets)
                 .tabItem {
                     Label("Info", systemImage: "info.circle.fill")
                 }
@@ -37,12 +42,9 @@ struct ContentView: View {
                 if demo == "info" { selectedTab = 2 }
             }
             #endif
+            route(deepLink)
         }
-        .onChange(of: selectedParkingId) { _, newParkingId in
-            if newParkingId != nil {
-                selectedTab = 1
-            }
-        }
+        .onChange(of: deepLink) { _, link in route(link) }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
@@ -66,9 +68,29 @@ struct ContentView: View {
             selectedTab = 0
         }
     }
+
+    /// Chaque lien ouvre son onglet et laisse la vue concernée finir le travail quand ses données sont là.
+    private func route(_ link: WidgetLink?) {
+        guard let link else { return }
+        switch link {
+        case .stop(let id):
+            selectedTab = 0
+            stopLink = id
+        case .traffic:
+            selectedTab = 0
+            trafficLink = true
+        case .parking, .velov, .works:
+            selectedTab = 1
+            cityLink = link
+        case .widgets:
+            selectedTab = 2
+            showWidgets = true
+        }
+        deepLink = nil
+    }
 }
 
 #Preview {
-    ContentView(selectedParkingId: .constant(nil))
+    ContentView(deepLink: .constant(nil))
         .environmentObject(AlertViewModel())
 }

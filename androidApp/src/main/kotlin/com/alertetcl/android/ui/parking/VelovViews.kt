@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.ElectricBike
+import androidx.compose.material.icons.filled.LocalParking
+import androidx.compose.material.icons.filled.PedalBike
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,13 +44,60 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alertetcl.android.ui.components.glass
+import com.alertetcl.android.ui.theme.Tokens
 import com.alertetcl.android.ui.theme.compose
 import com.alertetcl.shared.design.AppColors
+import com.alertetcl.shared.models.VelovFilter
 import com.alertetcl.shared.models.VelovStation
+
+/**
+ * Barre posée en haut de la carte Vélo'v : elle choisit ce que chaque station affiche, tous ses vélos,
+ * ses vélos classiques, ses vélos électriques ou ses places libres.
+ */
+@Composable
+fun VelovFilterBar(selected: VelovFilter, onSelect: (VelovFilter) -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.glass(RoundedCornerShape(26.dp)).padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        VelovFilter.ordered.forEach { filter ->
+            val active = filter == selected
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(if (active) Tokens.accent else Color.Transparent)
+                    .clickable { onSelect(filter) }
+                    .padding(vertical = 7.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                val tint = if (active) Color.White else MaterialTheme.colorScheme.onSurface
+                Icon(velovFilterIcon(filter), filter.caption, tint = tint, modifier = Modifier.size(20.dp))
+                Text(
+                    filter.title,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                    color = tint,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+private fun velovFilterIcon(filter: VelovFilter): ImageVector = when (filter) {
+    VelovFilter.ALL -> Icons.Filled.DirectionsBike
+    VelovFilter.MECHANICAL -> Icons.Filled.PedalBike
+    VelovFilter.ELECTRIC -> Icons.Filled.ElectricBike
+    VelovFilter.STANDS -> Icons.Filled.LocalParking
+}
 
 /** Fiche d'une station Vélo'v : vélos et places disponibles, dernière mise à jour, itinéraire à pied. */
 @Composable
@@ -68,8 +119,9 @@ fun VelovStationSheet(station: VelovStation) {
                 Text(station.address, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            VelovStat(value = station.bikes, caption = if (station.bikes > 1) "vélos disponibles" else "vélo disponible", color = color, modifier = Modifier.weight(1f))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            VelovStat(value = station.mechanicalBikes, caption = "classiques", color = color, modifier = Modifier.weight(1f))
+            VelovStat(value = station.ebikes, caption = "électriques", color = color, modifier = Modifier.weight(1f))
             VelovStat(value = station.stands, caption = if (station.stands > 1) "places libres" else "place libre", color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
         }
         Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
@@ -99,17 +151,17 @@ fun VelovStationSheet(station: VelovStation) {
 private fun VelovStat(value: Int, caption: String, color: Color, modifier: Modifier) {
     Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = modifier) {
         Column(modifier = Modifier.padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("$value", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = color)
+            Text("$value", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = color)
             Text(caption, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 /**
- * Marqueur d'une station Vélo'v au zoom serré : carré arrondi à la couleur de disponibilité, vélo (ou
- * éclair pour les seuls vélos électriques) et nombre de vélos (parité iOS `VelovMarker`).
+ * Marqueur d'une station Vélo'v au zoom serré : carré arrondi à la couleur de disponibilité, le
+ * pictogramme du filtre courant et le nombre compté (parité iOS `VelovMarker`).
  */
-fun velovMarkerBitmap(bikes: Int, colorHex: String, electric: Boolean): Bitmap {
+fun velovMarkerBitmap(count: Int, colorHex: String, filter: VelovFilter): Bitmap {
     val density = android.content.res.Resources.getSystem().displayMetrics.density
     val size = (30 * density).toInt()
     val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -121,7 +173,14 @@ fun velovMarkerBitmap(bikes: Int, colorHex: String, electric: Boolean): Bitmap {
     val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.argb(230, 255, 255, 255); style = Paint.Style.STROKE; strokeWidth = 1.5f * density }
     canvas.drawRoundRect(rect, 9 * density, 9 * density, stroke)
     val cx = size / 2f
-    if (electric) {
+    if (filter == VelovFilter.STANDS) {
+        // Un « P » de place libre, comme le pictogramme des parkings.
+        val letter = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = AndroidColor.WHITE; textSize = 13f * density
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); textAlign = Paint.Align.CENTER
+        }
+        canvas.drawText("P", cx, 14.5f * density, letter)
+    } else if (filter == VelovFilter.ELECTRIC) {
         // Éclair plein.
         val bolt = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE; style = Paint.Style.FILL }
         val path = android.graphics.Path().apply {
@@ -147,6 +206,6 @@ fun velovMarkerBitmap(bikes: Int, colorHex: String, electric: Boolean): Bitmap {
         canvas.drawLine(cx - 5.5f * density, wheelY, cx + 1.5f * density, wheelY, glyph)
     }
     val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE; textSize = 10f * density; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); textAlign = Paint.Align.CENTER }
-    canvas.drawText(bikes.toString(), cx, size - 4.5f * density, text)
+    canvas.drawText(count.toString(), cx, size - 4.5f * density, text)
     return bmp
 }

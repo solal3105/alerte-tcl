@@ -24,32 +24,25 @@ struct Vehicle: Identifiable, Hashable {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
     
-    var delayFormatted: String {
-        if delay == 0 {
-            return "À l'heure"
-        } else if delay > 0 {
-            let minutes = delay / 60
-            if minutes > 0 {
-                return "+\(minutes) min"
-            } else {
-                return "+\(delay) sec"
-            }
-        } else {
-            let minutes = abs(delay) / 60
-            if minutes > 0 {
-                return "-\(minutes) min"
-            } else {
-                return "\(delay) sec"
-            }
-        }
+    /// Ponctualité : le chiffre, ce qu'il veut dire, et la phrase entière (règles du module partagé).
+    var delayAmount: String { VehicleTexts.shared.punctualityAmount(delaySeconds: Int32(delay)) }
+    var delayCaption: String { VehicleTexts.shared.punctualityCaption(delaySeconds: Int32(delay)) }
+    var delayText: String { VehicleTexts.shared.punctuality(delaySeconds: Int32(delay)) }
+
+    var isDelayed: Bool { VehicleTexts.shared.isDelayed(delaySeconds: Int32(delay)) }
+
+    var isEarly: Bool { VehicleTexts.shared.isEarly(delaySeconds: Int32(delay)) }
+
+    /// Arrivée au prochain arrêt : son horaire prévu corrigé du retard constaté, comme l'estimation
+    /// de « Où est mon bus ». Nil quand TCL ne donne pas d'horaire pour cet arrêt.
+    var nextStopArrival: Date? {
+        guard let stop = nextStop, let aimed = stop.aimedArrivalTime ?? stop.aimedDepartureTime else { return nil }
+        return aimed.addingTimeInterval(TimeInterval(delay))
     }
-    
-    var isDelayed: Bool {
-        delay > 60
-    }
-    
-    var isEarly: Bool {
-        delay < -60
+
+    /// Légende de cette heure : « arrivée à Bellecour ». Nil sans nom d'arrêt.
+    var nextStopArrivalCaption: String? {
+        nextStop?.stopName.map { VehicleTexts.shared.arrivalCaption(stopName: $0) }
     }
 
     /// Numéro de parc extrait du VehicleRef SIRI (ex. "ActIV:Vehicle:Bus:1512:LOC" → "1512").

@@ -155,6 +155,33 @@ Les barèmes métier sont au même endroit : importance et avancement d'un chant
 chantier (du rouge au vert en onze paliers), disponibilité et type d'un parking, nature d'un chantier
 (`TravauxNatureChantier.colorHex`).
 
+## Widgets iOS
+
+Six widgets, tous construits sur le même dessin : une première ligne avec un pictogramme à l'accent et
+le nom de ce qu'on regarde, un grand chiffre arrondi au centre (minutes, places, vélos, chantiers),
+une dernière ligne avec l'heure des données (orange avec « Données de 14:05 » quand le réseau a manqué
+et que le dernier chargement sert encore). Les couleurs sont celles de `AppColors`, publiées par
+l'application dans le conteneur partagé ; les lignes gardent leur badge officiel (coins à 20 %). Chaque
+widget a trois états écrits en phrases : prêt, pas encore réglé (« Choisissez un arrêt », avec la marche
+à suivre), données indisponibles (« Le réseau n'a pas répondu. Le widget réessaie tout seul »).
+
+« Prochains passages » (petit, moyen, écran verrouillé) montre un arrêt, une ligne, un sens : le
+premier passage en grand, les deux suivants en « puis 12 min · 25 min », un point vert quand le passage
+est suivi en direct. Quand le direct n'annonce plus rien (fin de service, nuit), les passages suivants viennent des fiches horaires théoriques, jusqu'à ceux du lendemain : « demain 05:12 » et la mention « horaires prévus » dans la dernière ligne ; un widget ne dit jamais « aucun passage » tant qu'une fiche en connaît un dans les trois jours. « Tableau de départs » (moyen, grand) aligne jusqu'à huit arrêts enregistrés, un
+par ligne. « Trafic sur mes lignes » (petit, moyen, écran verrouillé) suit les lignes abonnées : vert
+« Vos lignes circulent normalement », orange ou rouge avec les lignes touchées et le titre de l'alerte.
+« Places de parking » (petit, moyen, écran verrouillé) se règle sur n'importe quel parking ou parc
+relais par son nom. « Station Vélo'v » (petit, moyen, écran verrouillé) suit la station la plus proche
+par défaut, ou une station fixée. « Travaux autour de moi » (petit, moyen, grand) montre la carte du
+système autour de la position avec les chantiers dessinés comme dans l'application, et la liste des
+plus proches ; sans position, le centre de Lyon. Toucher un widget ouvre la fiche correspondante dans
+l'application.
+
+Dans l'application, la galerie « Widgets » (onglet Info, carte « Sur l'écran d'accueil ») montre chaque
+widget rendu avec des données d'exemple, ses tailles, et la façon de le régler ; la feuille « Ajouter au
+widget » d'une fiche d'arrêt permet de cocher plusieurs sens à la fois et se termine par « Voir les
+widgets ».
+
 ## Badge de ligne
 
 Une seule forme : un carré aux coins arrondis à 20 % de sa taille, fond et texte de la palette

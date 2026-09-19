@@ -1,18 +1,15 @@
-//
-//  AlerteTCLWidgetBundle.swift
-//  AlerteTCLWidget
-//
-//  Created by Solal on 12/01/2026.
-//
-
-import WidgetKit
 import SwiftUI
+import WidgetKit
 
+/// Les six widgets de Lyon Pocket, dans l'ordre de la galerie d'iOS.
 @main
 struct AlerteTCLWidgetBundle: WidgetBundle {
     var body: some Widget {
-        NextDeparturesWidget()
-        TCLBoardWidget()
+        DeparturesWidget()
+        BoardWidget()
+        TrafficWidget()
         ParkingWidget()
+        VelovWidget()
+        WorksWidget()
     }
 }

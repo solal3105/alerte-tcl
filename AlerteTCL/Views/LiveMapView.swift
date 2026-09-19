@@ -3,6 +3,10 @@ import MapKit
 import Shared
 
 struct LiveMapView: View {
+    /// Lien vers un arrêt (widget) : sa fiche s'ouvre dès que les arrêts sont chargés.
+    @Binding var stopLink: Int?
+    /// Lien vers le trafic (widget) : la feuille « Trafic et horaires » s'ouvre sur les alertes.
+    @Binding var trafficLink: Bool
     @StateObject private var viewModel = LiveVehiclesViewModel()
     @StateObject private var stopsViewModel = TransitStopViewModel()
     @EnvironmentObject var alertViewModel: AlertViewModel
@@ -136,14 +140,15 @@ struct LiveMapView: View {
             
             startBackgroundLoadingIfNeeded()
         }
-        #if DEBUG
-        .onReceive(stopsViewModel.$mergedStops) { stops in
-            guard let id = DemoShowcase.stopToOpen, selectedMergedStop == nil,
-                  let stop = stops.first(where: { $0.stops.contains { $0.id == id } }) else { return }
-            mapRegion = MKCoordinateRegion(center: stop.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.006, longitudeDelta: 0.006))
-            selectedMergedStop = stop
+        .onReceive(stopsViewModel.$mergedStops) { stops in resolvePendingStop(in: stops) }
+        .onChange(of: stopLink) { _, _ in resolvePendingStop(in: stopsViewModel.mergedStops) }
+        .onChange(of: trafficLink) { _, wanted in
+            guard wanted else { return }
+            trafficLink = false
+            selectedMergedStop = nil
+            networkTab = .traffic
+            showNetwork = true
         }
-        #endif
         // Le stream est arrêté uniquement sur scenePhase.background (ci-dessous).
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
@@ -170,6 +175,18 @@ struct LiveMapView: View {
         }
     }
     
+    /// Ouvre la fiche de l'arrêt demandé par un lien (ou par `-ouvrir-arret` en débogage) dès que les arrêts sont là.
+    private func resolvePendingStop(in stops: [MergedStop]) {
+        var wanted = stopLink
+        #if DEBUG
+        if wanted == nil, selectedMergedStop == nil { wanted = DemoShowcase.stopToOpen }
+        #endif
+        guard let id = wanted, let stop = stops.first(where: { $0.stops.contains { $0.id == id } }) else { return }
+        stopLink = nil
+        mapRegion = MKCoordinateRegion(center: stop.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.006, longitudeDelta: 0.006))
+        selectedMergedStop = stop
+    }
+
     // MARK: - Filtre « bus de cet arrêt »
 
     /// Applique le filtre choisi dans la fiche d'un arrêt, referme la fiche et cadre la carte
@@ -800,7 +817,7 @@ struct VehicleDetailSheet: View {
         return HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.caption2.weight(.semibold))
-            Text(vehicle.delayFormatted)
+            Text(vehicle.delayText)
                 .font(.caption.weight(.semibold))
         }
         .foregroundStyle(color)
@@ -1230,15 +1247,15 @@ private struct VehicleFocusCard: View {
                             emphasized: true
                         )
                         stat(
-                            value: vehicle.delayFormatted,
-                            caption: vehicle.isDelayed ? "retard" : (vehicle.isEarly ? "avance" : "horaire"),
+                            value: vehicle.delayAmount,
+                            caption: vehicle.delayCaption,
                             color: vehicle.isDelayed ? .appWarning : (vehicle.isEarly ? Color.appAccent : Color.appSuccess),
                             emphasized: false
                         )
-                        if let next = vehicle.nextStop, let name = next.stopName {
+                        if let arrival = vehicle.nextStopArrival, let caption = vehicle.nextStopArrivalCaption {
                             stat(
-                                value: (next.aimedArrivalTime ?? next.aimedDepartureTime).map { $0.formatted(date: .omitted, time: .shortened) } ?? "—",
-                                caption: name,
+                                value: arrival.formatted(date: .omitted, time: .shortened),
+                                caption: caption,
                                 color: .primary,
                                 emphasized: false
                             )
@@ -1412,5 +1429,5 @@ private struct SubscribedLinePill: View {
 // + `MarkerImageCache.swift`.
 
 #Preview {
-    LiveMapView()
+    LiveMapView(stopLink: .constant(nil), trafficLink: .constant(false))
 }

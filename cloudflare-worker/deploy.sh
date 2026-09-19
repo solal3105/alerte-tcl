@@ -99,18 +99,14 @@ else
   warn "Route /alerts répond HTTP $HTTP_STATUS — vérifie les secrets ou le déploiement"
 fi
 
-# ── 7. Mise à jour automatique des fichiers Swift ─────────────────────────
+# ── 7. Mise à jour automatique de l'adresse du relais côté Swift ──────────
+# Une seule adresse, partagée par l'application et l'extension widget.
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-NETWORK_CONFIG="$REPO_ROOT/AlerteTCL/Services/NetworkConfiguration.swift"
-WIDGET_SERVICES="$REPO_ROOT/AlerteTCLWidget/WidgetServices.swift"
+PROXY_ENDPOINT="$REPO_ROOT/WidgetCommon/ProxyEndpoint.swift"
 
-info "Mise à jour de NetworkConfiguration.swift (proxyBaseURL)..."
-sed -i '' "s|https://tcl-proxy\.YOUR_SUBDOMAIN\.workers\.dev|$WORKER_URL|g" "$NETWORK_CONFIG"
-success "NetworkConfiguration.swift → $WORKER_URL"
-
-info "Mise à jour de WidgetServices.swift (passagesEndpoint)..."
-sed -i '' "s|https://download\.data\.grandlyon\.com/ws/rdata/tcl_sytral\.tclpassagearret/all\.json|$WORKER_URL/passages|g" "$WIDGET_SERVICES"
-success "WidgetServices.swift → $WORKER_URL/passages"
+info "Mise à jour de ProxyEndpoint.swift (baseURL)..."
+sed -i '' -E "s|https://[a-zA-Z0-9._-]+\.workers\.dev|$WORKER_URL|g" "$PROXY_ENDPOINT"
+success "ProxyEndpoint.swift → $WORKER_URL"
 
 # ── 8. Résumé ─────────────────────────────────────────────────────────────
 echo ""

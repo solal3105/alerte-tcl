@@ -33,12 +33,40 @@ struct WidgetDeparture: Codable, Hashable, Identifiable {
         Int(floor(time.timeIntervalSince(date) / 60))
     }
 
-    /// « À l'approche », « 4 min », ou l'heure au-delà de 59 minutes.
+    private static var parisCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Paris") ?? .current
+        calendar.locale = Locale(identifier: "fr_FR")
+        return calendar
+    }()
+
+    /// Avant 4 h du matin, on est encore sur la journée de service de la veille (même règle que les fiches horaires).
+    private static let serviceDayStartHour = 4
+
+    private static func serviceDay(of date: Date) -> Date {
+        let calendar = Self.parisCalendar
+        let day = calendar.startOfDay(for: date)
+        guard calendar.component(.hour, from: date) < serviceDayStartHour,
+              let previous = calendar.date(byAdding: .day, value: -1, to: day) else { return day }
+        return previous
+    }
+
+    /// « demain » quand le passage est le lendemain, le jour en abrégé au-delà ; rien le jour même ni
+    /// dans la même journée de service (un passage à 01:20 vu à 23:50 est « cette nuit », pas demain).
+    func dayLabel(at date: Date) -> String? {
+        let calendar = Self.parisCalendar
+        guard !calendar.isDate(time, inSameDayAs: date), Self.serviceDay(of: time) != Self.serviceDay(of: date) else { return nil }
+        if calendar.isDate(time, inSameDayAs: calendar.date(byAdding: .day, value: 1, to: date) ?? date) { return "demain" }
+        return calendar.shortWeekdaySymbols[calendar.component(.weekday, from: time) - 1]
+    }
+
+    /// « À l'approche », « 4 min », l'heure au-delà de 59 minutes, « demain 05:12 » un autre jour.
     func label(at date: Date) -> String {
         let minutes = minutes(at: date)
         if minutes < 1 { return "À l'approche" }
         if minutes < 60 { return "\(minutes) min" }
-        return Self.timeFormatter.string(from: time)
+        let hour = Self.timeFormatter.string(from: time)
+        return dayLabel(at: date).map { "\($0) \(hour)" } ?? hour
     }
 
     /// Le chiffre seul pour les grands affichages ; « <1 » à l'approche, l'heure au-delà d'une heure.
@@ -66,13 +94,15 @@ struct DeparturesEntry: TimelineEntry {
     let fetchedAt: Date?
     /// Données du dernier chargement réussi, faute de réseau.
     let stale: Bool
+    /// Des passages viennent des fiches horaires théoriques (fin de service, lendemain).
+    let theoretical: Bool
 
     static func notConfigured(date: Date = Date()) -> DeparturesEntry {
-        DeparturesEntry(date: date, status: .notConfigured, stop: nil, departures: [], fetchedAt: nil, stale: false)
+        DeparturesEntry(date: date, status: .notConfigured, stop: nil, departures: [], fetchedAt: nil, stale: false, theoretical: false)
     }
 
     static func unavailable(stop: WidgetStop, date: Date = Date()) -> DeparturesEntry {
-        DeparturesEntry(date: date, status: .unavailable, stop: stop, departures: [], fetchedAt: nil, stale: false)
+        DeparturesEntry(date: date, status: .unavailable, stop: stop, departures: [], fetchedAt: nil, stale: false, theoretical: false)
     }
 }
 
@@ -155,10 +185,10 @@ struct WidgetVelovSnapshot: Codable, Hashable {
     let address: String
     let bikes: Int
     let ebikes: Int
-    let mbikes: Int
     let stands: Int
     let capacity: Int
     let open: Bool
+    /// Dernière mise à jour transmise par l'exploitant, affichée à la place de l'heure du chargement.
     let updated: Date?
     /// Distance depuis la position, quand le widget suit la station la plus proche.
     let distanceMeters: Double?
@@ -215,10 +245,7 @@ struct WidgetWork: Codable, Hashable, Identifiable {
     let commune: String
     /// Avancement, de 0 à 100.
     let progress: Double
-    /// 1 très perturbant, 2 perturbant, 3 peu perturbant, 0 non renseigné.
-    let importance: Int
     let distanceMeters: Double
-    let end: Date?
 
     var distanceText: String {
         if distanceMeters < 1000 { return "\(Int(distanceMeters.rounded(.up) / 10) * 10) m" }

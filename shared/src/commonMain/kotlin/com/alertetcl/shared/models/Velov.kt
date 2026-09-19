@@ -36,12 +36,20 @@ data class VelovStation(
         }
     }
 
-    /** Vélos comptés sur la carte selon le filtre : tous, ou seulement les électriques. */
-    fun shownBikes(electricOnly: Boolean): Int = if (electricOnly) ebikes else bikes
+    /** Vélos classiques, déduits du total quand l'exploitant ne détaille pas la motorisation. */
+    val mechanicalBikes: Int get() = if (mbikes > 0) mbikes else (bikes - ebikes).coerceAtLeast(0)
 
-    /** Vert dès 3 vélos, orange à 1 ou 2, rouge sans vélo, gris quand la station est fermée. */
-    fun availabilityFor(electricOnly: Boolean): AvailabilityColor {
-        val count = shownBikes(electricOnly)
+    /** Ce que la station affiche sur la carte selon le filtre choisi. */
+    fun shownCount(filter: VelovFilter): Int = when (filter) {
+        VelovFilter.ALL -> bikes
+        VelovFilter.MECHANICAL -> mechanicalBikes
+        VelovFilter.ELECTRIC -> ebikes
+        VelovFilter.STANDS -> stands
+    }
+
+    /** Vert dès 3 unités comptées, orange à 1 ou 2, rouge à zéro, gris quand la station est fermée. */
+    fun availabilityFor(filter: VelovFilter): AvailabilityColor {
+        val count = shownCount(filter)
         return when {
             !open -> AvailabilityColor.GRAY
             count <= 0 -> AvailabilityColor.RED
@@ -50,15 +58,13 @@ data class VelovStation(
         }
     }
 
-    val availability: AvailabilityColor get() = availabilityFor(false)
+    val availability: AvailabilityColor get() = availabilityFor(VelovFilter.ALL)
 
+    /** Le total, le détail par motorisation étant déjà donné par les compteurs de la fiche. */
     val bikesText: String get() = when {
         !open -> "Station fermée"
         bikes <= 0 -> "Aucun vélo disponible"
-        else -> {
-            val detail = if (ebikes > 0 || mbikes > 0) ", dont $ebikes électrique${if (ebikes > 1) "s" else ""} et $mbikes mécanique${if (mbikes > 1) "s" else ""}" else ""
-            "$bikes vélo${if (bikes > 1) "s" else ""} disponible${if (bikes > 1) "s" else ""}$detail"
-        }
+        else -> "$bikes vélo${if (bikes > 1) "s" else ""} disponible${if (bikes > 1) "s" else ""}"
     }
 
     val standsText: String get() = when {
@@ -72,6 +78,25 @@ data class VelovStation(
         val at = updated ?: return ""
         val age = (nowEpochMs / 1000 - at).coerceAtLeast(0)
         return "Mis à jour il y a ${Vehicle.formattedAge(age)}"
+    }
+}
+
+/**
+ * Ce que la carte compte sur chaque station Vélo'v. Le choix est gardé d'une ouverture à l'autre et
+ * change à la fois le nombre affiché sur le marqueur et sa couleur de disponibilité.
+ */
+enum class VelovFilter(val title: String, val caption: String) {
+    ALL("Tous", "Tous les vélos disponibles, électriques comme classiques"),
+    MECHANICAL("Classiques", "Seulement les vélos sans assistance électrique"),
+    ELECTRIC("Électriques", "Seulement les vélos à assistance électrique"),
+    STANDS("Places", "Les places libres pour rendre un vélo");
+
+    companion object {
+        /** Ordre de la barre de filtres, partagé par iOS et Android. */
+        val ordered: List<VelovFilter> = listOf(ALL, MECHANICAL, ELECTRIC, STANDS)
+
+        /** Relit une préférence enregistrée, et revient à « Tous » si elle est absente ou inconnue. */
+        fun fromName(name: String?): VelovFilter = ordered.firstOrNull { it.name == name } ?: ALL
     }
 }
 

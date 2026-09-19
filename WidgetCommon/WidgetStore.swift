@@ -40,6 +40,9 @@ enum WidgetStore {
         static let stops = "widget.stops"
         /// Index jamais purgé : un widget déjà réglé sur un arrêt retiré de la liste reste lisible.
         static let stopsIndex = "widget.stopsIndex"
+        /// Enregistrements d'avant la refonte (dictionnaires) : liste des arrêts et index des identifiants « quai-ligne-sens ».
+        static let legacyStops = "widgetStops"
+        static let legacyStopsIndex = "widgetStopsIndex"
         static let subscribedLines = "widget.subscribedLines"
         static let theme = "widget.theme"
         static let cachePrefix = "widget.cache."
@@ -62,7 +65,13 @@ enum WidgetStore {
     // MARK: - Arrêts des widgets de passages
 
     static var stops: [WidgetStop] {
-        get { load([WidgetStop].self, key: Key.stops) ?? [] }
+        get {
+            if let current = load([WidgetStop].self, key: Key.stops) { return current }
+            // Première lecture après la mise à jour : les arrêts enregistrés avant la refonte sont repris tels quels.
+            let migrated = (defaults?.array(forKey: Key.legacyStops) as? [[String: Any]] ?? []).compactMap(legacyStop)
+            if !migrated.isEmpty { save(migrated, key: Key.stops) }
+            return migrated
+        }
         set {
             save(newValue, key: Key.stops)
             var index = load([String: WidgetStop].self, key: Key.stopsIndex) ?? [:]
@@ -71,10 +80,19 @@ enum WidgetStore {
         }
     }
 
-    /// L'arrêt d'un identifiant, dans la liste courante puis dans l'index.
+    /// L'arrêt d'un identifiant, dans la liste courante, dans l'index, puis dans l'index d'avant la refonte
+    /// (un widget posé avant la mise à jour garde son réglage).
     static func stop(id: String) -> WidgetStop? {
         if let current = stops.first(where: { $0.id == id }) { return current }
-        return load([String: WidgetStop].self, key: Key.stopsIndex)?[id]
+        if let indexed = load([String: WidgetStop].self, key: Key.stopsIndex)?[id] { return indexed }
+        let legacyIndex = defaults?.dictionary(forKey: Key.legacyStopsIndex) as? [String: [String: Any]] ?? [:]
+        return legacyIndex[id].flatMap(legacyStop)
+    }
+
+    private static func legacyStop(_ dict: [String: Any]) -> WidgetStop? {
+        guard let stopId = dict["stopId"] as? Int, let stopName = dict["stopName"] as? String,
+              let line = dict["lineName"] as? String, let direction = dict["direction"] as? String else { return nil }
+        return WidgetStop(stopId: stopId, stopName: stopName, line: line, direction: direction)
     }
 
     // MARK: - Lignes suivies (abonnements aux notifications)

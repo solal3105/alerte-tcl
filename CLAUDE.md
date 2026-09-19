@@ -171,7 +171,7 @@ et un bandeau « Tout afficher » apparaît quand les filtres masquent tous les 
 - Abonnements aux notifications : `LineSubscriptions` (règles + JSON), distincts des favoris qui ne
   servent qu'aux filtres. Règle de notification : `AlertNotifications`. Bandeau trafic :
   `TrafficBanner`. Dates des alertes : `AlertDates`. Ces règles ont des tests dans `commonTest`.
-- Pas de widgets Android (décision produit du 15 septembre 2026) ; les widgets iOS restent.
+- Pas de widgets Android (décision produit du 15 septembre 2026) ; les widgets iOS restent (voir « Widgets iOS »).
 - Un véhicule sans nouvelle position depuis `Vehicle.HIDE_AFTER_SECONDS` (90 s, module partagé) quitte
   la carte : filtre à chaque fetch dans les vues modèles et relecture chaque seconde côté carte.
 - Grille de zoom partagée `MapStyle.ZOOM_*` (niveaux MapLibre ; iOS convertit via `MapStyle.zoomLevel`) :
@@ -185,3 +185,21 @@ et un bandeau « Tout afficher » apparaît quand les filtres masquent tous les 
   arrêts et des passages (`TransitStop.isDisplayedLine`).
 - Les composants communs sont décrits dans `DESIGN.md` : badge de ligne (`LineBadge`), en-tête de
   feuille (`SheetHeader`), états chargement / vide / erreur, textes des alertes.
+
+### Widgets iOS
+
+Six widgets, refaits le 20 septembre 2026 (les trois premiers gardent leurs identifiants WidgetKit, noms d'intents et de paramètres d'avant, et `WidgetStore` relit les anciens enregistrements `widgetStops` / `widgetStopsIndex` : les widgets déjà posés survivent à la mise à jour) : « Prochains passages », « Tableau de départs », « Trafic sur
+mes lignes », « Places de parking », « Station Vélo'v », « Travaux autour de moi ». Le dossier
+`WidgetCommon/` (dossier synchronisé Xcode, membre de l'app et de l'extension) porte le catalogue
+(`WidgetKind`, `WidgetLink` pour les liens `alertetcl://`), le stockage partagé (`WidgetStore`, JSON dans
+l'app group), le thème (`WidgetTheme`, jetons `AppColors` publiés par l'app ; `WidgetLinePalette` relit
+la palette officielle), les entrées et les vues de chaque widget, la capture de carte des chantiers
+(`WorksMapSnapshot`) et les exemples (`WidgetSamples`). L'extension `AlerteTCLWidget/` ne lie pas le
+module Kotlin : ses services (`Services/`) lisent le relais et le GeoServer, ses réglages et
+chronologies sont dans `Widgets/`. Côté app, `WidgetBridge` publie arrêts, abonnements et couleurs
+puis recharge les chronologies ; `WidgetViews.swift` porte la feuille « Ajouter au widget » (multi-sens),
+la galerie (onglet Info, aperçus rendus avec les vraies vues) et la liste des arrêts enregistrés. Les
+liens des widgets ouvrent la fiche de l'arrêt, du parking, de la station, du chantier, le trafic ou la
+galerie (`WidgetLink`, routé par `ContentView`). La position des widgets exige `NSWidgetWantsLocation`
+dans l'Info.plist de l'extension. L'adresse du relais est `ProxyEndpoint.baseURL` (mise à jour par
+`deploy.sh`). Quand le direct annonce moins de deux passages (fin de service, nuit), `PassagesService` complète avec les fiches horaires théoriques (`TimetableService` de l'extension, lecture minimale du format 1 sur trois journées de service, quai reconnu par identifiant puis par nom) : le widget affiche alors « demain 05:12 » et « horaires prévus », et se recharge une heure avant le premier passage.
