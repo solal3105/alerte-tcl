@@ -21,10 +21,8 @@ final class VelovViewModel: ObservableObject {
 
     private static let persistenceKey = "liveMap.showVelov"
     private static let electricKey = "liveMap.velovElectricOnly"
-    /// Même seuil de zoom que les arrêts : au-delà, la carte serait couverte de stations.
-    private let zoomThreshold: Double = 0.03
     private var stations: [VelovStation] = []
-    private var lastZoom: Double = 0.15
+    private var lastZoom: Double = 0
     private var lastRegion: MKCoordinateRegion?
     private var refreshTask: Task<Void, Never>?
 
@@ -42,7 +40,7 @@ final class VelovViewModel: ObservableObject {
     }
 
     private func applyVisibleFilter() {
-        guard isEnabled, lastZoom <= zoomThreshold, let region = lastRegion else {
+        guard isEnabled, lastZoom >= MapStyle.shared.ZOOM_STOPS, let region = lastRegion else {
             if !visibleStations.isEmpty { visibleStations = [] }
             return
         }

@@ -9,19 +9,13 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import android.Manifest
 import android.content.pm.PackageManager
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,7 +49,6 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Tram
@@ -100,7 +93,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -129,7 +121,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
@@ -194,6 +185,7 @@ import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 import com.alertetcl.shared.models.MapFilterTexts
+import androidx.compose.foundation.layout.offset
 
 
 private const val METRO_SRC       = "metro-src"
@@ -209,8 +201,9 @@ private const val BUS_LAYER       = "bus-layer"
 private const val VEHICLES_HALO_LAYER = "vehicles-halo-layer"
 private const val VEHICLES_LAYER  = "vehicles-layer"
 private const val VEHICLES_ARROW_LAYER = "vehicles-arrow-layer"
-// Étiquette "âge de la position" sous chaque véhicule, visible au zoom serré (parité iOS).
-private const val VEHICLES_AGE_LAYER = "vehicles-age-layer"
+// Anneau de délai depuis la dernière position autour de chaque véhicule, visible au zoom serré (parité iOS).
+private const val VEHICLES_RING_LAYER = "vehicles-ring-layer"
+private const val RING_STEPS = 12
 private const val STOPS_LAYER       = "stops-layer"        // CircleLayer mode compact
 private const val STOPS_BADGE_LAYER = "stops-badge-layer"  // SymbolLayer mode badges (zoom serré)
 private const val VELOV_SRC   = "velov-src"
@@ -315,7 +308,6 @@ fun LiveMapScreen() {
     velovRef.value = velovStations.value
     val isDark = isSystemInDarkTheme()
     var isSatellite    by remember { mutableStateOf(false) }
-    var bannerCollapsed by remember { mutableStateOf(false) }
 
     val transitLines = produceState<List<TransitLine>>(initialValue = emptyList()) {
         value = runCatching { TransitLineService.shared.fetchTransitLines() }.getOrDefault(emptyList())
@@ -527,49 +519,6 @@ fun LiveMapScreen() {
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-        AnimatedVisibility(
-            visible = !bannerCollapsed && stopFocus == null,
-            enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
-            exit  = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            var dragOffsetY by remember { mutableFloatStateOf(0f) }
-            TrafficBanner(
-                subscriptions = subscriptions,
-                alerts = alerts,
-                lastUpdateMs = lastUpdateMs,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .pointerInput(Unit) {
-                        detectVerticalDragGestures(
-                            onVerticalDrag = { _, delta -> dragOffsetY += delta },
-                            onDragEnd = {
-                                if (dragOffsetY < -40f) bannerCollapsed = true
-                                dragOffsetY = 0f
-                            },
-                            onDragCancel = { dragOffsetY = 0f }
-                        )
-                    },
-                onTap = { showAlertsSheet = true }
-            )
-        }
-        if (bannerCollapsed && stopFocus == null) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .clip(RoundedCornerShape(50))
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f))
-                    .clickable { bannerCollapsed = false }
-                    .padding(horizontal = 14.dp, vertical = 4.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Filled.KeyboardArrowDown, null,
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
         if (filtersHideAll) FiltersHideAllBanner(onClear = clearFilters)
         stopFocus?.let { focus ->
             val vehicleId = focus.vehicleId
@@ -647,6 +596,7 @@ fun LiveMapScreen() {
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            TrafficFab(subscriptions = subscriptions, alerts = alerts, onClick = { showAlertsSheet = true })
             MapCircleFab(
                 icon = Icons.Filled.Schedule, contentDesc = "Fiches horaires",
                 tint = MaterialTheme.colorScheme.onSurface,
@@ -800,7 +750,7 @@ fun LiveMapScreen() {
                             Expression.step(
                                 Expression.zoom(),
                                 Expression.literal("no_arrow"),
-                                Expression.literal(13.5), Expression.get("arrow_icon")
+                                Expression.literal(MapStyle.ZOOM_VEHICLE_BODY), Expression.get("arrow_icon")
                             )
                         ),
                         PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
@@ -816,40 +766,25 @@ fun LiveMapScreen() {
                             Expression.step(
                                 Expression.zoom(),
                                 Expression.get("dot_icon"),
-                                Expression.literal(13.5), Expression.get("icon")
+                                Expression.literal(MapStyle.ZOOM_VEHICLE_BODY), Expression.get("icon")
                             )
                         ),
                         PropertyFactory.iconAllowOverlap(true),
                         PropertyFactory.iconIgnorePlacement(true),
                         PropertyFactory.iconSize(1f)
                     ))
-                    // Layer 3 : ligne et âge de la dernière position (« C12 · 12 s »), zoom serré uniquement :
-                    // à ce niveau le marqueur ne montre plus que le pictogramme, la ligne doit rester lisible.
-                    style.addLayer(SymbolLayer(VEHICLES_AGE_LAYER, VEHICLES_SRC).apply {
-                        minZoom = 14.8f  // visible dès le zoom du bouton de localisation (15)
+                    // Layer 3 : anneau de délai autour du corps (sous la flèche et le corps), zoom serré uniquement.
+                    ringBitmaps(isDark).forEach { (key, bmp) -> if (style.getImage(key) == null) style.addImage(key, bmp) }
+                    style.addLayerBelow(SymbolLayer(VEHICLES_RING_LAYER, VEHICLES_SRC).apply {
+                        minZoom = MapStyle.ZOOM_FRESHNESS_RING.toFloat()
                         setProperties(
-                            PropertyFactory.textField(
-                                Expression.format(
-                                    Expression.formatEntry(
-                                        Expression.concat(Expression.get("line"), Expression.literal(" · ")),
-                                        Expression.FormatOption.formatTextColor(Expression.literal("#F2F2F2"))
-                                    ),
-                                    Expression.formatEntry(
-                                        Expression.get("age"),
-                                        Expression.FormatOption.formatTextColor(Expression.get("age_col"))
-                                    )
-                                )
-                            ),
-                            PropertyFactory.textFont(arrayOf("Noto Sans Regular")),
-                            PropertyFactory.textSize(10f),
-                            PropertyFactory.textColor(Expression.get("age_col")),
-                            PropertyFactory.textHaloColor("#000000"),
-                            PropertyFactory.textHaloWidth(1.2f),
-                            PropertyFactory.textOffset(arrayOf(0f, 2.1f)),
-                            PropertyFactory.textAllowOverlap(true),
-                            PropertyFactory.textIgnorePlacement(true)
+                            PropertyFactory.iconImage(Expression.get("ring")),
+                            PropertyFactory.iconAllowOverlap(true),
+                            PropertyFactory.iconIgnorePlacement(true),
+                            PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER),
+                            PropertyFactory.iconSize(1f)
                         )
-                    })
+                    }, VEHICLES_ARROW_LAYER)
                 }
             }
             vehiclesLayerReady.value = true
@@ -957,15 +892,15 @@ fun LiveMapScreen() {
                             PropertyFactory.circleRadius(Expression.toNumber(Expression.get("circle_r"))),
                             PropertyFactory.circleStrokeWidth(Expression.toNumber(Expression.get("stroke_w")))
                         )
-                    circleLayer.setMinZoom(14f)
-                    circleLayer.setMaxZoom(16f) // exclusif : masqué quand badgeLayer prend le relais
+                    circleLayer.setMinZoom(MapStyle.ZOOM_STOPS.toFloat())
+                    circleLayer.setMaxZoom(MapStyle.ZOOM_STOP_BADGES.toFloat()) // exclusif : masqué quand badgeLayer prend le relais
                     val badgeLayer = SymbolLayer(STOPS_BADGE_LAYER, STOPS_SRC).withProperties(
                             PropertyFactory.iconImage(Expression.get("icon")),
                             PropertyFactory.iconAllowOverlap(true),
                             PropertyFactory.iconIgnorePlacement(true),
                             PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
                         )
-                    badgeLayer.setMinZoom(16f)
+                    badgeLayer.setMinZoom(MapStyle.ZOOM_STOP_BADGES.toFloat())
                     // Sous les stations Vélo'v et les véhicules, au-dessus des tracés.
                     addLayerUnder(style, circleLayer, VELOV_LAYER, VEHICLES_HALO_LAYER)
                     addLayerUnder(style, badgeLayer, VELOV_LAYER, VEHICLES_HALO_LAYER)
@@ -1007,7 +942,7 @@ fun LiveMapScreen() {
                     PropertyFactory.iconIgnorePlacement(true),
                     PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
                 )
-                layer.setMinZoom(13.5f)
+                layer.setMinZoom(MapStyle.ZOOM_STOPS.toFloat())
                 // Sous les véhicules, au-dessus des arrêts et des tracés.
                 addLayerUnder(style, layer, VEHICLES_HALO_LAYER)
             }
@@ -2065,15 +2000,14 @@ private fun PassageChip(p: Passage) {
 
 // ── Traffic Banner / Live Indicator / Filter Sheet ──────────────────────
 
+
+/** Pastille trafic en bas à droite : verte, orange ou rouge selon la règle partagée, avec le nombre de lignes touchées. */
 @Composable
-private fun TrafficBanner(
+private fun TrafficFab(
     subscriptions: Map<String, com.alertetcl.shared.models.LineSubscription>,
     alerts: List<com.alertetcl.shared.models.TCLAlert>,
-    lastUpdateMs: Long?,
-    modifier: Modifier = Modifier,
-    onTap: () -> Unit
+    onClick: () -> Unit
 ) {
-    // Même règle que sur iOS : le module partagé décide du ton et des textes.
     val state = remember(subscriptions, alerts) {
         com.alertetcl.shared.models.TrafficBanner.compute(subscriptions, alerts, System.currentTimeMillis() / 1000L)
     }
@@ -2087,41 +2021,13 @@ private fun TrafficBanner(
         com.alertetcl.shared.models.TrafficBanner.Tone.WARNING -> Icons.Filled.Warning
         com.alertetcl.shared.models.TrafficBanner.Tone.MAJOR -> Icons.Filled.Report
     }
-    val updatedText = lastUpdateMs?.let { ms ->
-        val elapsed = (System.currentTimeMillis() - ms) / 1000L
-        when {
-            elapsed < 60L -> "à l'instant"
-            elapsed < 3600L -> "il y a ${elapsed / 60} min"
-            else -> "il y a ${elapsed / 3600} h"
-        }
-    }
-
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shadowElevation = 4.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.25f)),
-        modifier = modifier.clickable { onTap() }
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(11.dp)
-        ) {
-            Box(
-                modifier = Modifier.size(36.dp).clip(CircleShape).background(accent.copy(alpha = 0.18f)),
-                contentAlignment = Alignment.Center
-            ) { Icon(icon, null, tint = accent, modifier = Modifier.size(18.dp)) }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(state.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                state.subtitle?.let {
-                    Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                }
+    Box {
+        MapCircleFab(icon = icon, contentDesc = state.title, tint = accent, onClick = onClick)
+        if (state.count > 0) {
+            Surface(shape = RoundedCornerShape(50), color = accent, modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)) {
+                Text("${state.count}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
             }
-            if (updatedText != null) {
-                Text(updatedText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-            }
-            Icon(Icons.Filled.ChevronRight, null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -2673,8 +2579,6 @@ private fun buildVehicleFeature(v: Vehicle, animated: AnimatedVehicle?, nowSec: 
     val coord   = animated?.currentInterpolatedCoordinate(nowSec) ?: v.coordinate
     val bearing = animated?.currentInterpolatedBearing(nowSec) ?: v.bearing
     val nowMs   = (nowSec * 1000).toLong()
-    val age     = v.positionAgeSeconds(nowMs)
-    val fresh   = v.positionFreshness(nowMs)
     val props   = JsonObject().apply {
         addProperty("id",          v.id)
         addProperty("line",        v.lineName)
@@ -2683,25 +2587,47 @@ private fun buildVehicleFeature(v: Vehicle, animated: AnimatedVehicle?, nowSec: 
         addProperty("dot_icon",    vehicleDotKey(v.lineName))
         addProperty("arrow_icon",  if (bearing != 0.0) vehicleArrowKey(v.lineName) else "no_arrow")
         addProperty("bearing",     bearing.toFloat())
-        addProperty("age",         age?.let { Vehicle.formattedAge(it) } ?: "")
-        addProperty("age_col",     fresh.color.hex(darkTheme))
+        addProperty("ring",        ringKey(v, nowMs, darkTheme))
         addProperty("sel",         if (v.id == focusedId) 1 else 0)
         addProperty("line_col",    LineColors.backgroundHex(v.lineName))
     }
     return Feature.fromGeometry(Point.fromLngLat(coord.longitude, coord.latitude), props)
 }
 
-/** Propriétés dynamiques de fraîcheur ajoutées au GeoJSON du hot path (âge, couleur). */
+/** Propriétés dynamiques ajoutées au GeoJSON du hot path : sélection, couleur de ligne, anneau de délai. */
 private fun appendFreshnessProps(sb: StringBuilder, v: Vehicle, nowMs: Long, darkTheme: Boolean, focusedId: String?) {
-    val age   = v.positionAgeSeconds(nowMs)
-    val fresh = v.positionFreshness(nowMs)
     sb.append(",\"sel\":").append(if (v.id == focusedId) 1 else 0)
     sb.append(",\"line_col\":\"").append(LineColors.backgroundHex(v.lineName)).append('"')
-    sb.append(",\"age\":\"")
-    sb.append(age?.let { Vehicle.formattedAge(it) } ?: "")
-    sb.append("\",\"age_col\":\"")
-    sb.append(fresh.color.hex(darkTheme))
-    sb.append('"')
+    sb.append(",\"ring\":\"").append(ringKey(v, nowMs, darkTheme)).append('"')
+}
+
+/** Image de l'anneau pour ce véhicule : couleur de fraîcheur et part du délai écoulée, par pas de 1/12. */
+private fun ringKey(v: Vehicle, nowMs: Long, darkTheme: Boolean): String {
+    if (v.recordedAtEpoch == null) return "no_arrow"
+    val step = (v.freshnessFraction(nowMs) * RING_STEPS).toInt().coerceIn(0, RING_STEPS)
+    return "ring_${v.positionFreshness(nowMs).color.hex(darkTheme).removePrefix("#")}_$step"
+}
+
+/** Toutes les images d'anneau : trois couleurs de fraîcheur, RING_STEPS + 1 remplissages. */
+private fun ringBitmaps(darkTheme: Boolean): List<Pair<String, Bitmap>> =
+    PositionFreshness.entries.map { it.color.hex(darkTheme) }.distinct().flatMap { hex ->
+        (0..RING_STEPS).map { step -> "ring_${hex.removePrefix("#")}_$step" to ringBitmap(hex, step) }
+    }
+
+/** Anneau de délai : arc depuis le haut, sens horaire, 3 dp d'épaisseur, autour du disque de 40 dp. */
+private fun ringBitmap(colorHex: String, step: Int): Bitmap {
+    val density = android.content.res.Resources.getSystem().displayMetrics.density
+    val size = (50 * density).toInt().coerceAtLeast(1)
+    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    if (step <= 0) return bmp
+    val canvas = Canvas(bmp)
+    val stroke = 3f * density
+    val inset = stroke / 2 + density
+    val rect = RectF(inset, inset, size - inset, size - inset)
+    canvas.drawArc(rect, -90f, 360f * step / RING_STEPS, false, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = parseAndroidColor(colorHex); style = Paint.Style.STROKE; strokeWidth = stroke; strokeCap = Paint.Cap.ROUND
+    })
+    return bmp
 }
 
 // ── Bitmap helpers ───────────────────────────────────────────────────────

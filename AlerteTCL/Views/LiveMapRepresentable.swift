@@ -173,7 +173,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
         // Animation (horloge partagée avec le ViewModel)
         private let clock = AnimationClock()
         private var clockCancellable: AnyCancellable?
-        private var currentZoomLevel: Double = 0.15
+        private var currentZoomLevel: Double = 12
 
         // Bridge région
         /// Dernière région que SwiftUI nous a demandé de pousser vers MapKit
@@ -222,7 +222,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 removeVehicleAnnotations(ids: vehicleAnnotations.filter { !$0.value.vehicle.isShownOnMap }.map(\.key))
             }
             let animated = owner.viewModel.animatedVehicles
-            let isSimplified = currentZoomLevel > Self.simpleDotZoomThreshold
+            let isSimplified = currentZoomLevel < MapStyle.shared.ZOOM_VEHICLE_BODY
 
             for (id, annotation) in vehicleAnnotations {
                 guard let anim = animated[id] else { continue }
@@ -238,7 +238,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 annotation.annotationView?.apply(
                     vehicle: annotation.vehicle,
                     bearing: newBearing,
-                    showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold,
+                    showRing: currentZoomLevel >= MapStyle.shared.ZOOM_FRESHNESS_RING,
                     simplified: false
                 )
             }
@@ -251,17 +251,17 @@ struct LiveMapRepresentable: UIViewRepresentable {
         func refreshLineColors() {
             guard let mapView else { return }
             MarkerImageCache.clearAll()
-            let simplified = currentZoomLevel > Self.simpleDotZoomThreshold
+            let simplified = currentZoomLevel < MapStyle.shared.ZOOM_VEHICLE_BODY
             for annotation in vehicleAnnotations.values {
                 annotation.annotationView?.invalidateLineColors()
                 annotation.annotationView?.apply(
                     vehicle: annotation.vehicle,
                     bearing: annotation.bearing,
-                    showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold,
+                    showRing: currentZoomLevel >= MapStyle.shared.ZOOM_FRESHNESS_RING,
                     simplified: simplified
                 )
             }
-            let showBadges = currentZoomLevel <= Self.stopBadgeZoomThreshold
+            let showBadges = currentZoomLevel >= MapStyle.shared.ZOOM_STOP_BADGES
             for annotation in stopAnnotations.values {
                 (mapView.view(for: annotation) as? MergedStopAnnotationView)?.apply(stop: annotation.stop, showBadges: showBadges)
             }
@@ -284,7 +284,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
 
             // Ajouts et mises à jour
             var toAdd: [VehicleAnnotation] = []
-            let isSimplified = currentZoomLevel > Self.simpleDotZoomThreshold
+            let isSimplified = currentZoomLevel < MapStyle.shared.ZOOM_VEHICLE_BODY
             for vehicle in vehicles {
                 let bearing = animated[vehicle.id]?.bearingAt(clock.time) ?? vehicle.bearing
                 let coord   = animated[vehicle.id]?.coordinateAt(clock.time) ?? vehicle.coordinate
@@ -296,7 +296,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
                     existing.annotationView?.apply(
                         vehicle: vehicle,
                         bearing: bearing,
-                        showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold,
+                        showRing: currentZoomLevel >= MapStyle.shared.ZOOM_FRESHNESS_RING,
                         simplified: isSimplified
                     )
                 } else {
@@ -439,29 +439,29 @@ struct LiveMapRepresentable: UIViewRepresentable {
             guard let mapView else { return }
 
             // Passages simplifié ↔ complet
-            let prevSimplified = prevZoom > Self.simpleDotZoomThreshold
-            let nextSimplified = zoom     > Self.simpleDotZoomThreshold
+            let prevSimplified = prevZoom < MapStyle.shared.ZOOM_VEHICLE_BODY
+            let nextSimplified = zoom     < MapStyle.shared.ZOOM_VEHICLE_BODY
+            let nextRing = zoom >= MapStyle.shared.ZOOM_FRESHNESS_RING
             if prevSimplified != nextSimplified {
                 for annotation in vehicleAnnotations.values {
                     annotation.annotationView?.apply(
                         vehicle: annotation.vehicle,
                         bearing: annotation.bearing,
-                        showTooltip: zoom <= Self.punctualityZoomThreshold,
+                        showRing: nextRing,
                         simplified: nextSimplified
                     )
                 }
             }
 
-            // Tooltips de ponctualité (zoom serré uniquement, ne s'applique pas au mode simplifié)
+            // Anneau de délai (zoom serré uniquement, ne s'applique pas au mode simplifié)
             if !nextSimplified {
-                let prevPunctuality = prevZoom <= Self.punctualityZoomThreshold
-                let nextPunctuality = zoom     <= Self.punctualityZoomThreshold
-                if prevPunctuality != nextPunctuality {
+                let prevRing = prevZoom >= MapStyle.shared.ZOOM_FRESHNESS_RING
+                if prevRing != nextRing {
                     for annotation in vehicleAnnotations.values {
                         annotation.annotationView?.apply(
                             vehicle: annotation.vehicle,
                             bearing: annotation.bearing,
-                            showTooltip: nextPunctuality,
+                            showRing: nextRing,
                             simplified: false
                         )
                     }
@@ -469,8 +469,8 @@ struct LiveMapRepresentable: UIViewRepresentable {
             }
 
             // Badges de ligne sur les arrêts.
-            let prevBadges = prevZoom <= Self.stopBadgeZoomThreshold
-            let nextBadges = zoom     <= Self.stopBadgeZoomThreshold
+            let prevBadges = prevZoom >= MapStyle.shared.ZOOM_STOP_BADGES
+            let nextBadges = zoom     >= MapStyle.shared.ZOOM_STOP_BADGES
             if prevBadges != nextBadges {
                 for annotation in stopAnnotations.values {
                     if let view = mapView.view(for: annotation) as? MergedStopAnnotationView {
@@ -502,8 +502,8 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 view.annotation = vehicle
                 view.isFocusedVehicle = vehicle.vehicle.id == focusedVehicleId
                 view.apply(vehicle: vehicle.vehicle, bearing: vehicle.bearing,
-                           showTooltip: currentZoomLevel <= Self.punctualityZoomThreshold,
-                           simplified: currentZoomLevel > Self.simpleDotZoomThreshold)
+                           showRing: currentZoomLevel >= MapStyle.shared.ZOOM_FRESHNESS_RING,
+                           simplified: currentZoomLevel < MapStyle.shared.ZOOM_VEHICLE_BODY)
                 vehicle.annotationView = view
                 return view
 
@@ -513,7 +513,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
                     for: stop
                 ) as? MergedStopAnnotationView ?? MergedStopAnnotationView(annotation: stop, reuseIdentifier: MergedStopAnnotationView.identifier)
                 view.annotation = stop
-                view.apply(stop: stop.stop, showBadges: currentZoomLevel <= Self.stopBadgeZoomThreshold)
+                view.apply(stop: stop.stop, showBadges: currentZoomLevel >= MapStyle.shared.ZOOM_STOP_BADGES)
                 return view
 
             case let station as VelovAnnotation:
@@ -571,9 +571,11 @@ struct LiveMapRepresentable: UIViewRepresentable {
             // Remonte la région au ViewModel (clustering + viewport filter).
             owner.viewModel.updateZoomLevel(mapView.region.span)
             owner.viewModel.updateVisibleRegion(mapView.region)
-            owner.stopsViewModel.updateVisibleStops(zoom: mapView.region.span.latitudeDelta, region: mapView.region)
-            owner.velovViewModel.updateVisible(zoom: mapView.region.span.latitudeDelta, region: mapView.region)
-            refreshVehicleViews(for: mapView.region.span.latitudeDelta)
+            // Niveau de zoom (grille partagée `MapStyle`), le même que sur Android.
+            let zoom = MapStyle.shared.zoomLevel(longitudeDelta: mapView.region.span.longitudeDelta, widthPoints: Double(mapView.bounds.width))
+            owner.stopsViewModel.updateVisibleStops(zoom: zoom, region: mapView.region)
+            owner.velovViewModel.updateVisible(zoom: zoom, region: mapView.region)
+            refreshVehicleViews(for: zoom)
 
             // Remonte vers le binding SwiftUI uniquement si le mouvement vient
             // de l'utilisateur (pas de notre setRegion programmatique).
@@ -592,15 +594,6 @@ struct LiveMapRepresentable: UIViewRepresentable {
 
         // MARK: Constants
 
-        /// En-dessous de ce latitudeDelta, la capsule « ligne · délai » s'affiche sous chaque véhicule.
-        /// Le bouton de localisation cadre 0,01° de large, soit ~0,022° de haut en portrait :
-        /// les étiquettes doivent être visibles à ce zoom.
-        private static let punctualityZoomThreshold: Double = 0.025
-        /// En-dessous de ce latitudeDelta, les badges de ligne s'affichent sur les arrêts.
-        private static let stopBadgeZoomThreshold:    Double = 0.005
-        /// Au-dessus de ce latitudeDelta (dezoom), les véhicules s'affichent comme
-        /// un simple disque coloré sans icône ni flèche.
-        private static let simpleDotZoomThreshold:    Double = 0.05
     }
 
     // MARK: - Style

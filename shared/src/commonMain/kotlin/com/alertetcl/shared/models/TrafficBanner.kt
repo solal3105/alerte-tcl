@@ -14,7 +14,9 @@ object TrafficBanner {
         val title: String,
         val subtitle: String?,
         /** Vrai quand une ligne abonnée est en alerte majeure : l'icône peut battre. */
-        val pulsing: Boolean
+        val pulsing: Boolean,
+        /** Nombre affiché sur la pastille : lignes abonnées perturbées, ou alertes majeures du réseau sans abonnement. */
+        val count: Int = 0
     )
 
     /** Une ligne en perturbation et la plus forte sévérité qui la touche. */
@@ -33,7 +35,7 @@ object TrafficBanner {
         val networkMajor = alerts.count { it.isOngoing(nowEpoch) && it.severity == AlertSeverity.MAJOR }
         if (subscriptions.isEmpty()) {
             return if (networkMajor == 0) State(Tone.NORMAL, "Réseau TCL normal", "Appuyez pour suivre vos lignes", false)
-            else State(Tone.MAJOR, "$networkMajor ${plural(networkMajor, "perturbation")} ${plural(networkMajor, "majeure")} sur le réseau", "Appuyez pour voir les détails", false)
+            else State(Tone.MAJOR, "$networkMajor ${plural(networkMajor, "perturbation")} ${plural(networkMajor, "majeure")} sur le réseau", "Appuyez pour voir les détails", false, networkMajor)
         }
         val mine = linesInError(alerts, nowEpoch).filter { it.lineId in subscriptions }
         if (mine.isEmpty()) {
@@ -47,10 +49,11 @@ object TrafficBanner {
                 Tone.MAJOR,
                 "$major ${plural(major, "ligne")} en alerte majeure",
                 if (others > 0) "et $others ${plural(others, "autre")} ${plural(others, "ligne")} ${plural(others, "perturbée")}" else null,
-                true
+                true,
+                mine.size
             )
         else
-            State(Tone.WARNING, "$others de vos ${plural(others, "ligne")} ${plural(others, "perturbée")}", null, false)
+            State(Tone.WARNING, "$others de vos ${plural(others, "ligne")} ${plural(others, "perturbée")}", null, false, mine.size)
     }
 
     private fun plural(n: Int, word: String): String = if (n > 1) "${word}s" else word

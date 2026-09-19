@@ -159,5 +159,9 @@ et un bandeau « Tout afficher » apparaît quand les filtres masquent tous les 
 - Pas de widgets Android (décision produit du 15 septembre 2026) ; les widgets iOS restent.
 - Un véhicule sans nouvelle position depuis `Vehicle.HIDE_AFTER_SECONDS` (90 s, module partagé) quitte
   la carte : filtre à chaque fetch dans les vues modèles et relecture chaque seconde côté carte.
+- Grille de zoom partagée `MapStyle.ZOOM_*` (niveaux MapLibre ; iOS convertit via `MapStyle.zoomLevel`) :
+  tout seuil de visibilité sur la carte s'y réfère, aucune valeur de zoom en dur dans les vues.
+- Marqueur véhicule : numéro de ligne dans le disque et anneau de délai (`Vehicle.freshnessFraction`),
+  jamais d'étiquette texte ; état du trafic en pastille dans la colonne de boutons (`TrafficBanner.State.count`).
 - Les composants communs sont décrits dans `DESIGN.md` : badge de ligne (`LineBadge`), en-tête de
   feuille (`SheetHeader`), états chargement / vide / erreur, textes des alertes.

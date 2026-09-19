@@ -58,11 +58,11 @@ final class VelovAnnotation: NSObject, MKAnnotation {
 
 /// Vue d'annotation véhicule.
 ///
-/// **Mode simplifié** (dezoom, latitudeDelta > 0.05) : disque plat 12 pt, aucun layer
+/// **Mode simplifié** (sous `MapStyle.ZOOM_VEHICLE_BODY`) : disque plat 12 pt, aucun layer
 /// de flèche mis à jour → coût animation tick ≈ 0.
 ///
-/// **Mode complet** (zoom, latitudeDelta ≤ 0.05) : cercle coloré 32 pt + flèche
-/// orbitale 10×7 pt dans un frame 56×56 pt.
+/// **Mode complet** : disque 32 pt portant le numéro de ligne + flèche orbitale 10×7 pt
+/// dans un frame 56×56 pt, et à partir de `MapStyle.ZOOM_FRESHNESS_RING` un anneau de délai.
 ///
 /// Aucune UIHostingView, aucune View SwiftUI.
 final class VehicleAnnotationView: MKAnnotationView {
@@ -75,6 +75,8 @@ final class VehicleAnnotationView: MKAnnotationView {
         static let orbit:    CGFloat = 19
         static let side:     CGFloat = 56
         static let dotSize:  CGFloat = 12   // mode simplifié
+        static let ringGap:  CGFloat = 2.5  // espace entre le disque et l'anneau de délai
+        static let ringWidth: CGFloat = 3
     }
 
     private let bodyLayer  = CALayer()
@@ -86,14 +88,13 @@ final class VehicleAnnotationView: MKAnnotationView {
     var isFocusedVehicle = false {
         didSet { if isFocusedVehicle != oldValue { updateHalo() } }
     }
-    /// Capsule "âge de la position" affichée sous le marqueur au zoom serré.
-    private let ageLayer     = CALayer()
-    private let ageTextLayer = CATextLayer()
+    /// Anneau autour du corps : se remplit avec le délai depuis la dernière position (0 à 90 s), dans la couleur de fraîcheur.
+    private let ringLayer = CAShapeLayer()
 
     private var currentLineName:  String?
-    private var currentType:      VehicleType?
     private var currentSimplified: Bool = false
-    private var currentAgeText:    String?
+    private var currentRingFraction: CGFloat = -1
+    private var currentRingFreshness: Vehicle.PositionFreshness?
 
     override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
@@ -123,52 +124,43 @@ final class VehicleAnnotationView: MKAnnotationView {
         arrowLayer.contentsGravity = .resizeAspect
         arrowLayer.isHidden        = true
 
-        ageLayer.cornerRadius    = 7
-        ageLayer.backgroundColor = UIColor.black.withAlphaComponent(0.55).cgColor
-        ageLayer.isHidden        = true
-        layer.addSublayer(ageLayer)
-
-        ageTextLayer.fontSize        = 9
-        ageTextLayer.font            = UIFont.systemFont(ofSize: 9, weight: .semibold)
-        ageTextLayer.alignmentMode   = .center
-        ageTextLayer.contentsScale   = UIScreen.main.scale
-        ageLayer.addSublayer(ageTextLayer)
+        let ringRadius = Layout.bodySize / 2 + Layout.ringGap
+        let ringRect = CGRect(x: Layout.side / 2 - ringRadius, y: Layout.side / 2 - ringRadius, width: ringRadius * 2, height: ringRadius * 2)
+        ringLayer.path        = UIBezierPath(ovalIn: ringRect).cgPath
+        ringLayer.fillColor   = UIColor.clear.cgColor
+        ringLayer.lineWidth   = Layout.ringWidth
+        ringLayer.lineCap     = .round
+        ringLayer.strokeStart = 0
+        ringLayer.strokeEnd   = 0
+        ringLayer.frame       = CGRect(origin: .zero, size: CGSize(width: Layout.side, height: Layout.side))
+        // Départ en haut, sens horaire.
+        ringLayer.setAffineTransform(CGAffineTransform(rotationAngle: -.pi / 2))
+        ringLayer.isHidden    = true
+        layer.addSublayer(ringLayer)
 
         centerOffset = .zero
     }
 
-    /// Met à jour la capsule sous le marqueur : ligne et délai depuis la dernière position.
-    /// Ne touche les layers que si le texte affiché change (≤ 1 fois/s),
+    /// Anneau de délai : ne touche le layer que si la part écoulée change de 2 % ou si la couleur change,
     /// pour rester quasi gratuit dans la boucle d'animation à 10 Hz.
-    private func updateAgeCapsule(vehicle: Vehicle, visible: Bool) {
-        guard visible, let age = vehicle.positionAge else {
-            if !ageLayer.isHidden { ageLayer.isHidden = true }
-            currentAgeText = nil
+    private func updateRing(vehicle: Vehicle, visible: Bool) {
+        guard visible, vehicle.recordedAt != nil else {
+            if !ringLayer.isHidden { ringLayer.isHidden = true }
+            currentRingFraction = -1
             return
         }
-
-        // Ligne puis délai depuis la dernière position : « C12 · 12 s » (au zoom serré le
-        // marqueur ne montre plus que le pictogramme, la ligne doit rester lisible).
-        let ageText = Vehicle.formattedAge(age)
-        let lineText = "\(vehicle.lineName) · "
-        let text = lineText + ageText
-        if text != currentAgeText {
-            currentAgeText = text
-            let width = CGFloat(text.count) * 5.4 + 12
-            ageLayer.bounds   = CGRect(x: 0, y: 0, width: width, height: 14)
-            ageLayer.position = CGPoint(x: Layout.side / 2, y: Layout.side / 2 + Layout.bodySize / 2 + 11)
-            ageTextLayer.frame = CGRect(x: 0, y: 1.5, width: width, height: 11)
-            let font = UIFont.systemFont(ofSize: 9, weight: .semibold)
-            let freshnessColor = UIColor(vehicle.positionFreshness.color)
-                .resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
-            let label = NSMutableAttributedString(
-                string: lineText,
-                attributes: [.font: font, .foregroundColor: UIColor.white.withAlphaComponent(0.85)]
-            )
-            label.append(NSAttributedString(string: ageText, attributes: [.font: font, .foregroundColor: freshnessColor]))
-            ageTextLayer.string = label
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+        let fraction = (CGFloat(vehicle.shared.freshnessFraction(nowEpochMs: nowMs)) * 50).rounded() / 50
+        let freshness = vehicle.positionFreshness
+        if freshness != currentRingFreshness {
+            currentRingFreshness = freshness
+            ringLayer.strokeColor = UIColor(freshness.color).cgColor
         }
-        if ageLayer.isHidden { ageLayer.isHidden = false }
+        if fraction != currentRingFraction {
+            currentRingFraction = fraction
+            ringLayer.strokeEnd = fraction
+        }
+        if ringLayer.isHidden { ringLayer.isHidden = false }
     }
 
     // MARK: - API
@@ -196,10 +188,9 @@ final class VehicleAnnotationView: MKAnnotationView {
     /// Oublie la ligne rendue : le prochain `apply` régénère le corps (changement de palette de couleurs).
     func invalidateLineColors() {
         currentLineName = nil
-        currentType = nil
     }
 
-    func apply(vehicle: Vehicle, bearing: Double, showTooltip: Bool, simplified: Bool) {
+    func apply(vehicle: Vehicle, bearing: Double, showRing: Bool, simplified: Bool) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
 
@@ -213,10 +204,9 @@ final class VehicleAnnotationView: MKAnnotationView {
                 bodyLayer.contents = MarkerImageCache.vehicleDot(lineName: vehicle.lineName).cgImage
                 centerOffset = .zero
                 currentLineName = vehicle.lineName
-                currentType     = vehicle.vehicleType
             }
             arrowLayer.isHidden = true
-            updateAgeCapsule(vehicle: vehicle, visible: false)
+            updateRing(vehicle: vehicle, visible: false)
             currentSimplified = true
 
         } else {
@@ -228,13 +218,11 @@ final class VehicleAnnotationView: MKAnnotationView {
                 bodyLayer.position = CGPoint(x: Layout.side / 2, y: Layout.side / 2)
                 centerOffset = .zero
                 currentLineName = nil  // forcer re-rendu du corps
-                currentType     = nil
             }
 
-            if currentLineName != vehicle.lineName || currentType != vehicle.vehicleType {
-                bodyLayer.contents = MarkerImageCache.vehicleBody(lineName: vehicle.lineName, vehicleType: vehicle.vehicleType).cgImage
+            if currentLineName != vehicle.lineName {
+                bodyLayer.contents = MarkerImageCache.vehicleBody(lineName: vehicle.lineName).cgImage
                 currentLineName = vehicle.lineName
-                currentType     = vehicle.vehicleType
             }
 
             if bearing != 0 {
@@ -250,7 +238,7 @@ final class VehicleAnnotationView: MKAnnotationView {
                 arrowLayer.isHidden = true
             }
 
-            updateAgeCapsule(vehicle: vehicle, visible: showTooltip)
+            updateRing(vehicle: vehicle, visible: showRing)
             currentSimplified = false
         }
 
@@ -262,11 +250,11 @@ final class VehicleAnnotationView: MKAnnotationView {
     override func prepareForReuse() {
         super.prepareForReuse()
         currentLineName   = nil
-        currentType       = nil
         currentSimplified = false
-        currentAgeText    = nil
+        currentRingFraction = -1
+        currentRingFreshness = nil
         arrowLayer.isHidden = true
-        ageLayer.isHidden   = true
+        ringLayer.isHidden  = true
     }
 }
 

@@ -308,13 +308,6 @@ struct LiveMapView: View {
     
     private var overlayControls: some View {
         VStack {
-            // Bandeau trafic en haut, remplacé par le bandeau du filtre tant qu'un filtre est actif
-            if viewModel.stopFocus == nil {
-                trafficBanner
-                    .padding(.top, 8)
-                    .padding(.horizontal, 16)
-            }
-
             // Filtres enregistrés qui ne laissent plus rien (ligne renumérotée, type sans véhicule) : le dire.
             if viewModel.filtersHideAllVehicles {
                 FiltersHideAllBanner(onClear: { withAnimation { viewModel.clearFilters() } })
@@ -355,6 +348,9 @@ struct LiveMapView: View {
                 
                 // Boutons en bas à droite (stack vertical)
                 VStack(spacing: 10) {
+                    // Pastille trafic : verte, orange ou rouge, avec le nombre de lignes touchées
+                    trafficPill
+
                     // Bouton fiches horaires
                     Button {
                         showTimetableSearch = true
@@ -430,18 +426,54 @@ struct LiveMapView: View {
     
     // MARK: - Traffic Banner
 
-    private var trafficBanner: some View {
-        TrafficBannerView(
-            subscribedLines: alertViewModel.subscribedLines,
-            linesInError: alertViewModel.linesInError,
-            state: TrafficBanner.shared.compute(
-                subscriptions: alertViewModel.subscriptionService.subscriptions,
-                alerts: alertViewModel.alerts.map(\.shared),
-                nowEpoch: Int64(Date().timeIntervalSince1970)
-            ),
-            lastUpdate: alertViewModel.lastUpdate,
-            onTap: { showAlerts = true }
+    private var trafficPill: some View {
+        let state = TrafficBanner.shared.compute(
+            subscriptions: alertViewModel.subscriptionService.subscriptions,
+            alerts: alertViewModel.alerts.map(\.shared),
+            nowEpoch: Int64(Date().timeIntervalSince1970)
         )
+        return Button {
+            showAlerts = true
+        } label: {
+            Image(systemName: trafficIcon(state.tone))
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(trafficColor(state.tone))
+                .frame(width: 50, height: 50)
+                .background(.regularMaterial)
+                .clipShape(Circle())
+                .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
+                .overlay(alignment: .topTrailing) {
+                    if state.count > 0 {
+                        Text("\(state.count)")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .frame(minWidth: 18, minHeight: 18)
+                            .background(trafficColor(state.tone), in: Capsule())
+                            .offset(x: 3, y: -3)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(state.title)
+    }
+
+    private func trafficIcon(_ tone: TrafficBanner.Tone) -> String {
+        switch tone {
+        case .normal: "checkmark.circle"
+        case .warning: "exclamationmark.triangle.fill"
+        case .major: "exclamationmark.octagon.fill"
+        default: "checkmark.circle"
+        }
+    }
+
+    private func trafficColor(_ tone: TrafficBanner.Tone) -> Color {
+        switch tone {
+        case .normal: .appSuccess
+        case .warning: .appWarning
+        case .major: .appError
+        default: .appSuccess
+        }
     }
     
     private var liveIndicator: some View {
@@ -1542,138 +1574,6 @@ private struct StopFocusBanner: View {
 
 // MARK: - Traffic Banner View
 
-private struct TrafficBannerView: View {
-    let subscribedLines: [TransportLine]
-    let linesInError: [AlertViewModel.LineAlertSummary]
-    /// État calculé par la règle partagée (`TrafficBanner`), la même que sur Android.
-    let state: TrafficBanner.State
-    let lastUpdate: Date?
-    let onTap: () -> Void
-
-    // MARK: Derived
-
-    private var hasSubscriptions: Bool { !subscribedLines.isEmpty }
-
-    private var subscribedDisrupted: [AlertViewModel.LineAlertSummary] {
-        linesInError.filter { summary in
-            subscribedLines.contains { $0.ligneCom == summary.id || $0.ligneCli == summary.id }
-        }
-    }
-
-    private var accentColor: Color {
-        switch state.tone {
-        case .warning: return .appWarning
-        case .major: return .appError
-        default: return .appSuccess
-        }
-    }
-
-    private var icon: String {
-        switch state.tone {
-        case .warning: return "exclamationmark.triangle.fill"
-        case .major: return "xmark.octagon.fill"
-        default: return "checkmark.circle.fill"
-        }
-    }
-
-    private var title: String { state.title }
-    private var subtitle: String? { state.subtitle }
-    private var isPulsing: Bool { state.pulsing }
-
-    // MARK: Body
-
-    var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 0) {
-                // — Ligne principale
-                HStack(spacing: 11) {
-                    ZStack {
-                        Circle()
-                            .fill(accentColor.opacity(0.18))
-                            .frame(width: 36, height: 36)
-                        Image(systemName: icon)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(accentColor)
-                            .symbolEffect(.pulse, isActive: isPulsing)
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                        if let sub = subtitle {
-                            Text(sub)
-                                .font(.system(size: 11, weight: .regular))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-
-                    Spacer(minLength: 0)
-
-                    // Timestamp
-                    if let last = lastUpdate {
-                        Text(last, style: .relative)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                    }
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-
-                // — Badges de lignes abonnées (toujours si on a des abonnements)
-                if hasSubscriptions {
-                    Rectangle()
-                        .fill(Color(.separator).opacity(0.35))
-                        .frame(height: 0.5)
-                        .padding(.horizontal, 14)
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 7) {
-                            ForEach(subscribedLines) { line in
-                                let disruption = subscribedDisrupted.first {
-                                    $0.id == line.ligneCom || $0.id == line.ligneCli
-                                }
-                                SubscribedLinePill(line: line, disruption: disruption)
-                            }
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                    }
-                    .allowsHitTesting(false)
-                }
-            }
-            .background {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(.regularMaterial)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [accentColor.opacity(0.09), Color.clear],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                    }
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(accentColor.opacity(0.25), lineWidth: 1)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .shadow(color: accentColor.opacity(0.18), radius: 12, x: 0, y: 4)
-        }
-        .buttonStyle(.plain)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: hasSubscriptions)
-    }
-}
 
 // MARK: - Subscribed Line Pill
 

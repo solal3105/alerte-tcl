@@ -83,12 +83,12 @@ enum MarkerImageCache {
 
     // MARK: - Public API
 
-    /// Corps du marqueur véhicule : cercle coloré + icône SF Symbol.
+    /// Corps du marqueur véhicule : disque à la couleur de la ligne portant son numéro (même rendu qu'Android).
     /// Taille fixe 32×32 pt (le point cardinal de la ligne est géré par un layer séparé).
-    static func vehicleBody(lineName: String, vehicleType: VehicleType) -> UIImage {
-        let key = VehicleBodyKey(lineName: lineName, vehicleType: vehicleType)
+    static func vehicleBody(lineName: String) -> UIImage {
+        let key = lineName as NSString
         if let cached = vehicleBodyCache.object(forKey: key) { return cached }
-        let image = renderVehicleBody(lineName: lineName, vehicleType: vehicleType)
+        let image = renderVehicleBody(lineName: lineName)
         vehicleBodyCache.setObject(image, forKey: key)
         return image
     }
@@ -125,15 +125,6 @@ enum MarkerImageCache {
         return image
     }
 
-    /// Tooltip de ponctualité (texte blanc sur capsule colorée).
-    /// Peu fréquent (zoom serré uniquement) → cache clé (texte, couleur catégorielle).
-    static func punctualityTooltip(text: String, status: PunctualityStatus) -> UIImage {
-        let key = TooltipKey(text: text, status: status)
-        if let cached = tooltipCache.object(forKey: key) { return cached }
-        let image = renderPunctualityTooltip(text: text, color: status.color)
-        tooltipCache.setObject(image, forKey: key)
-        return image
-    }
 
     /// Marqueur d'une station Vélo'v : carré arrondi à la couleur de disponibilité, vélo (ou éclair pour
     /// les seuls vélos électriques) et nombre de vélos.
@@ -156,30 +147,12 @@ enum MarkerImageCache {
 
     // MARK: - Types
 
-    enum PunctualityStatus: Int {
-        case onTime, late, early
-
-        var color: UIColor {
-            switch self {
-            case .onTime: return .systemGreen
-            case .late:   return .systemRed
-            case .early:  return .systemOrange
-            }
-        }
-
-        init(vehicle: Vehicle) {
-            if vehicle.isDelayed       { self = .late }
-            else if vehicle.isEarly    { self = .early }
-            else                        { self = .onTime }
-        }
-    }
 
     // MARK: - Caches (type-safe, purgés automatiquement en cas de pression mémoire)
 
-    private static let vehicleBodyCache: NSCache<VehicleBodyKey, UIImage> = makeCache(name: "marker.vehicleBody", limit: 256)
+    private static let vehicleBodyCache: NSCache<NSString, UIImage>     = makeCache(name: "marker.vehicleBody", limit: 256)
     private static let bearingArrowCache: NSCache<NSString, UIImage>     = makeCache(name: "marker.arrow",       limit: 128)
     private static let vehicleDotCache:   NSCache<NSString, UIImage>      = makeCache(name: "marker.dot",         limit: 128)
-    private static let tooltipCache: NSCache<TooltipKey, UIImage>        = makeCache(name: "marker.tooltip",     limit: 128)
     private static let sharedDotCache: NSCache<NSString, UIImage>        = makeCache(name: "marker.stopDot",     limit: 64)
     private static let velovCache: NSCache<NSString, UIImage>            = makeCache(name: "marker.velov",       limit: 256)
 
@@ -192,55 +165,28 @@ enum MarkerImageCache {
 
     // MARK: - Cache keys
 
-    private final class VehicleBodyKey: NSObject {
-        let lineName: String
-        let vehicleType: VehicleType
-        init(lineName: String, vehicleType: VehicleType) {
-            self.lineName = lineName
-            self.vehicleType = vehicleType
-        }
-        override var hash: Int {
-            var h = Hasher()
-            h.combine(lineName)
-            h.combine(vehicleType)
-            return h.finalize()
-        }
-        override func isEqual(_ object: Any?) -> Bool {
-            guard let o = object as? VehicleBodyKey else { return false }
-            return o.lineName == lineName && o.vehicleType == vehicleType
-        }
-    }
 
-    private final class TooltipKey: NSObject {
-        let text: String
-        let status: PunctualityStatus
-        init(text: String, status: PunctualityStatus) { self.text = text; self.status = status }
-        override var hash: Int { text.hashValue ^ status.rawValue }
-        override func isEqual(_ object: Any?) -> Bool {
-            guard let o = object as? TooltipKey else { return false }
-            return o.text == text && o.status == status
-        }
-    }
 
     // MARK: - Renderers
 
     /// Dimensions communes (en points, scale = écran).
     private enum Dim {
         static let vehicleDiameter: CGFloat = 32
-        static let vehicleIconSize: CGFloat = 14
         static let stopDotOuter:    CGFloat = 9
         static let stopDotInner:    CGFloat = 5
         static let arrowWidth:      CGFloat = 10
         static let arrowHeight:     CGFloat = 7
     }
 
-    private static func renderVehicleBody(lineName: String, vehicleType: VehicleType) -> UIImage {
+    private static func renderVehicleBody(lineName: String) -> UIImage {
         let size = CGSize(width: Dim.vehicleDiameter, height: Dim.vehicleDiameter)
         let bg = uiColor(LineColorHelper.backgroundColor(for: lineName))
         let fg = uiColor(LineColorHelper.textColor(for: lineName))
-        let iconConfig = UIImage.SymbolConfiguration(pointSize: Dim.vehicleIconSize, weight: .bold)
-        let icon = UIImage(systemName: vehicleType.icon, withConfiguration: iconConfig)?
-            .withTintColor(fg, renderingMode: .alwaysOriginal)
+        let fontSize: CGFloat = lineName.count <= 2 ? 13 : (lineName.count == 3 ? 10.5 : 8.5)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: fontSize, weight: .heavy),
+            .foregroundColor: fg,
+        ]
 
         return imageRenderer(size: size).image { ctx in
             let cg = ctx.cgContext
@@ -250,21 +196,15 @@ enum MarkerImageCache {
             bg.setFill()
             cg.fillEllipse(in: rect)
 
-            // Bordure fine 0.5pt (équivalent de strokeBorder(Color.black.opacity(0.15)))
+            // Bordure fine
             cg.setStrokeColor(UIColor.black.withAlphaComponent(0.15).cgColor)
             cg.setLineWidth(0.5)
             cg.strokeEllipse(in: rect.insetBy(dx: 0.25, dy: 0.25))
 
-            // Icône centrée
-            if let icon {
-                let s = icon.size
-                icon.draw(in: CGRect(
-                    x: (size.width  - s.width)  / 2,
-                    y: (size.height - s.height) / 2,
-                    width: s.width,
-                    height: s.height
-                ))
-            }
+            // Numéro de ligne centré
+            let text = lineName as NSString
+            let textSize = text.size(withAttributes: attributes)
+            text.draw(at: CGPoint(x: (size.width - textSize.width) / 2, y: (size.height - textSize.height) / 2), withAttributes: attributes)
         }
     }
 
@@ -378,38 +318,6 @@ enum MarkerImageCache {
         }
     }
 
-    private static func renderPunctualityTooltip(text: String, color: UIColor) -> UIImage {
-        let font = UIFont.systemFont(ofSize: 9, weight: .bold)
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: UIColor.white,
-        ]
-        let textSize = (text as NSString).size(withAttributes: attrs)
-        let hPad: CGFloat = 5
-        let vPad: CGFloat = 2
-        let size = CGSize(
-            width:  ceil(textSize.width  + hPad * 2),
-            height: ceil(textSize.height + vPad * 2)
-        )
-
-        return imageRenderer(size: size).image { ctx in
-            let cg = ctx.cgContext
-            let rect = CGRect(origin: .zero, size: size)
-            let capsule = UIBezierPath(roundedRect: rect, cornerRadius: size.height / 2)
-            color.setFill()
-            capsule.fill()
-
-            cg.saveGState()
-            let textRect = CGRect(
-                x: hPad,
-                y: (size.height - textSize.height) / 2,
-                width:  textSize.width,
-                height: textSize.height
-            )
-            (text as NSString).draw(in: textRect, withAttributes: attrs)
-            cg.restoreGState()
-        }
-    }
 
     // MARK: - Helpers
 

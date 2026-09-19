@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import MapKit
+import Shared
 
 @MainActor
 final class TransitStopViewModel: ObservableObject {
@@ -11,10 +12,8 @@ final class TransitStopViewModel: ObservableObject {
 
     /// Non-@Published: updated by LiveMapRepresentable on every region change.
     /// Not UI state — no view observes these directly.
-    var lastZoom: Double = 0.15
+    var lastZoom: Double = 0
     var lastRegion: MKCoordinateRegion?
-
-    private let stopsZoomThreshold: Double = 0.018
 
     // MARK: - Visibility
 
@@ -28,7 +27,7 @@ final class TransitStopViewModel: ObservableObject {
     }
 
     private func applyVisibleFilter() {
-        guard lastZoom <= stopsZoomThreshold, let region = lastRegion else {
+        guard lastZoom >= MapStyle.shared.ZOOM_STOPS, let region = lastRegion else {
             visibleMergedStops = []
             return
         }
