@@ -25,18 +25,17 @@ struct ParkingMapView: View {
     @State private var isSatellite = false
     @State private var showFilters = false
     @State private var transitLines: [TransitLine] = []
+    /// Accueil à tuiles tant qu'aucun type n'est choisi ; la carte ensuite.
+    @State private var showChooser = true
     @Binding var selectedParkingId: String?
     
     var body: some View {
-        ZStack {
-            mapContent
-            
-            VStack {
-                parkingTypeSelector
-                Spacer()
+        Group {
+            if showChooser {
+                ParkingChooserView(onChoose: open)
+            } else {
+                mapScreen
             }
-            
-            overlayControls
         }
         .sheet(item: $selectedParking) { parking in
             ParkingDetailSheet(parking: parking, viewModel: viewModel)
@@ -55,12 +54,13 @@ struct ParkingMapView: View {
         }
         .onAppear {
             #if DEBUG
-            // Mode démo « velov… » : type Vélo'v sélectionné, puis la fiche d'une station pour « velov-station ».
+            // Mode démo « velov… » : la carte s'ouvre sur les stations Vélo'v, puis sur la fiche d'une
+            // station pour « velov-station ».
             if let demo = DemoShowcase.current, demo.hasPrefix("velov") {
                 viewModel.velovElectricOnly = demo == "velov-electriques"
-                viewModel.selectedParkingType = .velov
                 mapCameraPosition = .region(MKCoordinateRegion(center: DemoShowcase.center, span: MKCoordinateSpan(latitudeDelta: 0.006, longitudeDelta: 0.006)))
                 hasSetInitialLocation = true
+                open(.velov)
                 if demo == "velov-station" {
                     Task {
                         try? await Task.sleep(nanoseconds: 4_000_000_000)
@@ -69,10 +69,6 @@ struct ParkingMapView: View {
                 }
             }
             #endif
-            viewModel.onAppear()
-            Task {
-                transitLines = (try? await TransitLineService.shared.fetchTransitLines()) ?? []
-            }
         }
         // Retour au premier plan pendant que cet onglet est affiché :
         // recharger tout de suite plutôt que d'attendre le prochain tick du timer.
@@ -85,56 +81,81 @@ struct ParkingMapView: View {
             mapCameraPosition: $mapCameraPosition,
             hasSetInitialLocation: $hasSetInitialLocation
         )
-        .onDisappear {
-            viewModel.onDisappear()
-        }
         .onChange(of: selectedParkingId) { _, newParkingId in
             if let parkingId = newParkingId {
                 pendingParkingId = parkingId
                 selectedParkingId = nil
+                // Lien vers un parking : la carte des parkings voiture s'ouvre sans passer par l'accueil.
+                if showChooser { open(.car) }
                 resolvePendingParking()
             }
         }
         .onChange(of: viewModel.parkings) { _, _ in resolvePendingParking() }
         .onChange(of: viewModel.parcRelais) { _, _ in resolvePendingParking() }
     }
-    
-    private var parkingTypeSelector: some View {
-        HStack(spacing: 0) {
-            ForEach(ParkingType.allCases, id: \.self) { type in
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        viewModel.selectedParkingType = type
-                    }
-                } label: {
-                    // Quatre types côte à côte : un libellé sur une ligne, réduit si l'écran est étroit.
-                    HStack(spacing: 4) {
-                        Image(systemName: type.icon)
-                            .font(.system(size: 13, weight: .semibold))
-                        Text(type == .motorized2Wheel ? "2-Roues" : type.rawValue)
-                            .font(.system(size: 12, weight: .semibold))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                    .foregroundStyle(viewModel.selectedParkingType == type ? .white : .primary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity)
-                    .background {
-                        if viewModel.selectedParkingType == type {
-                            Capsule()
-                                .fill(type.color)
-                                .shadow(color: type.color.opacity(0.4), radius: 4, x: 0, y: 2)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
+
+    /// Ouvre la carte sur un type de stationnement.
+    private func open(_ type: ParkingType) {
+        viewModel.selectedParkingType = type
+        withAnimation(.easeInOut(duration: 0.25)) { showChooser = false }
+    }
+
+    private var mapScreen: some View {
+        ZStack {
+            mapContent
+            
+            VStack {
+                typeHeader
+                Spacer()
+            }
+            
+            overlayControls
+        }
+        .onAppear {
+            viewModel.onAppear()
+            Task {
+                transitLines = (try? await TransitLineService.shared.fetchTransitLines()) ?? []
             }
         }
-        .padding(4)
-        .background(.ultraThinMaterial)
-        .clipShape(Capsule())
-        .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 4)
+        .onDisappear {
+            viewModel.onDisappear()
+        }
+    }
+
+    /// Capsule en haut de la carte : le type affiché, un toucher ramène à l'accueil.
+    private var typeHeader: some View {
+        let type = viewModel.selectedParkingType
+        return HStack {
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) { showChooser = true }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    ZStack {
+                        Circle()
+                            .fill(type.color.opacity(0.16))
+                            .frame(width: 28, height: 28)
+                        Image(systemName: type.icon)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(type.color)
+                    }
+                    Text(type.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.primary)
+                }
+                .padding(.leading, 12)
+                .padding(.trailing, 16)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+                .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 4)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Retour à l'accueil du stationnement")
+            Spacer()
+        }
         .padding(.horizontal, 16)
         .padding(.top, 8)
     }
@@ -455,6 +476,67 @@ struct ParkingMapView: View {
     }
 }
 
+// MARK: - Accueil à tuiles
+
+/// Accueil de l'onglet Stationnement : une tuile par type, avec ce qu'elle montre.
+struct ParkingChooserView: View {
+    let onChoose: (ParkingType) -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Stationnement")
+                    .font(.largeTitle.bold())
+                Text("Choisissez ce que la carte doit afficher.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 6)
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
+                    ForEach(ParkingType.allCases, id: \.self) { type in
+                        ParkingTile(type: type) { onChoose(type) }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+        }
+    }
+}
+
+private struct ParkingTile: View {
+    let type: ParkingType
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(type.color.opacity(0.16))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: type.icon)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(type.color)
+                }
+                Text(type.title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                Text(type.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, minHeight: 160, alignment: .topLeading)
+            .padding(16)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 22))
+            .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - Parking Marker
 struct ParkingMarker: View {
     let parking: Parking
@@ -603,11 +685,6 @@ struct ParkingDetailSheet: View {
                     // Services (uniquement parkings standard)
                     if !parking.isParcRelais && hasServices {
                         servicesCard
-                    }
-
-                    // Informations supplémentaires (uniquement parkings standard)
-                    if !parking.isParcRelais {
-                        additionalInfoCard
                     }
 
                     // Bouton site web
@@ -888,46 +965,6 @@ struct ParkingDetailSheet: View {
         .padding(.horizontal, 20)
     }
     
-    private var additionalInfoCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Label("Informations complémentaires", systemImage: "info.circle.fill")
-                .font(.headline)
-                .foregroundStyle(Color.appWarning)
-            
-            VStack(spacing: 12) {
-                // Type d'usagers
-                InfoRow(icon: "person.3", title: "Type d'usagers", value: "Tous publics")
-                
-                // Type d'ouvrage
-                InfoRow(icon: "building", title: "Type", value: "Ouvrage")
-                
-                // Gratuit ou payant
-                HStack(spacing: 12) {
-                    Image(systemName: parking.gratuit ? "checkmark.circle.fill" : "eurosign.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(parking.gratuit ? Color.appSuccess : Color.appWarning)
-                        .frame(width: 24)
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Statut")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(parking.gratuit ? "Gratuit" : "Payant")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(parking.gratuit ? Color.appSuccess : Color.appWarning)
-                    }
-                    
-                    Spacer()
-                }
-            }
-        }
-        .padding(20)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
-    }
-
     private func openInMaps() {
         // Ouvrir directement dans Apple Plans
         let placemark = MKPlacemark(coordinate: parking.coordinate)
@@ -1097,11 +1134,11 @@ struct ParkingFilterSheet: View {
                         HStack(spacing: 14) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color(red: 0.34, green: 0.22, blue: 0.47).opacity(0.15))
+                                    .fill(Color.appAccent.opacity(0.15))
                                     .frame(width: 36, height: 36)
                                 Text("P+R")
                                     .font(.system(size: 11, weight: .black))
-                                    .foregroundStyle(Color(red: 0.34, green: 0.22, blue: 0.47))
+                                    .foregroundStyle(Color.appAccent)
                             }
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Parcs Relais TCL")

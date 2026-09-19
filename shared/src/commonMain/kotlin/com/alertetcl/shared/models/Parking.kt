@@ -3,22 +3,18 @@ package com.alertetcl.shared.models
 import com.alertetcl.shared.geo.LatLng
 import kotlinx.serialization.Serializable
 
+/**
+ * Ce que l'onglet Stationnement peut montrer. L'ordre des valeurs est celui des tuiles de l'écran
+ * d'accueil ; `title` et `subtitle` sont les textes affichés, identiques sur iOS et Android.
+ * `iconKey` entre dans l'identifiant des parkings, ne pas le changer.
+ */
 @Serializable
-enum class ParkingType(val displayName: String, val iconKey: String) {
-    CAR("Voiture", "car"),
-    BIKE("Vélo", "bike"),
-    MOTORIZED_2W("2 roues motorisé", "moto"),
+enum class ParkingType(val title: String, val subtitle: String, val iconKey: String) {
+    CAR("Parkings voiture", "Places libres en direct et parcs relais TCL", "car"),
     /** Stations Vélo'v en libre-service : pas un jeu GeoServer, servies par `VelovService`. */
-    VELOV("Vélo'v", "velov");
-
-    companion object {
-        fun fromString(s: String): ParkingType = when (s) {
-            "Vélo" -> BIKE
-            "2 roues motorisé" -> MOTORIZED_2W
-            "Vélo'v" -> VELOV
-            else -> CAR
-        }
-    }
+    VELOV("Stations Vélo'v", "Vélos et places disponibles en direct", "velov"),
+    BIKE("Arceaux vélos", "Où attacher votre vélo dans la rue", "bike"),
+    MOTORIZED_2W("Places deux-roues motorisés", "Emplacements réservés aux motos et scooters", "moto");
 }
 
 @Serializable

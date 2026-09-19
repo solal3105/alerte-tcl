@@ -14,6 +14,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,6 +33,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
@@ -73,6 +75,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -141,6 +144,17 @@ fun ParkingScreen() {
     val store = remember { FavoritesStore(context) }
     val scope = rememberCoroutineScope()
     DisposableEffect(Unit) { onDispose { vm.dispose() } }
+
+    // Écran d'accueil à tuiles tant qu'aucun type n'est choisi ; la carte ensuite. En démo « velov… »,
+    // la carte s'ouvre directement sur les stations.
+    var chosenTypeName by rememberSaveable {
+        mutableStateOf(if (DemoShowcase.current?.startsWith("velov") == true) ParkingType.VELOV.name else null)
+    }
+    val chosenType = chosenTypeName?.let { ParkingType.valueOf(it) }
+    if (chosenType == null) {
+        ParkingChooser(onChoose = { vm.setType(it); chosenTypeName = it.name })
+        return
+    }
 
     val parkings by vm.parkings.collectAsState()
     // Deduplication: if a P+R and a regular car parking share the same name,
@@ -304,31 +318,10 @@ fun ParkingScreen() {
             currentRegion.value?.let { vm.loadInRegion(it) }
         }
 
-        // Selector top-center (translucide pour ne pas masquer la carte) + indicator de chargement
+        // En haut : ce que la carte montre, et le retour à l'accueil ; indicateur de chargement.
         Column(modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp)) {
             if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            Row(
-                modifier = Modifier.padding(top = 8.dp).align(Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                    tonalElevation = 4.dp,
-                    shadowElevation = 4.dp
-                ) {
-                    Row(modifier = Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                        ParkingType.entries.forEach { type ->
-                            ParkingTypeButton(
-                                type = type,
-                                isSelected = type in selectedTypes,
-                                onClick = { vm.setType(type) }
-                            )
-                        }
-                    }
-                }
-            }
+            ParkingTypeHeader(type = chosenType, modifier = Modifier.padding(top = 8.dp), onBack = { chosenTypeName = null })
         }
 
         // Bottom-right FABs (parité iOS) : satellite, filtres (voitures et Vélo'v), position
@@ -659,11 +652,6 @@ private fun ParkingDetailSheet(p: Parking) {
             ParkingServicesCard(p)
         }
 
-        // --- Additional info ---
-        if (!p.isParcRelais) {
-            ParkingAdditionalCard(p)
-        }
-
         // --- URL ---
         p.url?.let { urlStr ->
             FilledTonalButton(
@@ -879,27 +867,6 @@ private fun ParkingServicesCard(p: Parking) {
 }
 
 @Composable
-private fun ParkingAdditionalCard(p: Parking) {
-    ParkingCard(title = "Informations complémentaires", icon = Icons.Filled.Info, iconColor = Tokens.warning) {
-        ParkingInfoRow(icon = Icons.Filled.Person, label = "Type d'usagers", value = "Tous publics")
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            val (ic, col, lbl) = if (p.gratuit)
-                Triple(Icons.Filled.CheckCircle, Tokens.success, "Gratuit")
-            else Triple(Icons.Filled.Euro, Tokens.warning, "Payant")
-            Icon(ic, null, tint = col, modifier = Modifier.size(18.dp))
-            Column {
-                Text("Statut", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(lbl, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = col)
-            }
-        }
-    }
-}
-
-@Composable
 private fun ParkingCard(
     title: String,
     icon: ImageVector,
@@ -944,34 +911,64 @@ private fun parkingTypeIcon(type: ParkingType) = when (type) {
     ParkingType.VELOV         -> Icons.Filled.PedalBike
 }
 
+/** Accueil de l'onglet : une tuile par type de stationnement, avec ce qu'elle montre. */
 @Composable
-private fun ParkingTypeButton(type: ParkingType, isSelected: Boolean, onClick: () -> Unit) {
+private fun ParkingChooser(onChoose: (ParkingType) -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Text("Stationnement", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text("Choisissez ce que la carte doit afficher.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(4.dp))
+        ParkingType.entries.chunked(2).forEach { row ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                row.forEach { type -> ParkingTile(type, Modifier.weight(1f)) { onChoose(type) } }
+            }
+        }
+        Spacer(Modifier.height(96.dp))
+    }
+}
+
+@Composable
+private fun ParkingTile(type: ParkingType, modifier: Modifier, onClick: () -> Unit) {
     val accent = Tokens.parkingType(type)
-    val bg = if (isSelected) accent else Color.Transparent
-    val fg = if (isSelected) when (type) {
-        ParkingType.CAR          -> MaterialTheme.colorScheme.onPrimary   // primary adapts in dark mode
-        ParkingType.BIKE         -> Color.White                           // #43A047 → white ~4.8:1 ✓
-        ParkingType.MOTORIZED_2W -> Tokens.onLight                        // orange → texte sombre
-        ParkingType.VELOV        -> Color.White                           // rouge Vélo'v → blanc
-    } else accent
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        modifier = modifier.heightIn(min = 160.dp).clickable { onClick() }
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(modifier = Modifier.size(44.dp).clip(CircleShape).background(accent.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+                Icon(parkingTypeIcon(type), null, tint = accent, modifier = Modifier.size(24.dp))
+            }
+            Text(type.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(type.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** Capsule en haut de la carte : le type affiché, un toucher ramène à l'accueil. */
+@Composable
+private fun ParkingTypeHeader(type: ParkingType, modifier: Modifier, onBack: () -> Unit) {
+    val accent = Tokens.parkingType(type)
     Surface(
         shape = RoundedCornerShape(50),
-        color = bg,
-        modifier = Modifier.clickable { onClick() }
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+        tonalElevation = 4.dp,
+        shadowElevation = 4.dp,
+        modifier = modifier.clickable { onBack() }
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.padding(start = 10.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(parkingTypeIcon(type), null, tint = fg, modifier = Modifier.size(16.dp))
-            Text(
-                when (type) {
-                    ParkingType.MOTORIZED_2W -> "2-Roues"
-                    else -> type.displayName
-                },
-                color = fg, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold
-            )
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour à l'accueil du stationnement", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+            Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(accent.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+                Icon(parkingTypeIcon(type), null, tint = accent, modifier = Modifier.size(16.dp))
+            }
+            Text(type.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -1138,8 +1135,7 @@ private fun fullMarkerBitmap(p: Parking): Bitmap {
         // Open/closed badge at top-right (16dp offset from center, 7dp radius)
         val bx = cx + 16f * d; val by = cy - 16f * d; val br = 7f * d
         cv.drawCircle(bx, by, br, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (p.etat == ParkingState.OUVERT) AndroidColor.parseColor("#43A047")
-                    else AndroidColor.parseColor("#E53935")
+            color = AndroidColor.parseColor(if (p.etat == ParkingState.OUVERT) AppColors.success.light else AppColors.error.light)
             style = Paint.Style.FILL
         })
         cv.drawCircle(bx, by, br, Paint(Paint.ANTI_ALIAS_FLAG).apply {

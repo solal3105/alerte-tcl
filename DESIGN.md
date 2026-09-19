@@ -69,11 +69,21 @@ Sans bus en approche, la section reste visible avec « Aucun bus en route vers c
 l'instant » ; le métro, sans positions en direct, n'a pas cette section. Le suivi d'un bus en
 arrière-plan (activité en direct) a été essayé puis retiré le 16 septembre 2026.
 
+## Stationnement
+
+L'onglet Stationnement s'ouvre sur un accueil à tuiles, une par type (`ParkingType`, dans l'ordre de
+l'énumération) : « Parkings voiture », « Stations Vélo'v », « Arceaux vélos », « Places deux-roues
+motorisés », chacune avec une ligne qui dit ce qu'on va voir. Les textes viennent du module partagé
+(`ParkingType.title` / `subtitle`), les couleurs de `AppColors.parkingType`. Une tuile ouvre la carte de
+ce type ; en haut, une capsule rappelle le type affiché et ramène à l'accueil. Plus de sélecteur à
+boutons au-dessus de la carte, et la fiche d'un parking ne montre que ce que la donnée contient (plus de
+« type d'usagers » ni de « type d'ouvrage » inventés).
+
 ## Vélo'v
 
 Les stations Vélo'v (relais `/velov`, données ouvertes du Grand Lyon, rafraîchies toutes les minutes)
-sont un quatrième type dans l'onglet Parkings, à côté des voitures, des arceaux vélo et des deux-roues
-(décision du 19 septembre 2026 : la carte Transport ne montre que le réseau TCL). De loin, chaque
+sont un type de l'onglet Stationnement, à côté des parkings voiture, des arceaux vélos et des places
+deux-roues (décision du 19 septembre 2026 : la carte Transport ne montre que le réseau TCL). De loin, chaque
 station est un point à la couleur de disponibilité (vert dès 3 vélos, orange à 1 ou 2, rouge sans vélo,
 gris fermé, barème de `VelovStation.availabilityFor` sur les jetons des parkings) ; dès le zoom des arrêts
 (`MapStyle.ZOOM_STOPS`), un carré arrondi avec un vélo et le nombre de vélos disponibles. Le filtre

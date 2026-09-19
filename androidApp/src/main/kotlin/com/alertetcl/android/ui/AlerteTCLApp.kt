@@ -13,7 +13,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.LocalParking
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -52,7 +52,7 @@ private data class TabItem(val route: String, val label: String, val icon: andro
 private val tabs = listOf(
     TabItem("live",     "Transport", Icons.Filled.Tram),
     TabItem("travaux",  "Travaux",   Icons.Filled.Build),
-    TabItem("parking",  "Parkings",  Icons.Filled.DirectionsCar),
+    TabItem("parking",  "Stationnement", Icons.Filled.LocalParking),
     TabItem("about",    "Info",      Icons.Filled.Info),
 )
 
@@ -74,10 +74,10 @@ fun AlerteTCLApp(initialRoute: String? = null) {
     val backStackEntry = nav.currentBackStackEntryAsState().value
     val currentRoute = backStackEntry?.destination?.route
 
-    // Deep-link: switch tab on incoming route. En démo « velov… », l'onglet Parkings s'ouvre de lui-même.
+    // Deep-link: switch tab on incoming route. En démo « velov… » ou « stationnement », l'onglet Stationnement s'ouvre de lui-même.
     androidx.compose.runtime.LaunchedEffect(initialRoute) {
         val target = initialRoute
-            ?: com.alertetcl.shared.util.DemoShowcase.current?.takeIf { it.startsWith("velov") }?.let { "parking" }
+            ?: com.alertetcl.shared.util.DemoShowcase.current?.takeIf { it.startsWith("velov") || it == "stationnement" }?.let { "parking" }
             ?: return@LaunchedEffect
         if (tabs.any { it.route == target }) {
             nav.navigate(target) {

@@ -124,12 +124,18 @@ en arrière-plan (activité en direct, notification) a été retiré à la deman
 
 Route `/velov` du proxy : `jcd_jcdecaux.jcdvelov/all.json` (données publiques, sans identifiant) allégé
 aux champs affichés, cache 60 s. Modèle `VelovStation`, service `VelovService`. Les stations sont le
-type `ParkingType.VELOV` de l'onglet Parkings (décision du 19 septembre 2026 : plus rien d'autre que le
+type `ParkingType.VELOV` de l'onglet Stationnement (décision du 19 septembre 2026 : plus rien d'autre que le
 réseau TCL sur la carte Transport, ne pas les y remettre) : chargées par les vues modèles parkings
 (`ParkingViewModel` partagé pour Android, `ParkingViewModel.swift` pour iOS), rafraîchies toutes les
 minutes, point coloré de loin et carré avec le nombre de vélos dès `MapStyle.ZOOM_STOPS`, filtre
 « seulement les vélos électriques » persisté (`FavoritesStore.velovElectricOnly`, `UserDefaults`
 `parking.velovElectricOnly`).
+
+### Onglet Stationnement
+
+Accueil à tuiles (une par `ParkingType`, ordre de l'énumération, textes `title`/`subtitle` du module
+partagé) puis carte du type choisi avec une capsule de retour ; pas de sélecteur à boutons. La fiche d'un
+parking n'affiche que des données réelles (pas de « type d'usagers » ni de « type d'ouvrage »).
 
 ### Fiches horaires théoriques (GTFS)
 

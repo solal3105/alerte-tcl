@@ -23,7 +23,7 @@ struct ContentView: View {
             
             ParkingMapView(selectedParkingId: $selectedParkingId)
                 .tabItem {
-                    Label("Parkings", systemImage: "car.fill")
+                    Label("Stationnement", systemImage: "parkingsign")
                 }
                 .tag(2)
 
@@ -37,8 +37,8 @@ struct ContentView: View {
         .tabViewStyle(.automatic)
         .onAppear {
             #if DEBUG
-            // Mode démo « velov… » : l'onglet Parkings s'ouvre de lui-même.
-            if DemoShowcase.current?.hasPrefix("velov") == true { selectedTab = 2 }
+            // Mode démo « velov… » ou « stationnement » : l'onglet Stationnement s'ouvre de lui-même.
+            if let demo = DemoShowcase.current, demo.hasPrefix("velov") || demo == "stationnement" { selectedTab = 2 }
             #endif
         }
         .onChange(of: selectedParkingId) { _, newParkingId in

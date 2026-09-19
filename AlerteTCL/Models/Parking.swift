@@ -2,21 +2,26 @@ import Foundation
 import CoreLocation
 import SwiftUI
 
+/// Ce que l'onglet Stationnement peut montrer ; l'ordre des cas est celui des tuiles de l'accueil.
+/// Les textes viennent du module partagé (`ParkingType.title` / `subtitle`), identiques sur Android.
 enum ParkingType: String, Codable, CaseIterable {
     case car = "Voiture"
-    case bike = "Vélo"
-    case motorized2Wheel = "2 roues motorisé"
     /// Stations Vélo'v en libre-service : pas un jeu GeoServer, servies par le module partagé.
     case velov = "Vélo'v"
+    case bike = "Vélo"
+    case motorized2Wheel = "2 roues motorisé"
     
     var icon: String {
         switch self {
         case .car: return "car.fill"
         case .bike: return "bicycle"
-        case .motorized2Wheel: return "motorcycle.fill"
+        case .motorized2Wheel: return "scooter"
         case .velov: return "figure.outdoor.cycle"
         }
     }
+
+    var title: String { shared.title }
+    var subtitle: String { shared.subtitle }
 
 }
 
