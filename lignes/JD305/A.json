@@ -1,0 +1,1 @@
+{"format":1,"line":"JD305","key":"JD305","dir":"A","mode":"bus","color":"#17297B","textColor":"#EDD100","headsign":"Deux-Grosnes Collège","validFrom":"2026-09-19","validTo":"2026-11-30","stops":[{"id":27981,"name":"Belleville Gare"},{"id":28271,"name":"Deux-Grosnes Collège"}],"patterns":[[0,1]],"services":[[2,9,16,23,44,51,58,65,72]],"trips":[{"p":0,"s":0,"t":[435,480]}]}

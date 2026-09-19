@@ -1,0 +1,1 @@
+{"format":1,"line":"JD890","key":"JD890","dir":"R","mode":"bus","color":"#17297B","textColor":"#EDD100","headsign":"Perrache","validFrom":"2026-09-19","validTo":"2026-11-27","stops":[{"id":37708,"name":"Lycée agri. et horticole"},{"id":33779,"name":"Perrache"}],"patterns":[[0,1]],"services":[[6,13,20,27,48,55,62,69]],"trips":[{"p":0,"s":0,"t":[1005,1035]}]}
