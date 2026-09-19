@@ -7,12 +7,15 @@ import kotlinx.serialization.Serializable
 enum class ParkingType(val displayName: String, val iconKey: String) {
     CAR("Voiture", "car"),
     BIKE("Vélo", "bike"),
-    MOTORIZED_2W("2 roues motorisé", "moto");
+    MOTORIZED_2W("2 roues motorisé", "moto"),
+    /** Stations Vélo'v en libre-service : pas un jeu GeoServer, servies par `VelovService`. */
+    VELOV("Vélo'v", "velov");
 
     companion object {
         fun fromString(s: String): ParkingType = when (s) {
             "Vélo" -> BIKE
             "2 roues motorisé" -> MOTORIZED_2W
+            "Vélo'v" -> VELOV
             else -> CAR
         }
     }

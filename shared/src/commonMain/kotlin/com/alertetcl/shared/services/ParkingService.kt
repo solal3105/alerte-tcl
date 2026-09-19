@@ -44,6 +44,8 @@ class ParkingService {
             "metropole-de-lyon:pvo_patrimoine_voirie.pvostationnementvelo"
         ParkingType.MOTORIZED_2W ->
             "ville-de-lyon:vdl_deplacements.emplacement_moto"
+        ParkingType.VELOV ->
+            throw IllegalArgumentException("Les stations Vélo'v viennent de VelovService, pas du GeoServer")
     }
 
     suspend fun fetchParkings(type: ParkingType, forceRefresh: Boolean = false): List<Parking> {
@@ -145,6 +147,7 @@ class ParkingService {
             ParkingType.CAR          -> p.nb_places ?: 0
             ParkingType.BIKE         -> p.capacite ?: ((p.nbarceaux ?: 0) * 2)
             ParkingType.MOTORIZED_2W -> p.longueur?.toInt() ?: 0
+            ParkingType.VELOV        -> 0
         }
         val avail = if (type == ParkingType.CAR) (p.places_disponibles ?: 0) else capacity
         val state = if (type == ParkingType.CAR) ParkingState.parse(p.etat) else ParkingState.OUVERT

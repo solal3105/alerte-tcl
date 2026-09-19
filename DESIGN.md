@@ -72,14 +72,16 @@ arrière-plan (activité en direct) a été essayé puis retiré le 16 septembre
 ## Vélo'v
 
 Les stations Vélo'v (relais `/velov`, données ouvertes du Grand Lyon, rafraîchies toutes les minutes)
-s'activent depuis les filtres de la carte, disparaissent tant qu'une ligne est isolée sur la carte, et
-apparaissent au même zoom que les arrêts : un carré arrondi à la couleur de disponibilité (vert dès 3
-vélos, orange à 1 ou 2, rouge sans vélo, gris fermé, barème de `VelovStation.availabilityFor` sur les
-jetons des parkings) avec un vélo et le nombre de vélos disponibles. Le filtre « Seulement les vélos
-électriques » ne compte que ceux-là, avec un éclair à la place du vélo. Sur la carte, l'ordre du bas
-vers le haut est fixe : tracés des lignes, arrêts, stations Vélo'v, véhicules. La fiche donne le nom
-lisible de la station, l'adresse, les vélos (électriques et mécaniques) et les places libres, l'heure
-de la dernière mise à jour et un itinéraire à pied.
+sont un quatrième type dans l'onglet Parkings, à côté des voitures, des arceaux vélo et des deux-roues
+(décision du 19 septembre 2026 : la carte Transport ne montre que le réseau TCL). De loin, chaque
+station est un point à la couleur de disponibilité (vert dès 3 vélos, orange à 1 ou 2, rouge sans vélo,
+gris fermé, barème de `VelovStation.availabilityFor` sur les jetons des parkings) ; dès le zoom des arrêts
+(`MapStyle.ZOOM_STOPS`), un carré arrondi avec un vélo et le nombre de vélos disponibles. Le filtre
+« Seulement les vélos électriques », dans les filtres de l'onglet, ne compte que ceux-là, avec un éclair
+à la place du vélo. La capsule « LIVE » et son compte à rebours valent pour ce type comme pour les
+voitures. La fiche donne le nom lisible de la station, l'adresse, les vélos (électriques et mécaniques)
+et les places libres, l'heure de la dernière mise à jour et un itinéraire à pied. Le rouge du type
+dans le sélecteur est le jeton `AppColors.velov`.
 
 Les barèmes métier sont au même endroit : importance et avancement d'un chantier, progression d'un
 chantier (du rouge au vert en onze paliers), disponibilité et type d'un parking, nature d'un chantier

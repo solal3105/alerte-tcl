@@ -123,10 +123,13 @@ en arrière-plan (activité en direct, notification) a été retiré à la deman
 ### Stations Vélo'v
 
 Route `/velov` du proxy : `jcd_jcdecaux.jcdvelov/all.json` (données publiques, sans identifiant) allégé
-aux champs affichés, cache 60 s. Modèle `VelovStation`, service `VelovService`, couche de carte activée
-depuis les filtres (réglage persisté, plus « seulement les vélos électriques »), même seuil de zoom que
-les arrêts. Ordre des couches imposé, du bas vers le haut : tracés, arrêts, stations Vélo'v, véhicules
-(iOS `zPriority`, Android `addLayerUnder`) ; les stations sont masquées tant qu'une ligne est isolée.
+aux champs affichés, cache 60 s. Modèle `VelovStation`, service `VelovService`. Les stations sont le
+type `ParkingType.VELOV` de l'onglet Parkings (décision du 19 septembre 2026 : plus rien d'autre que le
+réseau TCL sur la carte Transport, ne pas les y remettre) : chargées par les vues modèles parkings
+(`ParkingViewModel` partagé pour Android, `ParkingViewModel.swift` pour iOS), rafraîchies toutes les
+minutes, point coloré de loin et carré avec le nombre de vélos dès `MapStyle.ZOOM_STOPS`, filtre
+« seulement les vélos électriques » persisté (`FavoritesStore.velovElectricOnly`, `UserDefaults`
+`parking.velovElectricOnly`).
 
 ### Fiches horaires théoriques (GTFS)
 

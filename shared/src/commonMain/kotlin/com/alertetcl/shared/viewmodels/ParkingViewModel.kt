@@ -3,8 +3,10 @@ package com.alertetcl.shared.viewmodels
 import com.alertetcl.shared.geo.GeoRegion
 import com.alertetcl.shared.models.Parking
 import com.alertetcl.shared.models.ParkingType
+import com.alertetcl.shared.models.VelovStation
 import com.alertetcl.shared.services.ParcRelaisService
 import com.alertetcl.shared.services.ParkingService
+import com.alertetcl.shared.services.VelovService
 import com.alertetcl.shared.util.AppLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -20,7 +22,8 @@ import kotlinx.coroutines.launch
 
 class ParkingViewModel(
     private val parkingService: ParkingService = ParkingService.shared,
-    private val parcRelaisService: ParcRelaisService = ParcRelaisService.shared
+    private val parcRelaisService: ParcRelaisService = ParcRelaisService.shared,
+    private val velovService: VelovService = VelovService.shared
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -29,6 +32,10 @@ class ParkingViewModel(
 
     private val _parkings = MutableStateFlow<List<Parking>>(emptyList())
     val parkings: StateFlow<List<Parking>> = _parkings.asStateFlow()
+
+    /** Stations Vélo'v, remplies seulement quand ce type est sélectionné. */
+    private val _velovStations = MutableStateFlow<List<VelovStation>>(emptyList())
+    val velovStations: StateFlow<List<VelovStation>> = _velovStations.asStateFlow()
 
     private val _selectedTypes = MutableStateFlow(setOf(ParkingType.CAR))
     val selectedTypes: StateFlow<Set<ParkingType>> = _selectedTypes.asStateFlow()
@@ -83,6 +90,8 @@ class ParkingViewModel(
                     async { parkingService.fetchParkingsInRegion(ParkingType.MOTORIZED_2W, region, forceRefresh) } else null
                 val prAsync = if (ParkingType.CAR in _selectedTypes.value && _showParcRelais.value)
                     async { parcRelaisService.fetchParcRelais(forceRefresh) } else null
+                val velovAsync = if (ParkingType.VELOV in _selectedTypes.value)
+                    async { velovService.fetchStations(forceRefresh) } else null
 
                 val all = listOfNotNull(
                     carsAsync?.await(),
@@ -92,6 +101,7 @@ class ParkingViewModel(
                 ).flatten()
 
                 _parkings.value = all
+                _velovStations.value = velovAsync?.await() ?: emptyList()
                 _errorMessage.value = null
                 _lastUpdateEpochMs.value = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
             } catch (e: CancellationException) {

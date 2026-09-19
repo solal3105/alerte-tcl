@@ -74,9 +74,11 @@ fun AlerteTCLApp(initialRoute: String? = null) {
     val backStackEntry = nav.currentBackStackEntryAsState().value
     val currentRoute = backStackEntry?.destination?.route
 
-    // Deep-link: switch tab on incoming route
+    // Deep-link: switch tab on incoming route. En démo « velov… », l'onglet Parkings s'ouvre de lui-même.
     androidx.compose.runtime.LaunchedEffect(initialRoute) {
-        val target = initialRoute ?: return@LaunchedEffect
+        val target = initialRoute
+            ?: com.alertetcl.shared.util.DemoShowcase.current?.takeIf { it.startsWith("velov") }?.let { "parking" }
+            ?: return@LaunchedEffect
         if (tabs.any { it.route == target }) {
             nav.navigate(target) {
                 launchSingleTop = true

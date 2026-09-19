@@ -6,12 +6,15 @@ enum ParkingType: String, Codable, CaseIterable {
     case car = "Voiture"
     case bike = "Vélo"
     case motorized2Wheel = "2 roues motorisé"
+    /// Stations Vélo'v en libre-service : pas un jeu GeoServer, servies par le module partagé.
+    case velov = "Vélo'v"
     
     var icon: String {
         switch self {
         case .car: return "car.fill"
         case .bike: return "bicycle"
         case .motorized2Wheel: return "motorcycle.fill"
+        case .velov: return "figure.outdoor.cycle"
         }
     }
 
@@ -217,6 +220,13 @@ struct Parking: Identifiable, Hashable, Sendable {
             self.adresse = numeroVoie.isEmpty ? feature.properties.nom : "\(numeroVoie) \(feature.properties.nom), \(arrondissement)e arr."
             self.capaciteTotale = Int(feature.properties.longueur ?? 0)
             self.placesDisponibles = self.capaciteTotale
+            self.etat = .ouvert
+        case .velov:
+            // Jamais construit depuis le GeoServer : les stations sont des `VelovStation`.
+            self.gestionnaire = "JCDecaux"
+            self.adresse = feature.properties.nom
+            self.capaciteTotale = 0
+            self.placesDisponibles = 0
             self.etat = .ouvert
         }
 

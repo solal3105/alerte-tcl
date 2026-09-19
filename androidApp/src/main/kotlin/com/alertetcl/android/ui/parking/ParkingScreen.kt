@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.PedalBike
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
@@ -71,6 +72,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -94,7 +96,9 @@ import com.alertetcl.shared.models.AvailabilityColor
 import com.alertetcl.shared.models.Parking
 import com.alertetcl.shared.models.ParkingState
 import com.alertetcl.shared.models.ParkingType
+import com.alertetcl.shared.models.VelovStation
 import com.alertetcl.shared.viewmodels.ParkingViewModel
+import com.alertetcl.android.data.FavoritesStore
 import com.alertetcl.android.ui.map.MapCircleFab
 import com.alertetcl.android.ui.map.enableLocationComponent
 import com.alertetcl.android.ui.map.mapStyleBuilder
@@ -103,6 +107,9 @@ import com.alertetcl.android.ui.map.rememberManagedMapView
 import com.alertetcl.android.ui.openUrl
 import com.alertetcl.android.ui.theme.Tokens
 import com.alertetcl.shared.design.AppColors
+import com.alertetcl.shared.design.MapStyle
+import com.alertetcl.shared.util.DemoShowcase
+import kotlinx.coroutines.launch
 import com.google.gson.JsonObject
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -110,6 +117,7 @@ import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
@@ -120,12 +128,18 @@ import kotlin.math.pow
 
 private const val PARKING_SRC   = "parking-src"
 private const val PARKING_LAYER = "parking-layer"
+// Stations Vélo'v : un point à la couleur de disponibilité de loin, le carré avec le nombre de vélos au zoom serré.
+private const val VELOV_SRC       = "velov-src"
+private const val VELOV_DOT_LAYER = "velov-dot-layer"
+private const val VELOV_LAYER     = "velov-layer"
 
 @OptIn(ExperimentalMaterial3Api::class, kotlinx.coroutines.FlowPreview::class)
 @Composable
 fun ParkingScreen() {
     val vm = remember { ParkingViewModel() }
     val context = LocalContext.current
+    val store = remember { FavoritesStore(context) }
+    val scope = rememberCoroutineScope()
     DisposableEffect(Unit) { onDispose { vm.dispose() } }
 
     val parkings by vm.parkings.collectAsState()
@@ -141,6 +155,11 @@ fun ParkingScreen() {
     val showRealtimeParkings by vm.showRealtimeParkings.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
     val errorMessage by vm.errorMessage.collectAsState()
+    val velovStations by vm.velovStations.collectAsState()
+    val velovElectricOnly by store.velovElectricOnly.collectAsState(initial = false)
+    val velovRef = remember { mutableStateOf<List<VelovStation>>(emptyList()) }
+    velovRef.value = velovStations
+    var selectedVelov by remember { mutableStateOf<VelovStation?>(null) }
 
     var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
     var mapStyle by remember { mutableStateOf<Style?>(null) }
@@ -153,7 +172,31 @@ fun ParkingScreen() {
     var selectedParking by remember { mutableStateOf<Parking?>(null) }
     var showFilterSheet by remember { mutableStateOf(false) }
     val isCarSelected = ParkingType.CAR in selectedTypes
+    val isVelovSelected = ParkingType.VELOV in selectedTypes
+    // Voitures et Vélo'v ont une disponibilité en direct, rechargée toutes les minutes.
+    val isLive = isCarSelected || isVelovSelected
     val currentRegion = remember { mutableStateOf<GeoRegion?>(null) }
+
+    // Mode démo « velov… » : le type Vélo'v est sélectionné, la carte centrée sur la scène place Bellecour,
+    // puis la fiche s'ouvre pour « velov-station ».
+    if (DemoShowcase.isActive) {
+        LaunchedEffect(mapLibreMap) {
+            if (DemoShowcase.current?.startsWith("velov") == true) {
+                mapLibreMap?.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(DemoShowcase.CENTER_LAT, DemoShowcase.CENTER_LON), 16.0))
+            }
+        }
+        LaunchedEffect(Unit) {
+            val demo = DemoShowcase.current ?: return@LaunchedEffect
+            if (demo.startsWith("velov")) {
+                store.setVelovElectricOnly(demo == "velov-electriques")
+                vm.setType(ParkingType.VELOV)
+                if (demo == "velov-station") {
+                    kotlinx.coroutines.delay(6_000)
+                    selectedVelov = DemoShowcase.velovStations().first()
+                }
+            }
+        }
+    }
 
     // Recharger immédiatement quand le type ou les filtres changent
     LaunchedEffect(selectedTypes, showParcRelais, showRealtimeParkings) {
@@ -173,10 +216,10 @@ fun ParkingScreen() {
         onDispose { parkingLifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // Countdown auto-refresh 60s (voitures seulement, comme iOS)
+    // Countdown auto-refresh 60s (voitures et Vélo'v, comme iOS)
     var secondsUntilRefresh by remember { mutableIntStateOf(60) }
-    LaunchedEffect(isCarSelected) {
-        if (!isCarSelected) return@LaunchedEffect
+    LaunchedEffect(isLive) {
+        if (!isLive) return@LaunchedEffect
         secondsUntilRefresh = 60
         while (true) {
             kotlinx.coroutines.delay(1000)
@@ -223,12 +266,20 @@ fun ParkingScreen() {
                         }
                         map.addOnMapClickListener { latLng ->
                             val screen = map.projection.toScreenLocation(latLng)
-                            val hits = map.queryRenderedFeatures(PointF(screen.x, screen.y), PARKING_LAYER)
+                            val pt = PointF(screen.x, screen.y)
+                            val hits = map.queryRenderedFeatures(pt, PARKING_LAYER)
                             if (hits.isNotEmpty()) {
                                 val id = hits[0].getStringProperty("id")
                                 selectedParking = parkingsRef.value.find { it.id == id }
-                                true
-                            } else false
+                                return@addOnMapClickListener true
+                            }
+                            val velovHits = map.queryRenderedFeatures(pt, VELOV_LAYER, VELOV_DOT_LAYER)
+                            if (velovHits.isNotEmpty()) {
+                                val id = velovHits[0].getNumberProperty("id")?.toInt()
+                                selectedVelov = velovRef.value.find { it.id == id }
+                                return@addOnMapClickListener true
+                            }
+                            false
                         }
                         map.setStyle(mapStyleBuilder(isSatellite = false, isDark = isDark)) { style ->
                             mapStyle = style
@@ -280,7 +331,7 @@ fun ParkingScreen() {
             }
         }
 
-        // Bottom-right FABs (parité iOS) : satellite, filters (only car), location
+        // Bottom-right FABs (parité iOS) : satellite, filtres (voitures et Vélo'v), position
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -294,8 +345,8 @@ fun ParkingScreen() {
                 tint = if (isSatellite) Tokens.warning else MaterialTheme.colorScheme.onSurface,
                 onClick = { isSatellite = !isSatellite }
             )
-            if (isCarSelected) {
-                val hasActiveFilters = !showParcRelais || !showRealtimeParkings
+            if (isCarSelected || isVelovSelected) {
+                val hasActiveFilters = if (isVelovSelected) velovElectricOnly else !showParcRelais || !showRealtimeParkings
                 MapCircleFab(
                     icon = Icons.Filled.FilterList, contentDesc = "Filtres",
                     tint = if (hasActiveFilters) Tokens.warning else MaterialTheme.colorScheme.onSurface,
@@ -358,8 +409,9 @@ fun ParkingScreen() {
             }
         }
 
-        // LIVE card bottom-left (voitures seulement, comme iOS)
-        if (isCarSelected) {            val liveColor = if (errorMessage != null) Tokens.warning else MaterialTheme.colorScheme.primary
+        // LIVE card bottom-left (voitures et Vélo'v, comme iOS)
+        if (isLive) {
+            val liveColor = if (errorMessage != null) Tokens.warning else MaterialTheme.colorScheme.primary
             Surface(
                 shape = RoundedCornerShape(50),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
@@ -413,11 +465,15 @@ fun ParkingScreen() {
             contentWindowInsets = { WindowInsets.systemBars }
         ) {
             ParkingFilterSheet(
+                velovSelected = isVelovSelected,
                 showParcRelais = showParcRelais,
                 onToggleParcRelais = { vm.toggleParcRelais() },
                 showRealtimeParkings = showRealtimeParkings,
                 onToggleRealtime = { vm.toggleRealtimeParkings() },
+                velovElectricOnly = velovElectricOnly,
+                onToggleVelovElectricOnly = { scope.launch { store.setVelovElectricOnly(!velovElectricOnly) } },
                 onReset = {
+                    if (isVelovSelected) scope.launch { store.setVelovElectricOnly(false) }
                     if (!showParcRelais) vm.toggleParcRelais()
                     if (!showRealtimeParkings) vm.toggleRealtimeParkings()
                 }
@@ -431,6 +487,14 @@ fun ParkingScreen() {
             sheetState = rememberModalBottomSheetState(),
             contentWindowInsets = { WindowInsets.systemBars }
         ) { ParkingDetailSheet(p) }
+    }
+
+    selectedVelov?.let { station ->
+        ModalBottomSheet(
+            onDismissRequest = { selectedVelov = null },
+            sheetState = rememberModalBottomSheetState(),
+            contentWindowInsets = { WindowInsets.systemBars }
+        ) { VelovStationSheet(station) }
     }
 
     // Update parking markers
@@ -464,6 +528,52 @@ fun ParkingScreen() {
             ))
         } else {
             style.getSourceAs<GeoJsonSource>(PARKING_SRC)?.setGeoJson(FeatureCollection.fromFeatures(features))
+        }
+    }
+
+    // Stations Vélo'v : point coloré de loin (CircleLayer), carré avec le nombre de vélos dès le zoom des arrêts.
+    val lastVelovKeys = remember { mutableStateOf(emptySet<String>()) }
+    LaunchedEffect(mapStyle, velovStations, velovElectricOnly, isDark) {
+        val style = mapStyle ?: return@LaunchedEffect
+        if (!style.isFullyLoaded) return@LaunchedEffect
+        val entries = velovStations.map { s ->
+            val count = s.shownBikes(velovElectricOnly)
+            val hex = AppColors.parkingAvailability(s.availabilityFor(velovElectricOnly)).hex(isDark)
+            Triple(s, "velov_${if (velovElectricOnly) "e" else "b"}_${count}_${hex.removePrefix("#")}", hex)
+        }
+        val keys = entries.map { it.second }.toSet()
+        (lastVelovKeys.value - keys).forEach { style.removeImage(it) }
+        lastVelovKeys.value = keys
+        entries.distinctBy { it.second }.filter { style.getImage(it.second) == null }.forEach { (s, key, hex) ->
+            style.addImage(key, velovMarkerBitmap(s.shownBikes(velovElectricOnly), hex, velovElectricOnly))
+        }
+        val features = FeatureCollection.fromFeatures(entries.map { (s, key, hex) ->
+            Feature.fromGeometry(Point.fromLngLat(s.lng, s.lat), JsonObject().apply {
+                addProperty("id", s.id)
+                addProperty("icon", key)
+                addProperty("color", hex)
+            })
+        })
+        if (style.getSource(VELOV_SRC) == null) {
+            style.addSource(GeoJsonSource(VELOV_SRC, features))
+            val dots = CircleLayer(VELOV_DOT_LAYER, VELOV_SRC).withProperties(
+                PropertyFactory.circleColor(Expression.get("color")),
+                PropertyFactory.circleRadius(6f),
+                PropertyFactory.circleStrokeColor(AndroidColor.WHITE),
+                PropertyFactory.circleStrokeWidth(1.5f)
+            )
+            dots.setMaxZoom(MapStyle.ZOOM_STOPS.toFloat())
+            style.addLayer(dots)
+            val squares = SymbolLayer(VELOV_LAYER, VELOV_SRC).withProperties(
+                PropertyFactory.iconImage(Expression.get("icon")),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.iconIgnorePlacement(true),
+                PropertyFactory.iconSize(1f)
+            )
+            squares.setMinZoom(MapStyle.ZOOM_STOPS.toFloat())
+            style.addLayer(squares)
+        } else {
+            style.getSourceAs<GeoJsonSource>(VELOV_SRC)?.setGeoJson(features)
         }
     }
 }
@@ -831,6 +941,7 @@ private fun parkingTypeIcon(type: ParkingType) = when (type) {
     ParkingType.CAR           -> Icons.Filled.DirectionsCar
     ParkingType.BIKE          -> Icons.Filled.DirectionsBike
     ParkingType.MOTORIZED_2W  -> Icons.Filled.TwoWheeler
+    ParkingType.VELOV         -> Icons.Filled.PedalBike
 }
 
 @Composable
@@ -840,7 +951,8 @@ private fun ParkingTypeButton(type: ParkingType, isSelected: Boolean, onClick: (
     val fg = if (isSelected) when (type) {
         ParkingType.CAR          -> MaterialTheme.colorScheme.onPrimary   // primary adapts in dark mode
         ParkingType.BIKE         -> Color.White                           // #43A047 → white ~4.8:1 ✓
-        ParkingType.MOTORIZED_2W -> Color(0xFF1B1B1F)                    // #FF9800 orange → dark text ~10:1 ✓
+        ParkingType.MOTORIZED_2W -> Tokens.onLight                        // orange → texte sombre
+        ParkingType.VELOV        -> Color.White                           // rouge Vélo'v → blanc
     } else accent
     Surface(
         shape = RoundedCornerShape(50),
@@ -864,15 +976,19 @@ private fun ParkingTypeButton(type: ParkingType, isSelected: Boolean, onClick: (
     }
 }
 
+/** Filtres du type courant : parkings temps réel et P+R pour les voitures, vélos électriques pour les Vélo'v. */
 @Composable
 private fun ParkingFilterSheet(
+    velovSelected: Boolean,
     showParcRelais: Boolean,
     onToggleParcRelais: () -> Unit,
     showRealtimeParkings: Boolean,
     onToggleRealtime: () -> Unit,
+    velovElectricOnly: Boolean,
+    onToggleVelovElectricOnly: () -> Unit,
     onReset: () -> Unit
 ) {
-    val hasActiveFilters = !showParcRelais || !showRealtimeParkings
+    val hasActiveFilters = if (velovSelected) velovElectricOnly else !showParcRelais || !showRealtimeParkings
     Column(modifier = Modifier.padding(20.dp)) {
         Text("Filtres", fontWeight = FontWeight.Bold, fontSize = 18.sp)
         Spacer(Modifier.height(16.dp))
@@ -891,6 +1007,22 @@ private fun ParkingFilterSheet(
                     Text("Réinitialiser les filtres", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Medium)
                 }
             }
+        }
+        if (velovSelected) {
+            Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Seulement les vélos électriques", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        Text("Chaque station affiche alors son nombre de vélos électriques, avec un éclair", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(checked = velovElectricOnly, onCheckedChange = { onToggleVelovElectricOnly() })
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+            return@Column
         }
         Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
             Column {

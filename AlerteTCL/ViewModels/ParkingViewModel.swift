@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import MapKit
 import Combine
+import Shared
 
 @MainActor
 final class ParkingViewModel: ObservableObject {
@@ -15,6 +16,12 @@ final class ParkingViewModel: ObservableObject {
         }
     }
     @Published var showParcRelais: Bool = true
+    /// Stations Vélo'v (type « Vélo'v » seulement), rechargées toutes les minutes comme les parkings voiture.
+    @Published private(set) var velovStations: [VelovStation] = []
+    /// Ne compter que les vélos électriques sur les marqueurs Vélo'v. Conservé entre deux lancements.
+    @Published var velovElectricOnly: Bool = UserDefaults.standard.bool(forKey: "parking.velovElectricOnly") {
+        didSet { UserDefaults.standard.set(velovElectricOnly, forKey: "parking.velovElectricOnly") }
+    }
     @Published var isLoading = false
     @Published var error: String?
     @Published var lastUpdate: Date?
@@ -33,6 +40,7 @@ final class ParkingViewModel: ObservableObject {
             if oldValue != selectedParkingType {
                 // 1. Vider immédiatement l'affichage pour feedback instantané
                 parkings = []
+                velovStations = []
                 invalidateClusterCache()
                 error = nil
                 
@@ -40,15 +48,17 @@ final class ParkingViewModel: ObservableObject {
                 currentLoadTask?.cancel()
                 regionUpdateTask?.cancel()
                 
-                // 3. Gérer l'auto-refresh (seulement voitures)
+                // 3. Gérer l'auto-refresh (voitures et Vélo'v : disponibilité en direct)
                 stopAutoRefresh()
-                if selectedParkingType == .car {
-                    startAutoRefresh()
-                }
+                startAutoRefresh()
                 
                 // 4. Charger les nouvelles données (cache-first, viewport-first)
                 currentLoadTask = Task { [weak self] in
                     guard let self, !Task.isCancelled else { return }
+                    if self.selectedParkingType == .velov {
+                        await self.loadVelovStations()
+                        return
+                    }
                     
                     // Si on a un cache, l'afficher immédiatement
                     if let cached = self.parkingsCache[self.selectedParkingType], !cached.isEmpty {
@@ -282,12 +292,51 @@ final class ParkingViewModel: ObservableObject {
         let region = visibleRegion ?? mapRegion
         await loadParkingsInRegion(region)
     }
+
+    /// Stations Vélo'v avec leur disponibilité (relais, cache d'une minute côté module partagé).
+    func loadVelovStations() async {
+        guard !Task.isCancelled else { return }
+        isLoading = true
+        error = nil
+        defer { isLoading = false }
+        do {
+            let stations = try await VelovService.companion.shared.fetchStations(forceRefresh: false)
+            guard !Task.isCancelled, selectedParkingType == .velov else { return }
+            velovStations = stations
+            lastUpdate = Date()
+            secondsUntilNextRefresh = Int(refreshInterval)
+        } catch {
+            AppLogger.debug("⚠️ Stations Vélo'v indisponibles : \(error.localizedDescription)")
+            self.error = error.localizedDescription
+        }
+    }
+
+    /// Stations dans la région visible, comme les parkings.
+    var visibleVelovStations: [VelovStation] {
+        guard let region = visibleRegion else { return velovStations }
+        let minLat = region.center.latitude - region.span.latitudeDelta
+        let maxLat = region.center.latitude + region.span.latitudeDelta
+        let minLon = region.center.longitude - region.span.longitudeDelta
+        let maxLon = region.center.longitude + region.span.longitudeDelta
+        return velovStations.filter { $0.lat >= minLat && $0.lat <= maxLat && $0.lng >= minLon && $0.lng <= maxLon }
+    }
+
+    /// Voitures et Vélo'v ont une disponibilité en direct, rechargée toutes les minutes.
+    var hasLiveData: Bool { selectedParkingType == .car || selectedParkingType == .velov }
+
+    /// Recharge le type courant quand il a des données en direct.
+    func refreshLiveData() async {
+        switch selectedParkingType {
+        case .car: await loadParkings()
+        case .velov: await loadVelovStations()
+        case .bike, .motorized2Wheel: break
+        }
+    }
     
     func startAutoRefresh() {
         stopAutoRefresh()
         
-        // Ne refresh que les parkings voiture (données temps réel)
-        guard selectedParkingType == .car else {
+        guard hasLiveData else {
             AppLogger.debug("⏸️ ParkingViewModel: Pas de refresh auto pour \(selectedParkingType.rawValue) (données statiques)")
             return
         }
@@ -298,7 +347,7 @@ final class ParkingViewModel: ObservableObject {
                 guard self.isViewActive else { return }
                 try? await Task.sleep(nanoseconds: UInt64(self.refreshInterval * 1_000_000_000))
                 guard !Task.isCancelled, self.isViewActive else { return }
-                await self.loadParkings()
+                await self.refreshLiveData()
             }
         }
         
@@ -347,10 +396,10 @@ final class ParkingViewModel: ObservableObject {
             // Charger les P+R en parallèle
             async let prLoad: Void = self.loadParcRelais()
 
-            // Pour voitures: toujours charger (temps réel)
-            // Pour vélos/2-roues: charger via updateVisibleRegion
-            if self.selectedParkingType == .car {
-                await self.loadParkings()
+            // Voitures et Vélo'v : toujours recharger (temps réel).
+            // Vélos/2-roues : charger via updateVisibleRegion.
+            if self.hasLiveData {
+                await self.refreshLiveData()
             } else if self.parkings.isEmpty {
                 await self.loadParkingsProgressively()
             }

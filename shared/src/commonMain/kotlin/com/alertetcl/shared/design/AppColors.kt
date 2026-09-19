@@ -91,6 +91,8 @@ object AppColors {
     // ── Parkings ────────────────────────────────────────────────────────────
     /** Disponibilité inconnue (pas de temps réel) ou parking fermé. */
     val parkingUnknown = ThemedColor("#8E8E93", "#98989D")
+    /** Rouge des Vélo'v, pour le type dans le sélecteur des parkings ; la disponibilité garde son barème. */
+    val velov = ThemedColor("#C62828", "#EF5350")
 
     fun parkingAvailability(color: AvailabilityColor): ThemedColor = when (color) {
         AvailabilityColor.GRAY -> parkingUnknown
@@ -104,6 +106,7 @@ object AppColors {
         ParkingType.CAR -> accent
         ParkingType.BIKE -> success
         ParkingType.MOTORIZED_2W -> warning
+        ParkingType.VELOV -> velov
     }
 
     // ── Travaux ─────────────────────────────────────────────────────────────

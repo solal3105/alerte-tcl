@@ -5,14 +5,12 @@ import Shared
 struct LiveMapView: View {
     @StateObject private var viewModel = LiveVehiclesViewModel()
     @StateObject private var stopsViewModel = TransitStopViewModel()
-    @StateObject private var velovViewModel = VelovViewModel()
     @EnvironmentObject var alertViewModel: AlertViewModel
     @ObservedObject private var locationService = LocationService.shared
     @Environment(\.scenePhase) private var scenePhase
     
     @State private var selectedVehicle: Vehicle?
     @State private var selectedMergedStop: MergedStop?
-    @State private var selectedVelovStation: VelovStation?
     @State private var showFilters = false
     @State private var showTimetableSearch = false
     @State private var showAlerts = false
@@ -48,12 +46,10 @@ struct LiveMapView: View {
             LiveMapRepresentable(
                 viewModel: viewModel,
                 stopsViewModel: stopsViewModel,
-                velovViewModel: velovViewModel,
                 locationService: locationService,
                 region: $mapRegion,
                 onVehicleTap: { vehicle in withAnimation { focusOnVehicle(vehicle) } },
                 selectedMergedStop: $selectedMergedStop,
-                selectedVelovStation: $selectedVelovStation,
                 isSatellite: $isSatellite
             )
             .ignoresSafeArea()
@@ -74,13 +70,8 @@ struct LiveMapView: View {
             .presentationDetents(stopSheetDetents)
             .presentationDragIndicator(.visible)
         }
-        .sheet(item: $selectedVelovStation) { station in
-            VelovStationSheet(station: station)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
         .sheet(isPresented: $showFilters) {
-            FilterSheet(viewModel: viewModel, velovViewModel: velovViewModel)
+            FilterSheet(viewModel: viewModel)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
@@ -136,14 +127,7 @@ struct LiveMapView: View {
                     case "alertes", "alertes-ligne", "alertes-options": showAlerts = true
                     case "horaires", "horaires-ligne", "horaires-arrets": showTimetableSearch = true
                     case "erreur401":              showDataSourceErrors = true
-                    case "velov":                  velovViewModel.isEnabled = true
                     case "filtres":                showFilters = true
-                    case "velov-electriques":
-                        velovViewModel.isEnabled = true
-                        velovViewModel.electricOnly = true
-                    case "velov-station":
-                        velovViewModel.isEnabled = true
-                        selectedVelovStation = Shared.DemoShowcase.shared.velovStations().first
                     default: break
                     }
                 }
@@ -1148,7 +1132,6 @@ struct VehicleDetailSheet: View {
 
 struct FilterSheet: View {
     @ObservedObject var viewModel: LiveVehiclesViewModel
-    @ObservedObject var velovViewModel: VelovViewModel
     @ObservedObject private var favoritesService = FavoriteLinesService.shared
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
@@ -1204,20 +1187,6 @@ struct FilterSheet: View {
                     Toggle(isOn: $viewModel.showMetroTraces) {
                         Label("Métro / Funiculaire", systemImage: "tram.fill.tunnel")
                     }
-                }
-
-                Section {
-                    Toggle(isOn: $velovViewModel.isEnabled) {
-                        Label("Stations Vélo'v", systemImage: "bicycle")
-                    }
-                    Toggle(isOn: $velovViewModel.electricOnly) {
-                        Label("Seulement les vélos électriques", systemImage: "bolt.fill")
-                    }
-                    .disabled(!velovViewModel.isEnabled)
-                } header: {
-                    Text("Vélo'v")
-                } footer: {
-                    Text("Les stations apparaissent quand la carte est assez rapprochée, avec le nombre de vélos disponibles, ou seulement des électriques.")
                 }
 
                 Section("Type de véhicule") {

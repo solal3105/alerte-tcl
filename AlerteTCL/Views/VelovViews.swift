@@ -4,6 +4,33 @@ import Shared
 
 extension VelovStation: Identifiable {}
 
+/// Marqueur d'une station sur la carte des parkings : un point à la couleur de disponibilité de loin,
+/// le carré avec le nombre de vélos (ou d'électriques, avec un éclair) au zoom des arrêts.
+struct VelovMarker: View {
+    let station: VelovStation
+    let electricOnly: Bool
+    let compact: Bool
+
+    private var availability: AvailabilityColor { station.availabilityFor(electricOnly: electricOnly) }
+    private var color: Color { Color(token: AppColors.shared.parkingAvailability(color: availability)) }
+
+    var body: some View {
+        if compact {
+            Circle()
+                .fill(color)
+                .frame(width: 16, height: 16)
+                .shadow(color: color.opacity(0.5), radius: 3, x: 0, y: 1)
+                .overlay(Circle().stroke(.white, lineWidth: 2))
+        } else {
+            Image(uiImage: MarkerImageCache.velovMarker(
+                bikes: Int(station.shownBikes(electricOnly: electricOnly)),
+                availability: availability,
+                electric: electricOnly
+            ))
+        }
+    }
+}
+
 /// Fiche d'une station Vélo'v : vélos et places disponibles, dernière mise à jour, itinéraire à pied.
 struct VelovStationSheet: View {
     let station: VelovStation

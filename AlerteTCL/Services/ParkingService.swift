@@ -123,7 +123,7 @@ actor ParkingService {
     // MARK: - Private API Fetch
     
     private func fetchFromAPI(type: ParkingType, bbox: String?, limit: Int?, startIndex: Int = 0) async throws -> [Parking] {
-        let collectionName = collectionName(for: type)
+        guard let collectionName = collectionName(for: type) else { return [] }
 
         var urlString = "\(baseURL)/\(collectionName)/items?f=application/json"
 
@@ -176,7 +176,7 @@ actor ParkingService {
         return try decodeParkings(from: data, type: type)
     }
     
-    private func collectionName(for type: ParkingType) -> String {
+    private func collectionName(for type: ParkingType) -> String? {
         switch type {
         case .car:
             return "metropole-de-lyon:parkings-de-la-metropole-de-lyon-disponibilites-temps-reel-v2"
@@ -184,6 +184,9 @@ actor ParkingService {
             return "metropole-de-lyon:pvo_patrimoine_voirie.pvostationnementvelo"
         case .motorized2Wheel:
             return "ville-de-lyon:vdl_deplacements.emplacement_moto"
+        case .velov:
+            // Les stations Vélo'v viennent du module partagé (`VelovService`), pas du GeoServer.
+            return nil
         }
     }
     

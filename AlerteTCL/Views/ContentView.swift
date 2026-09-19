@@ -35,6 +35,12 @@ struct ContentView: View {
         }
         .tint(.primary)
         .tabViewStyle(.automatic)
+        .onAppear {
+            #if DEBUG
+            // Mode démo « velov… » : l'onglet Parkings s'ouvre de lui-même.
+            if DemoShowcase.current?.hasPrefix("velov") == true { selectedTab = 2 }
+            #endif
+        }
         .onChange(of: selectedParkingId) { _, newParkingId in
             if newParkingId != nil {
                 selectedTab = 2

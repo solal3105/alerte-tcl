@@ -164,6 +164,7 @@ extension ParkingType {
         case .car: .car
         case .bike: .bike
         case .motorized2Wheel: .motorized2w
+        case .velov: .velov
         }
     }
 

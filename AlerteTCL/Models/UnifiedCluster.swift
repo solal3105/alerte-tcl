@@ -269,6 +269,8 @@ struct ParkingClusterMarker: View {
             return .appSuccess
         case .motorized2Wheel:
             return .appWarning
+        case .velov:
+            return ParkingType.velov.color
         case .car:
             // Pour les voitures, couleur selon la disponibilité
             switch averageOccupancy {

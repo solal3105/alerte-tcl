@@ -59,7 +59,6 @@
 		AAA20002 /* ColorHex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20012 /* ColorHex.swift */; };
 		AAA20005 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20013 /* AppGroup.swift */; };
 		AAA20006 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20013 /* AppGroup.swift */; };
-		AB100014 /* VelovViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB100003 /* VelovViewModel.swift */; };
 		AB100015 /* VelovViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB100004 /* VelovViews.swift */; };
 		AAA20003 /* ColorHex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20012 /* ColorHex.swift */; };
 		A1000044 /* TransitStopViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000045 /* TransitStopViewModel.swift */; };
@@ -177,7 +176,6 @@
 		A2000031 /* AppColorTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColorTokens.swift; sourceTree = "<group>"; };
 		AAA20012 /* ColorHex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorHex.swift; sourceTree = "<group>"; };
 		AAA20013 /* AppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroup.swift; sourceTree = "<group>"; };
-		AB100003 /* VelovViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VelovViewModel.swift; sourceTree = "<group>"; };
 		AB100004 /* VelovViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VelovViews.swift; sourceTree = "<group>"; };
 		A1000045 /* TransitStopViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopViewModel.swift; sourceTree = "<group>"; };
 		AAA00010 /* AlerteTCL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AlerteTCL.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -323,7 +321,6 @@
 			isa = PBXGroup;
 			children = (
 				4F38BD2D2F15B0E200E05786 /* TravauxViewModel.swift */,
-				AB100003 /* VelovViewModel.swift */,
 				4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */,
 				AAA00019 /* AlertViewModel.swift */,
 				AAA00029 /* LiveVehiclesViewModel.swift */,
@@ -537,7 +534,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AB100014 /* VelovViewModel.swift in Sources */,
 				AB100015 /* VelovViews.swift in Sources */,
 				4FD3050B2F1E686900EAFA92 /* WidgetStopStorage.swift in Sources */,
 				AAA00001 /* AlerteTCLApp.swift in Sources */,
