@@ -1,4 +1,5 @@
 import Foundation
+import Shared
 import CoreLocation
 
 actor TransitStopService {
@@ -114,6 +115,7 @@ actor TransitStopService {
         // Filtrer uniquement les passages futurs
         let now = Date()
         let relevantValues = passagesResponse.values.filter { value in
+            guard Shared.TransitStop.companion.isDisplayedLine(name: value.ligne) else { return false }
             if let passageDate = Self.passageDateFormatter.date(from: value.heurepassage) {
                 return passageDate >= now
             }

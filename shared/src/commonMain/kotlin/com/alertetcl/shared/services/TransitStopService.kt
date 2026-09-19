@@ -87,6 +87,7 @@ class TransitStopService {
 
         val now = Clock.System.now().epochSeconds
         val passages = body.values
+            .filter { v -> TransitStop.isDisplayedLine(v.ligne) }
             .filter { v ->
                 val ts = parsePassageEpoch(v.heurepassage) ?: return@filter true
                 ts >= now

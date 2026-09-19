@@ -12,8 +12,9 @@ struct LiveMapView: View {
     @State private var selectedVehicle: Vehicle?
     @State private var selectedMergedStop: MergedStop?
     @State private var showFilters = false
-    @State private var showTimetableSearch = false
-    @State private var showAlerts = false
+    /// Feuille « Trafic et horaires » : les alertes et les fiches horaires derrière un seul bouton.
+    @State private var showNetwork = false
+    @State private var networkTab: NetworkTab = .traffic
     @State private var showDataSourceErrors = false
     @State private var hasStartedLoading = false
     @State private var hasSetInitialLocation = false
@@ -70,30 +71,15 @@ struct LiveMapView: View {
             .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showFilters) {
-            FilterSheet(viewModel: viewModel)
+            FilterSheet(viewModel: viewModel, isSatellite: $isSatellite)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: $showTimetableSearch) {
-            TimetableSearchSheet()
+        .sheet(isPresented: $showNetwork) {
+            NetworkSheet(tab: $networkTab)
+                .environmentObject(alertViewModel)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $showAlerts) {
-            NavigationStack {
-                NewAlertsView()
-                    .environmentObject(alertViewModel)
-                    .navigationTitle("Alertes trafic")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Fermer") {
-                                showAlerts = false
-                            }
-                        }
-                    }
-            }
-            .interactiveDismissDisabled(false)
         }
         .sheet(isPresented: $showDataSourceErrors) {
             DataSourceErrorsSheet(
@@ -123,8 +109,8 @@ struct LiveMapView: View {
                         }
                     case "arret", "horaires-arret", "horaires-course": selectedMergedStop = DemoShowcase.mergedStop()
                     case "bus-arret":              focusOnStop(DemoShowcase.stopLineFocus())
-                    case "alertes", "alertes-ligne", "alertes-options": showAlerts = true
-                    case "horaires", "horaires-ligne", "horaires-arrets": showTimetableSearch = true
+                    case "alertes", "alertes-ligne", "alertes-options": networkTab = .traffic; showNetwork = true
+                    case "horaires", "horaires-ligne", "horaires-arrets": networkTab = .timetables; showNetwork = true
                     case "erreur401":              showDataSourceErrors = true
                     case "filtres":                showFilters = true
                     default: break
@@ -331,16 +317,7 @@ struct LiveMapView: View {
                 
                 // Boutons en bas à droite, tous dans les deux mêmes couleurs
                 VStack(spacing: 10) {
-                    trafficPill
-
-                    MapGlassButton(systemImage: "calendar.badge.clock") {
-                        showTimetableSearch = true
-                    }
-                    .accessibilityLabel("Fiches horaires")
-
-                    MapGlassButton(systemImage: "globe.europe.africa", active: isSatellite) {
-                        withAnimation { isSatellite.toggle() }
-                    }
+                    networkButton
 
                     MapGlassButton(systemImage: "line.3.horizontal.decrease", active: hasActiveFilters) {
                         showFilters = true
@@ -368,16 +345,17 @@ struct LiveMapView: View {
     
     // MARK: - Traffic Banner
 
-    /// Pastille trafic, dans les mêmes deux couleurs que les autres boutons : pleine, avec le nombre de
-    /// lignes touchées, dès qu'il y a des perturbations.
-    private var trafficPill: some View {
+    /// Bouton « Trafic et horaires » : une horloge au repos ; plein, avec le nombre de lignes touchées,
+    /// dès qu'il y a des perturbations sur les lignes suivies.
+    private var networkButton: some View {
         let state = TrafficBanner.shared.compute(
             subscriptions: alertViewModel.subscriptionService.subscriptions,
             alerts: alertViewModel.alerts.map(\.shared),
             nowEpoch: Int64(Date().timeIntervalSince1970)
         )
         return MapGlassButton(systemImage: trafficIcon(state.tone), active: state.count > 0) {
-            showAlerts = true
+            networkTab = .traffic
+            showNetwork = true
         }
         .overlay(alignment: .topTrailing) {
             if state.count > 0 {
@@ -391,15 +369,14 @@ struct LiveMapView: View {
                     .offset(x: 3, y: -3)
             }
         }
-        .accessibilityLabel(state.title)
+        .accessibilityLabel("Trafic et horaires")
     }
 
     private func trafficIcon(_ tone: TrafficBanner.Tone) -> String {
         switch tone {
-        case .normal: "checkmark.circle"
         case .warning: "exclamationmark.triangle.fill"
         case .major: "exclamationmark.octagon.fill"
-        default: "checkmark.circle"
+        default: "clock"
         }
     }
     
@@ -957,33 +934,67 @@ struct VehicleDetailSheet: View {
     }
 }
 
+/// Onglets de la feuille « Trafic et horaires ».
+enum NetworkTab: String, CaseIterable, Identifiable {
+    case traffic = "Trafic"
+    case timetables = "Horaires"
+    var id: String { rawValue }
+}
+
+/// Les alertes trafic et les fiches horaires derrière un seul bouton, avec un sélecteur en haut.
+private struct NetworkSheet: View {
+    @Binding var tab: NetworkTab
+    @EnvironmentObject var alertViewModel: AlertViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("", selection: $tab) {
+                ForEach(NetworkTab.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 6)
+
+            switch tab {
+            case .traffic:
+                NavigationStack {
+                    NewAlertsView()
+                        .environmentObject(alertViewModel)
+                        .navigationTitle("Alertes trafic")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Fermer") { dismiss() }
+                            }
+                        }
+                }
+            case .timetables:
+                TimetableSearchSheet()
+            }
+        }
+    }
+}
+
+/// Filtres de la carte : la carte elle-même (satellite, tracés), les véhicules affichés, les lignes.
 struct FilterSheet: View {
     @ObservedObject var viewModel: LiveVehiclesViewModel
+    @Binding var isSatellite: Bool
     @ObservedObject private var favoritesService = FavoriteLinesService.shared
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
     @State private var showAllLines = false
+
+    private var presentTypes: [VehicleType] {
+        VehicleType.allCases
+            .filter { type in viewModel.vehicles.contains { $0.vehicleType == type } }
+            .sorted { $0.sortOrder < $1.sortOrder }
+    }
     
     var body: some View {
         NavigationStack {
             List {
-                if hasActiveFilters {
-                    Section {
-                        Button {
-                            viewModel.clearFilters()
-                            searchText = ""
-                            showAllLines = false
-                        } label: {
-                            HStack {
-                                Image(systemName: "arrow.counterclockwise")
-                                    .foregroundStyle(Color.appError)
-                                Text("Réinitialiser les filtres")
-                                    .foregroundStyle(Color.appError)
-                            }
-                        }
-                    }
-                }
-                
                 if let focus = viewModel.stopFocus {
                     Section("Bus d'un arrêt") {
                         Button {
@@ -1004,72 +1015,42 @@ struct FilterSheet: View {
                     }
                 }
 
-                Section("Tracés des lignes") {
-                    Toggle(isOn: $viewModel.showBusTraces) {
-                        Label("Bus", systemImage: "bus")
-                    }
-                    Toggle(isOn: $viewModel.showTramTraces) {
-                        Label("Tram", systemImage: "tram.fill")
-                    }
-                    Toggle(isOn: $viewModel.showMetroTraces) {
-                        Label("Métro / Funiculaire", systemImage: "tram.fill.tunnel")
-                    }
+                Section("Carte") {
+                    Toggle("Vue satellite", isOn: $isSatellite)
+                    Toggle("Tracés des bus", isOn: $viewModel.showBusTraces)
+                    Toggle("Tracés des trams", isOn: $viewModel.showTramTraces)
+                    Toggle("Tracés du métro et du funiculaire", isOn: $viewModel.showMetroTraces)
                 }
 
-                Section("Type de véhicule") {
-                    Button {
-                        withAnimation {
-                            viewModel.selectedVehicleType = nil
-                            viewModel.selectedLine = nil
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "list.bullet")
-                                .foregroundStyle(.secondary)
-                                .frame(width: 24)
-                            
-                            Text("Tous les types")
-                                .foregroundStyle(.primary)
-                            
-                            Spacer()
-                            
-                            if viewModel.selectedVehicleType == nil {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(Color.appAccent)
-                            }
-                        }
-                    }
-                    
-                    ForEach(VehicleType.allCases.filter { type in
-                        viewModel.vehicles.contains { $0.vehicleType == type }
-                    }, id: \.self) { type in
-                        let count = viewModel.vehicles.filter { $0.vehicleType == type }.count
-                        Button {
-                            withAnimation {
-                                if viewModel.selectedVehicleType == type {
-                                    viewModel.selectedVehicleType = nil
-                                } else {
-                                    viewModel.selectedVehicleType = type
-                                    viewModel.selectedLine = nil
+                if !presentTypes.isEmpty {
+                    Section("Véhicules affichés") {
+                        ForEach(presentTypes, id: \.self) { type in
+                            let count = viewModel.vehicles.filter { $0.vehicleType == type }.count
+                            Toggle(isOn: Binding(
+                                get: { viewModel.selectedVehicleType == nil || viewModel.selectedVehicleType == type },
+                                set: { on in
+                                    withAnimation {
+                                        if on {
+                                            // Réafficher un type revient à ne plus en isoler aucun.
+                                            viewModel.selectedVehicleType = nil
+                                        } else if presentTypes.count > 1 {
+                                            // Masquer un type : on isole les autres si possible, sinon le seul autre type.
+                                            viewModel.selectedVehicleType = presentTypes.first { $0 != type }
+                                            viewModel.selectedLine = nil
+                                        }
+                                    }
                                 }
-                            }
-                        } label: {
-                            HStack {
-                                Image(systemName: type.icon)
-                                    .foregroundStyle(type.clusterColor)
-                                    .frame(width: 24)
-                                
-                                Text(type.rawValue)
-                                    .foregroundStyle(.primary)
-                                
-                                Spacer()
-                                
-                                Text("\(count)")
-                                    .foregroundStyle(.secondary)
-                                
-                                if viewModel.selectedVehicleType == type {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(Color.appAccent)
+                            )) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: type.icon)
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(type.clusterColor)
+                                        .frame(width: 30, height: 30)
+                                        .background(type.clusterColor.opacity(0.18), in: RoundedRectangle(cornerRadius: 8))
+                                    Text(type.rawValue)
+                                    Spacer()
+                                    Text("\(count)")
+                                        .foregroundStyle(.secondary)
                                 }
                             }
                         }
@@ -1077,62 +1058,39 @@ struct FilterSheet: View {
                 }
                 
                 if !viewModel.availableLines.isEmpty {
-                    Section {
+                    let sortedLines = viewModel.getSortedLinesWithFavorites(searchText: searchText)
+
+                    Section("Lignes") {
                         HStack {
                             Image(systemName: "magnifyingglass")
                                 .foregroundStyle(.secondary)
-                            TextField("Rechercher une ligne...", text: $searchText)
+                            TextField("Rechercher une ligne", text: $searchText)
                                 .textFieldStyle(.plain)
                         }
-                        .padding(.vertical, 4)
                     }
                     
-                    let sortedLines = viewModel.getSortedLinesWithFavorites(searchText: searchText)
-                    
                     if !sortedLines.favorites.isEmpty {
-                        Section {
+                        Section("Favoris") {
                             ForEach(sortedLines.favorites, id: \.self) { line in
                                 lineRow(line: line)
-                            }
-                        } header: {
-                            HStack {
-                                Image(systemName: "star.fill")
-                                    .foregroundStyle(Color.appFavorite)
-                                    .font(.caption)
-                                Text("Favoris")
                             }
                         }
                     }
                     
                     if !sortedLines.others.isEmpty {
-                        Section {
-                            if !showAllLines && sortedLines.others.count > 10 {
-                                ForEach(sortedLines.others.prefix(10), id: \.self) { line in
-                                    lineRow(line: line)
-                                }
-                                
-                                Button {
-                                    withAnimation {
-                                        showAllLines = true
-                                    }
-                                } label: {
-                                    HStack {
-                                        Spacer()
-                                        Text("Afficher toutes les lignes (\(sortedLines.others.count))")
-                                            .foregroundStyle(Color.appAccent)
-                                        Spacer()
-                                    }
-                                }
-                            } else {
-                                ForEach(sortedLines.others, id: \.self) { line in
-                                    lineRow(line: line)
-                                }
+                        Section("Toutes les lignes") {
+                            let shown = (!showAllLines && sortedLines.others.count > 10) ? Array(sortedLines.others.prefix(10)) : sortedLines.others
+                            ForEach(shown, id: \.self) { line in
+                                lineRow(line: line)
                             }
-                        } header: {
-                            if let type = viewModel.selectedVehicleType {
-                                Text("Lignes \(type.rawValue)")
-                            } else {
-                                Text("Toutes les lignes")
+                            if !showAllLines && sortedLines.others.count > 10 {
+                                Button {
+                                    withAnimation { showAllLines = true }
+                                } label: {
+                                    Text("Afficher toutes les lignes (\(sortedLines.others.count))")
+                                        .foregroundStyle(Color.appAccent)
+                                        .frame(maxWidth: .infinity)
+                                }
                             }
                         }
                     }
@@ -1141,6 +1099,15 @@ struct FilterSheet: View {
             .navigationTitle("Filtres")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if hasActiveFilters {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Tout réafficher") {
+                            viewModel.clearFilters()
+                            searchText = ""
+                            showAllLines = false
+                        }
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Terminé") {
                         dismiss()

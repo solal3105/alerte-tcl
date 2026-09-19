@@ -47,13 +47,21 @@ data class TransitStop(
     override val clusterColorHex: String get() = com.alertetcl.shared.design.AppColors.stopMarker
     override val clusterIconKey: String get() = "stop"
 
-    /** Lignes uniques desservant cet arrêt. */
+    /** Lignes uniques desservant cet arrêt, hors lignes scolaires (voir [isDisplayedLine]). */
     val lines: List<String> by lazy {
         desserte.split(",")
             .mapNotNull { it.split(":").firstOrNull() }
             .map { it.trim() }
-            .filter { it.isNotEmpty() }
+            .filter { it.isNotEmpty() && isDisplayedLine(it) }
             .distinct()
+    }
+
+    companion object {
+        /**
+         * Les lignes « Junior Direct » (JD…) sont des services scolaires réservés : elles n'apparaissent
+         * ni sur les arrêts de la carte ni dans les prochains passages (décision du 19 septembre 2026).
+         */
+        fun isDisplayedLine(name: String): Boolean = !name.trim().uppercase().startsWith("JD")
     }
 
     /** Directions desservies par cet arrêt. */

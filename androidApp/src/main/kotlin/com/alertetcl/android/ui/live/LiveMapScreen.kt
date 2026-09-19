@@ -73,6 +73,11 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import com.alertetcl.shared.models.PositionFreshness
@@ -350,7 +355,9 @@ fun LiveMapScreen() {
     val selectedStop      = remember { mutableStateOf<MergedStop?>(null) }
 
     // Bottom sheet flags
-    var showAlertsSheet by remember { mutableStateOf(false) }
+    // Feuille « Trafic et horaires » : les alertes et les fiches horaires derrière un seul bouton.
+    var showNetworkSheet by remember { mutableStateOf(false) }
+    var networkTab by remember { mutableIntStateOf(0) }
     var showFilterSheet by remember { mutableStateOf(false) }
     var showErrorsSheet by remember { mutableStateOf(false) }
     var timetableStart by remember { mutableStateOf<TimetableStart?>(null) }
@@ -369,7 +376,7 @@ fun LiveMapScreen() {
                     vm.focusOnStop(focus)
                     fitCameraOnFocus(mapLibreMap, focus, vehicles)
                 }
-                "horaires", "horaires-ligne", "horaires-arrets" -> timetableStart = TimetableStart.Search
+                "horaires", "horaires-ligne", "horaires-arrets" -> { networkTab = 1; showNetworkSheet = true }
                 "horaires-arret", "horaires-course" -> {
                     val stop = DemoShowcase.mergedStop()
                     val passage = DemoShowcase.passages(stop.stops[0].id)[0]
@@ -377,7 +384,7 @@ fun LiveMapScreen() {
                     timetableStart = TimetableStart.ForStop(passage.ligne, passage.direction, stop.stops.map { it.id }.toSet(), stop.nom)
                 }
                 "erreur401"              -> showErrorsSheet = true
-                "alertes", "alertes-ligne", "alertes-options" -> showAlertsSheet = true
+                "alertes", "alertes-ligne", "alertes-options" -> { networkTab = 0; showNetworkSheet = true }
                 else                     -> Unit
             }
         }
@@ -563,9 +570,7 @@ fun LiveMapScreen() {
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            TrafficFab(subscriptions = subscriptions, alerts = alerts, onClick = { showAlertsSheet = true })
-            MapCircleFab(icon = Icons.Filled.Schedule, contentDesc = "Fiches horaires", onClick = { timetableStart = TimetableStart.Search })
-            MapCircleFab(icon = Icons.Filled.Public, contentDesc = "Vue satellite", active = isSatellite, onClick = { isSatellite = !isSatellite })
+            NetworkFab(subscriptions = subscriptions, alerts = alerts, onClick = { networkTab = 0; showNetworkSheet = true })
             MapCircleFab(icon = Icons.Filled.FilterList, contentDesc = "Filtres", active = hasActiveFilters, onClick = { showFilterSheet = true })
             MapCircleFab(
                 icon = Icons.Filled.MyLocation, contentDesc = "Ma position",
@@ -897,9 +902,18 @@ fun LiveMapScreen() {
     timetableStart?.let { start ->
         TimetableDialog(start = start, onDismiss = { timetableStart = null })
     }
-    if (showAlertsSheet) {
-        ModalBottomSheet(onDismissRequest = { showAlertsSheet = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), contentWindowInsets = { WindowInsets.systemBars }) {
-            Box(Modifier.fillMaxSize()) { com.alertetcl.android.ui.alerts.AlertsScreen(viewModel = alertsVm) }
+    if (showNetworkSheet) {
+        ModalBottomSheet(onDismissRequest = { showNetworkSheet = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), contentWindowInsets = { WindowInsets.systemBars }) {
+            Column(Modifier.fillMaxSize()) {
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
+                    SegmentedButton(selected = networkTab == 0, onClick = { networkTab = 0 }, shape = SegmentedButtonDefaults.itemShape(0, 2)) { Text("Trafic") }
+                    SegmentedButton(selected = networkTab == 1, onClick = { networkTab = 1 }, shape = SegmentedButtonDefaults.itemShape(1, 2)) { Text("Horaires") }
+                }
+                Box(Modifier.fillMaxSize()) {
+                    if (networkTab == 0) com.alertetcl.android.ui.alerts.AlertsScreen(viewModel = alertsVm)
+                    else TimetableFlow(start = TimetableStart.Search, onDismiss = { showNetworkSheet = false })
+                }
+            }
         }
     }
     if (showFilterSheet) {
@@ -911,6 +925,8 @@ fun LiveMapScreen() {
             FilterSheet(
                 stopFocus = stopFocus,
                 onClearStopFocus = { vm.clearStopFocus() },
+                isSatellite = isSatellite,
+                onToggleSatellite = { isSatellite = !isSatellite },
                 selectedTypes = selectedTypes,
                 onToggleType = { vm.toggleType(it) },
                 selectedLines = selectedLines,
@@ -1844,9 +1860,12 @@ private fun PassageChip(p: Passage) {
 // ── Traffic Banner / Live Indicator / Filter Sheet ──────────────────────
 
 
-/** Pastille trafic en bas à droite, dans les mêmes deux couleurs que les autres boutons : pleine avec le nombre de lignes touchées quand il y a des perturbations. */
+/**
+ * Bouton « Trafic et horaires » en bas à droite : une horloge au repos ; plein, avec le nombre de
+ * lignes touchées, dès qu'il y a des perturbations sur les lignes suivies.
+ */
 @Composable
-private fun TrafficFab(
+private fun NetworkFab(
     subscriptions: Map<String, com.alertetcl.shared.models.LineSubscription>,
     alerts: List<com.alertetcl.shared.models.TCLAlert>,
     onClick: () -> Unit
@@ -1855,12 +1874,12 @@ private fun TrafficFab(
         com.alertetcl.shared.models.TrafficBanner.compute(subscriptions, alerts, System.currentTimeMillis() / 1000L)
     }
     val icon = when (state.tone) {
-        com.alertetcl.shared.models.TrafficBanner.Tone.NORMAL -> Icons.Filled.CheckCircle
+        com.alertetcl.shared.models.TrafficBanner.Tone.NORMAL -> Icons.Filled.Schedule
         com.alertetcl.shared.models.TrafficBanner.Tone.WARNING -> Icons.Filled.Warning
         com.alertetcl.shared.models.TrafficBanner.Tone.MAJOR -> Icons.Filled.Report
     }
     Box {
-        MapCircleFab(icon = icon, contentDesc = state.title, active = state.count > 0, onClick = onClick)
+        MapCircleFab(icon = icon, contentDesc = "Trafic et horaires", active = state.count > 0, onClick = onClick)
         if (state.count > 0) {
             Surface(shape = RoundedCornerShape(50), color = Tokens.accent, border = androidx.compose.foundation.BorderStroke(1.5.dp, Color.White), modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)) {
                 Text("${state.count}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
@@ -1893,6 +1912,8 @@ private fun StatusCapsule(text: String) {
 private fun FilterSheet(
     stopFocus: StopLineFocus?,
     onClearStopFocus: () -> Unit,
+    isSatellite: Boolean,
+    onToggleSatellite: () -> Unit,
     selectedTypes: Set<VehicleType>,
     onToggleType: (VehicleType) -> Unit,
     selectedLines: Set<String>,
@@ -1913,6 +1934,7 @@ private fun FilterSheet(
     var searchText by remember { mutableStateOf("") }
     var showAllLines by remember { mutableStateOf(false) }
     val countByType = remember(vehicles) { vehicles.groupingBy { it.vehicleType }.eachCount() }
+    val presentTypes = VehicleType.entries.filter { (countByType[it] ?: 0) > 0 }.sortedBy { it.sortOrder }
     val filteredLines = if (searchText.isBlank()) availableLines
                         else availableLines.filter { it.contains(searchText, ignoreCase = true) }
     val favoriteLines = filteredLines.filter { it in favorites }
@@ -1925,157 +1947,139 @@ private fun FilterSheet(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Filtres", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            if (hasActiveFilters) {
+                TextButton(onClick = { onClearFilters(); searchText = ""; showAllLines = false }) {
+                    Text("Tout réafficher", color = Tokens.accent, fontWeight = FontWeight.SemiBold)
+                }
+            }
         }
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(bottom = 32.dp)
         ) {
-            if (hasActiveFilters) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { onClearFilters() }
-                            .padding(horizontal = 20.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(Icons.Filled.Refresh, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
-                        Text("Réinitialiser les filtres", color = MaterialTheme.colorScheme.error, fontSize = 15.sp)
-                    }
-                    HorizontalDivider()
-                }
-            }
             if (stopFocus != null) {
                 item {
-                    Text(
-                        "BUS D'UN ARRÊT",
-                        style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp)
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { onClearStopFocus() }
-                            .padding(horizontal = 20.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        LineBadge(stopFocus.line, size = 30.dp, fontSize = 11.sp)
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Vers ${stopFocus.destination}", fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("Seuls ces véhicules sont affichés. Touchez pour tout réafficher.",
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    FilterSectionTitle("Bus d'un arrêt")
+                    FilterCard {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable { onClearStopFocus() }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            LineBadge(stopFocus.line, size = 30.dp, fontSize = 11.sp)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Vers ${stopFocus.destination}", fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("Seuls ces véhicules sont affichés. Touchez pour tout réafficher.",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
-                    HorizontalDivider()
                 }
             }
             item {
-                Text(
-                    "TRACÉS DES LIGNES",
-                    style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp)
-                )
-                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                    Column {
-                        TraceToggleRow(label = "Bus", checked = showBusTraces, onToggle = onToggleBusTraces)
-                        HorizontalDivider(modifier = Modifier.padding(start = 14.dp))
-                        TraceToggleRow(label = "Tram", checked = showTramTraces, onToggle = onToggleTramTraces)
-                        HorizontalDivider(modifier = Modifier.padding(start = 14.dp))
-                        TraceToggleRow(label = "Métro / Funiculaire", checked = showMetroTraces, onToggle = onToggleMetroTraces)
+                FilterSectionTitle("Carte")
+                FilterCard {
+                    TraceToggleRow(label = "Vue satellite", checked = isSatellite, onToggle = onToggleSatellite)
+                    HorizontalDivider(modifier = Modifier.padding(start = 14.dp))
+                    TraceToggleRow(label = "Tracés des bus", checked = showBusTraces, onToggle = onToggleBusTraces)
+                    HorizontalDivider(modifier = Modifier.padding(start = 14.dp))
+                    TraceToggleRow(label = "Tracés des trams", checked = showTramTraces, onToggle = onToggleTramTraces)
+                    HorizontalDivider(modifier = Modifier.padding(start = 14.dp))
+                    TraceToggleRow(label = "Tracés du métro et du funiculaire", checked = showMetroTraces, onToggle = onToggleMetroTraces)
+                }
+            }
+            if (presentTypes.isNotEmpty()) {
+                item {
+                    FilterSectionTitle("Véhicules affichés")
+                    FilterCard {
+                        presentTypes.forEachIndexed { index, type ->
+                            if (index > 0) HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable { onToggleType(type) }
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier.size(30.dp)
+                                        .background(Tokens.vehicleType(type).copy(alpha = 0.18f), RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(vehicleTypeIcon(type), null, tint = Tokens.vehicleType(type), modifier = Modifier.size(16.dp))
+                                }
+                                Text(type.displayName, modifier = Modifier.weight(1f), fontSize = 15.sp)
+                                Text("${countByType[type] ?: 0}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                                Switch(checked = type in selectedTypes, onCheckedChange = { onToggleType(type) })
+                            }
+                        }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
-            }
-            item {
-                Text(
-                    "TYPE DE VÉHICULE",
-                    style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 4.dp)
-                )
-            }
-            items(VehicleType.entries.filter { it != VehicleType.METRO && it != VehicleType.FUNICULAR }.sortedBy { it.sortOrder }) { type ->
-                val count = countByType[type] ?: 0
-                Row(
-                    modifier = Modifier.fillMaxWidth().clickable { onToggleType(type) }
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier.size(28.dp)
-                            .background(Tokens.vehicleType(type).copy(alpha = 0.18f), RoundedCornerShape(7.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            when (type) {
-                                VehicleType.TRAM, VehicleType.FUNICULAR -> Icons.Filled.Tram
-                                else -> Icons.Filled.DirectionsBus
-                            },
-                            null, tint = Tokens.vehicleType(type), modifier = Modifier.size(15.dp)
-                        )
-                    }
-                    Text(type.displayName, modifier = Modifier.weight(1f), fontSize = 15.sp)
-                    Text("$count", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-                    if (type in selectedTypes) {
-                        Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                    }
-                }
-                HorizontalDivider(modifier = Modifier.padding(start = 60.dp))
             }
             if (availableLines.isNotEmpty()) {
                 item {
+                    FilterSectionTitle("Lignes")
                     OutlinedTextField(
                         value = searchText,
                         onValueChange = { searchText = it; showAllLines = false },
-                        placeholder = { Text("Rechercher une ligne...", fontSize = 13.sp) },
+                        placeholder = { Text("Rechercher une ligne", fontSize = 14.sp) },
+                        leadingIcon = { Icon(Icons.Filled.Search, null) },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)
                     )
                 }
                 if (favoriteLines.isNotEmpty()) {
+                    item { FilterSectionTitle("Favoris") }
                     item {
-                        Row(
-                            modifier = Modifier.padding(start = 20.dp, top = 8.dp, bottom = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(Icons.Filled.Star, null, tint = Tokens.favorite, modifier = Modifier.size(13.dp))
-                            Text("FAVORIS", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        FilterCard {
+                            favoriteLines.forEachIndexed { index, line ->
+                                if (index > 0) HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                                LineFilterRow(line, line in selectedLines, true, { onToggleLine(line) }, { onToggleFavorite(line) })
+                            }
                         }
-                    }
-                    items(favoriteLines, key = { "fav_$it" }) { line ->
-                        LineFilterRow(line, line in selectedLines, true, { onToggleLine(line) }, { onToggleFavorite(line) })
-                        HorizontalDivider(modifier = Modifier.padding(start = 60.dp))
                     }
                 }
                 if (otherLines.isNotEmpty()) {
-                    item {
-                        Text(
-                            "TOUTES LES LIGNES",
-                            style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 20.dp, top = 8.dp, bottom = 4.dp)
-                        )
-                    }
+                    item { FilterSectionTitle("Toutes les lignes") }
                     val shown = if (!showAllLines && otherLines.size > 10) otherLines.take(10) else otherLines
-                    items(shown, key = { "other_$it" }) { line ->
-                        LineFilterRow(line, line in selectedLines, false, { onToggleLine(line) }, { onToggleFavorite(line) })
-                        HorizontalDivider(modifier = Modifier.padding(start = 60.dp))
-                    }
-                    if (!showAllLines && otherLines.size > 10) {
-                        item {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().clickable { showAllLines = true }
-                                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Text(
-                                    "Afficher toutes les lignes (${otherLines.size})",
-                                    color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium
-                                )
+                    item {
+                        FilterCard {
+                            shown.forEachIndexed { index, line ->
+                                if (index > 0) HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                                LineFilterRow(line, line in selectedLines, false, { onToggleLine(line) }, { onToggleFavorite(line) })
+                            }
+                            if (!showAllLines && otherLines.size > 10) {
+                                HorizontalDivider()
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().clickable { showAllLines = true }
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text("Afficher toutes les lignes (${otherLines.size})", color = Tokens.accent, style = MaterialTheme.typography.bodyMedium)
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FilterSectionTitle(text: String) {
+    Text(
+        text.uppercase(),
+        style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 8.dp)
+    )
+}
+
+@Composable
+private fun FilterCard(content: @Composable () -> Unit) {
+    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+        Column { content() }
     }
 }
 
@@ -2101,7 +2105,7 @@ private fun LineFilterRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable { onToggle() }
-            .padding(horizontal = 20.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {

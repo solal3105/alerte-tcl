@@ -178,7 +178,10 @@ et un bandeau « Tout afficher » apparaît quand les filtres masquent tous les 
   tout seuil de visibilité sur la carte s'y réfère, aucune valeur de zoom en dur dans les vues.
 - Marqueur véhicule : pictogramme du type dans le disque, numéro de ligne en capsule juste dessous, arc
   de délai sombre sur le bord intérieur du disque (`Vehicle.freshnessFraction`, une seule teinte) ; état du
-  trafic en pastille dans la colonne de boutons (`TrafficBanner.State.count`). Boutons de carte en deux
-  couleurs seulement (`MapGlassButton(active:)` / `MapCircleFab(active)`), pas de capsule « LIVE ».
+  trafic sur le bouton « Trafic et horaires » (`TrafficBanner.State.count`), qui ouvre une feuille à deux
+  onglets (alertes, fiches horaires : `NetworkSheet` iOS, `TimetableFlow` hébergé dans la feuille Android).
+  Boutons de carte en deux couleurs seulement (`MapGlassButton(active:)` / `MapCircleFab(active)`), vue
+  satellite dans les filtres sur Transport, pas de capsule « LIVE ». Lignes scolaires JD exclues des
+  arrêts et des passages (`TransitStop.isDisplayedLine`).
 - Les composants communs sont décrits dans `DESIGN.md` : badge de ligne (`LineBadge`), en-tête de
   feuille (`SheetHeader`), états chargement / vide / erreur, textes des alertes.

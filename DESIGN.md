@@ -47,8 +47,11 @@ la teinte de la ligne : rien d'autre que la couleur de la ligne sur un véhicule
 partagée (`MapStyle` : points sous 13,5, arrêts à 14,5, arc à 15, badges de lignes sur les arrêts à
 16), convertie sur iPhone depuis la largeur visible.
 
-Les boutons ronds des cartes (trafic, fiches horaires, satellite, filtres, position, et ceux des cartes
-de l'onglet « Autour de moi ») n'ont que deux couleurs : l'accent sur verre au repos, disque d'accent
+Sur la carte Transport, trois boutons ronds seulement : « Trafic et horaires » (une horloge au repos ;
+plein, avec le nombre de lignes touchées, dès qu'il y a des perturbations sur les lignes suivies ; il
+ouvre une feuille à deux onglets, Trafic et Horaires), les filtres et la position. La vue satellite se
+règle dans les filtres. Les boutons ronds des cartes (et ceux des cartes de l'onglet « Autour de moi »)
+n'ont que deux couleurs : l'accent sur verre au repos, disque d'accent
 plein avec pictogramme blanc quand le bouton est actif (satellite affiché, filtres en cours,
 perturbations sur les lignes suivies, avec leur nombre en badge). Il n'y a plus de capsule « LIVE » en
 bas à gauche : le rafraîchissement est automatique et silencieux ; seuls restent les messages d'état
@@ -98,6 +101,15 @@ reposent sur le même style (iOS `glassSurface`, Liquid Glass dès iOS 26 et mat
 liseré clair avant ; Android `Modifier.glass`, fond translucide et liseré en dégradé). Jamais de verre
 dans du verre : l'icône d'une tuile est sur un disque teinté uni. La fiche d'un parking ne montre que ce
 que la donnée contient (plus de « type d'usagers » ni de « type d'ouvrage » inventés).
+
+## Filtres de la carte Transport
+
+Une feuille en quatre parties, dans cet ordre : « Bus d'un arrêt » quand une ligne est isolée ;
+« Carte » (vue satellite, tracés des bus, des trams, du métro et du funiculaire) ; « Véhicules affichés »
+(un interrupteur par type présent sur la carte, avec le nombre de véhicules) ; « Lignes » (recherche,
+favoris, toutes les lignes, dix d'abord). « Tout réafficher » dans la barre quand un filtre est actif.
+Les lignes scolaires « Junior Direct » (JD…) n'apparaissent ni sur les arrêts ni dans les prochains
+passages (`TransitStop.isDisplayedLine`, module partagé, testé).
 
 ## Vélo'v
 

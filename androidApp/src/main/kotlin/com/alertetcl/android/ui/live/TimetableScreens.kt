@@ -168,9 +168,18 @@ private fun StaleNotice(text: String) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Les fiches horaires en boîte de dialogue plein écran (depuis la fiche d'un arrêt). */
 @Composable
 fun TimetableDialog(start: TimetableStart, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        TimetableFlow(start, onDismiss)
+    }
+}
+
+/** Le parcours des fiches horaires (recherche, sens, arrêts, passages, course), avec sa barre de titre. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TimetableFlow(start: TimetableStart, onDismiss: () -> Unit) {
     val stack = remember(start) {
         mutableStateListOf<TimetableScreen>(
             when (start) {
@@ -184,7 +193,7 @@ fun TimetableDialog(start: TimetableStart, onDismiss: () -> Unit) {
     fun replace(screen: TimetableScreen) { stack[stack.lastIndex] = screen }
     fun back() { if (stack.size > 1) stack.removeAt(stack.lastIndex) else onDismiss() }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    run {
         BackHandler { back() }
         Scaffold(
             containerColor = MaterialTheme.colorScheme.surface,

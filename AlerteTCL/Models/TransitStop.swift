@@ -1,4 +1,5 @@
 import Foundation
+import Shared
 import CoreLocation
 import SwiftUI
 
@@ -30,10 +31,11 @@ struct TransitStop: Identifiable, Hashable {
         self.desserte = desserte
         self.pmr = pmr
         // Parse desserte une seule fois à l'init
+        // Même règle que le module partagé : les lignes scolaires « Junior Direct » restent invisibles.
         self._lines = desserte.split(separator: ",").compactMap { part in
             let linePart = part.split(separator: ":")
             return linePart.first.map { String($0) }
-        }.unique()
+        }.filter { Shared.TransitStop.companion.isDisplayedLine(name: $0) }.unique()
     }
     
     var nextPassage: Passage? {
