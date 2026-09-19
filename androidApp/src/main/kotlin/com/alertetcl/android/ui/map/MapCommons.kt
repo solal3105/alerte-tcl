@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import com.alertetcl.android.ui.components.glass
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -149,8 +150,9 @@ internal fun MapCircleFab(
     SmallFloatingActionButton(
         onClick = onClick,
         shape = CircleShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
         contentColor = tint,
+        modifier = Modifier.glass(CircleShape, alpha = 0f),
     ) {
         Icon(icon, contentDesc, modifier = Modifier.size(22.dp))
     }

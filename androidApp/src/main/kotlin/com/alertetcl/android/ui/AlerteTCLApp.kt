@@ -12,8 +12,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.LocalParking
+import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,16 +42,14 @@ import com.alertetcl.android.ui.about.AboutScreen
 import com.alertetcl.android.ui.live.LiveMapScreen
 import com.alertetcl.android.ui.onboarding.LocationPermissionView
 import com.alertetcl.android.ui.onboarding.NotificationPermissionView
-import com.alertetcl.android.ui.parking.ParkingScreen
-import com.alertetcl.android.ui.travaux.TravauxScreen
+import com.alertetcl.android.ui.city.CityScreen
 import kotlinx.coroutines.launch
 
 private data class TabItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
 private val tabs = listOf(
     TabItem("live",     "Transport", Icons.Filled.Tram),
-    TabItem("travaux",  "Travaux",   Icons.Filled.Build),
-    TabItem("parking",  "Stationnement", Icons.Filled.LocalParking),
+    TabItem("ville",    "Ville",     Icons.Filled.LocationCity),
     TabItem("about",    "Info",      Icons.Filled.Info),
 )
 
@@ -74,10 +71,10 @@ fun AlerteTCLApp(initialRoute: String? = null) {
     val backStackEntry = nav.currentBackStackEntryAsState().value
     val currentRoute = backStackEntry?.destination?.route
 
-    // Deep-link: switch tab on incoming route. En démo « velov… » ou « stationnement », l'onglet Stationnement s'ouvre de lui-même.
+    // Deep-link: switch tab on incoming route. En démo « velov… » ou « ville », l'onglet Ville s'ouvre de lui-même.
     androidx.compose.runtime.LaunchedEffect(initialRoute) {
         val target = initialRoute
-            ?: com.alertetcl.shared.util.DemoShowcase.current?.takeIf { it.startsWith("velov") || it == "stationnement" }?.let { "parking" }
+            ?: com.alertetcl.shared.util.DemoShowcase.current?.takeIf { it.startsWith("velov") || it == "ville" }?.let { "ville" }
             ?: return@LaunchedEffect
         if (tabs.any { it.route == target }) {
             nav.navigate(target) {
@@ -127,8 +124,7 @@ fun AlerteTCLApp(initialRoute: String? = null) {
             modifier = Modifier.fillMaxSize()
         ) {
             composable("live")    { LiveMapScreen() }
-            composable("travaux") { TravauxScreen() }
-            composable("parking") { ParkingScreen() }
+            composable("ville") { CityScreen() }
             composable("about")   { AboutScreen() }
         }
     }

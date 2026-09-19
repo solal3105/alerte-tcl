@@ -3,8 +3,10 @@ import MapKit
 import CoreLocation
 import Shared
 
+/// Carte d'un jeu de stationnement (`parkingType`), ouverte depuis l'accueil de l'onglet Ville.
 struct ParkingMapView: View {
-    @StateObject private var viewModel = ParkingViewModel()
+    @StateObject private var viewModel: ParkingViewModel
+    let parkingType: ParkingType
     @ObservedObject private var locationService = LocationService.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedParking: Parking?
@@ -25,17 +27,18 @@ struct ParkingMapView: View {
     @State private var isSatellite = false
     @State private var showFilters = false
     @State private var transitLines: [TransitLine] = []
-    /// Accueil à tuiles tant qu'aucun type n'est choisi ; la carte ensuite.
-    @State private var showChooser = true
     @Binding var selectedParkingId: String?
+
+    init(parkingType: ParkingType, selectedParkingId: Binding<String?>) {
+        self.parkingType = parkingType
+        _selectedParkingId = selectedParkingId
+        _viewModel = StateObject(wrappedValue: ParkingViewModel(type: parkingType))
+    }
     
     var body: some View {
-        Group {
-            if showChooser {
-                ParkingChooserView(onChoose: open)
-            } else {
-                mapScreen
-            }
+        ZStack {
+            mapContent
+            overlayControls
         }
         .sheet(item: $selectedParking) { parking in
             ParkingDetailSheet(parking: parking, viewModel: viewModel)
@@ -54,13 +57,12 @@ struct ParkingMapView: View {
         }
         .onAppear {
             #if DEBUG
-            // Mode démo « velov… » : la carte s'ouvre sur les stations Vélo'v, puis sur la fiche d'une
-            // station pour « velov-station ».
+            // Mode démo « velov… » : la carte est centrée sur la scène place Bellecour, puis la fiche
+            // d'une station s'ouvre pour « velov-station ».
             if let demo = DemoShowcase.current, demo.hasPrefix("velov") {
                 viewModel.velovElectricOnly = demo == "velov-electriques"
                 mapCameraPosition = .region(MKCoordinateRegion(center: DemoShowcase.center, span: MKCoordinateSpan(latitudeDelta: 0.006, longitudeDelta: 0.006)))
                 hasSetInitialLocation = true
-                open(.velov)
                 if demo == "velov-station" {
                     Task {
                         try? await Task.sleep(nanoseconds: 4_000_000_000)
@@ -69,6 +71,18 @@ struct ParkingMapView: View {
                 }
             }
             #endif
+            // Lien vers un parking reçu avant l'ouverture de cette carte.
+            if let parkingId = selectedParkingId {
+                pendingParkingId = parkingId
+                selectedParkingId = nil
+            }
+            viewModel.onAppear()
+            Task {
+                transitLines = (try? await TransitLineService.shared.fetchTransitLines()) ?? []
+            }
+        }
+        .onDisappear {
+            viewModel.onDisappear()
         }
         // Retour au premier plan pendant que cet onglet est affiché :
         // recharger tout de suite plutôt que d'attendre le prochain tick du timer.
@@ -85,8 +99,6 @@ struct ParkingMapView: View {
             if let parkingId = newParkingId {
                 pendingParkingId = parkingId
                 selectedParkingId = nil
-                // Lien vers un parking : la carte des parkings voiture s'ouvre sans passer par l'accueil.
-                if showChooser { open(.car) }
                 resolvePendingParking()
             }
         }
@@ -94,71 +106,6 @@ struct ParkingMapView: View {
         .onChange(of: viewModel.parcRelais) { _, _ in resolvePendingParking() }
     }
 
-    /// Ouvre la carte sur un type de stationnement.
-    private func open(_ type: ParkingType) {
-        viewModel.selectedParkingType = type
-        withAnimation(.easeInOut(duration: 0.25)) { showChooser = false }
-    }
-
-    private var mapScreen: some View {
-        ZStack {
-            mapContent
-            
-            VStack {
-                typeHeader
-                Spacer()
-            }
-            
-            overlayControls
-        }
-        .onAppear {
-            viewModel.onAppear()
-            Task {
-                transitLines = (try? await TransitLineService.shared.fetchTransitLines()) ?? []
-            }
-        }
-        .onDisappear {
-            viewModel.onDisappear()
-        }
-    }
-
-    /// Capsule en haut de la carte : le type affiché, un toucher ramène à l'accueil.
-    private var typeHeader: some View {
-        let type = viewModel.selectedParkingType
-        return HStack {
-            Button {
-                withAnimation(.easeInOut(duration: 0.25)) { showChooser = true }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    ZStack {
-                        Circle()
-                            .fill(type.color.opacity(0.16))
-                            .frame(width: 28, height: 28)
-                        Image(systemName: type.icon)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(type.color)
-                    }
-                    Text(type.title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.primary)
-                }
-                .padding(.leading, 12)
-                .padding(.trailing, 16)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial)
-                .clipShape(Capsule())
-                .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 4)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Retour à l'accueil du stationnement")
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-    }
     
     private var mapContent: some View {
         GeometryReader { geometry in
@@ -290,41 +237,23 @@ struct ParkingMapView: View {
                 
                 // Boutons à droite
                 VStack(spacing: 10) {
-                    // Bouton satellite
-                    Button {
+                    MapGlassButton(systemImage: isSatellite ? "globe.europe.africa.fill" : "globe.europe.africa",
+                                   tint: isSatellite ? Color.appWarning : Color.primary) {
                         withAnimation { isSatellite.toggle() }
-                    } label: {
-                        Image(systemName: isSatellite ? "globe.europe.africa.fill" : "globe.europe.africa")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(isSatellite ? Color.appWarning : Color.primary)
-                            .frame(width: 50, height: 50)
-                            .background(.regularMaterial)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
-                    .buttonStyle(.plain)
 
-                    // Bouton filtres (voitures et Vélo'v)
+                    // Filtres : voitures et Vélo'v seulement
                     if viewModel.selectedParkingType == .car || viewModel.selectedParkingType == .velov {
                         let hasActiveFilters = viewModel.selectedParkingType == .velov
                             ? viewModel.velovElectricOnly
                             : !viewModel.showRealtimeParkings || !viewModel.showParcRelais
-                        Button {
+                        MapGlassButton(systemImage: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle",
+                                       tint: hasActiveFilters ? Color.appAccent : Color.primary) {
                             showFilters = true
-                        } label: {
-                            Image(systemName: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundStyle(hasActiveFilters ? Color.appAccent : Color.primary)
-                                .frame(width: 50, height: 50)
-                                .background(.regularMaterial)
-                                .clipShape(Circle())
-                                .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                         }
-                        .buttonStyle(.plain)
                     }
 
-                    // Bouton localisation
-                    Button {
+                    MapGlassButton(systemImage: "location.fill", tint: Color.appAccent) {
                         if let userLocation = locationService.currentLocation {
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                                 mapCameraPosition = .region(
@@ -338,16 +267,7 @@ struct ParkingMapView: View {
                             locationService.requestPermission()
                             locationService.startUpdatingLocation()
                         }
-                    } label: {
-                        Image(systemName: "location.fill")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(Color.appAccent)
-                            .frame(width: 50, height: 50)
-                            .background(.regularMaterial)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
-                    .buttonStyle(.plain)
                 }
                 .padding(.trailing, 24)
                 .padding(.bottom, 24)
@@ -385,11 +305,9 @@ struct ParkingMapView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(.ultraThinMaterial)
-            .clipShape(Capsule())
-            .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
         }
         .buttonStyle(.plain)
+        .glassSurface(Capsule(), interactive: true)
         .padding(.leading, 24)
         .padding(.bottom, 24)
         .popover(isPresented: $showRefreshInfo, arrowEdge: .bottom) {
@@ -473,67 +391,6 @@ struct ParkingMapView: View {
             .frame(width: 260)
             .presentationCompactAdaptation(.popover)
         }
-    }
-}
-
-// MARK: - Accueil à tuiles
-
-/// Accueil de l'onglet Stationnement : une tuile par type, avec ce qu'elle montre.
-struct ParkingChooserView: View {
-    let onChoose: (ParkingType) -> Void
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Stationnement")
-                    .font(.largeTitle.bold())
-                Text("Choisissez ce que la carte doit afficher.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.bottom, 6)
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
-                    ForEach(ParkingType.allCases, id: \.self) { type in
-                        ParkingTile(type: type) { onChoose(type) }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(20)
-        }
-    }
-}
-
-private struct ParkingTile: View {
-    let type: ParkingType
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(type.color.opacity(0.16))
-                        .frame(width: 44, height: 44)
-                    Image(systemName: type.icon)
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(type.color)
-                }
-                Text(type.title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.leading)
-                Text(type.subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.leading)
-            }
-            .frame(maxWidth: .infinity, minHeight: 160, alignment: .topLeading)
-            .padding(16)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 22))
-            .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -1175,7 +1032,7 @@ struct ParkingFilterSheet: View {
 
 // MARK: - Preview
 #Preview {
-    ParkingMapView(selectedParkingId: .constant(nil))
+    ParkingMapView(parkingType: .car, selectedParkingId: .constant(nil))
 }
 
 

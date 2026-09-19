@@ -83,6 +83,10 @@ final class ParkingViewModel: ObservableObject {
     }
     
     private var currentLoadTask: Task<Void, Never>?
+
+    init(type: ParkingType = .car) {
+        selectedParkingType = type
+    }
     
     // Cache par type pour éviter de recharger
     private var parkingsCache: [ParkingType: [Parking]] = [:]

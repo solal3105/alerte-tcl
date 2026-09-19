@@ -142,36 +142,17 @@ struct TravauxMapView: View {
                 
                 // Boutons à droite
                 VStack(spacing: 10) {
-                    // Bouton satellite
-                    Button {
+                    MapGlassButton(systemImage: isSatellite ? "globe.europe.africa.fill" : "globe.europe.africa",
+                                   tint: isSatellite ? Color.appWarning : Color.primary) {
                         withAnimation { isSatellite.toggle() }
-                    } label: {
-                        Image(systemName: isSatellite ? "globe.europe.africa.fill" : "globe.europe.africa")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(isSatellite ? Color.appWarning : Color.primary)
-                            .frame(width: 50, height: 50)
-                            .background(.regularMaterial)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
-                    .buttonStyle(.plain)
 
-                    // Bouton filtres
-                    Button {
+                    MapGlassButton(systemImage: viewModel.hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle",
+                                   tint: viewModel.hasActiveFilters ? Color.appWarning : Color.primary) {
                         showFilters = true
-                    } label: {
-                        Image(systemName: viewModel.hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(viewModel.hasActiveFilters ? Color.appWarning : Color.primary)
-                            .frame(width: 50, height: 50)
-                            .background(.regularMaterial)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
-                    .buttonStyle(.plain)
 
-                    // Bouton localisation
-                    Button {
+                    MapGlassButton(systemImage: "location.fill", tint: Color.appAccent) {
                         if let userLocation = locationService.currentLocation {
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                                 mapCameraPosition = .region(
@@ -185,16 +166,7 @@ struct TravauxMapView: View {
                             locationService.requestPermission()
                             locationService.startUpdatingLocation()
                         }
-                    } label: {
-                        Image(systemName: "location.fill")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(Color.appAccent)
-                            .frame(width: 50, height: 50)
-                            .background(.regularMaterial)
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
                     }
-                    .buttonStyle(.plain)
                 }
                 .padding(.trailing, 24)
                 .padding(.bottom, 24)

@@ -15,35 +15,29 @@ struct ContentView: View {
                 .tag(0)
                 .environmentObject(viewModel)
             
-            TravauxMapView()
+            CityView(selectedParkingId: $selectedParkingId)
                 .tabItem {
-                    Label("Travaux", systemImage: "hammer.fill")
+                    Label("Ville", systemImage: "building.2.fill")
                 }
                 .tag(1)
-            
-            ParkingMapView(selectedParkingId: $selectedParkingId)
-                .tabItem {
-                    Label("Stationnement", systemImage: "parkingsign")
-                }
-                .tag(2)
 
             AboutView()
                 .tabItem {
                     Label("Info", systemImage: "info.circle.fill")
                 }
-                .tag(3)
+                .tag(2)
         }
         .tint(.primary)
         .tabViewStyle(.automatic)
         .onAppear {
             #if DEBUG
-            // Mode démo « velov… » ou « stationnement » : l'onglet Stationnement s'ouvre de lui-même.
-            if let demo = DemoShowcase.current, demo.hasPrefix("velov") || demo == "stationnement" { selectedTab = 2 }
+            // Mode démo « velov… » ou « ville » : l'onglet Ville s'ouvre de lui-même.
+            if let demo = DemoShowcase.current, demo.hasPrefix("velov") || demo == "ville" { selectedTab = 1 }
             #endif
         }
         .onChange(of: selectedParkingId) { _, newParkingId in
             if newParkingId != nil {
-                selectedTab = 2
+                selectedTab = 1
             }
         }
         .onChange(of: scenePhase) { _, phase in

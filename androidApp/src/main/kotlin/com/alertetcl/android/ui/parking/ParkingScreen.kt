@@ -14,7 +14,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,7 +23,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.systemBars
@@ -33,7 +31,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
@@ -46,7 +43,6 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Navigation
-import androidx.compose.material.icons.filled.PedalBike
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
@@ -75,7 +71,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -138,23 +133,13 @@ private const val VELOV_LAYER     = "velov-layer"
 
 @OptIn(ExperimentalMaterial3Api::class, kotlinx.coroutines.FlowPreview::class)
 @Composable
-fun ParkingScreen() {
-    val vm = remember { ParkingViewModel() }
+/** Carte d'un jeu de stationnement (`type`), ouverte depuis l'accueil de l'onglet Ville. */
+fun ParkingScreen(type: ParkingType) {
+    val vm = remember { ParkingViewModel().apply { setType(type) } }
     val context = LocalContext.current
     val store = remember { FavoritesStore(context) }
     val scope = rememberCoroutineScope()
     DisposableEffect(Unit) { onDispose { vm.dispose() } }
-
-    // Écran d'accueil à tuiles tant qu'aucun type n'est choisi ; la carte ensuite. En démo « velov… »,
-    // la carte s'ouvre directement sur les stations.
-    var chosenTypeName by rememberSaveable {
-        mutableStateOf(if (DemoShowcase.current?.startsWith("velov") == true) ParkingType.VELOV.name else null)
-    }
-    val chosenType = chosenTypeName?.let { ParkingType.valueOf(it) }
-    if (chosenType == null) {
-        ParkingChooser(onChoose = { vm.setType(it); chosenTypeName = it.name })
-        return
-    }
 
     val parkings by vm.parkings.collectAsState()
     // Deduplication: if a P+R and a regular car parking share the same name,
@@ -191,8 +176,8 @@ fun ParkingScreen() {
     val isLive = isCarSelected || isVelovSelected
     val currentRegion = remember { mutableStateOf<GeoRegion?>(null) }
 
-    // Mode démo « velov… » : le type Vélo'v est sélectionné, la carte centrée sur la scène place Bellecour,
-    // puis la fiche s'ouvre pour « velov-station ».
+    // Mode démo « velov… » : la carte est centrée sur la scène place Bellecour, puis la fiche s'ouvre
+    // pour « velov-station ».
     if (DemoShowcase.isActive) {
         LaunchedEffect(mapLibreMap) {
             if (DemoShowcase.current?.startsWith("velov") == true) {
@@ -203,7 +188,6 @@ fun ParkingScreen() {
             val demo = DemoShowcase.current ?: return@LaunchedEffect
             if (demo.startsWith("velov")) {
                 store.setVelovElectricOnly(demo == "velov-electriques")
-                vm.setType(ParkingType.VELOV)
                 if (demo == "velov-station") {
                     kotlinx.coroutines.delay(6_000)
                     selectedVelov = DemoShowcase.velovStations().first()
@@ -318,11 +302,8 @@ fun ParkingScreen() {
             currentRegion.value?.let { vm.loadInRegion(it) }
         }
 
-        // En haut : ce que la carte montre, et le retour à l'accueil ; indicateur de chargement.
-        Column(modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp)) {
-            if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            ParkingTypeHeader(type = chosenType, modifier = Modifier.padding(top = 8.dp), onBack = { chosenTypeName = null })
-        }
+        // Indicateur de chargement au bord haut ; la capsule de retour est posée par l'onglet Ville.
+        if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
 
         // Bottom-right FABs (parité iOS) : satellite, filtres (voitures et Vélo'v), position
         Column(
@@ -899,76 +880,6 @@ private fun ParkingInfoRow(icon: ImageVector, label: String, value: String) {
         Column(modifier = Modifier.weight(1f)) {
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(value, style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-}
-
-
-private fun parkingTypeIcon(type: ParkingType) = when (type) {
-    ParkingType.CAR           -> Icons.Filled.DirectionsCar
-    ParkingType.BIKE          -> Icons.Filled.DirectionsBike
-    ParkingType.MOTORIZED_2W  -> Icons.Filled.TwoWheeler
-    ParkingType.VELOV         -> Icons.Filled.PedalBike
-}
-
-/** Accueil de l'onglet : une tuile par type de stationnement, avec ce qu'elle montre. */
-@Composable
-private fun ParkingChooser(onChoose: (ParkingType) -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Text("Stationnement", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("Choisissez ce que la carte doit afficher.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(4.dp))
-        ParkingType.entries.chunked(2).forEach { row ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                row.forEach { type -> ParkingTile(type, Modifier.weight(1f)) { onChoose(type) } }
-            }
-        }
-        Spacer(Modifier.height(96.dp))
-    }
-}
-
-@Composable
-private fun ParkingTile(type: ParkingType, modifier: Modifier, onClick: () -> Unit) {
-    val accent = Tokens.parkingType(type)
-    Surface(
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-        modifier = modifier.heightIn(min = 160.dp).clickable { onClick() }
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(modifier = Modifier.size(44.dp).clip(CircleShape).background(accent.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-                Icon(parkingTypeIcon(type), null, tint = accent, modifier = Modifier.size(24.dp))
-            }
-            Text(type.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(type.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-/** Capsule en haut de la carte : le type affiché, un toucher ramène à l'accueil. */
-@Composable
-private fun ParkingTypeHeader(type: ParkingType, modifier: Modifier, onBack: () -> Unit) {
-    val accent = Tokens.parkingType(type)
-    Surface(
-        shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-        tonalElevation = 4.dp,
-        shadowElevation = 4.dp,
-        modifier = modifier.clickable { onBack() }
-    ) {
-        Row(
-            modifier = Modifier.padding(start = 10.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour à l'accueil du stationnement", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-            Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(accent.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-                Icon(parkingTypeIcon(type), null, tint = accent, modifier = Modifier.size(16.dp))
-            }
-            Text(type.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
         }
     }
 }

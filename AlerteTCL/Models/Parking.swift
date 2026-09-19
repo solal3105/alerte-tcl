@@ -2,8 +2,8 @@ import Foundation
 import CoreLocation
 import SwiftUI
 
-/// Ce que l'onglet Stationnement peut montrer ; l'ordre des cas est celui des tuiles de l'accueil.
-/// Les textes viennent du module partagé (`ParkingType.title` / `subtitle`), identiques sur Android.
+/// Les jeux de données de stationnement ; les textes affichés sont ceux des tuiles de l'onglet Ville
+/// (`CityTile`, module partagé).
 enum ParkingType: String, Codable, CaseIterable {
     case car = "Voiture"
     /// Stations Vélo'v en libre-service : pas un jeu GeoServer, servies par le module partagé.
@@ -19,9 +19,6 @@ enum ParkingType: String, Codable, CaseIterable {
         case .velov: return "figure.outdoor.cycle"
         }
     }
-
-    var title: String { shared.title }
-    var subtitle: String { shared.subtitle }
 
 }
 

@@ -2,6 +2,7 @@ package com.alertetcl.shared.design
 
 import com.alertetcl.shared.models.AlertSeverity
 import com.alertetcl.shared.models.AvailabilityColor
+import com.alertetcl.shared.models.CityTile
 import com.alertetcl.shared.models.ParkingType
 import com.alertetcl.shared.models.TransportMode
 import com.alertetcl.shared.models.TravauxAvancement
@@ -108,6 +109,9 @@ object AppColors {
         ParkingType.MOTORIZED_2W -> warning
         ParkingType.VELOV -> velov
     }
+
+    /** Couleur d'une tuile de l'onglet Ville : celle de son type de stationnement, orange pour les chantiers. */
+    fun cityTile(tile: CityTile): ThemedColor = tile.parkingType?.let { parkingType(it) } ?: warning
 
     // ── Travaux ─────────────────────────────────────────────────────────────
     /** Importance d'un chantier ; `null` quand elle n'est pas renseignée (couleur neutre de la plateforme). */

@@ -26,8 +26,8 @@ import Shared
 ///   alertes-ligne fiche d'une ligne abonnée (C12) depuis cet écran
 ///   alertes-options feuille « Options de notification » de cette ligne
 ///   filtres       feuille des filtres de la carte (lignes aux couleurs officielles)
-///   stationnement accueil à tuiles de l'onglet Stationnement
-///   velov         onglet Stationnement, carte des stations Vélo'v
+///   ville         accueil à tuiles de l'onglet Ville
+///   velov         onglet Ville, carte des stations Vélo'v
 ///   velov-electriques  les mêmes, en ne comptant que les vélos électriques
 ///   velov-station fiche d'une station Vélo'v
 enum DemoShowcase {

@@ -53,7 +53,7 @@ class ParkingService {
             mutex.withLock { simpleCache[type] }?.let { (parkings, ts) ->
                 val age = Clock.System.now().epochSeconds - ts
                 if (age < simpleCacheValiditySeconds) {
-                    AppLogger.debug("ParkingService cache hit ${type.title}")
+                    AppLogger.debug("ParkingService cache hit ${type.name}")
                     return parkings
                 }
             }
