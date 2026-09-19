@@ -159,8 +159,13 @@ import com.alertetcl.shared.models.Vehicle
 import com.alertetcl.shared.models.ApproachingVehicle
 import com.alertetcl.shared.models.LineTimetable
 import com.alertetcl.shared.models.StopApproach
+import com.alertetcl.shared.models.StopPassages
+import com.alertetcl.shared.models.PassageGroup
 import com.alertetcl.shared.design.AppColors
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.draw.rotate
+import androidx.compose.material.icons.filled.ExpandMore
 import com.alertetcl.android.ui.components.LineBadge
 import com.alertetcl.android.ui.theme.Tokens
 import com.alertetcl.android.ui.theme.compose
@@ -1386,7 +1391,6 @@ private fun WikimediaPhoto(url: String, modifier: Modifier = Modifier, contentSc
 
 // ── Bottom-sheet helpers ─────────────────────────────────────────────────
 
-private data class LineDirectionKey(val line: String, val direction: String)
 
 @Composable
 private fun MergedStopDetailSheet(
@@ -1403,9 +1407,11 @@ private fun MergedStopDetailSheet(
     val context = LocalContext.current
     // Terminus par ligne et sens, pour déduire le sens d'une destination affichée.
     val termini by produceState(initialValue = emptyMap<String, String>()) { value = runCatching { LineTermini.all() }.getOrDefault(emptyMap()) }
-    // Ordre des arrêts de chaque ligne et sens affichés, chargé une fois par fiche ouverte (« où est mon bus »).
-    val timetables = remember(stop.id) { mutableStateMapOf<LineDirectionKey, LineTimetable>() }
-    val timetableLookups = remember(stop.id) { mutableSetOf<LineDirectionKey>() }
+    // Ordre des arrêts de chaque sens affiché, chargé une fois par fiche ouverte (« où est mon bus ») ; clé `PassageGroup.key`.
+    val timetables = remember(stop.id) { mutableStateMapOf<String, LineTimetable>() }
+    val timetableLookups = remember(stop.id) { mutableSetOf<String>() }
+    // Sens dépliés dans la liste des prochains passages.
+    val expandedGroups = remember(stop.id) { mutableStateListOf<String>() }
     var passagesKey by remember(stop.id) { mutableStateOf(0) }
     var passagesHadError by remember(stop.id) { mutableStateOf(false) }
     val passages = produceState<List<Passage>?>(initialValue = null, stop.id, passagesKey) {
@@ -1440,28 +1446,23 @@ private fun MergedStopDetailSheet(
             passagesKey++
         }
     }
-    // Un groupe par ligne et par sens réel : les graphies d'une même destination sont ramenées au terminus officiel.
+    // Un groupe par ligne et par sens réel (module partagé) : le sens vient du quai du passage, le
+    // terminus du sens ; une rame qui s'arrête avant reste dans son sens.
     val groupedPassages = remember(passages.value, termini) {
-        val list = passages.value ?: return@remember emptyList<Pair<LineDirectionKey, List<Passage>>>()
-        list.groupBy { LineDirectionKey(it.ligne, DirectionMatching.canonicalDestination(it.ligne, it.direction, termini)) }
-            .toList()
-            .sortedWith(
-                compareBy<Pair<LineDirectionKey, List<Passage>>> {
-                    TransportMode.detectFromLine(it.first.line).sortOrder
-                }.thenBy { it.first.line }.thenBy { it.first.direction }
-            )
+        val list = passages.value ?: return@remember emptyList<PassageGroup>()
+        StopPassages.group(list, stop.stops.associate { it.id to it.desserte }, termini)
     }
     LaunchedEffect(groupedPassages, termini) {
-        for ((key, _) in groupedPassages) {
-            if (!timetableLookups.add(key)) continue
+        for (group in groupedPassages) {
+            if (!timetableLookups.add(group.key)) continue
             launch {
                 runCatching {
-                    TimetableService.shared.findForStop(key.line, key.direction, stop.stops.map { it.id }.toSet(), stop.nom, termini)
-                }.getOrNull()?.let { timetables[key] = it }
+                    TimetableService.shared.findForStop(group.line, group.terminus, stop.stops.map { it.id }.toSet(), stop.nom, termini)
+                }.getOrNull()?.let { timetables[group.key] = it }
             }
         }
     }
-    val timetableSnapshot = timetables.toMap()
+    val timetableSnapshot: Map<String, LineTimetable> = timetables.toMap()
     val approaches = remember(vehicles, timetableSnapshot) {
         val nowMs = System.currentTimeMillis()
         timetableSnapshot.mapValues { (_, timetable) ->
@@ -1515,20 +1516,10 @@ private fun MergedStopDetailSheet(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Icon(
-                    Icons.Filled.AccessTime, null,
-                    tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp)
-                )
-                Text("Prochains passages", fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
-                    color = MaterialTheme.colorScheme.primary)
-            }
-            IconButton(onClick = { passagesKey++ }, modifier = Modifier.size(28.dp)) {
+            Text("Prochains passages", fontWeight = FontWeight.Bold, fontSize = 22.sp)
+            IconButton(onClick = { passagesKey++ }, modifier = Modifier.size(32.dp)) {
                 Icon(Icons.Filled.Refresh, "Rafraîchir les passages",
-                    tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                    tint = Tokens.accent, modifier = Modifier.size(18.dp))
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -1578,93 +1569,116 @@ private fun MergedStopDetailSheet(
                 }
             }
             else -> {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    groupedPassages.forEach { (key, list) ->
-                        LinePassagesCard(
-                            line = key.line, direction = key.direction, passages = list,
-                            approaching = approaches[key].orEmpty(),
-                            approachKnown = timetables[key] != null,
-                            onLocate = { approach -> vehicles.firstOrNull { it.id == approach.vehicle.id }?.let(onLocateVehicle) },
-                            onShowOnMap = {
-                                onFocus(
-                                    StopLineFocus(
-                                        line = key.line,
-                                        direction = DirectionMatching.resolveDirection(key.line, key.direction, termini),
-                                        destination = key.direction,
-                                        stopName = stop.nom,
-                                        latitude = stop.latitude,
-                                        longitude = stop.longitude
+                // Une ligne par sens, dans une carte sobre ; un toucher déplie les détails du sens.
+                Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        groupedPassages.forEachIndexed { index, group ->
+                            if (index > 0) HorizontalDivider()
+                            PassageGroupRow(
+                                group = group,
+                                expanded = group.key in expandedGroups,
+                                approaching = approaches[group.key].orEmpty(),
+                                approachKnown = timetables[group.key] != null,
+                                onToggle = { if (group.key in expandedGroups) expandedGroups.remove(group.key) else expandedGroups.add(group.key) },
+                                onLocate = { approach -> vehicles.firstOrNull { it.id == approach.vehicle.id }?.let(onLocateVehicle) },
+                                onShowOnMap = {
+                                    onFocus(
+                                        StopLineFocus(
+                                            line = group.line,
+                                            direction = group.directionCode,
+                                            destination = group.terminus,
+                                            stopName = stop.nom,
+                                            latitude = stop.latitude,
+                                            longitude = stop.longitude
+                                        )
                                     )
-                                )
-                            },
-                            onShowTimetable = {
-                                onTimetable(TimetableStart.ForStop(key.line, key.direction, stop.stops.map { it.id }.toSet(), stop.nom))
-                            }
-                        )
+                                },
+                                onShowTimetable = {
+                                    onTimetable(TimetableStart.ForStop(group.line, group.terminus, stop.stops.map { it.id }.toSet(), stop.nom))
+                                }
+                            )
+                        }
                     }
                 }
+                Text(
+                    "Un point vert marque un passage suivi en direct ; les autres suivent l'horaire prévu.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp)
+                )
             }
         }
         Spacer(Modifier.height(16.dp))
     }
 }
 
+/**
+ * Un sens d'une ligne à cet arrêt : le terminus, les trois prochains passages, et au toucher les
+ * détails (où est mon bus, voir sur la carte, tous les horaires). Parité iOS `PassageGroupRow`.
+ */
 @Composable
-private fun LinePassagesCard(
-    line: String,
-    direction: String,
-    passages: List<Passage>,
-    /** « Où est mon bus » : véhicules de ce sens qui n'ont pas encore atteint l'arrêt, les plus proches d'abord. */
-    approaching: List<ApproachingVehicle> = emptyList(),
-    /** Vrai quand l'ordre des arrêts du sens est connu : sans bus en approche, la carte le dit au lieu de se taire. */
-    approachKnown: Boolean = false,
-    onLocate: ((ApproachingVehicle) -> Unit)? = null,
-    onShowOnMap: (() -> Unit)? = null,
-    onShowTimetable: (() -> Unit)? = null
+private fun PassageGroupRow(
+    group: PassageGroup,
+    expanded: Boolean,
+    approaching: List<ApproachingVehicle>,
+    approachKnown: Boolean,
+    onToggle: () -> Unit,
+    onLocate: (ApproachingVehicle) -> Unit,
+    onShowOnMap: () -> Unit,
+    onShowTimetable: () -> Unit
 ) {
-    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp, shadowElevation = 1.dp,
-        modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                LineBadge(line, size = 32.dp, fontSize = 13.sp)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Direction", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(direction, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 2)
-                }
-            }
-            Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                passages.take(4).forEach { p -> PassageChip(p) }
-            }
-            if (passages.take(4).any { it.isTheoretical }) {
-                Text(
-                    "Les horaires en gris sont théoriques : le véhicule n'est pas suivi en direct, vérifiez les alertes en cas de perturbation.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (approaching.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Où est mon bus", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    approaching.forEach { approach ->
-                        ApproachRow(approach = approach, line = line, onLocate = onLocate?.let { locate -> { locate(approach) } })
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { onToggle() },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            LineBadge(group.line, size = 32.dp, fontSize = 13.sp)
+            Text(group.terminus, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Icon(
+                Icons.Filled.ExpandMore, null, tint = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.size(20.dp).rotate(if (expanded) 180f else 0f)
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.Top) {
+            group.passages.take(3).forEachIndexed { index, p -> PassageCell(p, first = index == 0, shortDestination = group.shortDestination(p)) }
+        }
+        if (expanded) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 2.dp)) {
+                if (approaching.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Où est mon bus", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        approaching.forEach { approach ->
+                            ApproachRow(approach = approach, line = group.line, onLocate = { onLocate(approach) })
+                        }
                     }
-                }
-            } else if (approachKnown && TransportMode.detectFromLine(line).showOnMapLabel != null) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Où est mon bus", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                } else if (approachKnown && TransportMode.detectFromLine(group.line).showOnMapLabel != null) {
                     Text(StopApproach.NONE_APPROACHING, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-            }
-            if (onShowOnMap != null || onShowTimetable != null) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val showOnMapLabel = TransportMode.detectFromLine(line).showOnMapLabel
-                    if (onShowOnMap != null && showOnMapLabel != null) CardActionButton(showOnMapLabel, Icons.Filled.Map, Modifier.weight(1f), onShowOnMap)
-                    if (onShowTimetable != null) CardActionButton("Tous les horaires", Icons.Filled.CalendarMonth, Modifier.weight(1f), onShowTimetable)
+                    val showOnMapLabel = TransportMode.detectFromLine(group.line).showOnMapLabel
+                    if (showOnMapLabel != null) CardActionButton(showOnMapLabel, Icons.Filled.Map, Modifier.weight(1f), onShowOnMap)
+                    CardActionButton("Tous les horaires", Icons.Filled.CalendarMonth, Modifier.weight(1f), onShowTimetable)
                 }
             }
+        }
+    }
+}
+
+/** Délai en chiffres, point vert quand le véhicule est suivi en direct, destination courte s'il ne va pas au terminus. */
+@Composable
+private fun PassageCell(p: Passage, first: Boolean, shortDestination: String?) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            if (p.isRealTime) Box(Modifier.size(6.dp).background(Tokens.success, CircleShape))
+            Text(
+                p.delaipassage.ifBlank { "--" },
+                fontSize = if (first) 17.sp else 15.sp,
+                fontWeight = if (first) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (first) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (shortDestination != null) {
+            Text("jusqu'à $shortDestination", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }
 }
@@ -1848,20 +1862,6 @@ private fun fitCamera(map: MapLibreMap?, points: List<LatLng>) {
     val bounds = LatLngBounds.Builder().apply { points.forEach { include(it) } }.build()
     val paddingPx = (56 * android.content.res.Resources.getSystem().displayMetrics.density).toInt()
     m.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, paddingPx))
-}
-
-@Composable
-/** Délai en grand, heure en dessous ; fond vert pâle et chiffre vert quand le véhicule est suivi en direct. */
-private fun PassageChip(p: Passage) {
-    val bg = if (p.isRealTime) Tokens.success.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant
-    val accent = if (p.isRealTime) Tokens.success else MaterialTheme.colorScheme.onSurface
-    Surface(shape = RoundedCornerShape(12.dp), color = bg, modifier = Modifier.widthIn(min = 58.dp)) {
-        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(p.delaipassage.ifBlank { "--" }, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
-            Text(p.formattedTime, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
 }
 
 // ── Traffic Banner / Live Indicator / Filter Sheet ──────────────────────

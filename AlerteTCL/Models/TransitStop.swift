@@ -71,6 +71,11 @@ struct Passage: Identifiable, Hashable, Codable {
         type == "E"
     }
 
+    /// Le même passage pour le module partagé (regroupement par sens, « où est mon bus »).
+    var shared: Shared.Passage {
+        Shared.Passage(stopId: Int32(stopId), ligne: ligne, direction: direction, delaipassage: delaipassage, heurepassage: heurepassage, type: type)
+    }
+
     var isTheoretical: Bool {
         type == "T"
     }

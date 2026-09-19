@@ -43,107 +43,112 @@ struct LineBadge: View {
     }
 }
 
-// MARK: - Line Passages Card
+// MARK: - Prochains passages : une ligne par sens
 
-struct LinePassagesCard: View {
-    let line: String
-    let direction: String
-    let passages: [Passage]
+/// Un sens d'une ligne à cet arrêt : le terminus, les trois prochains passages, et au toucher les
+/// détails (où est mon bus, voir sur la carte, tous les horaires).
+struct PassageGroupRow: View {
+    let group: PassageGroup
+    let expanded: Bool
     /// « Où est mon bus » : véhicules de ce sens qui n'ont pas encore atteint l'arrêt, les plus proches d'abord.
     var approaching: [ApproachingVehicle] = []
-    /// Vrai quand l'ordre des arrêts du sens est connu : sans bus en approche, la carte le dit au lieu de se taire.
+    /// Vrai quand l'ordre des arrêts du sens est connu : sans bus en approche, la ligne le dit au lieu de se taire.
     var approachKnown: Bool = false
-    /// Montre sur la carte les véhicules de cette ligne dans ce sens.
+    let onToggle: () -> Void
     var onShowOnMap: (() -> Void)? = nil
-    /// Ouvre la fiche horaire théorique de cette ligne à cet arrêt.
     var onShowTimetable: (() -> Void)? = nil
-    /// Cadre la carte sur un véhicule en approche.
     var onLocate: ((ApproachingVehicle) -> Void)? = nil
-    
-    private var bgColor: Color {
-        LineColorHelper.backgroundColor(for: line)
-    }
-    
+
+    private var lineColor: Color { LineColorHelper.backgroundColor(for: group.line) }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Ligne header
-            HStack {
-                LineBadge(line: line, size: 14)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Direction")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text(direction)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
+        VStack(alignment: .leading, spacing: 10) {
+            Button(action: onToggle) {
+                HStack(spacing: 12) {
+                    LineBadge(line: group.line, size: 14)
+                    Text(group.terminus)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
                 }
-                
-                Spacer()
+                .contentShape(Rectangle())
             }
-            
-            // Liste des passages
-            HStack(spacing: 8) {
-                ForEach(passages.prefix(4)) { passage in
-                    PassageChip(passage: passage)
+            .buttonStyle(.plain)
+
+            HStack(alignment: .top, spacing: 18) {
+                ForEach(Array(group.passages.prefix(3).enumerated()), id: \.element.id) { index, passage in
+                    passageCell(passage, first: index == 0)
                 }
+                Spacer(minLength: 0)
             }
 
-            if passages.prefix(4).contains(where: { $0.isTheoretical }) {
-                Text("Les horaires sans pastille verte sont théoriques : le véhicule n'est pas suivi en direct, vérifiez les alertes en cas de perturbation.")
+            if expanded {
+                details
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(.vertical, 14)
+        .animation(.easeInOut(duration: 0.2), value: expanded)
+    }
+
+    /// Délai en chiffres, point vert quand le véhicule est suivi en direct, destination courte s'il ne va pas au terminus.
+    private func passageCell(_ passage: Shared.Passage, first: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 5) {
+                if passage.isRealTime {
+                    Circle().fill(Color.appSuccess).frame(width: 6, height: 6)
+                }
+                Text(passage.delaipassage)
+                    .font(.system(size: first ? 17 : 15, weight: first ? .semibold : .regular, design: .rounded))
+                    .foregroundStyle(first ? Color.primary : Color.secondary)
+                    .monospacedDigit()
+            }
+            if let short = group.shortDestination(passage: passage) {
+                Text("jusqu'à \(short)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+        }
+    }
 
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 12) {
             if !approaching.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Où est mon bus")
                         .font(.subheadline.weight(.semibold))
                     ForEach(approaching, id: \.vehicle.id) { approach in
-                        ApproachRow(
-                            approach: approach,
-                            lineColor: bgColor,
-                            onLocate: onLocate.map { locate in { locate(approach) } }
-                        )
+                        ApproachRow(approach: approach, lineColor: lineColor,
+                                    onLocate: onLocate.map { locate in { locate(approach) } })
                     }
                 }
-            } else if approachKnown, TransportMode.detectFromLine(line).shared.showOnMapLabel != nil {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Où est mon bus")
-                        .font(.subheadline.weight(.semibold))
-                    Text(StopApproach.shared.NONE_APPROACHING)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+            } else if approachKnown, TransportMode.detectFromLine(group.line).shared.showOnMapLabel != nil {
+                Text(StopApproach.shared.NONE_APPROACHING)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
-
-            if onShowOnMap != nil || onShowTimetable != nil {
-                HStack(spacing: 8) {
-                    if let onShowOnMap, let label = TransportMode.detectFromLine(line).shared.showOnMapLabel {
-                        cardAction(label, icon: "map", action: onShowOnMap)
-                    }
-                    if let onShowTimetable {
-                        cardAction("Tous les horaires", icon: "calendar", action: onShowTimetable)
-                    }
+            HStack(spacing: 8) {
+                if let onShowOnMap, let label = TransportMode.detectFromLine(group.line).shared.showOnMapLabel {
+                    action(label, icon: "map", perform: onShowOnMap)
+                }
+                if let onShowTimetable {
+                    action("Tous les horaires", icon: "calendar", perform: onShowTimetable)
                 }
             }
         }
-        .padding(16)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(bgColor.opacity(0.2), lineWidth: 1)
-        )
-        .shadow(color: bgColor.opacity(0.1), radius: 6, x: 0, y: 2)
+        .padding(.top, 2)
     }
-}
 
-extension LinePassagesCard {
-    /// Action de la carte : un lien sobre à l'accent, pictogramme puis texte, sans fond.
-    private func cardAction(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+    /// Action de la ligne : un lien sobre à l'accent, pictogramme puis texte, sans fond.
+    private func action(_ title: String, icon: String, perform: @escaping () -> Void) -> some View {
+        Button(action: perform) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: .semibold))
@@ -228,29 +233,6 @@ struct ApproachRow: View {
 
 // MARK: - Passage Chip
 
-struct PassageChip: View {
-    let passage: Passage
-
-    /// Délai en grand, heure en dessous ; fond vert pâle et chiffre vert quand le véhicule est suivi en direct.
-    var body: some View {
-        VStack(spacing: 3) {
-            Text(passage.delaipassage)
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(passage.isRealTime ? Color.appSuccess : Color.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Text(passage.formattedTime)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-        }
-        .frame(minWidth: 58)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(passage.isRealTime ? Color.appSuccess.opacity(0.14) : Color.appNeutralFill.opacity(0.6),
-                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-}
-
 // MARK: - Merged Stop Detail Sheet (affiche les passages de TOUS les arrêts fusionnés)
 
 struct MergedStopDetailSheet: View {
@@ -270,44 +252,25 @@ struct MergedStopDetailSheet: View {
     /// Terminus par ligne et sens, pour déduire le sens d'une destination affichée.
     @State private var termini: [String: String] = [:]
     @State private var timetableRequest: StopTimetableRequest?
-    /// Fiches horaires par ligne et sens (l'ordre des arrêts), chargées une fois par fiche ouverte.
-    @State private var timetables: [LineDirectionKey: LineTimetable] = [:]
-    @State private var timetableLookups: Set<LineDirectionKey> = []
-    @State private var approaches: [LineDirectionKey: [ApproachingVehicle]] = [:]
-    
-    /// Clé unique pour grouper par ligne ET direction
-    private struct LineDirectionKey: Hashable {
-        let line: String
-        let direction: String
-    }
+    /// Fiches horaires par sens (l'ordre des arrêts), chargées une fois par fiche ouverte ; clé `PassageGroup.key`.
+    @State private var timetables: [String: LineTimetable] = [:]
+    @State private var timetableLookups: Set<String> = []
+    @State private var approaches: [String: [ApproachingVehicle]] = [:]
+    /// Sens dépliés dans la liste des prochains passages.
+    @State private var expandedGroups: Set<String> = []
     
     private var availableLineDirections: [WidgetLineDirection] {
-        sortedLineDirections.map { key in
-            let stopId = passagesByLineDirection[key]?.first?.stopId ?? mergedStop.stops[0].id
-            return WidgetLineDirection(stopId: stopId, line: key.line, direction: key.direction, terminusName: key.direction)
+        passageGroups.map { group in
+            let stopId = group.passages.first.map { Int($0.stopId) } ?? mergedStop.stops[0].id
+            return WidgetLineDirection(stopId: stopId, line: group.line, direction: group.terminus, terminusName: group.terminus)
         }
     }
     
-    /// Un groupe par ligne et par sens réel : les graphies d'une même destination sont ramenées au terminus officiel.
-    private var passagesByLineDirection: [LineDirectionKey: [Passage]] {
-        Dictionary(grouping: allPassages) {
-            LineDirectionKey(line: $0.ligne,
-                             direction: DirectionMatching.shared.canonicalDestination(line: $0.ligne, destination: $0.direction, termini: termini))
-        }
-    }
-    
-    private var sortedLineDirections: [LineDirectionKey] {
-        passagesByLineDirection.keys.sorted { key1, key2 in
-            let mode1 = TransportMode.detectFromLine(key1.line)
-            let mode2 = TransportMode.detectFromLine(key2.line)
-            if mode1.sortOrder != mode2.sortOrder {
-                return mode1.sortOrder < mode2.sortOrder
-            }
-            if key1.line != key2.line {
-                return key1.line < key2.line
-            }
-            return key1.direction < key2.direction
-        }
+    /// Un groupe par ligne et par sens réel (module partagé) : le sens vient du quai du passage, le
+    /// terminus du sens ; une rame qui s'arrête avant reste dans son sens.
+    private var passageGroups: [PassageGroup] {
+        let dessertes = Dictionary(uniqueKeysWithValues: mergedStop.stops.map { (KotlinInt(value: Int32($0.id)), $0.desserte) })
+        return StopPassages.shared.group(passages: allPassages.map(\.shared), dessertes: dessertes, termini: termini)
     }
     
     var body: some View {
@@ -348,8 +311,8 @@ struct MergedStopDetailSheet: View {
                 await loadAllPassages()
                 #if DEBUG
                 // Modes démo « horaires-arret » / « horaires-course » : ouvrir la fiche horaire de la première ligne.
-                if ["horaires-arret", "horaires-course"].contains(DemoShowcase.current ?? ""), timetableRequest == nil, let key = sortedLineDirections.first {
-                    timetableRequest = timetableRequest(for: key)
+                if ["horaires-arret", "horaires-course"].contains(DemoShowcase.current ?? ""), timetableRequest == nil, let group = passageGroups.first {
+                    timetableRequest = timetableRequest(for: group)
                 }
                 #endif
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
@@ -405,16 +368,16 @@ struct MergedStopDetailSheet: View {
     /// Charge l'ordre des arrêts de chaque ligne et sens affichés (une seule requête par sens, gardée en cache).
     private func loadTimetablesIfNeeded() {
         guard !termini.isEmpty || !allPassages.isEmpty else { return }
-        for key in sortedLineDirections where !timetableLookups.contains(key) {
-            timetableLookups.insert(key)
+        for group in passageGroups where !timetableLookups.contains(group.key) {
+            timetableLookups.insert(group.key)
             Task { @MainActor in
                 let timetable = try? await TimetableService.companion.shared.findForStopIds(
-                    line: key.line, destination: key.direction,
+                    line: group.line, destination: group.terminus,
                     stopIds: mergedStop.stops.map { KotlinInt(value: Int32($0.id)) },
                     stopName: mergedStop.nom, termini: termini
                 )
                 if let timetable {
-                    timetables[key] = timetable
+                    timetables[group.key] = timetable
                     recomputeApproaches()
                 }
             }
@@ -424,11 +387,11 @@ struct MergedStopDetailSheet: View {
     /// « Où est mon bus » : recalculé à chaque réception de positions, pour les sens dont l'ordre des arrêts est connu.
     private func recomputeApproaches() {
         guard !timetables.isEmpty else { return }
-        let lines = Set(timetables.keys.map(\.line))
+        let lines = Set(timetables.values.map(\.line))
         let candidates = liveVM.vehicles.filter { lines.contains($0.lineName) }.map(\.shared)
         let stopIds = mergedStop.stops.map { KotlinInt(value: Int32($0.id)) }
         let now = Int64(Date().timeIntervalSince1970 * 1000)
-        var result: [LineDirectionKey: [ApproachingVehicle]] = [:]
+        var result: [String: [ApproachingVehicle]] = [:]
         for (key, timetable) in timetables {
             let list = StopApproach.shared.approaching(
                 vehicles: candidates, timetable: timetable, stopIds: stopIds, stopName: mergedStop.nom,
@@ -444,11 +407,11 @@ struct MergedStopDetailSheet: View {
         onLocateVehicle(vehicle)
     }
 
-    private func stopLineFocus(for key: LineDirectionKey) -> StopLineFocus {
+    private func stopLineFocus(for group: PassageGroup) -> StopLineFocus {
         StopLineFocus(
-            line: key.line,
-            direction: DirectionMatching.shared.resolveDirection(line: key.line, destination: key.direction, termini: termini),
-            destination: key.direction,
+            line: group.line,
+            direction: group.directionCode,
+            destination: group.terminus,
             stopName: mergedStop.nom,
             latitude: mergedStop.coordinate.latitude,
             longitude: mergedStop.coordinate.longitude,
@@ -456,10 +419,10 @@ struct MergedStopDetailSheet: View {
         )
     }
 
-    private func timetableRequest(for key: LineDirectionKey) -> StopTimetableRequest {
+    private func timetableRequest(for group: PassageGroup) -> StopTimetableRequest {
         StopTimetableRequest(
-            line: key.line,
-            destination: key.direction,
+            line: group.line,
+            destination: group.terminus,
             stopIds: mergedStop.stops.map(\.id).sorted(),
             stopName: mergedStop.nom
         )
@@ -540,31 +503,38 @@ struct MergedStopDetailSheet: View {
         .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
     }
     
+    /// Une ligne par sens, dans une carte sobre ; un toucher déplie les détails du sens.
     private var passagesSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Label("Prochains passages", systemImage: "clock.fill")
-                .font(.headline)
-                .foregroundStyle(Color.appAccent)
-            
-            ForEach(sortedLineDirections, id: \.self) { key in
-                if let linePassages = passagesByLineDirection[key] {
-                    LinePassagesCard(
-                        line: key.line,
-                        direction: key.direction,
-                        passages: linePassages,
-                        approaching: approaches[key] ?? [],
-                        approachKnown: timetables[key] != nil,
-                        onShowOnMap: onFocus.map { focus in { focus(stopLineFocus(for: key)) } },
-                        onShowTimetable: { timetableRequest = timetableRequest(for: key) },
+        let groups = passageGroups
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Prochains passages")
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+            VStack(spacing: 0) {
+                ForEach(Array(groups.enumerated()), id: \.element.key) { index, group in
+                    PassageGroupRow(
+                        group: group,
+                        expanded: expandedGroups.contains(group.key),
+                        approaching: approaches[group.key] ?? [],
+                        approachKnown: timetables[group.key] != nil,
+                        onToggle: {
+                            if expandedGroups.contains(group.key) { expandedGroups.remove(group.key) } else { expandedGroups.insert(group.key) }
+                        },
+                        onShowOnMap: onFocus.map { focus in { focus(stopLineFocus(for: group)) } },
+                        onShowTimetable: { timetableRequest = timetableRequest(for: group) },
                         onLocate: onLocateVehicle == nil ? nil : { approach in locate(approach) }
                     )
+                    if index < groups.count - 1 {
+                        Divider()
+                    }
                 }
             }
+            .padding(.horizontal, 16)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            Text("Un point vert marque un passage suivi en direct ; les autres suivent l'horaire prévu.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
         }
-        .padding(20)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
     
     private var loadingState: some View {

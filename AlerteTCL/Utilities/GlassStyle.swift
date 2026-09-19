@@ -33,12 +33,13 @@ struct MapGlassButton: View {
         if #available(iOS 26, *) {
             Group {
                 if active {
-                    Button(action: action) { icon(size: 28) }.buttonStyle(.glassProminent)
+                    Button(action: action) { icon(size: 40) }.buttonStyle(.glassProminent)
                 } else {
-                    Button(action: action) { icon(size: 28) }.buttonStyle(.glass)
+                    Button(action: action) { icon(size: 40) }.buttonStyle(.glass)
                 }
             }
             .buttonBorderShape(.circle)
+            .controlSize(.large)
             .tint(Color.appAccent)
         } else {
             Button(action: action) {
@@ -53,7 +54,7 @@ struct MapGlassButton: View {
 
     private func icon(size: CGFloat) -> some View {
         Image(systemName: systemImage)
-            .font(.system(size: 20, weight: .medium))
+            .font(.system(size: 22, weight: .medium))
             .frame(width: size, height: size)
     }
 }

@@ -77,12 +77,14 @@ prévu de la course, reconnue par l'heure prévue au prochain arrêt, corrigé d
 TCL ; sans course reconnue, seul le nombre d'arrêts est affiché, avec « heure inconnue ». Rien n'est
 extrapolé depuis la position elle-même. Toucher la carte cadre la carte sur ce véhicule et l'arrêt.
 Sans bus en approche, la section reste visible avec « Aucun bus en route vers cet arrêt pour
-l'instant » ; le métro, sans positions en direct, n'a pas cette section. Les passages d'un arrêt sont
-groupés par ligne et par sens réel : chaque destination du flux est ramenée au terminus officiel quand il
-est reconnu (`DirectionMatching.canonicalDestination`, testé), donc deux cartes pour le métro B et non
-une par graphie. Chaque passage est une puce avec le délai en grand (vert quand le véhicule est suivi en
-direct) et l'heure en dessous ; les actions « Voir sur la carte » et « Tous les horaires » sont des liens
-à l'accent, sans fond. Dans les fiches horaires, toute la largeur d'une ligne de liste est tactile. Le suivi d'un bus en
+l'instant » ; le métro, sans positions en direct, n'a pas cette section. Les prochains passages d'un arrêt
+sont une liste sobre, une ligne par sens (`StopPassages.group`, module partagé, testé) : le sens vient du
+quai du passage (chaque quai ne sert qu'un sens, `desserte` « B:A »), le terminus de ce sens est le titre
+de la ligne, et une rame qui s'arrête avant (dernier métro vers Debourg) reste dans son sens avec la
+mention « jusqu'à Debourg » sous son délai. Chaque ligne montre le badge, le terminus, les trois prochains
+délais (le premier en gras, un point vert devant ceux suivis en direct) et un chevron ; un toucher déplie
+« Où est mon bus » et les deux liens « Voir sur la carte » et « Tous les horaires », à l'accent, sans
+fond. Dans les fiches horaires, toute la largeur d'une ligne de liste est tactile. Le suivi d'un bus en
 arrière-plan (activité en direct) a été essayé puis retiré le 16 septembre 2026.
 
 ## Autour de moi
