@@ -1,14 +1,14 @@
 package com.alertetcl.shared
 
+import com.alertetcl.shared.models.LineRegistry
 import com.alertetcl.shared.models.MapFilterTexts
 import com.alertetcl.shared.models.TimetableIndex
 import com.alertetcl.shared.models.TimetableLineSummary
-import com.alertetcl.shared.models.TransportLine
 import com.alertetcl.shared.models.TransportMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class NetworkLinesTest {
+class LineRegistryTest {
     private val index = TimetableIndex(
         validFrom = "2026-09-16", validTo = "2026-12-12",
         lines = listOf(
@@ -24,7 +24,8 @@ class NetworkLinesTest {
 
     @Test
     fun theNetworkLinesComeFromTheTimetableIndexWithTheirMode() {
-        val lines = TransportLine.fromIndex(index)
+        LineRegistry.apply(index)
+        val lines = LineRegistry.current
         assertEquals(listOf("MA", "T1", "TB11", "F1", "C12", "121", "NAVI1"), lines.map { it.ligneCom })
         assertEquals("A", lines[0].ligneCli)
         assertEquals(
@@ -32,12 +33,11 @@ class NetworkLinesTest {
                 TransportMode.BUS_C, TransportMode.BUS, TransportMode.NAVIGONE),
             lines.map { it.mode }
         )
-    }
-
-    @Test
-    fun withoutIndexTheBundledListIsUsed() {
-        assertEquals(TransportLine.allPredefinedLines, TransportLine.current(null))
-        assertEquals(7, TransportLine.current(index).size)
+        assertEquals(TransportMode.BUS, TransportMode.detectFromLine("121"))
+        assertEquals(TransportMode.METRO, TransportMode.detectFromLine("a"))
+        // Une ligne absente de l'index : la règle sur le nom prend le relais.
+        assertEquals(TransportMode.BUS_C, TransportMode.detectFromLine("C99"))
+        assertEquals(TransportMode.BUS, TransportMode.detectFromLine("999"))
     }
 
     @Test

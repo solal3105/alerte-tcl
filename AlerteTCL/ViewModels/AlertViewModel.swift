@@ -27,14 +27,12 @@ final class AlertViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     init() {
-        allLines = TransportLine.allPredefinedLines
-        Task { await loadLines() }
-        // Lignes du réseau à jour (index des fiches horaires, régénéré chaque nuit) : une renumérotation
-        // n'attend pas une mise à jour de l'application.
+        // Lignes du réseau lues dans l'index des fiches horaires (régénéré chaque nuit), aucune liste
+        // embarquée : une renumérotation n'attend pas une mise à jour de l'application.
+        allLines = LineRegistry.shared.current.map(TransportLine.init(shared:))
         Task { @MainActor in
-            if let index = try? await TimetableService.companion.shared.fetchIndex() {
-                allLines = Shared.TransportLine.companion.current(index: index).map(TransportLine.init(shared:))
-            }
+            _ = try? await TimetableService.companion.shared.fetchIndex()
+            allLines = LineRegistry.shared.current.map(TransportLine.init(shared:))
         }
         
         subscriptionService.objectWillChange
@@ -155,18 +153,6 @@ final class AlertViewModel: ObservableObject {
         alerts(for: line).filter { $0.isUpcoming && $0.severity != .info }
     }
     
-    func loadLines() async {
-        do {
-            let busLines = try await TCLAPIService.shared.fetchBusLineNames()
-            var updated = allLines.filter { $0.mode != .bus && $0.mode != .busC }
-            updated += busLines
-            updated.sort { $0.mode.sortOrder < $1.mode.sortOrder }
-            allLines = updated
-            AppLogger.debug("✅ AlertViewModel: \(busLines.count) lignes bus chargées depuis l'API")
-        } catch {
-            AppLogger.debug("⚠️ AlertViewModel: Échec chargement lignes bus (fallback statique): \(error)")
-        }
-    }
 
     func loadAlerts() async {
         guard !isLoading else { return }

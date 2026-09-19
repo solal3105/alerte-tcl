@@ -140,9 +140,10 @@ Logique partagée : `TimetableService` / `LineTimetable` (KMP), consommés direc
 
 ### Lignes du réseau et renumérotations
 
-La liste embarquée `TransportLine.allPredefinedLines` ne sert que de secours hors ligne : les écrans
-d'alertes proposent `TransportLine.current(index)`, construite depuis l'index des fiches horaires
-(régénéré chaque nuit), donc à jour après une renumérotation (la 21 devenue 121 en septembre 2026).
+Aucune liste de lignes embarquée : `LineRegistry` (module partagé) est rempli depuis l'index des
+fiches horaires à chaque chargement (régénéré chaque nuit), et sert aux écrans d'alertes comme à la
+détection du mode d'une ligne, donc à jour après une renumérotation (la 21 devenue 121 en septembre
+2026) sans mise à jour de l'application. La règle sur le nom ne sert que pour une ligne inconnue de l'index.
 Les filtres de lignes enregistrés sont purgés des numéros disparus (`MapFilterTexts.keepKnownLines`)
 et un bandeau « Tout afficher » apparaît quand les filtres masquent tous les véhicules.
 

@@ -101,9 +101,8 @@ import com.alertetcl.shared.models.TransportMode
 import com.alertetcl.shared.util.DemoShowcase
 import com.alertetcl.shared.viewmodels.AlertsViewModel
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.produceState
-import com.alertetcl.shared.models.TimetableIndex
 import com.alertetcl.shared.services.TimetableService
+import com.alertetcl.shared.models.LineRegistry
 
 
 
@@ -129,12 +128,10 @@ fun AlertsScreen(viewModel: AlertsViewModel? = null) {
     // Mode démo : abonnements simulés, jamais enregistrés (cf. DemoShowcase).
     val subscriptions = if (DemoShowcase.isAlertsCase) DemoShowcase.subscriptions() else storedSubscriptions
 
-    // Lignes du réseau à jour (index des fiches horaires, régénéré chaque nuit) : une renumérotation
-    // n'attend pas une mise à jour de l'application ; la liste embarquée sert en attendant.
-    val index by produceState<TimetableIndex?>(initialValue = TimetableService.shared.currentIndex) {
-        value = runCatching { TimetableService.shared.fetchIndex() }.getOrNull() ?: value
-    }
-    val allLines: List<TransportLine> = remember(index) { TransportLine.current(index) }
+    // Lignes du réseau lues dans l'index des fiches horaires (régénéré chaque nuit), aucune liste
+    // embarquée : une renumérotation n'attend pas une mise à jour de l'application.
+    LaunchedEffect(Unit) { runCatching { TimetableService.shared.fetchIndex() } }
+    val allLines: List<TransportLine> by LineRegistry.lines.collectAsState()
 
     val subscribedLines = remember(allLines, subscriptions) {
         LineSubscriptions.subscribedLines(subscriptions, allLines)

@@ -2,6 +2,7 @@ package com.alertetcl.shared.services
 
 import com.alertetcl.shared.models.DirectionMatching
 import com.alertetcl.shared.models.LinePalette
+import com.alertetcl.shared.models.LineRegistry
 import com.alertetcl.shared.models.LineTimetable
 import com.alertetcl.shared.models.TimetableIndex
 import com.alertetcl.shared.models.TimetableKeys
@@ -43,6 +44,7 @@ class TimetableService {
         }
         val index: TimetableIndex = fetchJson("$baseUrl/index.json")
         LinePalette.apply(index)
+        LineRegistry.apply(index)
         mutex.withLock {
             if (cachedIndex?.generatedAt != index.generatedAt) lineCache.clear()
             cachedIndex = index

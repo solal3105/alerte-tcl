@@ -5,9 +5,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.alertetcl.shared.models.AlertSeverity
+import com.alertetcl.shared.models.LineRegistry
 import com.alertetcl.shared.models.LineSubscription
 import com.alertetcl.shared.models.LineSubscriptions
-import com.alertetcl.shared.models.TransportLine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -35,7 +35,7 @@ class FavoritesStore(private val context: Context) {
                 existing = emptyMap(),
                 favoriteLines = parse(p[KEY_FAV_LINES]),
                 severityPreferences = parseSeverityPrefs(p[KEY_SEVERITY_PREFS]),
-                lines = TransportLine.allPredefinedLines
+                lines = LineRegistry.lines.value
             )
         }
 
@@ -118,7 +118,7 @@ class FavoritesStore(private val context: Context) {
                     existing = emptyMap(),
                     favoriteLines = parse(p[KEY_FAV_LINES]),
                     severityPreferences = parseSeverityPrefs(p[KEY_SEVERITY_PREFS]),
-                    lines = TransportLine.allPredefinedLines
+                    lines = LineRegistry.lines.value
                 )
             p[KEY_LINE_SUBSCRIPTIONS] = LineSubscriptions.encode(transform(current))
             p.remove(KEY_SEVERITY_PREFS)

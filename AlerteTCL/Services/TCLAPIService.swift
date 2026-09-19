@@ -62,12 +62,4 @@ actor TCLAPIService {
         }
     }
 
-    func fetchBusLineNames() async throws -> [TransportLine] {
-        // Clés "ligne|A" / "ligne|R" des terminus bus du module partagé
-        let names = Set(try await Shared.BusLineService.companion.shared.fetchLineTermini().keys.compactMap { $0.split(separator: "|").first.map(String.init) })
-        return names.sorted().map { name in
-            let mode: TransportMode = name.hasPrefix("C") ? .busC : .bus
-            return TransportLine(ligneCom: name, ligneCli: name, mode: mode)
-        }
-    }
 }

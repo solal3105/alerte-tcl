@@ -68,10 +68,6 @@ extension TransportLine {
     init(shared: Shared.TransportLine) {
         self.init(ligneCom: shared.ligneCom, ligneCli: shared.ligneCli, mode: TransportMode(shared: shared.mode))
     }
-
-    /// Les lignes du réseau, une seule liste pour les deux plateformes (module partagé).
-    static let allPredefinedLines: [TransportLine] =
-        Shared.TransportLine.companion.allPredefinedLines.map(TransportLine.init(shared:))
 }
 
 extension TransportMode {
