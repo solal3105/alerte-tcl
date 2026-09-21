@@ -38,8 +38,8 @@ struct DeparturesWidgetView: View {
     private var small: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let stop {
-                HStack(spacing: 8) {
-                    WidgetLineBadge(line: stop.line, size: 30)
+                HStack(spacing: 7) {
+                    WidgetLineBadge(line: stop.line, size: 28)
                     VStack(alignment: .leading, spacing: 0) {
                         Text(stop.stopName)
                             .font(.system(size: 13, weight: .bold))
@@ -51,18 +51,17 @@ struct DeparturesWidgetView: View {
                     }
                 }
             }
-            Spacer(minLength: 6)
+            Spacer(minLength: 0)
             if let first {
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(first.figure(at: entry.date))
-                        .font(.system(size: first.isCountdown(at: entry.date) ? 52 : 34, weight: .heavy, design: .rounded))
-                        .foregroundStyle(lineColor)
+                        .font(.system(size: first.isCountdown(at: entry.date) ? 60 : 36, weight: .heavy, design: .rounded))
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                         .widgetAccentable()
                     if first.isCountdown(at: entry.date) {
                         Text("min")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(.secondary)
                     } else if let day = first.dayLabel(at: entry.date) {
                         Text(day)
@@ -71,6 +70,7 @@ struct DeparturesWidgetView: View {
                     }
                     if first.realTime { WidgetLiveDot() }
                 }
+                Spacer(minLength: 0)
                 HStack(spacing: 4) {
                     ForEach(entry.departures.dropFirst().prefix(3), id: \.id) { departure in
                         WidgetChip(text: departure.label(at: entry.date))
@@ -78,25 +78,21 @@ struct DeparturesWidgetView: View {
                 }
             } else {
                 noDeparture
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 4)
             WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, stale: entry.stale, note: plannedNote)
         }
-    }
-
-    /// Couleur de la ligne, celle du badge : le chiffre du prochain passage la reprend.
-    private var lineColor: Color {
-        stop.map { WidgetLinePalette.background(for: $0.line) } ?? WidgetTheme.accent
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var medium: some View {
         HStack(alignment: .top, spacing: 14) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 7) {
                 if let stop {
-                    WidgetLineBadge(line: stop.line, size: 46)
+                    WidgetLineBadge(line: stop.line, size: 52)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(stop.stopName)
-                            .font(.system(size: 15, weight: .bold))
+                            .font(.system(size: 16, weight: .bold))
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
                         Text("vers \(stop.direction)")
@@ -108,24 +104,20 @@ struct DeparturesWidgetView: View {
                 Spacer(minLength: 0)
                 WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, stale: entry.stale, note: plannedNote)
             }
-            .frame(maxWidth: 132, alignment: .leading)
+            .frame(width: 128, alignment: .leading)
 
             if entry.departures.isEmpty {
-                VStack(alignment: .leading) {
-                    Spacer(minLength: 0)
-                    noDeparture
-                    Spacer(minLength: 0)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                noDeparture
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             } else {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(entry.departures.prefix(3).enumerated()), id: \.element.id) { index, departure in
+                VStack(spacing: 0) {
+                    ForEach(Array(entry.departures.prefix(4).enumerated()), id: \.element.id) { index, departure in
                         if index > 0 { WidgetRule() }
                         departureRow(departure, highlighted: index == 0)
+                            .frame(maxHeight: .infinity)
                     }
-                    Spacer(minLength: 0)
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
@@ -134,8 +126,8 @@ struct DeparturesWidgetView: View {
     private func departureRow(_ departure: WidgetDeparture, highlighted: Bool) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(departure.label(at: entry.date))
-                .font(.system(size: highlighted ? 26 : 16, weight: highlighted ? .heavy : .semibold, design: .rounded))
-                .foregroundStyle(highlighted ? lineColor : .primary)
+                .font(.system(size: highlighted ? 27 : 18, weight: highlighted ? .heavy : .semibold, design: .rounded))
+                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .widgetAccentable()
@@ -145,7 +137,7 @@ struct DeparturesWidgetView: View {
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
         }
-        .padding(.vertical, highlighted ? 7 : 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var circular: some View {
@@ -294,35 +286,37 @@ struct BoardWidgetView: View {
                 text: "Enregistrez vos arrêts depuis leur fiche dans Lyon Pocket : ils s'affichent ici, du premier au dernier."
             )
         } else {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(spacing: 0) {
                 ForEach(Array(entry.rows.prefix(rowLimit).enumerated()), id: \.element.id) { index, row in
                     if index > 0 { WidgetRule() }
                     Link(destination: WidgetLink.stop(row.stop.stopId).url) {
                         boardRow(row)
                     }
+                    .tint(.primary)
+                    .frame(maxHeight: .infinity)
                 }
-                Spacer(minLength: 0)
                 WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
     private func boardRow(_ row: BoardRow) -> some View {
         HStack(spacing: 10) {
-            WidgetLineBadge(line: row.stop.line, size: isLarge ? 30 : 26)
+            WidgetLineBadge(line: row.stop.line, size: isLarge ? 34 : 28)
             VStack(alignment: .leading, spacing: 0) {
                 Text(row.stop.stopName)
-                    .font(.system(size: isLarge ? 13 : 12, weight: .bold))
+                    .font(.system(size: isLarge ? 14 : 12.5, weight: .bold))
                     .lineLimit(1)
                 Text(row.stop.direction)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: isLarge ? 11 : 10, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             Spacer(minLength: 6)
-            times(row)
+            times(row).layoutPriority(1)
         }
-        .padding(.vertical, isLarge ? 6 : 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// À droite de chaque arrêt : le prochain passage en grand, le suivant en capsule.
@@ -339,8 +333,9 @@ struct BoardWidgetView: View {
         } else {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(row.departures[0].label(at: entry.date))
-                    .font(.system(size: isLarge ? 18 : 16, weight: .heavy, design: .rounded))
-                    .foregroundStyle(WidgetLinePalette.background(for: row.stop.line))
+                    .font(.system(size: isLarge ? 21 : 17, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .minimumScaleFactor(0.8)
                     .widgetAccentable()
                 if row.departures[0].realTime { WidgetLiveDot() }
                 if row.departures.count > 1 {

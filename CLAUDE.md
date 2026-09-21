@@ -196,12 +196,20 @@ l'app group), le thème (`WidgetTheme`, jetons `AppColors` publiés par l'app ; 
 la palette officielle), les entrées et les vues de chaque widget, la capture de carte des chantiers
 (`WorksMapSnapshot`) et les exemples (`WidgetSamples`). L'extension `AlerteTCLWidget/` ne lie pas le
 module Kotlin : ses services (`Services/`) lisent le relais et le GeoServer, ses réglages et
-chronologies sont dans `Widgets/`. Règles d'affichage (21 septembre 2026) : aucun widget n'a de titre, son contenu dit ce qu'il montre ;
+chronologies sont dans `Widgets/`. Règles d'affichage (21 septembre 2026) : chaque widget est un panneau, pas une fiche. Aucun titre, son
+contenu dit ce qu'il montre ; un seul chiffre domine, en très gros ; la couleur vient des badges de
+ligne, des bandeaux d'état et des jauges, jamais d'un voile de fond ; les tailles moyennes et grandes
+remplissent leur hauteur (rangées étirées, séparateurs `WidgetRule`) plutôt que de laisser du vide ;
+un temps d'attente s'écrit toujours avec la couleur du texte, jamais celle d'une ligne (une ligne
+claire ne se lit pas), et un `Link` porte `.tint(.primary)` pour ne pas teindre son contenu en bleu ;
 une information n'est écrite qu'une fois (pas de nombre repris dans une phrase, pas d'adresse de
 station) ; les unités sont les plus courtes qui restent justes (« 702 places », « 3 élec », « 12
 chantiers à 1 km », « Tout roule ») ; l'heure des données n'apparaît que si elles datent de plus d'un
 quart d'heure ou que le réseau n'a pas répondu (`WidgetStamp`). Les briques communes sont
-`WidgetTitle`, `WidgetFigure`, `WidgetStat`, `WidgetBar`, `WidgetRing`, `WidgetStamp`.
+`WidgetStat` (pictogramme et chiffre), `WidgetChip`, `WidgetSegmentedBar`, `WidgetRule`, `WidgetLabel`
+et `WidgetStamp`. Pour juger une mise en page sans poser les widgets : `xcrun simctl launch <simulateur>
+com.solal.AlerteTCL -render-widgets` écrit `widgets-clair.png` et `widgets-sombre.png` dans les documents
+de l'application (`WidgetBoardRender`, en debug seulement), avec les six widgets dans toutes leurs tailles.
 Côté app, `WidgetBridge` publie arrêts, abonnements et couleurs
 puis recharge les chronologies ; `WidgetViews.swift` porte la feuille « Ajouter au widget » (multi-sens),
 la galerie (onglet Info, aperçus rendus avec les vraies vues) et la liste des arrêts enregistrés. Les

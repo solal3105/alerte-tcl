@@ -54,43 +54,45 @@ struct VelovWidgetView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            Spacer(minLength: 6)
+            Spacer(minLength: 0)
             if station.open {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Image(systemName: "bicycle")
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundStyle(color(station))
                         .widgetAccentable()
                     Text("\(station.bikes)")
-                        .font(.system(size: 48, weight: .heavy, design: .rounded))
+                        .font(.system(size: 58, weight: .heavy, design: .rounded))
                         .foregroundStyle(color(station))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.5)
+                        .minimumScaleFactor(0.4)
                         .widgetAccentable()
                 }
-                HStack(spacing: 4) {
+                Spacer(minLength: 0)
+                HStack(spacing: 5) {
                     if station.ebikes > 0 {
                         WidgetChip(text: "\(station.ebikes)", symbol: "bolt.fill", color: WidgetTheme.accent)
                     }
                     WidgetChip(text: "\(station.stands)", symbol: "parkingsign")
                 }
             } else {
-                closed(size: 17)
+                closed(size: 19)
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 4)
             WidgetStamp(fetchedAt: station.updated ?? entry.fetchedAt, now: entry.date, stale: entry.stale)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func medium(_ station: WidgetVelovSnapshot) -> some View {
         HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Image(systemName: "bicycle")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(WidgetTheme.velov)
                     .widgetAccentable()
                 Text(station.name)
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.system(size: 18, weight: .bold))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 if let distance = station.distanceText {
@@ -99,21 +101,23 @@ struct VelovWidgetView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
-                Spacer(minLength: 0)
                 WidgetStamp(fetchedAt: station.updated ?? entry.fetchedAt, now: entry.date, stale: entry.stale)
+                    .padding(.top, 2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if station.open {
-                HStack(spacing: 7) {
-                    WidgetStat(symbol: "bicycle", value: "\(station.bikes)", color: color(station), width: 52)
-                    WidgetStat(symbol: "bolt.fill", value: "\(station.ebikes)", color: WidgetTheme.accent, width: 52)
-                    WidgetStat(symbol: "parkingsign", value: "\(station.stands)", color: WidgetTheme.neutral, width: 52)
+                HStack(spacing: 8) {
+                    WidgetStat(symbol: "bicycle", value: "\(station.bikes)", color: color(station))
+                    WidgetStat(symbol: "bolt.fill", value: "\(station.ebikes)", color: WidgetTheme.accent)
+                    WidgetStat(symbol: "parkingsign", value: "\(station.stands)", color: WidgetTheme.neutral)
                 }
+                .frame(width: 174, height: 86)
             } else {
-                closed(size: 15).frame(width: 90)
+                closed(size: 17).frame(width: 96)
             }
         }
+        .frame(maxHeight: .infinity, alignment: .center)
     }
 
     /// Station fermée : le seul cas où il n'y a aucun chiffre à montrer.

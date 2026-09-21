@@ -50,77 +50,83 @@ struct ParkingWidgetView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
             }
-            Spacer(minLength: 6)
+            Spacer(minLength: 0)
             if let available = parking.available, parking.open {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Image(systemName: "parkingsign")
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundStyle(color(parking))
                         .widgetAccentable()
                     Text("\(available)")
-                        .font(.system(size: 48, weight: .heavy, design: .rounded))
+                        .font(.system(size: 58, weight: .heavy, design: .rounded))
                         .foregroundStyle(color(parking))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.5)
+                        .minimumScaleFactor(0.4)
                         .widgetAccentable()
                 }
-                WidgetSegmentedBar(fraction: parking.freeFraction, color: color(parking), segments: 12)
-                    .padding(.top, 4)
+                if let capacity = parking.capacity {
+                    WidgetLabel(text: "libres sur \(capacity)")
+                }
+                Spacer(minLength: 0)
+                WidgetSegmentedBar(fraction: parking.freeFraction, color: color(parking), segments: 12, height: 10)
             } else {
                 Text(parking.statusText)
-                    .font(.system(size: 20, weight: .heavy, design: .rounded))
+                    .font(.system(size: 22, weight: .heavy, design: .rounded))
                     .foregroundStyle(parking.open ? Color.secondary : WidgetTheme.error)
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 4)
             WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, stale: entry.stale)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func medium(_ parking: WidgetParkingSnapshot) -> some View {
-        HStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 4) {
-                Image(systemName: "parkingsign")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(color(parking))
-                    .widgetAccentable()
-                Text(parking.name)
-                    .font(.system(size: 17, weight: .bold))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let detail = detail(parking) {
-                    Text(detail)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-                if parking.open, parking.available != nil {
-                    WidgetSegmentedBar(fraction: parking.freeFraction, color: color(parking), segments: 16)
-                }
-                WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, stale: entry.stale)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            VStack(alignment: .trailing, spacing: -4) {
-                if let available = parking.available, parking.open {
-                    Text("\(available)")
-                        .font(.system(size: 54, weight: .heavy, design: .rounded))
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Image(systemName: "parkingsign")
+                        .font(.system(size: 17, weight: .bold))
                         .foregroundStyle(color(parking))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.5)
                         .widgetAccentable()
-                    WidgetLabel(text: parking.capacity.map { "libres sur \($0)" } ?? "libres")
-                } else {
-                    Image(systemName: parking.open ? "questionmark.circle.fill" : "xmark.circle.fill")
-                        .font(.system(size: 38))
-                        .foregroundStyle(color(parking))
-                    Text(parking.statusText)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 6)
+                    Text(parking.name)
+                        .font(.system(size: 18, weight: .bold))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let detail = detail(parking) {
+                        Text(detail)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                VStack(alignment: .trailing, spacing: 0) {
+                    if let available = parking.available, parking.open {
+                        Text("\(available)")
+                            .font(.system(size: 64, weight: .heavy, design: .rounded))
+                            .foregroundStyle(color(parking))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.4)
+                            .widgetAccentable()
+                        WidgetLabel(text: parking.capacity.map { "libres sur \($0)" } ?? "libres")
+                    } else {
+                        Image(systemName: parking.open ? "questionmark.circle.fill" : "xmark.circle.fill")
+                            .font(.system(size: 44))
+                            .foregroundStyle(color(parking))
+                        Text(parking.statusText)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 6)
+                    }
                 }
             }
-            .frame(width: 118, alignment: .trailing)
+            Spacer(minLength: 8)
+            if parking.open, parking.available != nil {
+                WidgetSegmentedBar(fraction: parking.freeFraction, color: color(parking), segments: 22, height: 10)
+            }
+            WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, stale: entry.stale)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func circular(_ parking: WidgetParkingSnapshot) -> some View {

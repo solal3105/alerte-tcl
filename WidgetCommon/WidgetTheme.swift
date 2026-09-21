@@ -115,11 +115,16 @@ enum WidgetLinePalette {
 
     /// Liseré quand le fond est clair (luminance au-delà de 0,85), comme `LineColors.needsBorder`.
     static func needsBorder(for line: String) -> Bool {
-        guard let pair = palette[key(for: line)] else { return true }
-        let clean = pair.backgroundHex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        guard clean.count == 6, let value = UInt32(clean, radix: 16) else { return false }
+        guard let pair = palette[key(for: line)], let luminance = luminance(of: pair.backgroundHex) else { return true }
+        return luminance > 0.85
+    }
+
+    /// Luminance perçue d'une couleur, de 0 (noir) à 1 (blanc).
+    private static func luminance(of hex: String) -> Double? {
+        let clean = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        guard clean.count == 6, let value = UInt32(clean, radix: 16) else { return nil }
         let r = Double((value >> 16) & 0xFF), g = Double((value >> 8) & 0xFF), b = Double(value & 0xFF)
-        return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.85
+        return (0.299 * r + 0.587 * g + 0.114 * b) / 255
     }
 }
 

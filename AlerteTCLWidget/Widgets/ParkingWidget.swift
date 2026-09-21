@@ -116,7 +116,7 @@ private struct ParkingEntryView: View {
 
     var body: some View {
         ParkingWidgetView(entry: entry, family: family)
-            .containerBackground(for: .widget) { WidgetSurface(tint: entry.surfaceTint) }
+            .containerBackground(.fill.tertiary, for: .widget)
             .widgetURL((entry.parking.map { WidgetLink.parking($0.id) } ?? .widgets).url)
     }
 }

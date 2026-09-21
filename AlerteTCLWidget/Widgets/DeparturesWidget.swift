@@ -196,7 +196,7 @@ private struct DeparturesEntryView: View {
 
     var body: some View {
         DeparturesWidgetView(entry: entry, family: family)
-            .containerBackground(for: .widget) { WidgetSurface(tint: entry.surfaceTint) }
+            .containerBackground(.fill.tertiary, for: .widget)
             .widgetURL((entry.stop.map { WidgetLink.stop($0.stopId) } ?? .widgets).url)
     }
 }
@@ -218,7 +218,7 @@ private struct BoardEntryView: View {
 
     var body: some View {
         BoardWidgetView(entry: entry, family: family)
-            .containerBackground(for: .widget) { WidgetSurface(tint: entry.surfaceTint) }
+            .containerBackground(.fill.tertiary, for: .widget)
             .widgetURL(WidgetLink.widgets.url)
     }
 }

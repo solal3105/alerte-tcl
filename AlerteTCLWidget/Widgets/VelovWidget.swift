@@ -127,7 +127,7 @@ private struct VelovEntryView: View {
 
     var body: some View {
         VelovWidgetView(entry: entry, family: family)
-            .containerBackground(for: .widget) { WidgetSurface(tint: entry.surfaceTint) }
+            .containerBackground(.fill.tertiary, for: .widget)
             .widgetURL((entry.station.map { WidgetLink.velov($0.id) } ?? .widgets).url)
     }
 }

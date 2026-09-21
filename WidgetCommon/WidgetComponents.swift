@@ -27,36 +27,13 @@ struct WidgetStat: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
         }
-        .frame(maxWidth: width ?? .infinity)
+        .frame(maxWidth: width ?? .infinity, maxHeight: .infinity)
         .padding(.vertical, 8)
-        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
-// MARK: - Identité de chaque widget
-
-// La teinte du fond dit de quoi parle le widget avant même qu'on lise : la couleur de la ligne
-// pour les passages, la disponibilité pour un parking, le rouge Vélo'v, l'état du trafic.
-
-extension DeparturesEntry {
-    var surfaceTint: Color { stop.map { WidgetLinePalette.background(for: $0.line) } ?? WidgetTheme.accent }
-}
-
-extension BoardEntry {
-    var surfaceTint: Color { WidgetTheme.accent }
-}
-
-extension ParkingEntry {
-    var surfaceTint: Color { parking.map { WidgetTheme.availability($0.availability) } ?? WidgetTheme.accent }
-}
-
-extension VelovEntry {
-    var surfaceTint: Color { WidgetTheme.velov }
-}
-
-extension WorksEntry {
-    var surfaceTint: Color { WidgetTheme.accent }
-}
+// MARK: - État du trafic
 
 extension TrafficEntry {
     /// Vert quand tout roule, orange perturbé, rouge dès une alerte majeure.
@@ -70,27 +47,6 @@ extension TrafficEntry {
         if hasMajor { return "exclamationmark.octagon.fill" }
         if !disrupted.isEmpty { return "exclamationmark.triangle.fill" }
         return "checkmark.circle.fill"
-    }
-
-    var surfaceTint: Color { tone }
-}
-
-// MARK: - Fond
-
-/// Fond d'un widget : un voile de sa couleur d'identité (la ligne, la disponibilité, l'état du
-/// trafic) sur le fond du système. C'est ce qui donne à chaque widget son air de panneau.
-struct WidgetSurface: View {
-    let tint: Color
-
-    var body: some View {
-        ZStack {
-            Rectangle().fill(.fill.tertiary)
-            LinearGradient(
-                colors: [tint.opacity(0.30), tint.opacity(0.08)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
     }
 }
 

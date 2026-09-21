@@ -66,6 +66,11 @@ struct AlerteTCLApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(deepLink: $deepLink)
+                .task {
+                    #if DEBUG
+                    if WidgetBoardRender.isRequested { await WidgetBoardRender.renderAll() }
+                    #endif
+                }
                 .onAppear {
                     #if DEBUG
                     // Mode démo (-demo parking) : ouvrir la fiche du P+R St-Genis

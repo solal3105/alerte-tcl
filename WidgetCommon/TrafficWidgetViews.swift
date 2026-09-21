@@ -32,83 +32,94 @@ struct TrafficWidgetView: View {
 
     private var small: some View {
         VStack(alignment: .leading, spacing: 0) {
-            banner
-            Spacer(minLength: 8)
-            badges(shownLines, limit: 4, size: 26)
+            banner(size: 13, lines: 2)
+            Spacer(minLength: 0)
+            badges(shownLines, limit: 4, size: 30)
             if let detail = entry.detail {
                 Text(detail)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
-                    .padding(.top, 4)
+                    .padding(.top, 5)
             }
-            Spacer(minLength: 4)
+            Spacer(minLength: 0)
             WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, stale: entry.stale)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
     private var medium: some View {
         if entry.disrupted.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                banner
-                badges(entry.subscribed, limit: 8, size: 30)
+            VStack(alignment: .leading, spacing: 0) {
+                banner(size: 15, lines: 1)
+                Spacer(minLength: 0)
+                badges(entry.subscribed, limit: 8, size: 38)
                 if let detail = entry.detail {
                     Text(detail)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
+                        .padding(.top, 6)
                 }
                 Spacer(minLength: 0)
                 WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, stale: entry.stale)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            VStack(alignment: .leading, spacing: 0) {
-                banner
-                    .padding(.bottom, 6)
+            VStack(spacing: 0) {
+                banner(size: 15, lines: 1)
+                    .padding(.bottom, 4)
                 ForEach(Array(entry.disrupted.prefix(3).enumerated()), id: \.element.id) { index, line in
                     if index > 0 { WidgetRule() }
                     Link(destination: WidgetLink.traffic.url) { disruptedRow(line) }
+                        .tint(.primary)
+                        .frame(maxHeight: .infinity)
                 }
-                Spacer(minLength: 0)
                 WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, stale: entry.stale)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
     /// Le bandeau d'état : plein, à la couleur de l'état, le texte en blanc dessus.
-    private var banner: some View {
-        HStack(spacing: 6) {
+    private func banner(size: CGFloat, lines: Int) -> some View {
+        HStack(spacing: 7) {
             Image(systemName: entry.symbol)
-                .font(.system(size: 13, weight: .bold))
-            Text(entry.headline.uppercased())
-                .font(.system(size: 13, weight: .heavy))
-                .tracking(0.4)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .font(.system(size: size, weight: .bold))
+            Text(entry.headline)
+                .font(.system(size: size, weight: .heavy))
+                .multilineTextAlignment(.leading)
+                .lineLimit(lines)
+                .fixedSize(horizontal: false, vertical: true)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
         .widgetAccentable()
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(entry.tone, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(entry.tone, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private func disruptedRow(_ line: WidgetTrafficLine) -> some View {
         HStack(spacing: 10) {
-            WidgetLineBadge(line: line.line, size: 28)
+            WidgetLineBadge(line: line.line, size: 30)
             VStack(alignment: .leading, spacing: 0) {
                 Text(line.title.isEmpty ? line.severity.label : line.title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(1)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Text(line.severity.label)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(WidgetTheme.severity(line.severity))
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var rectangular: some View {

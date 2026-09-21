@@ -46,10 +46,10 @@ struct WorksWidgetView: View {
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(WidgetTheme.accent)
                 .widgetAccentable()
-            Spacer(minLength: 6)
+            Spacer(minLength: 0)
             HStack(alignment: .firstTextBaseline, spacing: 5) {
                 Text("\(entry.works.count)")
-                    .font(.system(size: 48, weight: .heavy, design: .rounded))
+                    .font(.system(size: 54, weight: .heavy, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                     .widgetAccentable()
@@ -70,48 +70,40 @@ struct WorksWidgetView: View {
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
-                .padding(.top, 4)
+                .padding(.top, 6)
             }
-            Spacer(minLength: 4)
+            Spacer(minLength: 0)
             WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, note: placeNote)
         }
     }
 
-    /// La carte occupe tout le widget ; le compte et le chantier le plus proche flottent dessus.
+    /// La carte occupe tout le widget ; un bandeau bas porte le compte et le chantier le plus proche.
     private var medium: some View {
-        ZStack(alignment: .bottomLeading) {
+        ZStack(alignment: .bottom) {
             mapView
-            LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: .center, endPoint: .bottom)
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text("\(entry.works.count)")
-                        .font(.system(size: 30, weight: .heavy, design: .rounded))
+                        .font(.system(size: 26, weight: .heavy, design: .rounded))
                     Text(unit)
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, note: placeNote)
                 }
                 if let nearest = entry.works.first {
-                    HStack(spacing: 6) {
-                        progressDot(nearest)
-                        Text(nearest.title)
-                            .font(.system(size: 11, weight: .semibold))
-                            .lineLimit(1)
-                        Spacer(minLength: 2)
-                        Text(nearest.distanceText)
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                    }
+                    workRow(nearest)
                 } else {
                     Text("Rien à signaler autour de vous.")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
-                WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, note: placeNote)
             }
-            .padding(12)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .padding(10)
+            .padding(.horizontal, margins.leading)
+            .padding(.top, 8)
+            .padding(.bottom, margins.bottom)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.thinMaterial)
         }
     }
 
@@ -119,34 +111,34 @@ struct WorksWidgetView: View {
         VStack(spacing: 0) {
             mapView
                 .frame(maxWidth: .infinity)
-                .frame(height: 186)
+                .frame(height: 172)
                 .clipped()
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text("\(entry.works.count)")
-                        .font(.system(size: 30, weight: .heavy, design: .rounded))
+                        .font(.system(size: 32, weight: .heavy, design: .rounded))
                         .widgetAccentable()
                     Text(unit)
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(.secondary)
                     Spacer(minLength: 0)
                 }
-                .padding(.bottom, 6)
+                .padding(.bottom, 4)
                 if entry.works.isEmpty {
                     Text("Rien à signaler autour de vous.")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
-                ForEach(Array(entry.works.prefix(4).enumerated()), id: \.element.id) { index, work in
+                ForEach(Array(entry.works.prefix(5).enumerated()), id: \.element.id) { index, work in
                     if index > 0 { WidgetRule() }
-                    workRow(work)
+                    workRow(work).frame(maxHeight: .infinity)
                 }
-                Spacer(minLength: 0)
                 WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, note: placeNote)
             }
             .padding(.horizontal, margins.leading)
             .padding(.top, 10)
             .padding(.bottom, margins.bottom)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
@@ -180,10 +172,10 @@ struct WorksWidgetView: View {
             progressDot(work)
             VStack(alignment: .leading, spacing: 0) {
                 Text(work.title)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
                 Text(work.commune.isEmpty ? work.address : "\(work.address), \(work.commune)")
-                    .font(.system(size: 10))
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -192,7 +184,8 @@ struct WorksWidgetView: View {
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
     }
 
     private var unavailable: some View {

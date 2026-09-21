@@ -340,23 +340,11 @@ struct WidgetPreview: View {
     var body: some View {
         content
             .frame(width: size.width, height: size.height)
-            .background(WidgetSurface(tint: tint))
+            .background(Color(.tertiarySystemGroupedBackground))
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Color.appNeutralBorder.opacity(0.5), lineWidth: 0.5))
             .allowsHitTesting(false)
             .task(id: colorScheme) { await renderWorksMap() }
-    }
-
-    /// La teinte du widget, la même que sur l'écran d'accueil.
-    private var tint: Color {
-        switch kind {
-        case .departures: WidgetSamples.departures.surfaceTint
-        case .board: WidgetSamples.board.surfaceTint
-        case .parking: WidgetSamples.parking.surfaceTint
-        case .velov: WidgetSamples.velov.surfaceTint
-        case .works: works.surfaceTint
-        case .traffic: WidgetSamples.traffic.surfaceTint
-        }
     }
 
     @ViewBuilder
