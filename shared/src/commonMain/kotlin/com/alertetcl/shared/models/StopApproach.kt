@@ -106,7 +106,7 @@ object StopApproach {
         val aimedMinutes = TimetableTime.serviceMinutes(aimedEpoch * 1000, timeZoneId)
         val candidates = timetable.departures(nextIndexes, serviceDate).filter { abs(it.minutes - aimedMinutes) <= 1 }
         for (departure in candidates) {
-            val calls = timetable.calls(departure.tripIndex)
+            val calls = timetable.calls(departure.tripIndex, departure.shiftMinutes)
             val nextCall = calls.firstOrNull { it.stopIndex == departure.stopIndex && it.minutes == departure.minutes } ?: continue
             val target = calls.drop(nextCall.position).firstOrNull { it.stopIndex in targets } ?: continue
             val eta = aimedEpoch + (target.minutes - nextCall.minutes) * 60L + vehicle.delay

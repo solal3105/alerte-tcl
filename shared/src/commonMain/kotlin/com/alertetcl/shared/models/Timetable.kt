@@ -25,7 +25,8 @@ object TimetableTime {
     const val MINUTES_PER_DAY = 1440
 
     /** Heure du changement de journée de service : avant 4 h du matin, on est encore sur la veille. */
-    private const val SERVICE_DAY_START_HOUR = 4
+    const val SERVICE_DAY_START_HOUR = 4
+    const val SERVICE_DAY_START_MINUTES = SERVICE_DAY_START_HOUR * 60
 
     fun format(minutes: Int): String {
         val m = ((minutes % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY
@@ -114,13 +115,16 @@ data class TimetableTrip(val p: Int, val s: Int, val t: List<Int>)
 
 /** Passage d'une course à un arrêt donné. */
 data class TimetableDeparture(
+    /** Minutes depuis minuit de la journée de service (≥ 1440 après minuit). */
     val minutes: Int,
     val tripIndex: Int,
     val stopIndex: Int,
     /** Terminus réel de la course (peut différer de la destination de la ligne : course partielle). */
     val terminus: String,
     /** True si l'arrêt est le dernier de la course (arrivée, pas de départ). */
-    val isTerminus: Boolean
+    val isTerminus: Boolean,
+    /** Décalage ajouté aux heures brutes de la course (1440 pour une course de nuit datée du lendemain par le GTFS). */
+    val shiftMinutes: Int = 0
 ) {
     val time: String get() = TimetableTime.format(minutes)
 }
@@ -209,39 +213,68 @@ data class LineTimetable(
     fun departures(stopIndexes: List<Int>, isoDate: String): List<TimetableDeparture> =
         departures(stopIndexes, LocalDate.parse(isoDate))
 
-    /** Passages aux arrêts [stopIndexes] pour la journée de service [date], triés par heure. */
+    /**
+     * Passages aux arrêts [stopIndexes] pour la journée de service [date], triés par heure.
+     *
+     * Une journée de service court de 4 h du matin au dernier service de la nuit. Le GTFS SYTRAL date
+     * les courses de nuit du lendemain calendaire, à 00:xx : elles sont reprises ici avec 1440 minutes
+     * de plus (« +1 »), et les courses d'avant 4 h datées du jour même, qui appartiennent à la nuit
+     * précédente, sont écartées. Les heures déjà écrites ≥ 1440 (notation 25:00) restent telles quelles.
+     */
     fun departures(stopIndexes: Collection<Int>, date: LocalDate): List<TimetableDeparture> {
-        val offset = dayOffset(date) ?: return emptyList()
         if (stopIndexes.isEmpty()) return emptyList()
-        val active = serviceDays.indices.filter { offset in serviceDays[it] }.toSet()
-        if (active.isEmpty()) return emptyList()
         val result = ArrayList<TimetableDeparture>()
-        trips.forEachIndexed { tripIndex, trip ->
-            if (trip.s !in active) return@forEachIndexed
-            val positions = positionInPattern.getOrNull(trip.p) ?: return@forEachIndexed
-            for (stopIndex in stopIndexes) {
-                val pos = positions[stopIndex] ?: continue
-                val pattern = patterns[trip.p]
-                result.add(
-                    TimetableDeparture(
-                        minutes = trip.t[pos],
-                        tripIndex = tripIndex,
-                        stopIndex = stopIndex,
-                        terminus = stops[pattern.last()].name,
-                        isTerminus = pos == pattern.lastIndex
-                    )
-                )
+        dayOffset(date)?.let { offset ->
+            collectDepartures(offset, stopIndexes, result) { minutes -> minutes.takeIf { it >= TimetableTime.SERVICE_DAY_START_MINUTES } }
+        }
+        dayOffset(date.plus(1, DateTimeUnit.DAY))?.let { offset ->
+            collectDepartures(offset, stopIndexes, result, shiftMinutes = TimetableTime.MINUTES_PER_DAY) { minutes ->
+                minutes.takeIf { it < TimetableTime.SERVICE_DAY_START_MINUTES }?.plus(TimetableTime.MINUTES_PER_DAY)
             }
         }
         result.sortWith(compareBy({ it.minutes }, { it.tripIndex }))
         return result
     }
 
+    /** Ajoute à [result] les passages des courses actives au jour [offset], l'heure passée par [keep] (null = écartée). */
+    private inline fun collectDepartures(
+        offset: Int,
+        stopIndexes: Collection<Int>,
+        result: MutableList<TimetableDeparture>,
+        shiftMinutes: Int = 0,
+        keep: (Int) -> Int?
+    ) {
+        val active = serviceDays.indices.filter { offset in serviceDays[it] }.toSet()
+        if (active.isEmpty()) return
+        trips.forEachIndexed { tripIndex, trip ->
+            if (trip.s !in active) return@forEachIndexed
+            val positions = positionInPattern.getOrNull(trip.p) ?: return@forEachIndexed
+            for (stopIndex in stopIndexes) {
+                val pos = positions[stopIndex] ?: continue
+                val minutes = keep(trip.t[pos]) ?: continue
+                val pattern = patterns[trip.p]
+                result.add(
+                    TimetableDeparture(
+                        minutes = minutes,
+                        tripIndex = tripIndex,
+                        stopIndex = stopIndex,
+                        terminus = stops[pattern.last()].name,
+                        isTerminus = pos == pattern.lastIndex,
+                        shiftMinutes = shiftMinutes
+                    )
+                )
+            }
+        }
+    }
+
     /** Tous les arrêts d'une course avec leurs heures, dans l'ordre de passage. */
-    fun calls(tripIndex: Int): List<TimetableCall> {
+    fun calls(tripIndex: Int): List<TimetableCall> = calls(tripIndex, 0)
+
+    /** Variante avec le décalage d'une course de nuit ([TimetableDeparture.shiftMinutes]) : ses heures passent en « +1 ». */
+    fun calls(tripIndex: Int, shiftMinutes: Int): List<TimetableCall> {
         val trip = trips.getOrNull(tripIndex) ?: return emptyList()
         val pattern = patterns.getOrNull(trip.p) ?: return emptyList()
-        return pattern.mapIndexed { pos, stopIndex -> TimetableCall(pos, stopIndex, stops[stopIndex], trip.t[pos]) }
+        return pattern.mapIndexed { pos, stopIndex -> TimetableCall(pos, stopIndex, stops[stopIndex], trip.t[pos] + shiftMinutes) }
     }
 }
 

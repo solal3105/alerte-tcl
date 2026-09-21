@@ -65,7 +65,11 @@ et au `DirectionRef` SIRI, `outbound` = aller)
 - `trips` : les courses, triées par heure de départ ; `p` motif, `s` calendrier, `t` heures de
   passage en minutes depuis minuit pour chaque arrêt du motif. Une valeur ≥ 1440 est un
   passage après minuit rattaché à la journée de service précédente (`1500` = 01:00 le
-  lendemain).
+  lendemain). Le GTFS SYTRAL n'emploie pas cette notation : il date ses courses de nuit du
+  lendemain calendaire, à 00:xx (le métro du samedi soir jusqu'à 2 h est dans le calendrier du
+  dimanche). Les applications reconstituent la journée de service (`LineTimetable.departures`,
+  module partagé) : les courses d'un jour à partir de 4 h, puis celles du lendemain avant 4 h,
+  affichées « +1 ».
 
 ## Ce qui garantit la mise à jour dans la durée
 

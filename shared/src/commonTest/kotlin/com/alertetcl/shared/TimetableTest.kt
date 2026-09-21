@@ -29,7 +29,7 @@ class TimetableTest {
          "stops":[{"id":100,"name":"Gare Saint-Paul"},{"id":200,"name":"Bellecour"},{"id":300,"name":"Part-Dieu Vivier Merle"},{"id":400,"name":"Vaulx-en-Velin La Grappinière"}],
          "patterns":[[0,1,2,3],[0,1,2]],
          "services":[[0,1,2,3,4],[5,6]],
-         "trips":[{"p":0,"s":0,"t":[300,310,320,340]},{"p":1,"s":0,"t":[1430,1440,1450]},{"p":0,"s":1,"t":[600,612,625,650]}]}
+         "trips":[{"p":0,"s":0,"t":[300,310,320,340]},{"p":1,"s":0,"t":[1430,1440,1450]},{"p":0,"s":1,"t":[600,612,625,650]},{"p":1,"s":0,"t":[60,70,80]}]}
     """.trimIndent()
 
     private val timetable: LineTimetable = HttpClientProvider.json.decodeFromString(LineTimetable.serializer(), sampleJson)
@@ -47,7 +47,7 @@ class TimetableTest {
     @Test
     fun departuresFollowServiceCalendar() {
         val weekday = timetable.departures(listOf(1), LocalDate(2026, 9, 16))
-        assertEquals(listOf(310, 1440), weekday.map { it.minutes })
+        assertEquals(listOf(310, 1440, 1510), weekday.map { it.minutes })
         assertEquals("Vaulx-en-Velin La Grappinière", weekday[0].terminus)
         assertEquals("Part-Dieu Vivier Merle", weekday[1].terminus, "course partielle : terminus réel")
         assertFalse(weekday[0].isTerminus)
@@ -59,13 +59,33 @@ class TimetableTest {
         assertTrue(outside.isEmpty())
     }
 
+    /**
+     * Le GTFS SYTRAL date les courses de nuit du lendemain à 00:xx : la course de 01:10 du 17 septembre
+     * appartient à la journée de service du 16 (« +1 »), pas à celle du 17.
+     */
+    @Test
+    fun nightTripsBelongToPreviousServiceDay() {
+        val night = timetable.departures(listOf(1), LocalDate(2026, 9, 16)).last()
+        assertEquals(1510, night.minutes)
+        assertEquals("01:10", night.time)
+        assertTrue(TimetableTime.isAfterMidnight(night.minutes))
+        assertEquals(TimetableTime.MINUTES_PER_DAY, night.shiftMinutes)
+        assertEquals(listOf(1500, 1510, 1520), timetable.calls(night.tripIndex, night.shiftMinutes).map { it.minutes })
+
+        val nextDay = timetable.departures(listOf(1), LocalDate(2026, 9, 17))
+        assertFalse(nextDay.any { it.minutes == 70 }, "la course de 01:10 n'est pas un départ du 17 au matin")
+
+        val lastDay = timetable.departures(listOf(1), LocalDate(2026, 9, 21))
+        assertTrue(lastDay.all { it.minutes < TimetableTime.MINUTES_PER_DAY }, "hors période, aucune nuit n'est reconstituée")
+    }
+
     @Test
     fun terminusArrivalIsFlagged() {
         val atTerminus = timetable.departures(listOf(3), LocalDate(2026, 9, 15))
         assertEquals(1, atTerminus.size)
         assertTrue(atTerminus[0].isTerminus)
         val atPartialTerminus = timetable.departures(listOf(2), LocalDate(2026, 9, 15))
-        assertEquals(listOf(false, true), atPartialTerminus.map { it.isTerminus })
+        assertEquals(listOf(false, true, true), atPartialTerminus.map { it.isTerminus })
     }
 
     @Test
