@@ -1,7 +1,8 @@
 import SwiftUI
 import WidgetKit
 
-/// Vue du widget « Trafic sur mes lignes », dans toutes ses tailles.
+/// Vue du widget « Trafic sur mes lignes », dans toutes ses tailles : l'état en un pictogramme et
+/// une phrase courte, puis les lignes concernées en badges. Pas de titre.
 struct TrafficWidgetView: View {
     let entry: TrafficEntry
     let family: WidgetFamily
@@ -22,102 +23,102 @@ struct TrafficWidgetView: View {
         }
     }
 
-    /// Couleur et pictogramme de l'état : vert quand tout roule, orange perturbé, rouge majeur.
-    private var tone: Color {
-        if entry.hasMajor { return WidgetTheme.error }
-        if !entry.disrupted.isEmpty { return WidgetTheme.warning }
-        return WidgetTheme.success
-    }
-
-    private var symbol: String {
-        if entry.hasMajor { return "xmark.octagon.fill" }
-        if !entry.disrupted.isEmpty { return "exclamationmark.triangle.fill" }
-        return "checkmark.circle.fill"
+    /// Les lignes à montrer : celles qui sont perturbées, ou toutes celles qu'on suit quand tout roule.
+    private var shownLines: [String] {
+        entry.disrupted.isEmpty ? entry.subscribed : entry.disrupted.map(\.line)
     }
 
     // MARK: Tailles
 
     private var small: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            WidgetHeader(symbol: symbol, title: "Mes lignes", tint: tone)
-            Spacer(minLength: 0)
-            Text(entry.headline)
-                .font(.system(size: 15, weight: .bold))
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 0) {
+            banner
+            Spacer(minLength: 8)
+            badges(shownLines, limit: 4, size: 26)
             if let detail = entry.detail {
                 Text(detail)
-                    .font(.system(size: 10))
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+                    .padding(.top, 4)
             }
-            badges(entry.disrupted.isEmpty ? entry.subscribed : entry.disrupted.map(\.line), limit: 4, size: 22)
-            Spacer(minLength: 0)
-            WidgetFooter(fetchedAt: entry.fetchedAt, stale: entry.stale)
+            Spacer(minLength: 4)
+            WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, stale: entry.stale)
         }
     }
 
+    @ViewBuilder
     private var medium: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            WidgetHeader(symbol: "exclamationmark.triangle.fill", title: "Trafic sur mes lignes")
-            if entry.disrupted.isEmpty {
-                HStack(spacing: 12) {
-                    Image(systemName: symbol)
-                        .font(.system(size: 30))
-                        .foregroundStyle(tone)
-                        .widgetAccentable()
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(entry.headline)
-                            .font(.system(size: 15, weight: .bold))
-                            .lineLimit(2)
-                        if let detail = entry.detail {
-                            Text(detail)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                        }
-                        badges(entry.subscribed, limit: 7, size: 22)
-                    }
-                }
-                .frame(maxHeight: .infinity)
-            } else {
-                ForEach(entry.disrupted.prefix(3)) { line in
-                    Link(destination: WidgetLink.traffic.url) {
-                        HStack(spacing: 8) {
-                            WidgetLineBadge(line: line.line, size: 26)
-                            VStack(alignment: .leading, spacing: 0) {
-                                Text(line.title.isEmpty ? line.severity.label : line.title)
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .lineLimit(1)
-                                Text(line.severity.label)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(WidgetTheme.severity(line.severity))
-                            }
-                            Spacer(minLength: 0)
-                        }
-                    }
-                }
-                if entry.disrupted.count > 3 {
-                    Text(entry.disrupted.count - 3 == 1 ? "et 1 autre ligne" : "et \(entry.disrupted.count - 3) autres lignes")
-                        .font(.system(size: 10))
+        if entry.disrupted.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                banner
+                badges(entry.subscribed, limit: 8, size: 30)
+                if let detail = entry.detail {
+                    Text(detail)
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
                 Spacer(minLength: 0)
+                WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, stale: entry.stale)
             }
-            WidgetFooter(fetchedAt: entry.fetchedAt, stale: entry.stale)
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                banner
+                    .padding(.bottom, 6)
+                ForEach(Array(entry.disrupted.prefix(3).enumerated()), id: \.element.id) { index, line in
+                    if index > 0 { WidgetRule() }
+                    Link(destination: WidgetLink.traffic.url) { disruptedRow(line) }
+                }
+                Spacer(minLength: 0)
+                WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, stale: entry.stale)
+            }
         }
+    }
+
+    /// Le bandeau d'état : plein, à la couleur de l'état, le texte en blanc dessus.
+    private var banner: some View {
+        HStack(spacing: 6) {
+            Image(systemName: entry.symbol)
+                .font(.system(size: 13, weight: .bold))
+            Text(entry.headline.uppercased())
+                .font(.system(size: 13, weight: .heavy))
+                .tracking(0.4)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .foregroundStyle(.white)
+        .widgetAccentable()
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(entry.tone, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func disruptedRow(_ line: WidgetTrafficLine) -> some View {
+        HStack(spacing: 10) {
+            WidgetLineBadge(line: line.line, size: 28)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(line.title.isEmpty ? line.severity.label : line.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                Text(line.severity.label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(WidgetTheme.severity(line.severity))
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 5)
     }
 
     private var rectangular: some View {
         HStack(spacing: 8) {
-            Image(systemName: symbol)
+            Image(systemName: entry.symbol)
                 .font(.system(size: 22, weight: .semibold))
                 .widgetAccentable()
             VStack(alignment: .leading, spacing: 1) {
                 Text(entry.headline).font(.headline).lineLimit(2)
-                Text(entry.disrupted.isEmpty
-                     ? (entry.detail ?? "Lignes suivies : " + entry.subscribed.joined(separator: ", "))
-                     : entry.disrupted.map(\.line).joined(separator: ", "))
+                Text(shownLines.joined(separator: ", "))
                     .font(.caption2)
                     .lineLimit(1)
             }
@@ -126,7 +127,12 @@ struct TrafficWidgetView: View {
     }
 
     private var inline: some View {
-        Label(entry.disrupted.isEmpty ? "TCL : vos lignes circulent" : "TCL : \(entry.disrupted.map(\.line).joined(separator: ", ")) perturbée\(entry.disrupted.count > 1 ? "s" : "")", systemImage: symbol)
+        Label(
+            entry.disrupted.isEmpty
+                ? "TCL : vos lignes circulent"
+                : "TCL : \(entry.disrupted.map(\.line).joined(separator: ", ")) perturbée\(entry.disrupted.count > 1 ? "s" : "")",
+            systemImage: entry.symbol
+        )
     }
 
     /// Une rangée de badges, avec « +3 » au-delà de la limite.
@@ -137,7 +143,7 @@ struct TrafficWidgetView: View {
             }
             if lines.count > limit {
                 Text("+\(lines.count - limit)")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
         }

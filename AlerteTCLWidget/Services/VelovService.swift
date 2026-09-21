@@ -34,7 +34,7 @@ enum VelovService {
 
         func snapshot(distanceMeters: Double?) -> WidgetVelovSnapshot {
             WidgetVelovSnapshot(
-                id: id, name: displayName, address: address ?? "",
+                id: id, name: displayName,
                 bikes: bikes, ebikes: ebikes ?? 0,
                 stands: stands, capacity: capacity ?? (bikes + stands), open: isOpen,
                 updated: updated.map { Date(timeIntervalSince1970: TimeInterval($0)) },

@@ -82,28 +82,28 @@ struct VelovProvider: AppIntentTimelineProvider {
         }
         if let location = await WidgetLocation.current() {
             guard let found = await VelovService.nearest(to: location) else {
-                return VelovEntry(date: now, status: .unavailable, station: nil, nearest: true, needsLocation: false, fetchedAt: nil, stale: false)
+                return VelovEntry(date: now, status: .unavailable, station: nil, needsLocation: false, fetchedAt: nil, stale: false)
             }
             return VelovEntry(
                 date: now, status: .ready,
                 station: found.station.snapshot(distanceMeters: found.distance),
-                nearest: true, needsLocation: false, fetchedAt: found.fetchedAt, stale: found.stale
+                needsLocation: false, fetchedAt: found.fetchedAt, stale: found.stale
             )
         }
         if let chosen = configuration.station {
             return await fixed(stationId: chosen.id, now: now)
         }
-        return .notConfigured(nearest: configuration.nearest, needsLocation: configuration.nearest, date: now)
+        return .notConfigured(needsLocation: configuration.nearest, date: now)
     }
 
     private func fixed(stationId: Int, now: Date) async -> VelovEntry {
         guard let found = await VelovService.station(id: stationId) else {
-            return VelovEntry(date: now, status: .unavailable, station: nil, nearest: false, needsLocation: false, fetchedAt: nil, stale: false)
+            return VelovEntry(date: now, status: .unavailable, station: nil, needsLocation: false, fetchedAt: nil, stale: false)
         }
         return VelovEntry(
             date: now, status: .ready,
             station: found.station.snapshot(distanceMeters: nil),
-            nearest: false, needsLocation: false, fetchedAt: found.fetchedAt, stale: found.stale
+            needsLocation: false, fetchedAt: found.fetchedAt, stale: found.stale
         )
     }
 }
@@ -127,7 +127,7 @@ private struct VelovEntryView: View {
 
     var body: some View {
         VelovWidgetView(entry: entry, family: family)
-            .containerBackground(.fill.tertiary, for: .widget)
+            .containerBackground(for: .widget) { WidgetSurface(tint: entry.surfaceTint) }
             .widgetURL((entry.station.map { WidgetLink.velov($0.id) } ?? .widgets).url)
     }
 }
@@ -136,7 +136,7 @@ private struct VelovEntryView: View {
     VelovWidget()
 } timeline: {
     WidgetSamples.velov
-    VelovEntry.notConfigured(nearest: true, needsLocation: true)
+    VelovEntry.notConfigured(needsLocation: true)
 }
 
 #Preview("Vélo'v, moyen", as: .systemMedium) {

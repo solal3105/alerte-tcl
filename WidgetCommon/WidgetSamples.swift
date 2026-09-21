@@ -50,8 +50,8 @@ enum WidgetSamples {
     static var velov: VelovEntry {
         VelovEntry(
             date: now, status: .ready,
-            station: WidgetVelovSnapshot(id: 1002, name: "Opéra", address: "Place Louis Pradel", bikes: 7, ebikes: 3, stands: 12, capacity: 20, open: true, updated: now, distanceMeters: 180),
-            nearest: true, needsLocation: false, fetchedAt: now, stale: false
+            station: WidgetVelovSnapshot(id: 1002, name: "Opéra", bikes: 7, ebikes: 3, stands: 12, capacity: 20, open: true, updated: now, distanceMeters: 180),
+            needsLocation: false, fetchedAt: now, stale: false
         )
     }
 

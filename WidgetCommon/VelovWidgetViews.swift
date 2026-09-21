@@ -1,7 +1,8 @@
 import SwiftUI
 import WidgetKit
 
-/// Vue du widget « Station Vélo'v », dans toutes ses tailles.
+/// Vue du widget « Station Vélo'v », dans toutes ses tailles : le nom de la station, les vélos
+/// disponibles en grand, et le détail en une rangée. Pas de titre, pas d'adresse.
 struct VelovWidgetView: View {
     let entry: VelovEntry
     let family: WidgetFamily
@@ -27,87 +28,104 @@ struct VelovWidgetView: View {
         }
     }
 
-    private var headerTitle: String { entry.nearest ? "Vélo'v la plus proche" : "Vélo'v" }
-
     private func color(_ station: WidgetVelovSnapshot) -> Color {
         WidgetTheme.availability(station.availability)
+    }
+
+    /// « 3 élec · 12 places », le détail sur une seule ligne.
+    private func detailLine(_ station: WidgetVelovSnapshot) -> String {
+        var parts: [String] = []
+        if station.ebikes > 0 { parts.append("\(station.ebikes) élec") }
+        parts.append("\(station.stands) \(station.stands > 1 ? "places" : "place")")
+        return parts.joined(separator: " · ")
     }
 
     // MARK: Tailles
 
     private func small(_ station: WidgetVelovSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            WidgetHeader(symbol: "bicycle", title: headerTitle, tint: WidgetTheme.velov)
+        VStack(alignment: .leading, spacing: 0) {
             Text(station.name)
                 .font(.system(size: 13, weight: .bold))
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 2)
+            if let distance = station.distanceText {
+                Text(distance)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 6)
             if station.open {
-                HStack(alignment: .top, spacing: 14) {
-                    WidgetFigure(value: "\(station.bikes)", unit: station.bikes > 1 ? "vélos" : "vélo", size: 30, color: color(station))
-                    WidgetFigure(value: "\(station.stands)", unit: station.stands > 1 ? "places" : "place", size: 30)
-                }
-                if station.ebikes > 0 {
-                    Text(station.ebikes > 1 ? "dont \(station.ebikes) électriques" : "dont 1 électrique")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "bicycle")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(color(station))
+                        .widgetAccentable()
+                    Text("\(station.bikes)")
+                        .font(.system(size: 48, weight: .heavy, design: .rounded))
+                        .foregroundStyle(color(station))
                         .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                        .widgetAccentable()
+                }
+                HStack(spacing: 4) {
+                    if station.ebikes > 0 {
+                        WidgetChip(text: "\(station.ebikes)", symbol: "bolt.fill", color: WidgetTheme.accent)
+                    }
+                    WidgetChip(text: "\(station.stands)", symbol: "parkingsign")
                 }
             } else {
-                Text("Station fermée")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(WidgetTheme.error)
+                closed(size: 17)
             }
-            Spacer(minLength: 2)
-            WidgetFooter(fetchedAt: station.updated ?? entry.fetchedAt, stale: entry.stale, trailing: station.distanceText)
+            Spacer(minLength: 4)
+            WidgetStamp(fetchedAt: station.updated ?? entry.fetchedAt, now: entry.date, stale: entry.stale)
         }
     }
 
     private func medium(_ station: WidgetVelovSnapshot) -> some View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                WidgetHeader(symbol: "bicycle", title: headerTitle, tint: WidgetTheme.velov)
-                Text(station.name)
+                Image(systemName: "bicycle")
                     .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(WidgetTheme.velov)
+                    .widgetAccentable()
+                Text(station.name)
+                    .font(.system(size: 17, weight: .bold))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
-                if !station.address.isEmpty {
-                    Text(station.address)
-                        .font(.system(size: 11))
+                if let distance = station.distanceText {
+                    Text(distance)
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                WidgetFooter(fetchedAt: station.updated ?? entry.fetchedAt, stale: entry.stale, trailing: station.distanceText)
+                WidgetStamp(fetchedAt: station.updated ?? entry.fetchedAt, now: entry.date, stale: entry.stale)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if station.open {
-                HStack(spacing: 6) {
-                    pill(value: "\(station.bikes)", unit: station.bikes > 1 ? "vélos" : "vélo", color: color(station))
-                    pill(value: "\(station.ebikes)", unit: "élec.", color: WidgetTheme.accent)
-                    pill(value: "\(station.stands)", unit: station.stands > 1 ? "places" : "place", color: .primary)
+                HStack(spacing: 7) {
+                    WidgetStat(symbol: "bicycle", value: "\(station.bikes)", color: color(station), width: 52)
+                    WidgetStat(symbol: "bolt.fill", value: "\(station.ebikes)", color: WidgetTheme.accent, width: 52)
+                    WidgetStat(symbol: "parkingsign", value: "\(station.stands)", color: WidgetTheme.neutral, width: 52)
                 }
             } else {
-                VStack(spacing: 4) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 28))
-                        .foregroundStyle(WidgetTheme.error)
-                    Text("Fermée")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(width: 90)
+                closed(size: 15).frame(width: 90)
             }
         }
     }
 
-    private func pill(value: String, unit: String, color: Color) -> some View {
-        WidgetFigure(value: value, unit: unit, size: 24, color: color, alignment: .center)
-            .frame(width: 52)
-            .padding(.vertical, 10)
-            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    /// Station fermée : le seul cas où il n'y a aucun chiffre à montrer.
+    private func closed(size: CGFloat) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: size + 3))
+                .foregroundStyle(WidgetTheme.error)
+            Text("Fermée")
+                .font(.system(size: size, weight: .bold))
+                .foregroundStyle(WidgetTheme.error)
+        }
     }
 
     private func circular(_ station: WidgetVelovSnapshot) -> some View {
@@ -130,12 +148,11 @@ struct VelovWidgetView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(station.name).font(.headline).lineLimit(1)
                 if station.open {
-                    Text("\(station.bikesText) · \(station.standsText)").font(.caption2).lineLimit(1)
-                    if station.ebikes > 0 {
-                        Text(station.ebikes > 1 ? "dont \(station.ebikes) électriques" : "dont 1 électrique").font(.caption2).lineLimit(1)
-                    }
+                    Text("\(station.bikes) vélos · \(detailLine(station))")
+                        .font(.caption2)
+                        .lineLimit(1)
                 } else {
-                    Text("Station fermée").font(.caption2)
+                    Text("Fermée").font(.caption2)
                 }
             }
             Spacer(minLength: 0)
@@ -143,7 +160,10 @@ struct VelovWidgetView: View {
     }
 
     private func inline(_ station: WidgetVelovSnapshot) -> some View {
-        Label(station.open ? "\(station.name) · \(station.bikes) vélos, \(station.stands) places" : "\(station.name) · fermée", systemImage: "bicycle")
+        Label(
+            station.open ? "\(station.name) · \(station.bikes) vélos · \(station.stands) places" : "\(station.name) · fermée",
+            systemImage: "bicycle"
+        )
     }
 
     // MARK: États

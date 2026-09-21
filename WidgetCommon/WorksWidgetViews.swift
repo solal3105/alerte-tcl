@@ -1,9 +1,9 @@
 import SwiftUI
 import WidgetKit
 
-/// Vue du widget « Travaux autour de moi » : la carte des chantiers autour de la position et la
-/// liste des plus proches. Les marges du widget sont désactivées pour que la carte aille au bord ;
-/// les textes reprennent la marge du système.
+/// Vue du widget « Travaux autour de moi » : la carte des chantiers autour de la position, leur
+/// nombre, et les plus proches. Les marges du widget sont désactivées pour que la carte aille au
+/// bord ; les textes reprennent la marge du système.
 struct WorksWidgetView: View {
     let entry: WorksEntry
     let family: WidgetFamily
@@ -29,60 +29,89 @@ struct WorksWidgetView: View {
     }
 
     private var map: UIImage? { colorScheme == .dark ? (entry.mapDark ?? entry.mapLight) : (entry.mapLight ?? entry.mapDark) }
-    private var headerTitle: String { "Travaux à \(entry.radiusText)" }
-    private var placeLabel: String? { entry.hasLocation ? nil : "Centre de Lyon" }
+
+    /// « chantiers à 1 km » : l'unité porte le rayon, il n'y a donc pas de titre à écrire.
+    private var unit: String {
+        "\(entry.works.count == 1 ? "chantier" : "chantiers") à \(entry.radiusText)"
+    }
+
+    /// Précision utile seulement quand la position est inconnue : la carte est alors centrée sur Lyon.
+    private var placeNote: String? { entry.hasLocation ? nil : "autour du centre de Lyon" }
 
     // MARK: Tailles
 
     private var small: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            WidgetHeader(symbol: "hammer.fill", title: "Travaux", subtitle: entry.radiusText)
-            Spacer(minLength: 0)
-            HStack(alignment: .lastTextBaseline, spacing: 5) {
+        VStack(alignment: .leading, spacing: 0) {
+            Image(systemName: "hammer.fill")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(WidgetTheme.accent)
+                .widgetAccentable()
+            Spacer(minLength: 6)
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
                 Text("\(entry.works.count)")
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .font(.system(size: 48, weight: .heavy, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                     .widgetAccentable()
-                Text(entry.works.count == 1 ? "chantier" : "chantiers")
-                    .font(.system(size: 13, weight: .semibold))
+                Text(unit)
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if let nearest = entry.works.first {
-                Text(nearest.title)
-                    .font(.system(size: 11, weight: .semibold))
-                    .lineLimit(1)
-                Text("\(nearest.address) · \(nearest.distanceText)")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            } else {
-                Text("Rien à signaler autour de vous.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    progressDot(nearest)
+                    Text(nearest.title)
+                        .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+                    Spacer(minLength: 2)
+                    Text(nearest.distanceText)
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 4)
             }
-            Spacer(minLength: 0)
-            WidgetFooter(fetchedAt: entry.fetchedAt, trailing: placeLabel)
+            Spacer(minLength: 4)
+            WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, note: placeNote)
         }
     }
 
+    /// La carte occupe tout le widget ; le compte et le chantier le plus proche flottent dessus.
     private var medium: some View {
-        HStack(spacing: 0) {
+        ZStack(alignment: .bottomLeading) {
             mapView
-                .frame(width: 150)
-                .clipped()
-            VStack(alignment: .leading, spacing: 4) {
-                WidgetHeader(symbol: "hammer.fill", title: headerTitle)
-                Text(entry.countText)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .widgetAccentable()
-                ForEach(entry.works.prefix(2)) { work in
-                    workRow(work)
+            LinearGradient(colors: [.clear, .black.opacity(0.35)], startPoint: .center, endPoint: .bottom)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text("\(entry.works.count)")
+                        .font(.system(size: 30, weight: .heavy, design: .rounded))
+                    Text(unit)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.secondary)
                 }
-                Spacer(minLength: 0)
-                WidgetFooter(fetchedAt: entry.fetchedAt, trailing: placeLabel)
+                if let nearest = entry.works.first {
+                    HStack(spacing: 6) {
+                        progressDot(nearest)
+                        Text(nearest.title)
+                            .font(.system(size: 11, weight: .semibold))
+                            .lineLimit(1)
+                        Spacer(minLength: 2)
+                        Text(nearest.distanceText)
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("Rien à signaler autour de vous.")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, note: placeNote)
             }
-            .padding(.leading, 12)
-            .padding(.trailing, margins.trailing)
-            .padding(.vertical, margins.top)
+            .padding(12)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(10)
         }
     }
 
@@ -90,25 +119,30 @@ struct WorksWidgetView: View {
         VStack(spacing: 0) {
             mapView
                 .frame(maxWidth: .infinity)
-                .frame(height: 190)
+                .frame(height: 186)
                 .clipped()
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline) {
-                    WidgetHeader(symbol: "hammer.fill", title: headerTitle)
-                    Text(entry.countText)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text("\(entry.works.count)")
+                        .font(.system(size: 30, weight: .heavy, design: .rounded))
                         .widgetAccentable()
+                    Text(unit)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
                 }
+                .padding(.bottom, 6)
                 if entry.works.isEmpty {
                     Text("Rien à signaler autour de vous.")
-                        .font(.system(size: 12))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
-                ForEach(entry.works.prefix(4)) { work in
+                ForEach(Array(entry.works.prefix(4).enumerated()), id: \.element.id) { index, work in
+                    if index > 0 { WidgetRule() }
                     workRow(work)
                 }
                 Spacer(minLength: 0)
-                WidgetFooter(fetchedAt: entry.fetchedAt, trailing: placeLabel)
+                WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, note: placeNote)
             }
             .padding(.horizontal, margins.leading)
             .padding(.top, 10)
@@ -134,11 +168,16 @@ struct WorksWidgetView: View {
         }
     }
 
+    /// Point à la couleur de l'avancement, le même barème que la carte des chantiers.
+    private func progressDot(_ work: WidgetWork) -> some View {
+        Circle()
+            .fill(WidgetTheme.worksProgress(percent: work.progress))
+            .frame(width: 8, height: 8)
+    }
+
     private func workRow(_ work: WidgetWork) -> some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(WidgetTheme.worksProgress(percent: work.progress))
-                .frame(width: 8, height: 8)
+        HStack(spacing: 8) {
+            progressDot(work)
             VStack(alignment: .leading, spacing: 0) {
                 Text(work.title)
                     .font(.system(size: 11, weight: .semibold))
@@ -150,9 +189,10 @@ struct WorksWidgetView: View {
             }
             Spacer(minLength: 4)
             Text(work.distanceText)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(.secondary)
         }
+        .padding(.vertical, 5)
     }
 
     private var unavailable: some View {

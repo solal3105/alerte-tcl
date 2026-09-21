@@ -62,7 +62,7 @@ private struct TrafficEntryView: View {
 
     var body: some View {
         TrafficWidgetView(entry: entry, family: family)
-            .containerBackground(.fill.tertiary, for: .widget)
+            .containerBackground(for: .widget) { WidgetSurface(tint: entry.surfaceTint) }
             .widgetURL(WidgetLink.traffic.url)
     }
 }

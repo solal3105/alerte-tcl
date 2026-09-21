@@ -1,7 +1,8 @@
 import SwiftUI
 import WidgetKit
 
-/// Vue du widget « Places de parking », dans toutes ses tailles.
+/// Vue du widget « Places de parking », dans toutes ses tailles : le nom du parking, les places
+/// libres en grand, et le remplissage. Le nombre n'est écrit qu'une fois.
 struct ParkingWidgetView: View {
     let entry: ParkingEntry
     let family: WidgetFamily
@@ -31,79 +32,94 @@ struct ParkingWidgetView: View {
         WidgetTheme.availability(parking.availability)
     }
 
+    /// Seuls les parcs relais sont nommés : un parking public n'a pas besoin d'être annoncé comme tel.
+    private func detail(_ parking: WidgetParkingSnapshot) -> String? {
+        parking.isParcRelais ? "Parc relais" : nil
+    }
+
     // MARK: Tailles
 
     private func small(_ parking: WidgetParkingSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            WidgetHeader(symbol: "parkingsign", title: parking.kindLabel)
+        VStack(alignment: .leading, spacing: 0) {
             Text(parking.name)
                 .font(.system(size: 13, weight: .bold))
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 2)
+            if let detail = detail(parking) {
+                Text(detail)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 6)
             if let available = parking.available, parking.open {
-                HStack(alignment: .lastTextBaseline, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "parkingsign")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(color(parking))
+                        .widgetAccentable()
                     Text("\(available)")
-                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .font(.system(size: 48, weight: .heavy, design: .rounded))
                         .foregroundStyle(color(parking))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.6)
+                        .minimumScaleFactor(0.5)
                         .widgetAccentable()
-                    Text(available > 1 ? "places libres" : "place libre")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
                 }
-                capacityBar(parking)
+                WidgetSegmentedBar(fraction: parking.freeFraction, color: color(parking), segments: 12)
+                    .padding(.top, 4)
             } else {
                 Text(parking.statusText)
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.system(size: 20, weight: .heavy, design: .rounded))
                     .foregroundStyle(parking.open ? Color.secondary : WidgetTheme.error)
             }
-            Spacer(minLength: 2)
-            WidgetFooter(fetchedAt: entry.fetchedAt, stale: entry.stale)
+            Spacer(minLength: 4)
+            WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, stale: entry.stale)
         }
     }
 
     private func medium(_ parking: WidgetParkingSnapshot) -> some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
-                WidgetHeader(symbol: "parkingsign", title: parking.kindLabel)
-                Text(parking.name)
+                Image(systemName: "parkingsign")
                     .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(color(parking))
+                    .widgetAccentable()
+                Text(parking.name)
+                    .font(.system(size: 17, weight: .bold))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(sentence(parking))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                if let detail = detail(parking) {
+                    Text(detail)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
                 Spacer(minLength: 0)
-                WidgetFooter(fetchedAt: entry.fetchedAt, stale: entry.stale)
+                if parking.open, parking.available != nil {
+                    WidgetSegmentedBar(fraction: parking.freeFraction, color: color(parking), segments: 16)
+                }
+                WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, stale: entry.stale)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            ZStack {
-                WidgetRing(fraction: parking.open ? parking.freeFraction : 0, color: color(parking), lineWidth: 10)
-                VStack(spacing: 0) {
-                    if let available = parking.available, parking.open {
-                        Text("\(available)")
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
-                            .foregroundStyle(color(parking))
-                            .minimumScaleFactor(0.6)
-                            .widgetAccentable()
-                        if let capacity = parking.capacity {
-                            Text("sur \(capacity)")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(.secondary)
-                        }
-                    } else {
-                        Image(systemName: parking.open ? "questionmark" : "xmark")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(color(parking))
-                    }
+            VStack(alignment: .trailing, spacing: -4) {
+                if let available = parking.available, parking.open {
+                    Text("\(available)")
+                        .font(.system(size: 54, weight: .heavy, design: .rounded))
+                        .foregroundStyle(color(parking))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                        .widgetAccentable()
+                    WidgetLabel(text: parking.capacity.map { "libres sur \($0)" } ?? "libres")
+                } else {
+                    Image(systemName: parking.open ? "questionmark.circle.fill" : "xmark.circle.fill")
+                        .font(.system(size: 38))
+                        .foregroundStyle(color(parking))
+                    Text(parking.statusText)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 6)
                 }
             }
-            .frame(width: 100, height: 100)
+            .frame(width: 118, alignment: .trailing)
         }
     }
 
@@ -140,32 +156,6 @@ struct ParkingWidgetView: View {
 
     private func inline(_ parking: WidgetParkingSnapshot) -> some View {
         Label("\(parking.name) · \(parking.statusText)", systemImage: "parkingsign")
-    }
-
-    // MARK: Éléments
-
-    /// Barre de capacité : la part des places libres, à la couleur de disponibilité.
-    private func capacityBar(_ parking: WidgetParkingSnapshot) -> some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                Capsule().fill(color(parking).opacity(0.18))
-                Capsule().fill(color(parking)).frame(width: geometry.size.width * parking.freeFraction)
-            }
-        }
-        .frame(height: 5)
-    }
-
-    /// « 42 places libres sur 150, il reste de la place. »
-    private func sentence(_ parking: WidgetParkingSnapshot) -> String {
-        guard parking.open else { return "Le parking est fermé pour l'instant." }
-        guard let available = parking.available else { return "L'exploitant ne transmet pas la disponibilité en temps réel." }
-        let count = parking.capacity.map { "\(parking.statusText) sur \($0)" } ?? parking.statusText
-        switch parking.availability {
-        case .good: return "\(count), il reste de la place."
-        case .medium: return "\(count), il se remplit."
-        case .low: return available <= 0 ? "Complet pour l'instant." : "\(count), presque complet."
-        case .unknown: return count
-        }
     }
 
     // MARK: États

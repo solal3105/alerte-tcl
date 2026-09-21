@@ -117,7 +117,7 @@ private struct WorksEntryView: View {
 
     var body: some View {
         WorksWidgetView(entry: entry, family: family)
-            .containerBackground(.fill.tertiary, for: .widget)
+            .containerBackground(for: .widget) { WidgetSurface(tint: entry.surfaceTint) }
             .widgetURL(WidgetLink.works(entry.works.first?.id).url)
     }
 }

@@ -3,8 +3,9 @@ import WidgetKit
 
 // MARK: - Prochains passages
 
-/// Vue du widget « Prochains passages », dans toutes ses tailles. Partagée avec l'application,
-/// qui l'affiche telle quelle dans sa galerie de widgets.
+/// Vue du widget « Prochains passages », dans toutes ses tailles : la ligne et l'arrêt, puis le
+/// prochain passage en grand. Partagée avec l'application, qui l'affiche telle quelle dans sa
+/// galerie de widgets.
 struct DeparturesWidgetView: View {
     let entry: DeparturesEntry
     let family: WidgetFamily
@@ -29,6 +30,9 @@ struct DeparturesWidgetView: View {
     private var stop: WidgetStop? { entry.stop }
     private var first: WidgetDeparture? { entry.departures.first }
 
+    /// Mention quand les passages affichés viennent des fiches horaires et non du direct.
+    private var plannedNote: String? { entry.theoretical ? "horaires prévus" : nil }
+
     // MARK: Tailles
 
     private var small: some View {
@@ -36,69 +40,75 @@ struct DeparturesWidgetView: View {
             if let stop {
                 HStack(spacing: 8) {
                     WidgetLineBadge(line: stop.line, size: 30)
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: 0) {
                         Text(stop.stopName)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 13, weight: .bold))
                             .lineLimit(1)
                         Text(stop.direction)
-                            .font(.system(size: 11))
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
                 }
             }
-            Spacer(minLength: 4)
+            Spacer(minLength: 6)
             if let first {
-                HStack(alignment: .lastTextBaseline, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text(first.figure(at: entry.date))
-                        .font(.system(size: first.isCountdown(at: entry.date) ? 40 : 30, weight: .bold, design: .rounded))
+                        .font(.system(size: first.isCountdown(at: entry.date) ? 52 : 34, weight: .heavy, design: .rounded))
+                        .foregroundStyle(lineColor)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.6)
+                        .minimumScaleFactor(0.5)
                         .widgetAccentable()
                     if first.isCountdown(at: entry.date) {
                         Text("min")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.system(size: 15, weight: .bold))
                             .foregroundStyle(.secondary)
                     } else if let day = first.dayLabel(at: entry.date) {
                         Text(day)
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(.secondary)
                     }
                     if first.realTime { WidgetLiveDot() }
                 }
-                Text(nextLabels)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    ForEach(entry.departures.dropFirst().prefix(3), id: \.id) { departure in
+                        WidgetChip(text: departure.label(at: entry.date))
+                    }
+                }
             } else {
                 noDeparture
             }
             Spacer(minLength: 4)
-            WidgetFooter(fetchedAt: entry.fetchedAt, stale: entry.stale, trailing: plannedLabel)
+            WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, stale: entry.stale, note: plannedNote)
         }
     }
 
-    /// Mention quand les passages affichés sont ceux des fiches horaires et non du direct.
-    private var plannedLabel: String? { entry.theoretical ? "horaires prévus" : nil }
+    /// Couleur de la ligne, celle du badge : le chiffre du prochain passage la reprend.
+    private var lineColor: Color {
+        stop.map { WidgetLinePalette.background(for: $0.line) } ?? WidgetTheme.accent
+    }
 
     private var medium: some View {
         HStack(alignment: .top, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 if let stop {
-                    WidgetLineBadge(line: stop.line, size: 44)
-                    Text(stop.stopName)
-                        .font(.system(size: 15, weight: .bold))
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("vers \(stop.direction)")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                    WidgetLineBadge(line: stop.line, size: 46)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(stop.stopName)
+                            .font(.system(size: 15, weight: .bold))
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("vers \(stop.direction)")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
                 }
                 Spacer(minLength: 0)
-                WidgetFooter(fetchedAt: entry.fetchedAt, stale: entry.stale, trailing: plannedLabel)
+                WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date, stale: entry.stale, note: plannedNote)
             }
-            .frame(maxWidth: 130, alignment: .leading)
+            .frame(maxWidth: 132, alignment: .leading)
 
             if entry.departures.isEmpty {
                 VStack(alignment: .leading) {
@@ -108,8 +118,9 @@ struct DeparturesWidgetView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                VStack(spacing: 5) {
+                VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(entry.departures.prefix(3).enumerated()), id: \.element.id) { index, departure in
+                        if index > 0 { WidgetRule() }
                         departureRow(departure, highlighted: index == 0)
                     }
                     Spacer(minLength: 0)
@@ -119,22 +130,22 @@ struct DeparturesWidgetView: View {
         }
     }
 
+    /// Une ligne du tableau : le temps d'attente à gauche, l'heure de passage à droite.
     private func departureRow(_ departure: WidgetDeparture, highlighted: Bool) -> some View {
-        HStack(spacing: 6) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(departure.label(at: entry.date))
-                .font(.system(size: highlighted ? 20 : 15, weight: highlighted ? .bold : .semibold, design: .rounded))
+                .font(.system(size: highlighted ? 26 : 16, weight: highlighted ? .heavy : .semibold, design: .rounded))
+                .foregroundStyle(highlighted ? lineColor : .primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .widgetAccentable()
             if departure.realTime { WidgetLiveDot() }
             Spacer(minLength: 4)
             Text(departure.timeText)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, highlighted ? 7 : 4)
-        .background(highlighted ? WidgetTheme.accent.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.vertical, highlighted ? 7 : 6)
     }
 
     private var circular: some View {
@@ -199,16 +210,10 @@ struct DeparturesWidgetView: View {
 
     // MARK: États
 
-    /// « puis 12 min · 25 min », ou rien s'il n'y a qu'un passage.
-    private var nextLabels: String {
-        let next = entry.departures.dropFirst().prefix(2).map { $0.label(at: entry.date) }
-        return next.isEmpty ? " " : "puis " + next.joined(separator: " · ")
-    }
-
     private var noDeparture: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("Aucun passage prévu")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 14, weight: .bold))
             Text("Ni en direct ni dans les fiches horaires des trois prochains jours.")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
@@ -273,6 +278,7 @@ struct DeparturesWidgetView: View {
 // MARK: - Tableau de départs
 
 /// Vue du widget « Tableau de départs » : un arrêt par ligne, ses deux prochains passages à droite.
+/// Aucun titre : les arrêts se suffisent.
 struct BoardWidgetView: View {
     let entry: BoardEntry
     let family: WidgetFamily
@@ -288,60 +294,60 @@ struct BoardWidgetView: View {
                 text: "Enregistrez vos arrêts depuis leur fiche dans Lyon Pocket : ils s'affichent ici, du premier au dernier."
             )
         } else {
-            VStack(alignment: .leading, spacing: isLarge ? 8 : 5) {
-                WidgetHeader(symbol: "list.bullet.rectangle.fill", title: "Prochains départs")
-                ForEach(entry.rows.prefix(rowLimit)) { row in
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(entry.rows.prefix(rowLimit).enumerated()), id: \.element.id) { index, row in
+                    if index > 0 { WidgetRule() }
                     Link(destination: WidgetLink.stop(row.stop.stopId).url) {
                         boardRow(row)
                     }
                 }
                 Spacer(minLength: 0)
-                WidgetFooter(fetchedAt: entry.fetchedAt)
+                WidgetStamp(fetchedAt: entry.fetchedAt, now: entry.date)
             }
         }
     }
 
     private func boardRow(_ row: BoardRow) -> some View {
-        HStack(spacing: 8) {
-            WidgetLineBadge(line: row.stop.line, size: isLarge ? 28 : 22)
-            if isLarge {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(row.stop.stopName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .lineLimit(1)
-                    Text("vers \(row.stop.direction)")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            } else {
-                (Text(row.stop.stopName).font(.system(size: 12, weight: .semibold))
-                 + Text("  \(row.stop.direction)").font(.system(size: 10)).foregroundStyle(.secondary))
+        HStack(spacing: 10) {
+            WidgetLineBadge(line: row.stop.line, size: isLarge ? 30 : 26)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(row.stop.stopName)
+                    .font(.system(size: isLarge ? 13 : 12, weight: .bold))
+                    .lineLimit(1)
+                Text(row.stop.direction)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             Spacer(minLength: 6)
-            if row.failed {
-                Image(systemName: "wifi.slash")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(WidgetTheme.warning)
-            } else if row.departures.isEmpty {
-                Text("aucun passage")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-            } else {
-                HStack(alignment: .lastTextBaseline, spacing: 6) {
-                    Text(row.departures[0].label(at: entry.date))
-                        .font(.system(size: isLarge ? 16 : 14, weight: .bold, design: .rounded))
-                        .widgetAccentable()
-                    if row.departures.count > 1 {
-                        Text(row.departures[1].label(at: entry.date))
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
-                    }
-                    if row.departures[0].realTime { WidgetLiveDot() }
+            times(row)
+        }
+        .padding(.vertical, isLarge ? 6 : 5)
+    }
+
+    /// À droite de chaque arrêt : le prochain passage en grand, le suivant en capsule.
+    @ViewBuilder
+    private func times(_ row: BoardRow) -> some View {
+        if row.failed {
+            Image(systemName: "wifi.slash")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(WidgetTheme.warning)
+        } else if row.departures.isEmpty {
+            Text("aucun passage")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(row.departures[0].label(at: entry.date))
+                    .font(.system(size: isLarge ? 18 : 16, weight: .heavy, design: .rounded))
+                    .foregroundStyle(WidgetLinePalette.background(for: row.stop.line))
+                    .widgetAccentable()
+                if row.departures[0].realTime { WidgetLiveDot() }
+                if row.departures.count > 1 {
+                    WidgetChip(text: row.departures[1].label(at: entry.date))
                 }
-                .lineLimit(1)
             }
+            .lineLimit(1)
         }
     }
 }

@@ -1,77 +1,208 @@
 import SwiftUI
 import WidgetKit
 
-// MARK: - En-tête et pied
+// MARK: - Règles communes
+//
+// Un widget n'a pas de titre : son contenu dit ce qu'il montre. Ce qu'on lit d'abord est le chiffre
+// du moment, puis ce qu'il concerne (un arrêt, un parking, une station), puis rien d'autre. Une
+// information n'est écrite qu'une fois, et les unités sont les plus courtes possibles.
 
-/// Première ligne d'un widget : un pictogramme à l'accent, le nom de ce qu'on regarde, un détail.
-struct WidgetHeader: View {
+/// Compteur secondaire : un pictogramme et un chiffre sur une pastille, sans un mot (un vélo, un
+/// éclair, un P disent mieux et plus court que « vélos », « électriques », « places »).
+struct WidgetStat: View {
     let symbol: String
-    let title: String
-    var subtitle: String? = nil
-    var tint: Color = WidgetTheme.accent
+    let value: String
+    var color: Color = .primary
+    var width: CGFloat? = nil
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
+        VStack(spacing: 1) {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(tint)
+                .foregroundStyle(color)
                 .widgetAccentable()
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
+            Text(value)
+                .font(.system(size: 22, weight: .heavy, design: .rounded))
+                .foregroundStyle(color)
                 .lineLimit(1)
-            if let subtitle {
-                Text(subtitle)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 0)
+                .minimumScaleFactor(0.6)
         }
+        .frame(maxWidth: width ?? .infinity)
+        .padding(.vertical, 8)
+        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
-/// Dernière ligne d'un widget : l'heure des données, et un avertissement si elles ne sont plus fraîches.
-struct WidgetFooter: View {
-    let fetchedAt: Date?
-    var stale: Bool = false
-    var trailing: String? = nil
+// MARK: - Identité de chaque widget
 
-    var body: some View {
-        HStack(spacing: 4) {
-            if let fetchedAt {
-                Image(systemName: stale ? "wifi.slash" : "arrow.triangle.2.circlepath")
-                    .font(.system(size: 8, weight: .semibold))
-                Text(stale ? "Données de \(WidgetDeparture.timeFormatter.string(from: fetchedAt))" : WidgetDeparture.timeFormatter.string(from: fetchedAt))
-            }
-            if let trailing {
-                if fetchedAt != nil { Text("·") }
-                Text(trailing)
-            }
-            Spacer(minLength: 0)
-        }
-        .font(.system(size: 10, weight: .medium))
-        .foregroundStyle(stale ? WidgetTheme.warning : Color.secondary)
-        .lineLimit(1)
-    }
+// La teinte du fond dit de quoi parle le widget avant même qu'on lise : la couleur de la ligne
+// pour les passages, la disponibilité pour un parking, le rouge Vélo'v, l'état du trafic.
+
+extension DeparturesEntry {
+    var surfaceTint: Color { stop.map { WidgetLinePalette.background(for: $0.line) } ?? WidgetTheme.accent }
 }
 
-// MARK: - Jauge
+extension BoardEntry {
+    var surfaceTint: Color { WidgetTheme.accent }
+}
 
-/// Anneau de remplissage, le même dessin que les fiches des parkings et des chantiers.
-struct WidgetRing: View {
-    let fraction: Double
-    let color: Color
-    var lineWidth: CGFloat = 8
+extension ParkingEntry {
+    var surfaceTint: Color { parking.map { WidgetTheme.availability($0.availability) } ?? WidgetTheme.accent }
+}
+
+extension VelovEntry {
+    var surfaceTint: Color { WidgetTheme.velov }
+}
+
+extension WorksEntry {
+    var surfaceTint: Color { WidgetTheme.accent }
+}
+
+extension TrafficEntry {
+    /// Vert quand tout roule, orange perturbé, rouge dès une alerte majeure.
+    var tone: Color {
+        if hasMajor { return WidgetTheme.error }
+        if !disrupted.isEmpty { return WidgetTheme.warning }
+        return WidgetTheme.success
+    }
+
+    var symbol: String {
+        if hasMajor { return "exclamationmark.octagon.fill" }
+        if !disrupted.isEmpty { return "exclamationmark.triangle.fill" }
+        return "checkmark.circle.fill"
+    }
+
+    var surfaceTint: Color { tone }
+}
+
+// MARK: - Fond
+
+/// Fond d'un widget : un voile de sa couleur d'identité (la ligne, la disponibilité, l'état du
+/// trafic) sur le fond du système. C'est ce qui donne à chaque widget son air de panneau.
+struct WidgetSurface: View {
+    let tint: Color
 
     var body: some View {
         ZStack {
-            Circle().stroke(color.opacity(0.18), lineWidth: lineWidth)
-            Circle()
-                .trim(from: 0, to: min(1, max(0, fraction)))
-                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
+            Rectangle().fill(.fill.tertiary)
+            LinearGradient(
+                colors: [tint.opacity(0.30), tint.opacity(0.08)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         }
+    }
+}
+
+/// Étiquette en petites capitales espacées, comme sur les panneaux de quai. Une seule par widget.
+struct WidgetLabel: View {
+    let text: String
+    var color: Color = .secondary
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(.system(size: 9, weight: .bold))
+            .tracking(0.8)
+            .foregroundStyle(color)
+            .lineLimit(1)
+    }
+}
+
+/// Capsule d'un chiffre secondaire : « 24 min », ou un pictogramme et un nombre.
+struct WidgetChip: View {
+    let text: String
+    var symbol: String? = nil
+    var color: Color = .primary
+
+    var body: some View {
+        HStack(spacing: 3) {
+            if let symbol {
+                Image(systemName: symbol)
+                    .font(.system(size: 9, weight: .bold))
+            }
+            Text(text)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+        }
+        .foregroundStyle(color)
+        .lineLimit(1)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(color.opacity(color == .primary ? 0.07 : 0.14), in: Capsule())
+    }
+}
+
+/// Barre de remplissage en segments, comme les panneaux de places libres d'un parking.
+struct WidgetSegmentedBar: View {
+    let fraction: Double
+    let color: Color
+    var segments: Int = 14
+    var height: CGFloat = 7
+
+    private var filled: Int {
+        max(0, min(segments, Int((Double(segments) * min(1, max(0, fraction))).rounded())))
+    }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<segments, id: \.self) { index in
+                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                    .fill(index < filled ? color : color.opacity(0.16))
+            }
+        }
+        .frame(height: height)
+    }
+}
+
+/// Trait de séparation d'un tableau de départs : présent, mais presque invisible.
+struct WidgetRule: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.08))
+            .frame(height: 0.5)
+    }
+}
+
+// MARK: - Mention de fraîcheur
+
+/// Une seule ligne, en bas, et seulement quand il y a quelque chose à dire : des données qui datent,
+/// ou des horaires théoriques au lieu du direct. Quand tout est frais, le widget ne dit rien.
+struct WidgetStamp: View {
+    let fetchedAt: Date?
+    var now: Date = Date()
+    var stale: Bool = false
+    var note: String? = nil
+
+    /// Au-delà de ce délai, l'heure des données est écrite pour ne pas les faire passer pour du direct.
+    private static let showAfter: TimeInterval = 15 * 60
+
+    private var age: String? {
+        guard let fetchedAt, stale || now.timeIntervalSince(fetchedAt) > Self.showAfter else { return nil }
+        return "données de \(WidgetDeparture.timeFormatter.string(from: fetchedAt))"
+    }
+
+    private var line: String? {
+        let parts = [age, note].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    var body: some View {
+        if let line {
+            Text(line)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(stale ? WidgetTheme.warning : Color.secondary)
+                .lineLimit(1)
+        }
+    }
+}
+
+// MARK: - Point de temps réel
+
+/// Point vert des passages suivis en direct, comme dans la fiche d'un arrêt.
+struct WidgetLiveDot: View {
+    var body: some View {
+        Circle()
+            .fill(WidgetTheme.success)
+            .frame(width: 6, height: 6)
     }
 }
 
@@ -120,45 +251,6 @@ struct WidgetLockMessage: View {
                 Text(text).font(.caption2).lineLimit(2)
             }
             Spacer(minLength: 0)
-        }
-    }
-}
-
-// MARK: - Point de temps réel
-
-/// Point vert des passages suivis en direct, comme dans la fiche d'un arrêt.
-struct WidgetLiveDot: View {
-    var body: some View {
-        Circle()
-            .fill(WidgetTheme.success)
-            .frame(width: 6, height: 6)
-    }
-}
-
-// MARK: - Grand chiffre
-
-/// Un chiffre en grand avec son unité dessous ou à côté ; les nombres des widgets ont tous cette forme.
-struct WidgetFigure: View {
-    let value: String
-    let unit: String?
-    var size: CGFloat = 34
-    var color: Color = .primary
-    var alignment: HorizontalAlignment = .leading
-
-    var body: some View {
-        VStack(alignment: alignment, spacing: -2) {
-            Text(value)
-                .font(.system(size: size, weight: .bold, design: .rounded))
-                .foregroundStyle(color)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .widgetAccentable()
-            if let unit {
-                Text(unit)
-                    .font(.system(size: max(10, size * 0.32), weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
         }
     }
 }

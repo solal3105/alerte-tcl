@@ -154,14 +154,12 @@ struct WidgetParkingSnapshot: Codable, Hashable {
         return min(1, max(0, Double(available) / Double(capacity)))
     }
 
-    var kindLabel: String { isParcRelais ? "Parc relais TCL" : "Parking" }
-
-    /// « 42 places libres », « Complet », « Fermé », « Disponibilité inconnue ».
+    /// « 42 places », « Complet », « Fermé », « Sans temps réel » : le plus court qui reste juste.
     var statusText: String {
         if !open { return "Fermé" }
-        guard let available else { return "Disponibilité inconnue" }
+        guard let available else { return "Sans temps réel" }
         if available <= 0 { return "Complet" }
-        return available == 1 ? "1 place libre" : "\(available) places libres"
+        return available == 1 ? "1 place" : "\(available) places"
     }
 }
 
@@ -182,7 +180,6 @@ struct ParkingEntry: TimelineEntry {
 struct WidgetVelovSnapshot: Codable, Hashable {
     let id: Int
     let name: String
-    let address: String
     let bikes: Int
     let ebikes: Int
     let stands: Int
@@ -201,17 +198,6 @@ struct WidgetVelovSnapshot: Codable, Hashable {
         return .good
     }
 
-    var bikesText: String {
-        if !open { return "Station fermée" }
-        if bikes <= 0 { return "Aucun vélo disponible" }
-        return bikes == 1 ? "1 vélo disponible" : "\(bikes) vélos disponibles"
-    }
-
-    var standsText: String {
-        if stands <= 0 { return "Aucune place libre" }
-        return stands == 1 ? "1 place libre" : "\(stands) places libres"
-    }
-
     var distanceText: String? {
         guard let distanceMeters else { return nil }
         if distanceMeters < 1000 { return "à \(Int(distanceMeters.rounded(.up) / 10) * 10) m" }
@@ -223,15 +209,13 @@ struct VelovEntry: TimelineEntry {
     let date: Date
     let status: WidgetStatus
     let station: WidgetVelovSnapshot?
-    /// Le widget suit la station la plus proche de la position.
-    let nearest: Bool
     /// Position refusée ou inconnue alors que le widget suit la station la plus proche.
     let needsLocation: Bool
     let fetchedAt: Date?
     let stale: Bool
 
-    static func notConfigured(nearest: Bool, needsLocation: Bool, date: Date = Date()) -> VelovEntry {
-        VelovEntry(date: date, status: .notConfigured, station: nil, nearest: nearest, needsLocation: needsLocation, fetchedAt: nil, stale: false)
+    static func notConfigured(needsLocation: Bool, date: Date = Date()) -> VelovEntry {
+        VelovEntry(date: date, status: .notConfigured, station: nil, needsLocation: needsLocation, fetchedAt: nil, stale: false)
     }
 }
 
@@ -269,13 +253,6 @@ struct WorksEntry: TimelineEntry {
         radiusMeters < 1000 ? "\(radiusMeters) m" : "\(radiusMeters / 1000) km"
     }
 
-    var countText: String {
-        switch works.count {
-        case 0: "Aucun chantier"
-        case 1: "1 chantier"
-        default: "\(works.count) chantiers"
-        }
-    }
 }
 
 // MARK: - Trafic
@@ -309,9 +286,7 @@ struct TrafficEntry: TimelineEntry {
 
     /// Le titre de l'état : « Vos lignes circulent normalement », « 2 lignes perturbées »…
     var headline: String {
-        if disrupted.isEmpty {
-            return networkMajor == 0 ? "Vos lignes circulent normalement" : "Vos lignes sont normales"
-        }
+        if disrupted.isEmpty { return "Tout roule" }
         let major = disrupted.filter { $0.severity == .major }.count
         if major > 0 {
             return major == 1 ? "1 ligne en alerte majeure" : "\(major) lignes en alerte majeure"
@@ -322,7 +297,7 @@ struct TrafficEntry: TimelineEntry {
     var detail: String? {
         if disrupted.isEmpty {
             guard networkMajor > 0 else { return nil }
-            return networkMajor == 1 ? "1 perturbation majeure sur le réseau" : "\(networkMajor) perturbations majeures sur le réseau"
+            return networkMajor == 1 ? "1 alerte majeure ailleurs sur le réseau" : "\(networkMajor) alertes majeures ailleurs sur le réseau"
         }
         let others = disrupted.filter { $0.severity != .major }.count
         guard disrupted.contains(where: { $0.severity == .major }), others > 0 else { return nil }
