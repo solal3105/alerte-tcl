@@ -63,3 +63,15 @@ ou, mieux, sortir le projet d'iCloud.
 
 L'application Android lit `MAPS_API_KEY` depuis une propriété Gradle (`-PMAPS_API_KEY=...`) ou une
 variable d'environnement ; sans clé, la carte n'est pas rendue.
+
+## Xcode Cloud
+
+Les machines Xcode Cloud n'ont ni JDK ni SDK Android, et `local.properties` n'est pas versionné :
+la phase de build « Module partagé Kotlin » échouait donc sur `PhaseScriptExecution`. Le script
+`ci_scripts/ci_post_clone.sh`, exécuté par Xcode Cloud juste après le clone, installe le JDK 17.0.12
+dans `~/jdks` (le chemin que la phase essaie en premier), les outils en ligne de commande Android
+avec la plateforme 35 et les build-tools 35.0.0, puis écrit `local.properties`.
+
+Chaque build télécharge ces outils, le distributable Gradle et le compilateur Kotlin/Native, ce qui
+ajoute plusieurs minutes avant la première ligne compilée : Xcode Cloud ne conserve pas de cache
+entre deux builds pour `~/.gradle` et `~/.konan`.
