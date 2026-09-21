@@ -82,6 +82,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import com.alertetcl.shared.models.PositionFreshness
+import com.alertetcl.shared.util.AppLogger
 import com.alertetcl.shared.util.DemoShowcase
 import com.alertetcl.shared.models.VehicleType
 import androidx.lifecycle.Lifecycle
@@ -594,155 +595,167 @@ fun LiveMapScreen() {
 
     // Line traces — z-order bottom → top: bus → Bus C → tram → métro/funi
     LaunchedEffect(mapStyle, showBusTraces, showTramTraces, showMetroTraces, transitLines.value, busLines.value, selectedLines, paletteVersion, stopFocus) {
-        val style = mapStyle ?: return@LaunchedEffect
-        // Filtre actif : seul le tracé de la ligne filtrée reste visible, quels que soient les réglages.
-        val focusedLine = stopFocus?.line
+        try {
+            val style = mapStyle ?: return@LaunchedEffect
+            // Filtre actif : seul le tracé de la ligne filtrée reste visible, quels que soient les réglages.
+            val focusedLine = stopFocus?.line
 
-        // Capture immutable snapshots avant de switcher sur Default — évite les lectures de
-        // Compose State depuis un thread non-Main (undefined behavior dans le snapshot system).
-        val capturedBus     = busLines.value
-        val capturedTransit = transitLines.value
-        val capturedFilters = focusedLine?.let { setOf(it) } ?: selectedLines
-        val capturedBusTraces   = showBusTraces || focusedLine != null
-        val capturedTramTraces  = showTramTraces || focusedLine != null
-        val capturedMetroTraces = showMetroTraces || focusedLine != null
+            // Capture immutable snapshots avant de switcher sur Default — évite les lectures de
+            // Compose State depuis un thread non-Main (undefined behavior dans le snapshot system).
+            val capturedBus     = busLines.value
+            val capturedTransit = transitLines.value
+            val capturedFilters = focusedLine?.let { setOf(it) } ?: selectedLines
+            val capturedBusTraces   = showBusTraces || focusedLine != null
+            val capturedTramTraces  = showTramTraces || focusedLine != null
+            val capturedMetroTraces = showMetroTraces || focusedLine != null
 
-        // Sérialisation GeoJSON incluse dans le withContext(Default) — aucun JSON sur Main
-        fun addOrUpdate(src: String, layer: String, geojson: String, width: Float) {
-            if (style.getSource(src) == null) {
-                style.addSource(GeoJsonSource(src, geojson))
-                // Liseré clair sous le tracé pour le détacher du fond, puis le tracé à la couleur de la ligne.
-                val casing = LineLayer("$layer-casing", src).withProperties(
-                    PropertyFactory.lineColor("#FFFFFF"),
-                    PropertyFactory.lineWidth(width + MapStyle.routeCasingExtraWidth.toFloat()),
-                    PropertyFactory.lineOpacity(MapStyle.routeCasingOpacity.toFloat()),
-                    PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                    PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
-                )
-                val lineLayer = LineLayer(layer, src).withProperties(
-                    PropertyFactory.lineColor(Expression.get("color")),
-                    PropertyFactory.lineWidth(width),
-                    PropertyFactory.lineOpacity(MapStyle.routeOpacity.toFloat()),
-                    PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                    PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
-                )
-                // Tout en bas : sous les arrêts et les véhicules.
-                addLayerUnder(style, casing, STOPS_LAYER, VEHICLES_HALO_LAYER)
-                addLayerUnder(style, lineLayer, STOPS_LAYER, VEHICLES_HALO_LAYER)
-            } else {
-                style.getSourceAs<GeoJsonSource>(src)?.setGeoJson(geojson)
+            // Sérialisation GeoJSON incluse dans le withContext(Default) — aucun JSON sur Main
+            fun addOrUpdate(src: String, layer: String, geojson: String, width: Float) {
+                if (style.getSource(src) == null) {
+                    style.addSource(GeoJsonSource(src, geojson))
+                    // Liseré clair sous le tracé pour le détacher du fond, puis le tracé à la couleur de la ligne.
+                    val casing = LineLayer("$layer-casing", src).withProperties(
+                        PropertyFactory.lineColor("#FFFFFF"),
+                        PropertyFactory.lineWidth(width + MapStyle.routeCasingExtraWidth.toFloat()),
+                        PropertyFactory.lineOpacity(MapStyle.routeCasingOpacity.toFloat()),
+                        PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                        PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                    )
+                    val lineLayer = LineLayer(layer, src).withProperties(
+                        PropertyFactory.lineColor(Expression.get("color")),
+                        PropertyFactory.lineWidth(width),
+                        PropertyFactory.lineOpacity(MapStyle.routeOpacity.toFloat()),
+                        PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                        PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                    )
+                    // Tout en bas : sous les arrêts et les véhicules.
+                    addLayerUnder(style, casing, STOPS_LAYER, VEHICLES_HALO_LAYER)
+                    addLayerUnder(style, lineLayer, STOPS_LAYER, VEHICLES_HALO_LAYER)
+                } else {
+                    style.getSourceAs<GeoJsonSource>(src)?.setGeoJson(geojson)
+                }
             }
-        }
 
-        // Construction des GeoJSON en string directe — évite d'allouer des milliers d'objets Point MapLibre
-        val allGeoJsons = withContext(Dispatchers.Default) {
-            listOf(
-                if (capturedBusTraces)   buildLinesGeoJson(capturedBus.filter { !it.name.startsWith("C") }, capturedFilters) { toMapColor(LineColors.routeStrokeHex(it)) }   else EMPTY_FEATURE_COLLECTION,
-                if (capturedBusTraces)   buildLinesGeoJson(capturedBus.filter {  it.name.startsWith("C") }, capturedFilters) { toMapColor(LineColors.routeStrokeHex(it)) }   else EMPTY_FEATURE_COLLECTION,
-                if (capturedTramTraces)  buildTransitLinesGeoJson(capturedTransit.filter {  it.familyTransport.contains("tram", ignoreCase = true) }, capturedFilters)  else EMPTY_FEATURE_COLLECTION,
-                if (capturedMetroTraces) buildTransitLinesGeoJson(capturedTransit.filter { !it.familyTransport.contains("tram", ignoreCase = true) }, capturedFilters) else EMPTY_FEATURE_COLLECTION
-            )
-        }
+            // Construction des GeoJSON en string directe — évite d'allouer des milliers d'objets Point MapLibre
+            val allGeoJsons = withContext(Dispatchers.Default) {
+                listOf(
+                    if (capturedBusTraces)   buildLinesGeoJson(capturedBus.filter { !it.name.startsWith("C") }, capturedFilters) { toMapColor(LineColors.routeStrokeHex(it)) }   else EMPTY_FEATURE_COLLECTION,
+                    if (capturedBusTraces)   buildLinesGeoJson(capturedBus.filter {  it.name.startsWith("C") }, capturedFilters) { toMapColor(LineColors.routeStrokeHex(it)) }   else EMPTY_FEATURE_COLLECTION,
+                    if (capturedTramTraces)  buildTransitLinesGeoJson(capturedTransit.filter {  it.familyTransport.contains("tram", ignoreCase = true) }, capturedFilters)  else EMPTY_FEATURE_COLLECTION,
+                    if (capturedMetroTraces) buildTransitLinesGeoJson(capturedTransit.filter { !it.familyTransport.contains("tram", ignoreCase = true) }, capturedFilters) else EMPTY_FEATURE_COLLECTION
+                )
+            }
 
-        // Le style a pu être remplacé (satellite / thème) pendant le withContext :
-        // toucher un Style invalidé lève IllegalStateException.
-        if (!style.isFullyLoaded) return@LaunchedEffect
-        glInitMutex.withLock {
-            addOrUpdate(BUS_SRC,   BUS_LAYER,   allGeoJsons[0], MapStyle.routeWidth(TransportMode.BUS).toFloat())
-            addOrUpdate(BUS_C_SRC, BUS_C_LAYER, allGeoJsons[1], MapStyle.routeWidth(TransportMode.BUS_C).toFloat())
-            addOrUpdate(TRAM_SRC,  TRAM_LAYER,  allGeoJsons[2], MapStyle.routeWidth(TransportMode.TRAMWAY).toFloat())
-            addOrUpdate(METRO_SRC, METRO_LAYER, allGeoJsons[3], MapStyle.routeWidth(TransportMode.METRO).toFloat())
+            // Le style a pu être remplacé (satellite / thème) pendant le withContext :
+            // toucher un Style invalidé lève IllegalStateException.
+            if (!style.isFullyLoaded) return@LaunchedEffect
+            glInitMutex.withLock {
+                addOrUpdate(BUS_SRC,   BUS_LAYER,   allGeoJsons[0], MapStyle.routeWidth(TransportMode.BUS).toFloat())
+                addOrUpdate(BUS_C_SRC, BUS_C_LAYER, allGeoJsons[1], MapStyle.routeWidth(TransportMode.BUS_C).toFloat())
+                addOrUpdate(TRAM_SRC,  TRAM_LAYER,  allGeoJsons[2], MapStyle.routeWidth(TransportMode.TRAMWAY).toFloat())
+                addOrUpdate(METRO_SRC, METRO_LAYER, allGeoJsons[3], MapStyle.routeWidth(TransportMode.METRO).toFloat())
+            }
+        } catch (e: IllegalStateException) {
+            // MapLibre a remplacé le style (satellite, thème) pendant la mise à jour : le toucher
+            // lève IllegalStateException. La carte se redessine au passage suivant.
+            AppLogger.warn("Style de carte remplacé pendant une mise à jour : ${e.message}")
         }
     }
 
     // Vehicle markers
     LaunchedEffect(mapStyle, filteredVehicles, paletteVersion) {
-        val style = mapStyle ?: return@LaunchedEffect
-        val current = filteredVehicles
+        try {
+            val style = mapStyle ?: return@LaunchedEffect
+            val current = filteredVehicles
 
-        // Register circle body + dot + arrow icons (once per unique line)
-        if (style.getImage("no_arrow") == null)
-            style.addImage("no_arrow", Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888))
+            // Register circle body + dot + arrow icons (once per unique line)
+            if (style.getImage("no_arrow") == null)
+                style.addImage("no_arrow", Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888))
 
-        // Collecte les lignes manquantes sur Main (style.getImage doit rester sur Main),
-        // puis construit les bitmaps Canvas sur Default pour ne pas bloquer le UI thread.
-        val toBuild = current.map { it.lineName to it.vehicleType }.distinct()
-            .filter { (line, type) -> style.getImage(vehicleIconKey(line, type)) == null }
-        if (toBuild.isNotEmpty()) {
-            val newBitmaps = withContext(Dispatchers.Default) {
-                toBuild.flatMap { (line, type) ->
-                    listOf(
-                        vehicleIconKey(line, type) to vehicleMarkerBitmap(line, vehicleGlyphs.getValue(type)),
-                        vehicleDotKey(line)        to vehicleDotBitmap(line),
-                        vehicleArrowKey(line)      to bearingArrowBitmap(line)
-                    )
+            // Collecte les lignes manquantes sur Main (style.getImage doit rester sur Main),
+            // puis construit les bitmaps Canvas sur Default pour ne pas bloquer le UI thread.
+            val toBuild = current.map { it.lineName to it.vehicleType }.distinct()
+                .filter { (line, type) -> style.getImage(vehicleIconKey(line, type)) == null }
+            if (toBuild.isNotEmpty()) {
+                val newBitmaps = withContext(Dispatchers.Default) {
+                    toBuild.flatMap { (line, type) ->
+                        listOf(
+                            vehicleIconKey(line, type) to vehicleMarkerBitmap(line, vehicleGlyphs.getValue(type)),
+                            vehicleDotKey(line)        to vehicleDotBitmap(line),
+                            vehicleArrowKey(line)      to bearingArrowBitmap(line)
+                        )
+                    }
                 }
-            }
-            if (!style.isFullyLoaded) return@LaunchedEffect
-            newBitmaps.forEach { (key, bmp) -> style.addImage(key, bmp) }
-        }
-
-        // Rebuild static caches — runs once per 15s poll, never per 100ms tick
-        vehiclePropsCache.clear()
-        vehicleArrowCache.clear()
-        for (v in current) {
-            vehiclePropsCache[v.id] = buildVehicleStaticProps(v)
-            vehicleArrowCache[v.id] = vehicleArrowKey(v.lineName)
-        }
-
-        val nowSec   = System.currentTimeMillis() / 1000.0
-        val features = current.filter { it.isShownOnMap((nowSec * 1000).toLong()) }
-            .map { v -> buildVehicleFeature(v, vm.animatedVehicleFor(v.id), nowSec, vm.stopFocus.value?.vehicleId) }
-
-        if (style.getSource(VEHICLES_SRC) == null) {
-            glInitMutex.withLock {
                 if (!style.isFullyLoaded) return@LaunchedEffect
-                if (style.getSource(VEHICLES_SRC) == null) {
-                    style.addSource(GeoJsonSource(VEHICLES_SRC, FeatureCollection.fromFeatures(features)))
-                    // Layer 0 : halo à la couleur de la ligne autour du véhicule sélectionné
-                    style.addLayer(CircleLayer(VEHICLES_HALO_LAYER, VEHICLES_SRC).withProperties(
-                        PropertyFactory.circleRadius(22f),
-                        PropertyFactory.circleColor(Expression.get("line_col")),
-                        PropertyFactory.circleOpacity(0.22f),
-                        PropertyFactory.circleStrokeColor(Expression.get("line_col")),
-                        PropertyFactory.circleStrokeWidth(2f),
-                        PropertyFactory.circleStrokeOpacity(0.9f)
-                    ).withFilter(Expression.eq(Expression.get("sel"), Expression.literal(1))))
-                    // Layer 1 : flèche orbitale — sous le corps (z-index inférieur), masquée en dezoom
-                    style.addLayer(SymbolLayer(VEHICLES_ARROW_LAYER, VEHICLES_SRC).withProperties(
-                        PropertyFactory.iconImage(
-                            Expression.step(
-                                Expression.zoom(),
-                                Expression.literal("no_arrow"),
-                                Expression.literal(MapStyle.ZOOM_VEHICLE_BODY), Expression.get("arrow_icon")
-                            )
-                        ),
-                        PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
-                        PropertyFactory.iconRotate(Expression.toNumber(Expression.get("bearing"))),
-                        PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_VIEWPORT),
-                        PropertyFactory.iconAllowOverlap(true),
-                        PropertyFactory.iconIgnorePlacement(true),
-                        PropertyFactory.iconSize(1f)
-                    ))
-                    // Layer 2 : corps — au-dessus de la flèche, point coloré en dezoom (< 13.5)
-                    style.addLayer(SymbolLayer(VEHICLES_LAYER, VEHICLES_SRC).withProperties(
-                        PropertyFactory.iconImage(
-                            Expression.step(
-                                Expression.zoom(),
-                                Expression.get("dot_icon"),
-                                Expression.literal(MapStyle.ZOOM_VEHICLE_BODY), Expression.get("icon")
-                            )
-                        ),
-                        PropertyFactory.iconAllowOverlap(true),
-                        PropertyFactory.iconIgnorePlacement(true),
-                        PropertyFactory.iconSize(1f)
-                    ))
-                }
+                newBitmaps.forEach { (key, bmp) -> style.addImage(key, bmp) }
             }
-            vehiclesLayerReady.value = true
-        } else {
-            style.getSourceAs<GeoJsonSource>(VEHICLES_SRC)
-                ?.setGeoJson(buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb))
+
+            // Rebuild static caches — runs once per 15s poll, never per 100ms tick
+            vehiclePropsCache.clear()
+            vehicleArrowCache.clear()
+            for (v in current) {
+                vehiclePropsCache[v.id] = buildVehicleStaticProps(v)
+                vehicleArrowCache[v.id] = vehicleArrowKey(v.lineName)
+            }
+
+            val nowSec   = System.currentTimeMillis() / 1000.0
+            val features = current.filter { it.isShownOnMap((nowSec * 1000).toLong()) }
+                .map { v -> buildVehicleFeature(v, vm.animatedVehicleFor(v.id), nowSec, vm.stopFocus.value?.vehicleId) }
+
+            if (style.getSource(VEHICLES_SRC) == null) {
+                glInitMutex.withLock {
+                    if (!style.isFullyLoaded) return@LaunchedEffect
+                    if (style.getSource(VEHICLES_SRC) == null) {
+                        style.addSource(GeoJsonSource(VEHICLES_SRC, FeatureCollection.fromFeatures(features)))
+                        // Layer 0 : halo à la couleur de la ligne autour du véhicule sélectionné
+                        style.addLayer(CircleLayer(VEHICLES_HALO_LAYER, VEHICLES_SRC).withProperties(
+                            PropertyFactory.circleRadius(22f),
+                            PropertyFactory.circleColor(Expression.get("line_col")),
+                            PropertyFactory.circleOpacity(0.22f),
+                            PropertyFactory.circleStrokeColor(Expression.get("line_col")),
+                            PropertyFactory.circleStrokeWidth(2f),
+                            PropertyFactory.circleStrokeOpacity(0.9f)
+                        ).withFilter(Expression.eq(Expression.get("sel"), Expression.literal(1))))
+                        // Layer 1 : flèche orbitale — sous le corps (z-index inférieur), masquée en dezoom
+                        style.addLayer(SymbolLayer(VEHICLES_ARROW_LAYER, VEHICLES_SRC).withProperties(
+                            PropertyFactory.iconImage(
+                                Expression.step(
+                                    Expression.zoom(),
+                                    Expression.literal("no_arrow"),
+                                    Expression.literal(MapStyle.ZOOM_VEHICLE_BODY), Expression.get("arrow_icon")
+                                )
+                            ),
+                            PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+                            PropertyFactory.iconRotate(Expression.toNumber(Expression.get("bearing"))),
+                            PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_VIEWPORT),
+                            PropertyFactory.iconAllowOverlap(true),
+                            PropertyFactory.iconIgnorePlacement(true),
+                            PropertyFactory.iconSize(1f)
+                        ))
+                        // Layer 2 : corps — au-dessus de la flèche, point coloré en dezoom (< 13.5)
+                        style.addLayer(SymbolLayer(VEHICLES_LAYER, VEHICLES_SRC).withProperties(
+                            PropertyFactory.iconImage(
+                                Expression.step(
+                                    Expression.zoom(),
+                                    Expression.get("dot_icon"),
+                                    Expression.literal(MapStyle.ZOOM_VEHICLE_BODY), Expression.get("icon")
+                                )
+                            ),
+                            PropertyFactory.iconAllowOverlap(true),
+                            PropertyFactory.iconIgnorePlacement(true),
+                            PropertyFactory.iconSize(1f)
+                        ))
+                    }
+                }
+                vehiclesLayerReady.value = true
+            } else {
+                style.getSourceAs<GeoJsonSource>(VEHICLES_SRC)
+                    ?.setGeoJson(buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb))
+            }
+        } catch (e: IllegalStateException) {
+            // MapLibre a remplacé le style (satellite, thème) pendant la mise à jour : le toucher
+            // lève IllegalStateException. La carte se redessine au passage suivant.
+            AppLogger.warn("Style de carte remplacé pendant une mise à jour : ${e.message}")
         }
     }
 
@@ -751,30 +764,36 @@ fun LiveMapScreen() {
     //         (2) StringBuilder + cache statique → zéro Gson dans le hot path ;
     //         (3) setGeoJson(String) → supprime la double sérialisation MapLibre.
     LaunchedEffect(mapStyle) {
-        val style = mapStyle ?: return@LaunchedEffect
-        // Attend que l'init GL vehicles soit terminée — suspend proprement, zéro polling.
-        snapshotFlow { vehiclesLayerReady.value }.first { it }
-        if (!style.isFullyLoaded) return@LaunchedEffect
-        val source = style.getSourceAs<GeoJsonSource>(VEHICLES_SRC) ?: return@LaunchedEffect
-        while (true) {
-            // Un changement de style invalide `source` : sortir plutôt que crasher
+        try {
+            val style = mapStyle ?: return@LaunchedEffect
+            // Attend que l'init GL vehicles soit terminée — suspend proprement, zéro polling.
+            snapshotFlow { vehiclesLayerReady.value }.first { it }
             if (!style.isFullyLoaded) return@LaunchedEffect
-            val nowSec  = System.currentTimeMillis() / 1000.0
-            val current = vehiclesRef.value
-            if (current.isEmpty()) { kotlinx.coroutines.delay(100); continue }
-            // Sans transition active : un rebuild par seconde suffit, uniquement
-            // pour faire vivre les étiquettes d'âge ("12 s" → "13 s").
-            if (!vm.hasAnyActiveTransition(nowSec)) {
+            val source = style.getSourceAs<GeoJsonSource>(VEHICLES_SRC) ?: return@LaunchedEffect
+            while (true) {
+                // Un changement de style invalide `source` : sortir plutôt que crasher
+                if (!style.isFullyLoaded) return@LaunchedEffect
+                val nowSec  = System.currentTimeMillis() / 1000.0
+                val current = vehiclesRef.value
+                if (current.isEmpty()) { kotlinx.coroutines.delay(100); continue }
+                // Sans transition active : un rebuild par seconde suffit, uniquement
+                // pour faire vivre les étiquettes d'âge ("12 s" → "13 s").
+                if (!vm.hasAnyActiveTransition(nowSec)) {
+                    source.setGeoJson(
+                        buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb)
+                    )
+                    kotlinx.coroutines.delay(1_000)
+                    continue
+                }
                 source.setGeoJson(
                     buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb)
                 )
-                kotlinx.coroutines.delay(1_000)
-                continue
+                kotlinx.coroutines.delay(100)
             }
-            source.setGeoJson(
-                buildVehicleGeoJson(current, vehiclePropsCache, vehicleArrowCache, vm, nowSec, tickSb)
-            )
-            kotlinx.coroutines.delay(100)
+        } catch (e: IllegalStateException) {
+            // MapLibre a remplacé le style (satellite, thème) pendant la mise à jour : le toucher
+            // lève IllegalStateException. La carte se redessine au passage suivant.
+            AppLogger.warn("Style de carte remplacé pendant une mise à jour : ${e.message}")
         }
     }
 
@@ -785,81 +804,87 @@ fun LiveMapScreen() {
     // Les icônes sont pré-construites en un seul bloc sur Default — le cache GPU
     // ne croît plus après le premier chargement (fini le freeze par accumulation).
     LaunchedEffect(mapStyle, mergedStops, paletteVersion) {
-        val style = mapStyle ?: return@LaunchedEffect
-        if (mergedStops.isEmpty()) return@LaunchedEffect
+        try {
+            val style = mapStyle ?: return@LaunchedEffect
+            if (mergedStops.isEmpty()) return@LaunchedEffect
 
-        // Étape 1 (Default) : toutes les métadonnées + GeoJSON complet en un seul passage
-        val (geojson, allEntries) = withContext(Dispatchers.Default) {
-            val entries = mergedStops.map { stop ->
-                val lines = stop.allLines.filter { !it.startsWith("JD", ignoreCase = true) }
-                val tier  = StopTier.from(lines)
-                val pl    = StopTier.primaryLine(lines)
-                val fill  = stopFillHex(tier, pl)
-                val key   = if (lines.isNotEmpty())
-                    "stop${paletteVersion}_${tier.name}_${pl ?: ""}_" + lines.take(4).joinToString("_")
-                else "stop${paletteVersion}_dot_${tier.name}_${pl ?: ""}"
-                StopEntry(stop.id, stop.coordinate.longitude, stop.coordinate.latitude,
-                          fill, tier.compactR, tier.compactSW, key, lines, tier, pl)
-            }
-            val json = FeatureCollection.fromFeatures(entries.map { e ->
-                Feature.fromGeometry(
-                    Point.fromLngLat(e.lon, e.lat),
-                    JsonObject().apply {
-                        addProperty("id",         e.id)
-                        addProperty("fill_color", e.fillHex)
-                        addProperty("circle_r",   e.circleR)
-                        addProperty("stroke_w",   e.strokeW)
-                        addProperty("icon",       e.iconKey)
-                    }
-                )
-            }).toJson()
-            json to entries
-        }
-
-        // Étape 2 (Main) : enregistrement des bitmaps manquants — style.getImage exige Main
-        if (!style.isFullyLoaded) return@LaunchedEffect
-        val missing = allEntries.distinctBy { it.iconKey }
-            .filter { style.getImage(it.iconKey) == null }
-        if (missing.isNotEmpty()) {
-            val built = withContext(Dispatchers.Default) {
-                missing.associate { e ->
-                    e.iconKey to if (e.visibleLines.isNotEmpty())
-                        stopBadgeBitmap(e.visibleLines, e.tier, e.primaryLine)
-                    else stopCompactBitmap(e.tier, e.primaryLine)
+            // Étape 1 (Default) : toutes les métadonnées + GeoJSON complet en un seul passage
+            val (geojson, allEntries) = withContext(Dispatchers.Default) {
+                val entries = mergedStops.map { stop ->
+                    val lines = stop.allLines.filter { !it.startsWith("JD", ignoreCase = true) }
+                    val tier  = StopTier.from(lines)
+                    val pl    = StopTier.primaryLine(lines)
+                    val fill  = stopFillHex(tier, pl)
+                    val key   = if (lines.isNotEmpty())
+                        "stop${paletteVersion}_${tier.name}_${pl ?: ""}_" + lines.take(4).joinToString("_")
+                    else "stop${paletteVersion}_dot_${tier.name}_${pl ?: ""}"
+                    StopEntry(stop.id, stop.coordinate.longitude, stop.coordinate.latitude,
+                              fill, tier.compactR, tier.compactSW, key, lines, tier, pl)
                 }
+                val json = FeatureCollection.fromFeatures(entries.map { e ->
+                    Feature.fromGeometry(
+                        Point.fromLngLat(e.lon, e.lat),
+                        JsonObject().apply {
+                            addProperty("id",         e.id)
+                            addProperty("fill_color", e.fillHex)
+                            addProperty("circle_r",   e.circleR)
+                            addProperty("stroke_w",   e.strokeW)
+                            addProperty("icon",       e.iconKey)
+                        }
+                    )
+                }).toJson()
+                json to entries
             }
+
+            // Étape 2 (Main) : enregistrement des bitmaps manquants — style.getImage exige Main
             if (!style.isFullyLoaded) return@LaunchedEffect
-            built.forEach { (key, bmp) -> style.addImage(key, bmp) }
-        }
-
-        // Étape 3 (Main) : source + layers MapLibre
-        if (style.getSource(STOPS_SRC) == null) {
-            glInitMutex.withLock {
-                if (!style.isFullyLoaded) return@LaunchedEffect
-                if (style.getSource(STOPS_SRC) == null) {
-                    style.addSource(GeoJsonSource(STOPS_SRC, geojson))
-                    val circleLayer = CircleLayer(STOPS_LAYER, STOPS_SRC).withProperties(
-                            PropertyFactory.circleColor(Expression.get("fill_color")),
-                            PropertyFactory.circleStrokeColor("#FFFFFF"),
-                            PropertyFactory.circleRadius(Expression.toNumber(Expression.get("circle_r"))),
-                            PropertyFactory.circleStrokeWidth(Expression.toNumber(Expression.get("stroke_w")))
-                        )
-                    circleLayer.setMinZoom(MapStyle.ZOOM_STOPS.toFloat())
-                    circleLayer.setMaxZoom(MapStyle.ZOOM_STOP_BADGES.toFloat()) // exclusif : masqué quand badgeLayer prend le relais
-                    val badgeLayer = SymbolLayer(STOPS_BADGE_LAYER, STOPS_SRC).withProperties(
-                            PropertyFactory.iconImage(Expression.get("icon")),
-                            PropertyFactory.iconAllowOverlap(true),
-                            PropertyFactory.iconIgnorePlacement(true),
-                            PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
-                        )
-                    badgeLayer.setMinZoom(MapStyle.ZOOM_STOP_BADGES.toFloat())
-                    // Sous les véhicules, au-dessus des tracés.
-                    addLayerUnder(style, circleLayer, VEHICLES_HALO_LAYER)
-                    addLayerUnder(style, badgeLayer, VEHICLES_HALO_LAYER)
+            val missing = allEntries.distinctBy { it.iconKey }
+                .filter { style.getImage(it.iconKey) == null }
+            if (missing.isNotEmpty()) {
+                val built = withContext(Dispatchers.Default) {
+                    missing.associate { e ->
+                        e.iconKey to if (e.visibleLines.isNotEmpty())
+                            stopBadgeBitmap(e.visibleLines, e.tier, e.primaryLine)
+                        else stopCompactBitmap(e.tier, e.primaryLine)
+                    }
                 }
+                if (!style.isFullyLoaded) return@LaunchedEffect
+                built.forEach { (key, bmp) -> style.addImage(key, bmp) }
             }
-        } else {
-            style.getSourceAs<GeoJsonSource>(STOPS_SRC)?.setGeoJson(geojson)
+
+            // Étape 3 (Main) : source + layers MapLibre
+            if (style.getSource(STOPS_SRC) == null) {
+                glInitMutex.withLock {
+                    if (!style.isFullyLoaded) return@LaunchedEffect
+                    if (style.getSource(STOPS_SRC) == null) {
+                        style.addSource(GeoJsonSource(STOPS_SRC, geojson))
+                        val circleLayer = CircleLayer(STOPS_LAYER, STOPS_SRC).withProperties(
+                                PropertyFactory.circleColor(Expression.get("fill_color")),
+                                PropertyFactory.circleStrokeColor("#FFFFFF"),
+                                PropertyFactory.circleRadius(Expression.toNumber(Expression.get("circle_r"))),
+                                PropertyFactory.circleStrokeWidth(Expression.toNumber(Expression.get("stroke_w")))
+                            )
+                        circleLayer.setMinZoom(MapStyle.ZOOM_STOPS.toFloat())
+                        circleLayer.setMaxZoom(MapStyle.ZOOM_STOP_BADGES.toFloat()) // exclusif : masqué quand badgeLayer prend le relais
+                        val badgeLayer = SymbolLayer(STOPS_BADGE_LAYER, STOPS_SRC).withProperties(
+                                PropertyFactory.iconImage(Expression.get("icon")),
+                                PropertyFactory.iconAllowOverlap(true),
+                                PropertyFactory.iconIgnorePlacement(true),
+                                PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
+                            )
+                        badgeLayer.setMinZoom(MapStyle.ZOOM_STOP_BADGES.toFloat())
+                        // Sous les véhicules, au-dessus des tracés.
+                        addLayerUnder(style, circleLayer, VEHICLES_HALO_LAYER)
+                        addLayerUnder(style, badgeLayer, VEHICLES_HALO_LAYER)
+                    }
+                }
+            } else {
+                style.getSourceAs<GeoJsonSource>(STOPS_SRC)?.setGeoJson(geojson)
+            }
+        } catch (e: IllegalStateException) {
+            // MapLibre a remplacé le style (satellite, thème) pendant la mise à jour : le toucher
+            // lève IllegalStateException. La carte se redessine au passage suivant.
+            AppLogger.warn("Style de carte remplacé pendant une mise à jour : ${e.message}")
         }
     }
 

@@ -6,13 +6,13 @@ plugins {
 
 android {
     namespace = "com.alertetcl.android"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.alertetcl.android"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 4
+        targetSdk = 36
+        versionCode = 5
         versionName = "2.0"
     }
 
@@ -54,6 +54,9 @@ android {
             isMinifyEnabled = false
             signingConfig = signingConfigs.findByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Symboles des bibliothèques natives (MapLibre) joints au bundle : Play les retire de la
+            // livraison et s'en sert pour rendre lisibles les piles d'appel des plantages.
+            ndk { debugSymbolLevel = "SYMBOL_TABLE" }
         }
     }
 }
@@ -84,7 +87,6 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.work.runtime)
 
-    implementation(libs.billing.client)
 
     debugImplementation(libs.compose.ui.tooling)
 }

@@ -13,12 +13,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 
 class ParkingViewModel(
     private val parkingService: ParkingService = ParkingService.shared,
@@ -81,29 +83,35 @@ class ParkingViewModel(
         loadJob?.cancel()
         loadJob = scope.launch {
             _isLoading.value = true
+            val failures = mutableListOf<Throwable>()
             try {
-                val carsAsync = if (ParkingType.CAR in _selectedTypes.value && _showRealtimeParkings.value)
-                    async { parkingService.fetchParkings(ParkingType.CAR, forceRefresh) } else null
-                val bikesAsync = if (ParkingType.BIKE in _selectedTypes.value)
-                    async { parkingService.fetchParkingsInRegion(ParkingType.BIKE, region, forceRefresh) } else null
-                val motoAsync = if (ParkingType.MOTORIZED_2W in _selectedTypes.value)
-                    async { parkingService.fetchParkingsInRegion(ParkingType.MOTORIZED_2W, region, forceRefresh) } else null
-                val prAsync = if (ParkingType.CAR in _selectedTypes.value && _showParcRelais.value)
-                    async { parcRelaisService.fetchParcRelais(forceRefresh) } else null
-                val velovAsync = if (ParkingType.VELOV in _selectedTypes.value)
-                    async { velovService.fetchStations(forceRefresh) } else null
+                // Chaque source est interrogée séparément : une source en panne laisse les autres
+                // s'afficher et n'emporte pas l'application. Sans ce cloisonnement, l'échec d'une
+                // requête remonte à la coroutine parente avant d'être rattrapé et fait tomber l'app.
+                supervisorScope {
+                    val carsAsync = if (ParkingType.CAR in _selectedTypes.value && _showRealtimeParkings.value)
+                        tolerant(failures) { parkingService.fetchParkings(ParkingType.CAR, forceRefresh) } else null
+                    val bikesAsync = if (ParkingType.BIKE in _selectedTypes.value)
+                        tolerant(failures) { parkingService.fetchParkingsInRegion(ParkingType.BIKE, region, forceRefresh) } else null
+                    val motoAsync = if (ParkingType.MOTORIZED_2W in _selectedTypes.value)
+                        tolerant(failures) { parkingService.fetchParkingsInRegion(ParkingType.MOTORIZED_2W, region, forceRefresh) } else null
+                    val prAsync = if (ParkingType.CAR in _selectedTypes.value && _showParcRelais.value)
+                        tolerant(failures) { parcRelaisService.fetchParcRelais(forceRefresh) } else null
+                    val velovAsync = if (ParkingType.VELOV in _selectedTypes.value)
+                        tolerant(failures) { velovService.fetchStations(forceRefresh) } else null
 
-                val all = listOfNotNull(
-                    carsAsync?.await(),
-                    bikesAsync?.await(),
-                    motoAsync?.await(),
-                    prAsync?.await()
-                ).flatten()
+                    val all = listOfNotNull(
+                        carsAsync?.await(),
+                        bikesAsync?.await(),
+                        motoAsync?.await(),
+                        prAsync?.await()
+                    ).flatten()
 
-                _parkings.value = all
-                _velovStations.value = velovAsync?.await() ?: emptyList()
-                _errorMessage.value = null
-                _lastUpdateEpochMs.value = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+                    _parkings.value = all
+                    _velovStations.value = velovAsync?.await() ?: emptyList()
+                    _errorMessage.value = failures.firstOrNull()?.message
+                    _lastUpdateEpochMs.value = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+                }
             } catch (e: CancellationException) {
                 throw e // Annulation volontaire — ne pas la présenter comme une erreur
             } catch (e: Throwable) {
@@ -112,6 +120,25 @@ class ParkingViewModel(
             } finally {
                 _isLoading.value = false
             }
+        }
+    }
+
+    /**
+     * Interroge une source sans faire tomber les autres : l'échec est retenu dans [failures] et la
+     * requête rend `null`. Une annulation reste une annulation et se propage.
+     */
+    private fun <T> CoroutineScope.tolerant(
+        failures: MutableList<Throwable>,
+        fetch: suspend () -> List<T>
+    ): Deferred<List<T>?> = async {
+        try {
+            fetch()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            AppLogger.error("ParkingViewModel source error", e)
+            failures.add(e)
+            null
         }
     }
 
