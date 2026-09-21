@@ -1,34 +1,49 @@
 import SwiftUI
+import WidgetKit
 import Shared
 
-/// Écran d'intro : une page par nouveauté, avec les textes du module partagé (`Intro`). Il s'ouvre à
-/// la première utilisation et après une mise à jour qui change la révision du contenu, et reste
-/// consultable depuis l'onglet Info. Une seule teinte, l'accent.
+/// Écran d'intro : une page par nouveauté, illustrée par l'écran correspondant de l'application, avec
+/// les textes du module partagé (`Intro`). Il s'ouvre à la première utilisation et après une mise à
+/// jour qui change la révision du contenu, et reste consultable depuis l'onglet Info.
 struct IntroView: View {
     /// Appelé quand l'intro est terminée ou passée : l'appelant enregistre la révision vue.
     let onFinish: () -> Void
 
-    @State private var index = 0
+    @State private var position: Int?
     private let pages: [IntroPage] = Intro.shared.pages(includeWidgets: true)
 
+    private var index: Int { position ?? 0 }
     private var isLast: Bool { index >= pages.count - 1 }
 
     var body: some View {
         ZStack {
-            IntroBackground()
+            IntroBackground(page: index)
             VStack(spacing: 0) {
                 skipButton
-                TabView(selection: $index) {
-                    ForEach(Array(pages.enumerated()), id: \.offset) { position, page in
-                        IntroPageView(page: page, isCurrent: position == index)
-                            .tag(position)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
+                pager
                 progress
                 nextButton
             }
-            .frame(maxWidth: 480)
+        }
+    }
+
+    // MARK: Les pages
+
+    private var pager: some View {
+        GeometryReader { geometry in
+            ScrollView(.horizontal) {
+                HStack(spacing: 0) {
+                    ForEach(Array(pages.enumerated()), id: \.offset) { slot, page in
+                        IntroPageView(page: page, isCurrent: slot == index)
+                            .frame(width: geometry.size.width)
+                            .id(slot)
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: $position)
+            .scrollIndicators(.hidden)
         }
     }
 
@@ -45,21 +60,21 @@ struct IntroView: View {
                 .accessibilityHidden(isLast)
         }
         .padding(.horizontal, 24)
-        .padding(.top, 12)
+        .padding(.top, 10)
     }
 
     // MARK: Avancement
 
     private var progress: some View {
-        HStack(spacing: 7) {
-            ForEach(pages.indices, id: \.self) { position in
+        HStack(spacing: 6) {
+            ForEach(pages.indices, id: \.self) { slot in
                 Capsule()
-                    .fill(Color.appAccent.opacity(position == index ? 1 : 0.22))
-                    .frame(width: position == index ? 24 : 7, height: 7)
+                    .fill(Color.appAccent.opacity(slot == index ? 1 : 0.2))
+                    .frame(width: slot == index ? 22 : 6, height: 6)
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: index)
-        .padding(.bottom, 28)
+        .padding(.bottom, 24)
         .accessibilityLabel("Page \(index + 1) sur \(pages.count)")
     }
 
@@ -70,7 +85,7 @@ struct IntroView: View {
             if isLast {
                 onFinish()
             } else {
-                withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) { index += 1 }
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { position = index + 1 }
             }
         } label: {
             Text(Intro.shared.buttonTitle(pageIndex: Int32(index), pageCount: Int32(pages.count)))
@@ -78,89 +93,175 @@ struct IntroView: View {
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity, minHeight: 54)
                 .background(Color.appAccent, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .shadow(color: Color.appAccent.opacity(0.32), radius: 14, x: 0, y: 8)
+                .shadow(color: Color.appAccent.opacity(0.35), radius: 16, x: 0, y: 10)
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 28)
-        .padding(.bottom, 36)
+        .padding(.bottom, 34)
+        .frame(maxWidth: 460)
     }
 }
 
 // MARK: - Une page
 
-/// Pictogramme sur disque de verre, titre, texte : les trois arrivent en cascade quand la page passe devant.
+/// L'illustration en haut, le titre et le texte en dessous. L'illustration glisse moins vite que la
+/// page pendant le balayage, et tout le contenu arrive en cascade quand la page passe devant.
 private struct IntroPageView: View {
     let page: IntroPage
     let isCurrent: Bool
 
     var body: some View {
-        VStack(spacing: 28) {
-            Spacer(minLength: 0)
-            icon
-            VStack(spacing: 14) {
+        VStack(spacing: 26) {
+            IntroVisualView(page: page)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .visualEffect { content, proxy in
+                    content.offset(x: proxy.frame(in: .scrollView(axis: .horizontal)).minX * 0.35)
+                }
+                .opacity(isCurrent ? 1 : 0.35)
+                .animation(.easeOut(duration: 0.35), value: isCurrent)
+
+            VStack(spacing: 12) {
+                if page.visual == .app {
+                    Text(Intro.shared.VERSION_LABEL)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.appAccent)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.appAccent.opacity(0.14), in: Capsule())
+                }
                 Text(page.title)
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
                     .multilineTextAlignment(.center)
-                    .offset(y: isCurrent ? 0 : 14)
+                    .offset(y: isCurrent ? 0 : 16)
                     .opacity(isCurrent ? 1 : 0)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.06), value: isCurrent)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.05), value: isCurrent)
                 Text(page.body)
-                    .font(.system(size: 17))
+                    .font(.system(size: 16))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
-                    .offset(y: isCurrent ? 0 : 18)
+                    .offset(y: isCurrent ? 0 : 20)
                     .opacity(isCurrent ? 1 : 0)
-                    .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(0.12), value: isCurrent)
+                    .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(0.1), value: isCurrent)
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: 380)
         }
-        .padding(.horizontal, 32)
+        .padding(.horizontal, 30)
+        .padding(.vertical, 18)
+    }
+}
+
+// MARK: - Les illustrations
+
+/// Selon la page : l'icône de l'application, une capture de l'écran concerné, les vrais widgets ou la
+/// liste des corrections.
+private struct IntroVisualView: View {
+    let page: IntroPage
+
+    var body: some View {
+        switch page.visual {
+        case .app: appIcon
+        case .widgets: widgets
+        case .fixes: fixes
+        default: screenshot
+        }
     }
 
-    private var icon: some View {
-        Image(systemName: symbol(for: page.icon))
-            .font(.system(size: 46, weight: .semibold))
-            .foregroundStyle(Color.appAccent)
-            .frame(width: 116, height: 116)
-            .glassSurface(Circle())
-            .overlay(Circle().strokeBorder(Color.appAccent.opacity(0.22), lineWidth: 1))
-            .shadow(color: Color.appAccent.opacity(0.22), radius: 26, x: 0, y: 14)
-            .scaleEffect(isCurrent ? 1 : 0.86)
-            .opacity(isCurrent ? 1 : 0)
-            .animation(.spring(response: 0.5, dampingFraction: 0.78), value: isCurrent)
+    // L'icône de l'application, posée sur son halo.
+
+    private var appIcon: some View {
+        AppIconView(size: 148)
+            .shadow(color: Color.appAccent.opacity(0.35), radius: 34, x: 0, y: 18)
+            .frame(maxHeight: .infinity)
+    }
+
+    // Une capture d'écran de l'application, cadrée sur le haut de l'écran.
+
+    private var screenshot: some View {
+        Image(imageName)
+            .resizable()
+            .scaledToFill()
+            .frame(maxWidth: 300, maxHeight: .infinity, alignment: .top)
+            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .strokeBorder(.white.opacity(0.4), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.28), radius: 28, x: 0, y: 16)
             .accessibilityHidden(true)
     }
 
-    /// Pictogramme de chaque page ; la page d'ouverture porte le tramway de l'icône de l'application.
-    private func symbol(for icon: IntroIcon) -> String {
-        switch icon {
-        case .busArrival: return "bus.fill"
-        case .timetable: return "clock.fill"
-        case .map: return "map.fill"
-        case .city: return "mappin.and.ellipse"
-        case .alerts: return "bell.badge.fill"
-        case .widgets: return "square.grid.2x2.fill"
-        default: return "tram.fill"
+    private var imageName: String {
+        switch page.visual {
+        case .stop: return "IntroArret"
+        case .timetable: return "IntroHoraires"
+        case .map: return "IntroCarte"
+        case .city: return "IntroAutour"
+        case .velov: return "IntroVelov"
+        default: return "IntroAlertes"
         }
+    }
+
+    // Trois vrais widgets, rendus avec les vues de l'extension et ses exemples.
+
+    private var widgets: some View {
+        GeometryReader { geometry in
+            let scale = min(1, geometry.size.width / 338, geometry.size.height / 334)
+            VStack(spacing: 16) {
+                WidgetPreview(kind: .departures, family: .systemMedium)
+                HStack(spacing: 16) {
+                    WidgetPreview(kind: .traffic, family: .systemSmall)
+                    WidgetPreview(kind: .velov, family: .systemSmall)
+                }
+            }
+            .scaleEffect(scale)
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .shadow(color: .black.opacity(0.18), radius: 22, x: 0, y: 12)
+        }
+    }
+
+    // Les corrections : une coche par exemple, sur une carte de verre.
+
+    private var fixes: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(page.points, id: \.self) { point in
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(Color.appSuccess)
+                    Text(point)
+                        .font(.system(size: 15))
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(22)
+        .frame(maxWidth: 340)
+        .glassSurface(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .frame(maxHeight: .infinity)
     }
 }
 
 // MARK: - Fond
 
-/// Deux halos à l'accent qui dérivent lentement derrière le contenu, sur le fond du système.
+/// Deux halos à l'accent qui dérivent lentement et se replacent à chaque page.
 private struct IntroBackground: View {
+    let page: Int
     @State private var drift = false
 
     var body: some View {
         ZStack {
             Color(.systemBackground)
-            halo(size: 320, opacity: 0.30)
-                .offset(x: drift ? 90 : -70, y: drift ? -220 : -140)
-            halo(size: 260, opacity: 0.22)
-                .offset(x: drift ? -110 : 80, y: drift ? 240 : 170)
+            halo(size: 360, opacity: 0.32)
+                .offset(x: drift ? 100 : -80, y: drift ? -260 : -190)
+                .offset(x: page.isMultiple(of: 2) ? -30 : 40)
+            halo(size: 300, opacity: 0.20)
+                .offset(x: drift ? -120 : 90, y: drift ? 260 : 190)
+                .offset(x: page.isMultiple(of: 2) ? 30 : -40)
         }
+        .animation(.easeInOut(duration: 0.8), value: page)
         .ignoresSafeArea()
         .accessibilityHidden(true)
         .onAppear {
@@ -172,6 +273,6 @@ private struct IntroBackground: View {
         Circle()
             .fill(Color.appAccent.opacity(opacity))
             .frame(width: size, height: size)
-            .blur(radius: 70)
+            .blur(radius: 80)
     }
 }

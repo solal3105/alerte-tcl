@@ -56,6 +56,7 @@
 		A1000042 /* LineColorHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000043 /* LineColorHelper.swift */; };
 		A2000030 /* AppColorTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000031 /* AppColorTokens.swift */; };
 		AB100016 /* GlassStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB100005 /* GlassStyle.swift */; };
+		AB1000A4 /* AppIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1000A3 /* AppIconView.swift */; };
 		AB100017 /* CityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB100006 /* CityView.swift */; };
 		AB1000A2 /* IntroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1000A1 /* IntroView.swift */; };
 		AAA20002 /* ColorHex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20012 /* ColorHex.swift */; };
@@ -176,6 +177,7 @@
 		A1000043 /* LineColorHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineColorHelper.swift; sourceTree = "<group>"; };
 		A2000031 /* AppColorTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColorTokens.swift; sourceTree = "<group>"; };
 		AB100005 /* GlassStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassStyle.swift; sourceTree = "<group>"; };
+		AB1000A3 /* AppIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconView.swift; sourceTree = "<group>"; };
 		AB100006 /* CityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityView.swift; sourceTree = "<group>"; };
 		AB1000A1 /* IntroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroView.swift; sourceTree = "<group>"; };
 		AAA20012 /* ColorHex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorHex.swift; sourceTree = "<group>"; };
@@ -251,6 +253,7 @@
 				A1000043 /* LineColorHelper.swift */,
 				A2000031 /* AppColorTokens.swift */,
 				AB100005 /* GlassStyle.swift */,
+				AB1000A3 /* AppIconView.swift */,
 				AAA20012 /* ColorHex.swift */,
 				AAA20013 /* AppGroup.swift */,
 				A1000021 /* AnimationClock.swift */,
@@ -550,6 +553,7 @@
 			files = (
 				AB100015 /* VelovViews.swift in Sources */,
 				AB100016 /* GlassStyle.swift in Sources */,
+				AB1000A4 /* AppIconView.swift in Sources */,
 				AB100017 /* CityView.swift in Sources */,
 				AB1000A2 /* IntroView.swift in Sources */,
 				4FD3050B2F1E686900EAFA92 /* WidgetBridge.swift in Sources */,
@@ -647,7 +651,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = AlerteTCLWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AlerteTCLWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Lyon Pocket";
@@ -658,7 +662,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solal.AlerteTCL.AlerteTCLWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -678,7 +682,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = AlerteTCLWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AlerteTCLWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Lyon Pocket";
@@ -689,7 +693,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solal.AlerteTCL.AlerteTCLWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -834,7 +838,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = AlerteTCL/AlerteTCL.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AlerteTCL/Info.plist;
@@ -849,7 +853,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solal.AlerteTCL;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -878,7 +882,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = AlerteTCL/AlerteTCL.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AlerteTCL/Info.plist;
@@ -893,7 +897,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solal.AlerteTCL;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = (

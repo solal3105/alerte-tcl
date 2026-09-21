@@ -76,8 +76,7 @@ struct AboutView: View {
 
     private var hero: some View {
         VStack(alignment: .leading, spacing: 18) {
-            appIcon
-                .frame(width: 76, height: 76)
+            AppIconView(size: 76)
                 .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 6)
 
             Text("Lyon Pocket")
@@ -89,25 +88,6 @@ struct AboutView: View {
                 .foregroundStyle(.primary.opacity(0.9))
                 .fixedSize(horizontal: false, vertical: true)
         }
-    }
-
-    private var appIcon: some View {
-        Group {
-            if let img = UIImage(named: "AppIcon") ?? Bundle.main.iconImage() {
-                Image(uiImage: img)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.appAccent)
-                    .overlay(
-                        Image(systemName: "tram.fill")
-                            .font(.system(size: 34, weight: .semibold))
-                            .foregroundStyle(.white)
-                    )
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     // MARK: Promesses
@@ -379,20 +359,6 @@ struct AboutView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Icône de l'application
-
-private extension Bundle {
-    func iconImage() -> UIImage? {
-        guard
-            let icons = infoDictionary?["CFBundleIcons"] as? [String: Any],
-            let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
-            let files = primary["CFBundleIconFiles"] as? [String],
-            let last = files.last
-        else { return nil }
-        return UIImage(named: last)
     }
 }
 
