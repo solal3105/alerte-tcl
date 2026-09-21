@@ -37,7 +37,7 @@ class AlertWorker(
             // Premier lancement : tout ce qui existe déjà est marqué vu, sans notification.
             if (!baselineDone()) {
                 val baseline = AlertNotifications.baselineKeys(alerts, subscriptions)
-                saveSeen(AlertNotifications.remember(seenKeys(), baseline))
+                saveSeen(AlertNotifications.remember(emptyList(), baseline))
                 prefs().edit().putBoolean(BASELINE_DONE_KEY, true).apply()
                 AppLogger.debug("AlertWorker: baseline (${baseline.size / 2} alertes silencieuses)")
                 return Result.success()
@@ -80,35 +80,23 @@ class AlertWorker(
     }
 
     /** Clés déjà notifiées, de la plus ancienne à la plus récente : l'ordre pilote la purge. */
-    private fun seenKeys(): List<String> {
-        prefs().getString(SEEN_KEYS_KEY, null)?.let { stored ->
-            return stored.split(SEPARATOR).filter { it.isNotEmpty() }
-        }
-        // Reprise de l'ancien ensemble non ordonné.
-        return (prefs().getStringSet(LEGACY_SEEN_KEYS_KEY, emptySet()) ?: emptySet()).toList()
-    }
+    private fun seenKeys(): List<String> =
+        prefs().getString(SEEN_KEYS_KEY, null)?.split(SEPARATOR)?.filter { it.isNotEmpty() } ?: emptyList()
 
     private fun saveSeen(keys: List<String>) {
-        prefs().edit()
-            .putString(SEEN_KEYS_KEY, keys.joinToString(SEPARATOR))
-            .remove(LEGACY_SEEN_KEYS_KEY)
-            .apply()
+        prefs().edit().putString(SEEN_KEYS_KEY, keys.joinToString(SEPARATOR)).apply()
     }
 
-    /** Le premier passage a déjà eu lieu (nouvelle clé, ou ancien fichier de préférences). */
-    private fun baselineDone(): Boolean =
-        prefs().getBoolean(BASELINE_DONE_KEY, false) ||
-            applicationContext.getSharedPreferences(LEGACY_BASELINE_PREFS, Context.MODE_PRIVATE).getBoolean("done", false)
+    private fun baselineDone(): Boolean = prefs().getBoolean(BASELINE_DONE_KEY, false)
 
     private fun prefs() = applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     companion object {
         private const val PREFS_NAME           = "notif_dedup"
         private const val SEEN_KEYS_KEY        = "seen_keys_ordered"
-        private const val LEGACY_SEEN_KEYS_KEY = "seen_keys"
         private const val SEPARATOR            = "\n"
-        private const val BASELINE_DONE_KEY    = "baseline_done"
-        private const val LEGACY_BASELINE_PREFS = "notif_baseline"
+        /** Version 2 depuis l'identité d'alerte tirée du contenu : les anciennes clés portaient un rang. */
+        private const val BASELINE_DONE_KEY    = "baseline_done_v2"
         private const val GROUP_PREFIX         = "tcl-alerts-"
     }
 }

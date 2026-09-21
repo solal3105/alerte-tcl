@@ -1,5 +1,6 @@
 package com.alertetcl.shared.services
 
+import com.alertetcl.shared.models.AlertIdentity
 import com.alertetcl.shared.models.TCLAlert
 import com.alertetcl.shared.models.TransportMode
 import com.alertetcl.shared.network.ApiError
@@ -49,7 +50,13 @@ class TclApiService {
 
         val now = Clock.System.now().epochSeconds
         val alerts = body.values.mapNotNull { dto ->
-            val id = "${dto.n ?: 0}-${dto.ligneCom.orEmpty()}-${dto.ligneCli.orEmpty()}"
+            val id = AlertIdentity.of(
+                ligneCom = dto.ligneCom.orEmpty(),
+                ligneCli = dto.ligneCli.orEmpty(),
+                titre = dto.titre.orEmpty(),
+                debut = dto.debut,
+                message = dto.message.orEmpty()
+            )
             TCLAlert(
                 id = id,
                 type = dto.type ?: "Information",
@@ -64,6 +71,9 @@ class TclApiService {
                 niveauSeverite = dto.niveauSeverite
             )
         }.filter { it.isActive(now) }
+            // TCL publie parfois deux fois la même perturbation (une entrée par objet concerné) :
+            // une seule suffit, sur la carte comme en notification.
+            .distinctBy { it.id }
 
         AppLogger.debug("TclApiService: ${alerts.size} alertes actives")
         return alerts

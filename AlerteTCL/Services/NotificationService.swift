@@ -9,7 +9,9 @@ final class NotificationService: NSObject, ObservableObject {
     
     private let center = UNUserNotificationCenter.current()
     private let seenKeysKey = "notificationSeenKeys"
-    private let baselineDoneKey = "notifBaselineDone"
+    /// Version 2 depuis le passage à une identité d'alerte tirée du contenu : les clés déjà vues
+    /// portaient l'ancien numéro de rang, il faut donc réapprendre le silence une fois.
+    private let baselineDoneKey = "notifBaselineDone.v2"
     
     @Published var isAuthorized = false
     
@@ -66,7 +68,7 @@ final class NotificationService: NSObject, ObservableObject {
 
         if !defaults.bool(forKey: baselineDoneKey) {
             let baseline = rules.baselineKeys(alerts: sharedAlerts, subscriptions: subscriptions)
-            saveSeen(rules.remember(seenKeys: seenKeys, newKeys: Array(baseline)))
+            saveSeen(rules.remember(seenKeys: [], newKeys: Array(baseline)))
             defaults.set(true, forKey: baselineDoneKey)
             AppLogger.debug("ℹ️ Notifications: baseline (\(baseline.count / 2) alertes silencieuses)")
             return

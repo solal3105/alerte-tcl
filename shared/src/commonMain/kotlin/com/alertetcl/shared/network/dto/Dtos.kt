@@ -15,7 +15,6 @@ data class AlertsApiResponse(val values: List<AlertDto> = emptyList())
 
 @Serializable
 data class AlertDto(
-    val n: Int? = null,
     val type: String? = null,
     val cause: String? = null,
     val debut: String? = null,

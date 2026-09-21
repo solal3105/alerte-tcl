@@ -51,10 +51,12 @@ actor TCLAPIService {
             let apiResponse = try decoder.decode(APIResponse.self, from: data)
             AppLogger.debug("✅ TCLAPIService: \(apiResponse.values.count) alertes chargées")
             
-            // Filtrer les alertes actives
-            let activeAlerts = apiResponse.values.filter { $0.isActive }
+            // Les alertes actives, sans les doublons : TCL publie parfois deux fois la même
+            // perturbation, une entrée par objet concerné.
+            var seen = Set<String>()
+            let activeAlerts = apiResponse.values.filter { $0.isActive && seen.insert($0.id).inserted }
             AppLogger.debug("📊 TCLAPIService: \(activeAlerts.count) alertes actives")
-            
+
             return activeAlerts
         } catch {
             AppLogger.debug("❌ TCLAPIService: Erreur de décodage: \(error)")

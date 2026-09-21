@@ -1,4 +1,5 @@
 import Foundation
+import Shared
 
 struct TCLAlert: Codable, Identifiable, Hashable {
     let id: String
@@ -12,7 +13,6 @@ struct TCLAlert: Codable, Identifiable, Hashable {
     let titre: String
     let message: String
     let lastUpdateFme: String?
-    let n: Int?
     let typeSeverite: String?
     let niveauSeverite: Int?
     let typeObjet: String?
@@ -23,7 +23,6 @@ struct TCLAlert: Codable, Identifiable, Hashable {
         case ligneCom = "ligne_com"
         case ligneCli = "ligne_cli"
         case lastUpdateFme = "last_update_fme"
-        case n
         case typeSeverite = "typeseverite"
         case niveauSeverite = "niveauseverite"
         case typeObjet = "typeobjet"
@@ -40,7 +39,6 @@ struct TCLAlert: Codable, Identifiable, Hashable {
         self.titre = try container.decodeIfPresent(String.self, forKey: .titre) ?? ""
         self.message = try container.decodeIfPresent(String.self, forKey: .message) ?? ""
         self.lastUpdateFme = try container.decodeIfPresent(String.self, forKey: .lastUpdateFme)
-        self.n = try container.decodeIfPresent(Int.self, forKey: .n)
         self.typeSeverite = try container.decodeIfPresent(String.self, forKey: .typeSeverite)
         self.niveauSeverite = try container.decodeIfPresent(Int.self, forKey: .niveauSeverite)
         self.typeObjet = try container.decodeIfPresent(String.self, forKey: .typeObjet)
@@ -75,7 +73,14 @@ struct TCLAlert: Codable, Identifiable, Hashable {
             self.fin = nil
         }
         
-        self.id = "\(n ?? 0)-\(ligneCom)-\(ligneCli)"
+        // L'identité d'une alerte vient de son contenu : le numéro du flux n'est que son rang.
+        self.id = AlertIdentity.shared.of(
+            ligneCom: self.ligneCom,
+            ligneCli: self.ligneCli,
+            titre: self.titre,
+            debut: try container.decodeIfPresent(String.self, forKey: .debut),
+            message: self.message
+        )
     }
     
     init(id: String, type: String, cause: String, debut: Date?, fin: Date?, mode: TransportMode, ligneCom: String, ligneCli: String, titre: String, message: String) {
@@ -90,7 +95,6 @@ struct TCLAlert: Codable, Identifiable, Hashable {
         self.titre = titre
         self.message = message
         self.lastUpdateFme = nil
-        self.n = nil
         self.typeSeverite = nil
         self.niveauSeverite = nil
         self.typeObjet = nil

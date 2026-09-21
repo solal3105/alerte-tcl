@@ -21,6 +21,32 @@ enum class AlertSeverity(val displayName: String, val sortOrder: Int) {
 }
 
 /**
+ * Identité d'une alerte, tirée de son contenu.
+ *
+ * Le flux TCL numérote ses alertes par leur rang dans la réponse (1, 2, 3…) : ce numéro change dès
+ * qu'une alerte apparaît ou disparaît de la liste, si bien qu'il ne reconnaît pas une perturbation
+ * d'un jour à l'autre. Tant qu'il servait d'identifiant, les mêmes notifications repartaient tous
+ * les jours. L'identité vient donc de la ligne, du titre, du début et d'une empreinte du message,
+ * qui distingue les alertes que TCL publie en double sur une même ligne.
+ */
+object AlertIdentity {
+    fun of(ligneCom: String, ligneCli: String, titre: String, debut: String?, message: String): String {
+        val heart = "${ligneCom.trim()}|${ligneCli.trim()}|${titre.trim()}|${debut?.trim().orEmpty()}"
+        return "$heart|${fingerprint(message.trim())}"
+    }
+
+    /** Empreinte FNV-1a sur 32 bits : courte, stable, la même sur les deux plateformes. */
+    private fun fingerprint(text: String): String {
+        var hash = 2166136261u
+        for (char in text) {
+            hash = hash xor char.code.toUInt()
+            hash *= 16777619u
+        }
+        return hash.toString(16)
+    }
+}
+
+/**
  * Alerte trafic TCL.
  * Equivalent du Swift `TCLAlert` — les dates sont en epoch seconds (UTC) pour
  * être consommables par toutes les plateformes.
