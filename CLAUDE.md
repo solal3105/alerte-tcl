@@ -107,6 +107,17 @@ Note : SYTRAL n'implémente pas LinesDiscovery. Les seuls services SIRI disponib
 
 La topologie du réseau (noms de lignes, correspondances) est disponible dans les fichiers GTFS/NeTEx.
 
+### Numérotation des alertes trafic
+
+Le champ `n` du flux `/alerts` n'est pas un identifiant : c'est le rang de l'alerte dans la réponse
+(1, 2, 3…, renuméroté à chaque génération). S'en servir comme identifiant faisait repartir les
+notifications tous les jours, puisque la disparition d'une alerte en tête décale toutes les autres.
+L'identité vient de `AlertIdentity` (module partagé) : ligne, titre, début et empreinte du message.
+Les entrées que TCL publie en double pour une même perturbation (une par objet concerné) sont
+fusionnées à la lecture. Tout changement de cette règle doit s'accompagner d'une nouvelle base
+silencieuse (`notifBaselineDone.v…` côté iOS, `baseline_done_v…` côté Android), sinon toutes les
+alertes en cours repartent d'un coup en notification.
+
 ### Ligne RX
 
 La ligne RX est présente dans le flux SIRI (véhicules actifs) mais **absente du GeoServer** `/bus-lines`.
