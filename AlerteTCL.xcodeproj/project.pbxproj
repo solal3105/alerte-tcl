@@ -57,6 +57,7 @@
 		A2000030 /* AppColorTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000031 /* AppColorTokens.swift */; };
 		AB100016 /* GlassStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB100005 /* GlassStyle.swift */; };
 		AB100017 /* CityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB100006 /* CityView.swift */; };
+		AB1000A2 /* IntroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1000A1 /* IntroView.swift */; };
 		AAA20002 /* ColorHex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20012 /* ColorHex.swift */; };
 		AAA20005 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20013 /* AppGroup.swift */; };
 		AAA20006 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20013 /* AppGroup.swift */; };
@@ -176,6 +177,7 @@
 		A2000031 /* AppColorTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColorTokens.swift; sourceTree = "<group>"; };
 		AB100005 /* GlassStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassStyle.swift; sourceTree = "<group>"; };
 		AB100006 /* CityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityView.swift; sourceTree = "<group>"; };
+		AB1000A1 /* IntroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroView.swift; sourceTree = "<group>"; };
 		AAA20012 /* ColorHex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorHex.swift; sourceTree = "<group>"; };
 		AAA20013 /* AppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroup.swift; sourceTree = "<group>"; };
 		AB100004 /* VelovViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VelovViews.swift; sourceTree = "<group>"; };
@@ -340,6 +342,7 @@
 				A200000C /* TimetableViews.swift */,
 				AB100004 /* VelovViews.swift */,
 				AB100006 /* CityView.swift */,
+				AB1000A1 /* IntroView.swift */,
 				4FD3050C2F1E68CB00EAFA92 /* WidgetViews.swift */,
 				4FD305042F1E60C600EAFA92 /* DataSourceErrorsSheet.swift */,
 				4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */,
@@ -548,6 +551,7 @@
 				AB100015 /* VelovViews.swift in Sources */,
 				AB100016 /* GlassStyle.swift in Sources */,
 				AB100017 /* CityView.swift in Sources */,
+				AB1000A2 /* IntroView.swift in Sources */,
 				4FD3050B2F1E686900EAFA92 /* WidgetBridge.swift in Sources */,
 				AAA00001 /* AlerteTCLApp.swift in Sources */,
 				AAA00002 /* ContentView.swift in Sources */,

@@ -19,7 +19,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.Lock
@@ -34,6 +36,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alertetcl.android.R
+import com.alertetcl.android.ui.intro.IntroDialog
 import com.alertetcl.android.ui.openUrl
 import com.alertetcl.android.ui.theme.Tokens
 
@@ -66,6 +73,7 @@ fun AboutScreen() {
     ) {
         item { Hero() }
         item { Promises() }
+        item { NewInThisVersion() }
         item { Author() }
         item { Projects() }
         item { DataSources() }
@@ -112,6 +120,25 @@ private fun Promise(icon: ImageVector, title: String, modifier: Modifier) {
             Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
+}
+
+/** Rouvrir l'intro depuis l'onglet Info, une fois qu'elle a été vue au lancement. */
+@Composable
+private fun NewInThisVersion() {
+    var showIntro by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        SectionTitle("Ce qui est nouveau")
+        Card(Modifier.fillMaxWidth()) {
+            LinkRow(
+                icon = Icons.Filled.AutoAwesome,
+                title = "Revoir la présentation",
+                subtitle = "Les nouveautés de cette version, écran par écran.",
+                trailing = Icons.Filled.ChevronRight,
+                onClick = { showIntro = true }
+            )
+        }
+    }
+    if (showIntro) IntroDialog(onFinish = { showIntro = false })
 }
 
 @Composable
@@ -271,7 +298,13 @@ private fun AccentIcon(icon: ImageVector, size: Int, iconSize: Int) {
 }
 
 @Composable
-private fun LinkRow(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+private fun LinkRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    trailing: ImageVector = Icons.Outlined.OpenInNew,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -283,6 +316,6 @@ private fun LinkRow(icon: ImageVector, title: String, subtitle: String, onClick:
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.width(4.dp))
-        Icon(Icons.Outlined.OpenInNew, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+        Icon(trailing, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
     }
 }

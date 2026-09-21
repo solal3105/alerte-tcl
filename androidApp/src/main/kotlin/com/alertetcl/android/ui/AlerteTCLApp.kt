@@ -43,6 +43,8 @@ import com.alertetcl.android.ui.live.LiveMapScreen
 import com.alertetcl.android.ui.onboarding.LocationPermissionView
 import com.alertetcl.android.ui.onboarding.NotificationPermissionView
 import com.alertetcl.android.ui.city.CityScreen
+import com.alertetcl.android.ui.intro.IntroDialog
+import com.alertetcl.shared.models.Intro
 import kotlinx.coroutines.launch
 
 private data class TabItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
@@ -60,11 +62,16 @@ fun AlerteTCLApp(initialRoute: String? = null) {
     val store = remember { FavoritesStore(context) }
     val scope = rememberCoroutineScope()
     val onboardingDone by store.onboardingDone.collectAsState(initial = null)
+    val introSeenRevision by store.introSeenRevision.collectAsState(initial = null)
 
     // Null = still loading from DataStore — don't show anything yet to avoid flash
+    val seenRevision = introSeenRevision ?: return
     if (onboardingDone == null) return
 
-    var showLocationSheet by remember { mutableStateOf(onboardingDone == false) }
+    // L'intro passe avant les autorisations : elle dit à quoi servent la position et les alertes.
+    val introFirst = Intro.shouldShow(seenRevision)
+    var showIntro by remember { mutableStateOf(introFirst) }
+    var showLocationSheet by remember { mutableStateOf(!introFirst && onboardingDone == false) }
     var showNotifSheet by remember { mutableStateOf(false) }
 
     val nav = rememberNavController()
@@ -133,6 +140,14 @@ fun AlerteTCLApp(initialRoute: String? = null) {
             composable("ville") { CityScreen() }
             composable("about")   { AboutScreen() }
         }
+    }
+
+    if (showIntro) {
+        IntroDialog(onFinish = {
+            scope.launch { store.setIntroSeen(Intro.REVISION) }
+            showIntro = false
+            if (onboardingDone == false) showLocationSheet = true
+        })
     }
 
     if (showLocationSheet) {

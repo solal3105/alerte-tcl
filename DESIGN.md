@@ -117,6 +117,20 @@ d'une tuile est sur un disque uni. L'accent de l'application est la teinte de to
 (interrupteurs compris), pas la couleur « primaire » du système. La fiche d'un parking ne montre que ce
 que la donnée contient (plus de « type d'usagers » ni de « type d'ouvrage » inventés).
 
+## Écran d'intro
+
+À la première ouverture, et une fois après chaque mise à jour qui change la révision du contenu, les
+deux applications présentent les nouveautés : une page par sujet, dans l'ordre fixé par `Intro`
+(module partagé, testé), avec son pictogramme, son titre et son explication. iOS ajoute la page des
+widgets, qu'Android n'a pas. Le fond porte deux halos à l'accent qui dérivent lentement, le
+pictogramme est posé sur un disque de verre, et le titre puis le texte arrivent en cascade quand la
+page passe devant. En bas, des capsules d'avancement et le bouton principal plein à l'accent, dont
+le libellé vient du module partagé : « Suivant », puis « Commencer » sur la dernière page.
+« Passer l'intro » reste offert en haut à droite jusqu'à l'avant-dernière page. L'intro passe avant
+les demandes de position et de notifications, et reste consultable depuis l'onglet Info par « Revoir
+la présentation ». Chaque plateforme retient la révision vue (`intro.seenRevision` dans les
+préférences iOS, `intro_seen_revision` dans le stockage Android).
+
 ## Onglet Info
 
 L'application d'abord : son icône, « Lyon Pocket » en très grand, une accroche en corps 19 sur ce

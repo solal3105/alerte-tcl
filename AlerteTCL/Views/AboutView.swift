@@ -6,6 +6,7 @@ import SwiftUI
 struct AboutView: View {
     /// Ouvre la galerie des widgets (lien depuis un widget non réglé).
     @Binding var showWidgets: Bool
+    @State private var showIntro = false
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -17,6 +18,7 @@ struct AboutView: View {
                 VStack(alignment: .leading, spacing: 36) {
                     hero
                     promises
+                    intro
                     widgets
                     author
                     projects
@@ -30,6 +32,25 @@ struct AboutView: View {
             .background(Color(.systemGroupedBackground))
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showWidgets) { WidgetGalleryView() }
+            .fullScreenCover(isPresented: $showIntro) {
+                IntroView { showIntro = false }
+            }
+        }
+    }
+
+    // MARK: L'intro
+
+    private var intro: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionTitle("Ce qui est nouveau")
+            Button { showIntro = true } label: {
+                cardRow(
+                    icon: "sparkles",
+                    title: "Revoir la présentation",
+                    subtitle: "Les nouveautés de cette version, écran par écran."
+                )
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -41,26 +62,11 @@ struct AboutView: View {
             NavigationLink {
                 WidgetGalleryView()
             } label: {
-                HStack(spacing: 14) {
-                    iconBox("square.grid.2x2.fill")
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Widgets")
-                            .font(.system(size: 17, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.primary)
-                        Text("Vos prochains passages, un parking, une station Vélo'v, les chantiers autour de vous et le trafic de vos lignes, sans ouvrir l'application.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .multilineTextAlignment(.leading)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(16)
-                .background(card)
-                .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                cardRow(
+                    icon: "square.grid.2x2.fill",
+                    title: "Widgets",
+                    subtitle: "Vos prochains passages, un parking, une station Vélo'v, les chantiers autour de vous et le trafic de vos lignes, sans ouvrir l'application."
+                )
             }
             .buttonStyle(.plain)
         }
@@ -317,6 +323,30 @@ struct AboutView: View {
     private var card: some View {
         RoundedRectangle(cornerRadius: 20, style: .continuous)
             .fill(Color(.secondarySystemGroupedBackground))
+    }
+
+    /// Rangée d'une carte qui mène ailleurs : pictogramme, titre, explication et chevron.
+    private func cardRow(icon: String, title: String, subtitle: String) -> some View {
+        HStack(spacing: 14) {
+            iconBox(icon)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(16)
+        .background(card)
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private func iconBox(_ icon: String) -> some View {

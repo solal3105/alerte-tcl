@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.alertetcl.shared.models.AlertSeverity
+import com.alertetcl.shared.models.Intro
 import com.alertetcl.shared.models.LineRegistry
 import com.alertetcl.shared.models.LineSubscription
 import com.alertetcl.shared.models.LineSubscriptions
@@ -45,6 +46,10 @@ class FavoritesStore(private val context: Context) {
 
     val onboardingDone: Flow<Boolean> =
         context.favStore.data.map { p -> p[KEY_ONBOARDING] == "1" }
+
+    /** Révision de l'intro déjà vue (`Intro`, module partagé) : elle reparaît quand le contenu change. */
+    val introSeenRevision: Flow<Int> =
+        context.favStore.data.map { p -> p[KEY_INTRO_REVISION]?.toIntOrNull() ?: Intro.NEVER_SEEN }
 
     val selectedLiveLines: Flow<Set<String>> =
         context.favStore.data.map { p -> parse(p[KEY_SELECTED_LIVE_LINES]) }
@@ -126,6 +131,10 @@ class FavoritesStore(private val context: Context) {
         context.favStore.edit { p -> p[KEY_ONBOARDING] = "1" }
     }
 
+    suspend fun setIntroSeen(revision: Int) {
+        context.favStore.edit { p -> p[KEY_INTRO_REVISION] = revision.toString() }
+    }
+
     private fun parse(s: String?): Set<String> =
         s.orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
 
@@ -147,6 +156,7 @@ class FavoritesStore(private val context: Context) {
         private val KEY_FAV_LINES           = stringPreferencesKey("fav_lines")
         private val KEY_PREMIUM             = stringPreferencesKey("premium_active")
         private val KEY_ONBOARDING          = stringPreferencesKey("onboarding_done")
+        private val KEY_INTRO_REVISION      = stringPreferencesKey("intro_seen_revision")
         private val KEY_SELECTED_LIVE_LINES = stringPreferencesKey("live_selected_lines")
         /** Ancien format (sévérités par ligne favorite), lu uniquement pour la reprise. */
         private val KEY_SEVERITY_PREFS      = stringPreferencesKey("line_severity_prefs")

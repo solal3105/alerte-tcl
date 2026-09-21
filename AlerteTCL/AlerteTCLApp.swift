@@ -29,8 +29,11 @@ struct AlerteTCLApp: App {
     @StateObject private var viewModel = AlertViewModel()
     @AppStorage("hasShownNotificationPrompt") private var hasShownNotificationPrompt = false
     @AppStorage("hasShownLocationPrompt") private var hasShownLocationPrompt = false
+    /// Révision de l'intro déjà vue (`Intro`, module partagé) : elle reparaît après une mise à jour du contenu.
+    @AppStorage("intro.seenRevision") private var introSeenRevision = 0
     @State private var showNotificationPrompt = false
     @State private var showLocationPrompt = false
+    @State private var showIntro = false
     /// Lien profond reçu (widgets) ; ContentView le route vers le bon onglet.
     @State private var deepLink: WidgetLink?
     @Environment(\.scenePhase) private var scenePhase
@@ -84,22 +87,11 @@ struct AlerteTCLApp: App {
                 }
                 .environmentObject(viewModel)
                 .onAppear {
-                    if !hasShownLocationPrompt {
-                        Task {
-                            try? await Task.sleep(for: .seconds(1))
-                            await MainActor.run {
-                                showLocationPrompt = true
-                                hasShownLocationPrompt = true
-                            }
-                        }
-                    } else if !hasShownNotificationPrompt {
-                        Task {
-                            try? await Task.sleep(for: .seconds(1))
-                            await MainActor.run {
-                                showNotificationPrompt = true
-                                hasShownNotificationPrompt = true
-                            }
-                        }
+                    // L'intro passe avant les autorisations : elle dit à quoi servent la position et les alertes.
+                    if Intro.shared.shouldShow(seenRevision: Int32(introSeenRevision)) {
+                        showIntro = true
+                    } else {
+                        askForPermissions()
                     }
                 }
                 .onOpenURL { url in
@@ -109,6 +101,12 @@ struct AlerteTCLApp: App {
                     if phase == .active { scheduleAlertRefresh() }
                     // L'écran d'accueil arrive : les widgets de passages repartent de l'heure exacte.
                     if phase == .background { WidgetBridge.shared.reloadTimeSensitive() }
+                }
+                .fullScreenCover(isPresented: $showIntro, onDismiss: askForPermissions) {
+                    IntroView {
+                        introSeenRevision = Int(Intro.shared.REVISION)
+                        showIntro = false
+                    }
                 }
                 .sheet(isPresented: $showLocationPrompt) {
                     LocationPermissionView()
@@ -127,6 +125,27 @@ struct AlerteTCLApp: App {
                 .sheet(isPresented: $showNotificationPrompt) {
                     NotificationPermissionView()
                 }
+        }
+    }
+
+    /// Demande la position, puis les notifications, une seule fois chacune, une seconde après l'affichage.
+    private func askForPermissions() {
+        if !hasShownLocationPrompt {
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                await MainActor.run {
+                    showLocationPrompt = true
+                    hasShownLocationPrompt = true
+                }
+            }
+        } else if !hasShownNotificationPrompt {
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                await MainActor.run {
+                    showNotificationPrompt = true
+                    hasShownNotificationPrompt = true
+                }
+            }
         }
     }
 

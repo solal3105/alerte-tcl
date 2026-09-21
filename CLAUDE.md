@@ -154,6 +154,15 @@ pousse dans une `NavigationStack` (retour système), Android pose une capsule de
 `Modifier.glass` (Android, `ui/components/Glass.kt`) ; jamais de verre dans du verre. La fiche d'un
 parking n'affiche que des données réelles (pas de « type d'usagers » ni de « type d'ouvrage »).
 
+### Écran d'intro
+
+Les nouveautés sont présentées au premier lancement et une fois après chaque mise à jour qui change
+`Intro.REVISION` (module partagé : pictogramme, titre et texte de chaque page, libellé du bouton,
+règle d'affichage, testés). `IntroView.swift` sur iOS, `IntroScreen.kt` sur Android ; la page des
+widgets n'existe que sur iOS. La révision vue est gardée par chaque plateforme et l'écran reste
+consultable depuis l'onglet Info. Changer les textes d'une version se fait dans le module partagé,
+jamais dans les vues, et augmenter la révision suffit à faire reparaître l'intro.
+
 ### Fiches horaires théoriques (GTFS)
 
 Les horaires d'une journée entière (fiches horaires par ligne, sens et date) ne viennent pas
