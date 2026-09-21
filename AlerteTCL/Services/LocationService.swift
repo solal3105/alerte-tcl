@@ -23,6 +23,11 @@ final class LocationService: NSObject, ObservableObject {
     }
     
     func requestPermission() {
+        #if DEBUG
+        // Mode démo : les données sont simulées et la boîte d'autorisation du système gâcherait
+        // les captures d'écran que ce mode sert justement à produire.
+        if DemoShowcase.current != nil { return }
+        #endif
         locationManager.requestWhenInUseAuthorization()
     }
     

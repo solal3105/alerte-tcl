@@ -35,7 +35,13 @@ struct LiveMapRepresentable: UIViewRepresentable {
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView(frame: .zero)
         mapView.delegate = context.coordinator
+        #if DEBUG
+        // Mode démo : MapKit demanderait la position au système, et sa boîte s'afficherait devant
+        // les captures d'écran que ce mode sert à produire.
+        mapView.showsUserLocation = DemoShowcase.current == nil
+        #else
         mapView.showsUserLocation = true
+        #endif
         mapView.showsCompass = false
         mapView.showsScale = false
         mapView.pointOfInterestFilter = .excludingAll
