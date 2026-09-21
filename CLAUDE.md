@@ -157,8 +157,8 @@ parking n'affiche que des données réelles (pas de « type d'usagers » ni de �
 ### Écran d'intro
 
 Les nouveautés sont présentées au premier lancement et une fois après chaque mise à jour qui change
-`Intro.REVISION` (module partagé : illustration, titre, texte et exemples de chaque page, libellé de
-la version annoncée, libellé du bouton, règle d'affichage, testés). `IntroView.swift` sur iOS,
+`Intro.REVISION` (module partagé : illustration, titre, texte et exemples de chaque page, libellé du
+bouton selon l'endroit d'où l'intro a été ouverte, règle d'affichage, testés). `IntroView.swift` sur iOS,
 `IntroScreen.kt` sur Android ; la page des widgets n'existe que sur iOS, où elle rend trois widgets
 réels avec les vues de l'extension. Les captures qui illustrent les pages sont celles du site
 (`website/assets/v13-*.jpg`), copiées dans les assets des deux applications. La révision vue est

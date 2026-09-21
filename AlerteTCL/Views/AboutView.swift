@@ -33,7 +33,7 @@ struct AboutView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showWidgets) { WidgetGalleryView() }
             .fullScreenCover(isPresented: $showIntro) {
-                IntroView { showIntro = false }
+                IntroView(atLaunch: false) { showIntro = false }
             }
         }
     }

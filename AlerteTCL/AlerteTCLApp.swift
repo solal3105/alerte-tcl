@@ -103,7 +103,7 @@ struct AlerteTCLApp: App {
                     if phase == .background { WidgetBridge.shared.reloadTimeSensitive() }
                 }
                 .fullScreenCover(isPresented: $showIntro, onDismiss: askForPermissions) {
-                    IntroView {
+                    IntroView(atLaunch: true) {
                         introSeenRevision = Int(Intro.shared.REVISION)
                         showIntro = false
                     }

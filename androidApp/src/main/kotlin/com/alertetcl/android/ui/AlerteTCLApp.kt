@@ -143,7 +143,7 @@ fun AlerteTCLApp(initialRoute: String? = null) {
     }
 
     if (showIntro) {
-        IntroDialog(onFinish = {
+        IntroDialog(atLaunch = true, onFinish = {
             scope.launch { store.setIntroSeen(Intro.REVISION) }
             showIntro = false
             if (onboardingDone == false) showLocationSheet = true

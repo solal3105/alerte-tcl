@@ -68,7 +68,7 @@ import kotlinx.coroutines.launch
  * jour qui change la révision du contenu, et reste consultable depuis l'onglet Info.
  */
 @Composable
-fun IntroScreen(onFinish: () -> Unit) {
+fun IntroScreen(atLaunch: Boolean, onFinish: () -> Unit) {
     val pages = remember { Intro.pages(includeWidgets = false) }
     val pager = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()
@@ -142,7 +142,7 @@ fun IntroScreen(onFinish: () -> Unit) {
                     .height(54.dp)
             ) {
                 Text(
-                    Intro.buttonTitle(pager.currentPage, pages.size),
+                    Intro.buttonTitle(pager.currentPage, pages.size, atLaunch),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -183,18 +183,6 @@ private fun IntroPageContent(page: IntroPage, isCurrent: Boolean, parallax: Floa
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.widthIn(max = 380.dp)
         ) {
-            if (page.visual == IntroVisual.APP) {
-                Text(
-                    Intro.VERSION_LABEL,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Tokens.accent,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(Tokens.accent.copy(alpha = 0.14f))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                )
-            }
             Text(
                 text = page.title,
                 fontSize = 26.sp,
@@ -261,13 +249,12 @@ private fun IntroVisualView(page: IntroPage) {
         else -> Image(
             painter = painterResource(id = screenshot(page.visual)),
             contentDescription = null,
-            contentScale = ContentScale.Crop,
-            alignment = Alignment.TopCenter,
+            contentScale = ContentScale.Fit,
             modifier = Modifier
-                .widthIn(max = 300.dp)
+                .widthIn(max = 330.dp)
                 .fillMaxSize()
-                .clip(RoundedCornerShape(30.dp))
-                .border(1.dp, Color.White.copy(alpha = 0.4f), RoundedCornerShape(30.dp))
+                .clip(RoundedCornerShape(24.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(24.dp))
         )
     }
 }
@@ -316,11 +303,11 @@ private fun Halo(size: Int, alpha: Float, accent: Color, x: Float, y: Float) {
 
 /** L'intro en plein écran, par-dessus l'écran courant. */
 @Composable
-fun IntroDialog(onFinish: () -> Unit) {
+fun IntroDialog(atLaunch: Boolean, onFinish: () -> Unit) {
     Dialog(
         onDismissRequest = onFinish,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
-        IntroScreen(onFinish = onFinish)
+        IntroScreen(atLaunch = atLaunch, onFinish = onFinish)
     }
 }

@@ -6,6 +6,8 @@ import Shared
 /// les textes du module partagé (`Intro`). Il s'ouvre à la première utilisation et après une mise à
 /// jour qui change la révision du contenu, et reste consultable depuis l'onglet Info.
 struct IntroView: View {
+    /// Vrai quand l'intro s'ouvre au lancement : le dernier bouton mène alors à la carte.
+    var atLaunch = true
     /// Appelé quand l'intro est terminée ou passée : l'appelant enregistre la révision vue.
     let onFinish: () -> Void
 
@@ -88,7 +90,7 @@ struct IntroView: View {
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { position = index + 1 }
             }
         } label: {
-            Text(Intro.shared.buttonTitle(pageIndex: Int32(index), pageCount: Int32(pages.count)))
+            Text(Intro.shared.buttonTitle(pageIndex: Int32(index), pageCount: Int32(pages.count), atLaunch: atLaunch))
                 .font(.system(size: 17, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity, minHeight: 54)
@@ -121,14 +123,6 @@ private struct IntroPageView: View {
                 .animation(.easeOut(duration: 0.35), value: isCurrent)
 
             VStack(spacing: 12) {
-                if page.visual == .app {
-                    Text(Intro.shared.VERSION_LABEL)
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.appAccent)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.appAccent.opacity(0.14), in: Capsule())
-                }
                 Text(page.title)
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .multilineTextAlignment(.center)
@@ -176,19 +170,19 @@ private struct IntroVisualView: View {
             .frame(maxHeight: .infinity)
     }
 
-    // Une capture d'écran de l'application, cadrée sur le haut de l'écran.
+    // La capture de l'écran concerné, recadrée sur la partie qui montre la nouveauté.
 
     private var screenshot: some View {
         Image(imageName)
             .resizable()
-            .scaledToFill()
-            .frame(maxWidth: 300, maxHeight: .infinity, alignment: .top)
-            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+            .scaledToFit()
+            .frame(maxWidth: 330, maxHeight: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .strokeBorder(.white.opacity(0.4), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .strokeBorder(.white.opacity(0.45), lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.28), radius: 28, x: 0, y: 16)
+            .shadow(color: .black.opacity(0.25), radius: 26, x: 0, y: 14)
             .accessibilityHidden(true)
     }
 

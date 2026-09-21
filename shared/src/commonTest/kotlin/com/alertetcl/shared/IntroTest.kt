@@ -41,9 +41,10 @@ class IntroTest {
     }
 
     @Test
-    fun lastButtonOpensTheApp() {
+    fun lastButtonSaysWhereItLeads() {
         val count = Intro.pages(includeWidgets = false).size
-        assertEquals("Suivant", Intro.buttonTitle(0, count))
-        assertEquals("Commencer", Intro.buttonTitle(count - 1, count))
+        assertEquals("Suivant", Intro.buttonTitle(0, count, atLaunch = true))
+        assertEquals("Voir la carte", Intro.buttonTitle(count - 1, count, atLaunch = true))
+        assertEquals("Fermer", Intro.buttonTitle(count - 1, count, atLaunch = false), "rouverte depuis l'onglet Info")
     }
 }

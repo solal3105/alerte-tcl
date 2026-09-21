@@ -138,7 +138,7 @@ private fun NewInThisVersion() {
             )
         }
     }
-    if (showIntro) IntroDialog(onFinish = { showIntro = false })
+    if (showIntro) IntroDialog(atLaunch = false, onFinish = { showIntro = false })
 }
 
 @Composable
