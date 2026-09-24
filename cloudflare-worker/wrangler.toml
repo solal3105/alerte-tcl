@@ -4,11 +4,10 @@ compatibility_date = "2024-01-01"
 
 # Collecte des positions des véhicules, une fois par minute, conservée pour apprendre les temps
 # de parcours réels (modèle de prédiction à venir). Les applications n'y accèdent pas.
-# À activer une fois R2 ouvert sur le compte Cloudflare (tableau de bord → R2 → activer, offre gratuite),
-# puis `wrangler r2 bucket create tcl-positions` et redéployer :
-# [triggers]
-# crons = ["* * * * *"]
-#
-# [[r2_buckets]]
-# binding = "POSITIONS"
-# bucket_name = "tcl-positions"
+# Le bucket se crée une fois avant le premier déploiement : `wrangler r2 bucket create tcl-positions`.
+[triggers]
+crons = ["* * * * *"]
+
+[[r2_buckets]]
+binding = "POSITIONS"
+bucket_name = "tcl-positions"
