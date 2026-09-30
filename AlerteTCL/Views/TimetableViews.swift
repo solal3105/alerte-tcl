@@ -41,6 +41,19 @@ private struct TimetableTripSelection: Identifiable, Hashable {
     var id: String { "\(tripIndex)-\(stopIndex)" }
 }
 
+private struct LiveVehiclesKey: EnvironmentKey {
+    static let defaultValue: [Vehicle] = []
+}
+
+extension EnvironmentValues {
+    /// Véhicules en circulation, posés par la carte sur ses feuilles : une fiche horaire relie ainsi le
+    /// passage suivi à son bus, qu'elle soit ouverte depuis un arrêt ou depuis la recherche.
+    var liveVehicles: [Vehicle] {
+        get { self[LiveVehiclesKey.self] }
+        set { self[LiveVehiclesKey.self] = newValue }
+    }
+}
+
 // MARK: - Mise en forme commune
 
 private enum TimetableFormat {
@@ -78,12 +91,6 @@ private enum TimetableFormat {
 
     /// « mer. 17 sept. » pour les puces de choix du jour.
     static func shortDay(_ date: Date) -> String { shortDayFormatter.string(from: date) }
-
-    /// Délai annoncé par le temps réel (« 12 min », « Proche ») sous une forme lisible.
-    static func delayLabel(_ raw: String) -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespaces)
-        return trimmed.hasSuffix("min") ? "dans \(trimmed)" : trimmed.lowercased()
-    }
 
     static func iso(_ date: Date) -> String { isoDay.string(from: date) }
 
@@ -197,20 +204,6 @@ private struct TimelineDot: View {
                 .frame(width: size, height: size)
         }
         .frame(width: 20, height: 48)
-    }
-}
-
-private struct Pill: View {
-    let text: String
-    let background: Color
-    let foreground: Color
-    var body: some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(foreground)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(background, in: Capsule())
     }
 }
 
@@ -375,9 +368,10 @@ struct StopTimetableView: View {
 /// Passages d'une journée à un arrêt : les prochains passages en direct, puis les horaires
 /// théoriques présentés comme une fiche d'arrêt (l'heure à gauche, les minutes à droite).
 ///
-/// Tout ce qui se déduit de la journée (passages, lignes d'heures, repères de légende, prochain
-/// passage) est calculé une seule fois par jour affiché, jamais pendant le rendu : la fiche d'une
-/// ligne compte plusieurs centaines de passages et le module Kotlin est appelé à chaque calcul.
+/// Tout ce qui se déduit de la journée (passages, lignes d'heures, repères de légende) est calculé une
+/// seule fois par jour affiché, jamais pendant le rendu : la fiche d'une ligne compte plusieurs
+/// centaines de passages. Seul l'état des passages à venir (`StopBoard`, le même que la fiche d'arrêt)
+/// se recalcule chaque seconde : un départ ne se grise qu'une fois le bus passé.
 private struct TimetableDayList: View {
     let timetable: LineTimetable
     let stopIndexes: [Int]
@@ -385,14 +379,18 @@ private struct TimetableDayList: View {
     @Binding var date: Date
     let onSelect: (TimetableDeparture) -> Void
 
+    @Environment(\.liveVehicles) private var vehicles
     @State private var showOtherDays = false
     @State private var livePassages: [Shared.Passage] = []
     @State private var liveLoaded = false
+    @State private var approaching: [ApproachingVehicle] = []
     @State private var model: DayModel
     @State private var otherDays: [Date]
 
     private struct HourRow: Identifiable {
         let hour: Int
+        /// Rang du premier départ de l'heure dans la journée.
+        let firstIndex: Int
         let departures: [TimetableDeparture]
         var id: Int { hour }
     }
@@ -408,29 +406,23 @@ private struct TimetableDayList: View {
         var departures: [TimetableDeparture] = []
         var hourRows: [HourRow] = []
         var isServiceDay = false
-        var nowMinutes = 0
-        var nextDeparture: TimetableDeparture?
         var terminusMarks: [String: String] = [:]
         var legend: [LegendEntry] = []
         var hasAfterMidnight = false
 
-        init() {}
-
         init(timetable: LineTimetable, stopIndexes: [Int], date: Date) {
             departures = timetable.departures(stopIndexes: TimetableFormat.kotlinInts(stopIndexes), isoDate: TimetableFormat.iso(date))
             var rows: [HourRow] = []
-            for departure in departures {
+            for (index, departure) in departures.enumerated() {
                 let hour = Int(departure.minutes) / 60
                 if let last = rows.indices.last, rows[last].hour == hour {
-                    rows[last] = HourRow(hour: hour, departures: rows[last].departures + [departure])
+                    rows[last] = HourRow(hour: hour, firstIndex: rows[last].firstIndex, departures: rows[last].departures + [departure])
                 } else {
-                    rows.append(HourRow(hour: hour, departures: [departure]))
+                    rows.append(HourRow(hour: hour, firstIndex: index, departures: [departure]))
                 }
             }
             hourRows = rows
             isServiceDay = Calendar.current.isDate(date, inSameDayAs: TimetableFormat.serviceDate())
-            nowMinutes = TimetableFormat.serviceMinutes()
-            nextDeparture = isServiceDay ? departures.first { Int($0.minutes) >= nowMinutes } : nil
             // Lettre par terminus inhabituel, dans l'ordre d'apparition (comme sur une fiche papier).
             var marks: [String: String] = [:]
             for departure in departures where departure.terminus != timetable.headsign && marks[departure.terminus] == nil {
@@ -447,6 +439,10 @@ private struct TimetableDayList: View {
         func mark(for departure: TimetableDeparture) -> String? {
             departure.isTerminus ? "†" : terminusMarks[departure.terminus]
         }
+
+        func departure(at index: Int) -> TimetableDeparture? {
+            departures.indices.contains(index) ? departures[index] : nil
+        }
     }
 
     init(timetable: LineTimetable, stopIndexes: [Int], stopName: String, date: Binding<Date>, onSelect: @escaping (TimetableDeparture) -> Void) {
@@ -461,6 +457,11 @@ private struct TimetableDayList: View {
 
     private var accent: Color { LineColorHelper.backgroundColor(for: timetable.line) }
     private var accentText: Color { LineColorHelper.textColor(for: timetable.line) }
+
+    /// Identifiants GeoServer des quais de l'arrêt dans cette fiche.
+    private var stopIds: [Int32] {
+        stopIndexes.compactMap { index in timetable.stops.indices.contains(index) ? timetable.stops[index].id : nil }
+    }
 
     /// Jours proposés au-delà de demain, dans la période couverte.
     private static func otherDays(of timetable: LineTimetable) -> [Date] {
@@ -477,37 +478,31 @@ private struct TimetableDayList: View {
         model = DayModel(timetable: timetable, stopIndexes: stopIndexes, date: date)
     }
 
+    /// Passages à venir à l'instant `nowMs`, dans le même état que sur la fiche d'arrêt.
+    private func upcoming(at nowMs: Int64) -> [PassageStatus] {
+        StopBoard.shared.upcoming(
+            passages: livePassages, approaching: approaching, timetable: timetable,
+            stopIndexes: TimetableFormat.kotlinInts(stopIndexes), nowEpochMs: nowMs,
+            timeZoneId: StopApproach.shared.TIME_ZONE, limit: 3, shortDestination: { _ in nil }
+        )
+    }
+
+    /// La grille de la journée en cours lue avec ces passages ; nil pour un autre jour.
+    private func gridState(_ upcoming: [PassageStatus], at nowMs: Int64) -> TimetableGridState? {
+        guard model.isServiceDay else { return nil }
+        return StopBoard.shared.grid(departures: model.departures, upcoming: upcoming, nowEpochMs: nowMs, timeZoneId: StopApproach.shared.TIME_ZONE)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // L'en-tête reste visible : la liste seule défile jusqu'au prochain passage.
             header
                 .padding(.bottom, 8)
             ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        if timetable.isStaleOn(isoDate: TimetableFormat.serviceDateIso()) {
-                            StaleNotice(text: TimetableTexts.shared.staleNotice(validToLong: TimetableFormat.longDate(iso: timetable.validTo)))
-                        }
-                        if model.isServiceDay {
-                            liveSection
-                        }
-                        if model.departures.isEmpty {
-                            Text("Aucun passage prévu ce jour-là à cet arrêt.")
-                                .foregroundStyle(.secondary)
-                                .padding(20)
-                        } else {
-                            SectionLabel(text: model.isServiceDay ? "Horaires de la journée" : "Horaires")
-                            ForEach(model.hourRows) { row in
-                                hourRow(row)
-                                    .id(row.hour)
-                            }
-                            if !model.legend.isEmpty {
-                                legendView
-                            }
-                        }
-                        notes
-                    }
-                    .padding(.bottom, 24)
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    let nowMs = Int64(context.date.timeIntervalSince1970 * 1000)
+                    let coming = upcoming(at: nowMs)
+                    list(upcoming: coming, grid: gridState(coming, at: nowMs), nowMs: nowMs)
                 }
                 .onAppear { scrollToNext(proxy) }
                 .onChange(of: date) { _, _ in
@@ -519,6 +514,37 @@ private struct TimetableDayList: View {
             }
         }
         .task(id: stopIndexes) { await refreshLive() }
+        .onChange(of: vehicles, initial: true) { _, _ in recomputeApproaching() }
+    }
+
+    private func list(upcoming: [PassageStatus], grid: TimetableGridState?, nowMs: Int64) -> some View {
+        let next = grid.flatMap { model.departure(at: Int($0.nextIndex)) }
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                if timetable.isStaleOn(isoDate: TimetableFormat.serviceDateIso()) {
+                    StaleNotice(text: TimetableTexts.shared.staleNotice(validToLong: TimetableFormat.longDate(iso: timetable.validTo)))
+                }
+                if model.isServiceDay {
+                    liveSection(upcoming.filter { $0.phase.isLive }, nowMs: nowMs)
+                }
+                if model.departures.isEmpty {
+                    Text("Aucun passage prévu ce jour-là à cet arrêt.")
+                        .foregroundStyle(.secondary)
+                        .padding(20)
+                } else {
+                    SectionLabel(text: model.isServiceDay ? "Horaires de la journée" : "Horaires")
+                    ForEach(model.hourRows) { row in
+                        hourRow(row, grid: grid, next: next)
+                            .id(row.hour)
+                    }
+                    if !model.legend.isEmpty {
+                        legendView
+                    }
+                }
+                notes
+            }
+            .padding(.bottom, 24)
+        }
     }
 
     // MARK: En-tête et choix du jour
@@ -579,26 +605,19 @@ private struct TimetableDayList: View {
 
     // MARK: Passages en direct
 
-    private var liveSection: some View {
+    /// Les passages suivis en direct, écrits comme sur la fiche d'arrêt.
+    private func liveSection(_ live: [PassageStatus], nowMs: Int64) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Circle().fill(Color.appSuccess).frame(width: 7, height: 7)
-                Text("EN DIRECT")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 18)
-            .padding(.bottom, 4)
-            if livePassages.isEmpty {
-                Text(liveLoaded ? "Aucun passage annoncé pour le moment." : "Chargement des passages en direct…")
+            SectionLabel(text: "En direct")
+            if live.isEmpty {
+                Text(liveLoaded ? PassageTexts.shared.NONE_ANNOUNCED : "Chargement des passages en direct…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 8)
             } else {
                 VStack(spacing: 6) {
-                    ForEach(livePassages, id: \.id) { passage in liveRow(passage) }
+                    ForEach(Array(live.enumerated()), id: \.offset) { _, status in liveRow(status, nowMs: nowMs) }
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
@@ -606,17 +625,17 @@ private struct TimetableDayList: View {
         }
     }
 
-    private func liveRow(_ passage: Shared.Passage) -> some View {
-        HStack(spacing: 12) {
-            Text(passage.formattedTime)
-                .font(.system(size: 17, weight: .bold, design: .rounded).monospacedDigit())
-            Text(TimetableFormat.delayLabel(passage.delaipassage))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Pill(text: passage.isRealTime ? "estimé" : "théorique",
-                 background: passage.isRealTime ? Color.appSuccess.opacity(0.15) : Color.appNeutralFill,
-                 foreground: passage.isRealTime ? Color.appSuccess : Color.secondary)
+    private func liveRow(_ status: PassageStatus, nowMs: Int64) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            PassageHeadline(status: status, nowMs: nowMs, size: 17)
+                .layoutPriority(1)
+            if let detail = PassageTexts.shared.rowDetail(status: status, nowEpochMs: nowMs, timeZoneId: StopApproach.shared.TIME_ZONE) {
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -625,10 +644,6 @@ private struct TimetableDayList: View {
 
     /// Recharge les passages en direct toutes les 30 secondes tant que la journée en cours est affichée.
     private func refreshLive() async {
-        let stopIds = stopIndexes.compactMap { index -> Int32? in
-            guard index >= 0, index < timetable.stops.count else { return nil }
-            return timetable.stops[index].id
-        }
         let termini = (try? await LineTermini.shared.all()) ?? [:]
         while !Task.isCancelled {
             if model.isServiceDay {
@@ -640,23 +655,37 @@ private struct TimetableDayList: View {
                 }
                 livePassages = TimetableLive.shared.nextPassages(passages: all, line: timetable.line, direction: timetable.dir, termini: termini, limit: 3)
                 liveLoaded = true
-                recompute()  // le prochain passage avance avec l'heure
             }
             try? await Task.sleep(nanoseconds: 30_000_000_000)
         }
     }
 
+    /// Véhicules en route vers l'arrêt, recalculés à chaque réception de positions.
+    private func recomputeApproaching() {
+        approaching = StopApproach.shared.approaching(
+            vehicles: vehicles.filter { $0.lineName == timetable.line }.map(\.shared), timetable: timetable,
+            stopIds: stopIds.map { KotlinInt(value: $0) }, stopName: stopName,
+            nowEpochMs: Int64(Date().timeIntervalSince1970 * 1000), timeZoneId: StopApproach.shared.TIME_ZONE, limit: 3
+        )
+    }
+
     // MARK: Grille des horaires
 
-    private func hourRow(_ row: HourRow) -> some View {
-        let containsNext = model.nextDeparture.map { Int($0.minutes) / 60 == row.hour } ?? false
+    private func hourRow(_ row: HourRow, grid: TimetableGridState?, next: TimetableDeparture?) -> some View {
+        let containsNext = next.map { Int($0.minutes) / 60 == row.hour } ?? false
         return HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(hourLabel(row.hour))
                 .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .foregroundStyle(.secondary)
                 .frame(width: 48, alignment: .leading)
             FlowLayout(spacing: 6) {
-                ForEach(row.departures, id: \.rowID) { departure in minuteChip(departure) }
+                ForEach(Array(row.departures.enumerated()), id: \.element.rowID) { offset, departure in
+                    minuteChip(
+                        departure,
+                        isPast: grid?.phaseOf(index: Int32(row.firstIndex + offset)) == PassagePhase.departed,
+                        isNext: departure.rowID == next?.rowID
+                    )
+                }
             }
         }
         .padding(.horizontal, 16)
@@ -664,9 +693,7 @@ private struct TimetableDayList: View {
         .background(containsNext ? accent.opacity(0.07) : .clear)
     }
 
-    private func minuteChip(_ departure: TimetableDeparture) -> some View {
-        let isPast = model.isServiceDay && Int(departure.minutes) < model.nowMinutes
-        let isNext = departure.rowID == model.nextDeparture?.rowID
+    private func minuteChip(_ departure: TimetableDeparture, isPast: Bool, isNext: Bool) -> some View {
         let minute = String(format: "%02d", Int(departure.minutes) % 60)
         let foreground: Color = isNext ? accentText : (isPast ? Color.secondary.opacity(0.55) : .primary)
         return Button {
@@ -723,7 +750,9 @@ private struct TimetableDayList: View {
     }
 
     private func scrollToNext(_ proxy: ScrollViewProxy) {
-        guard let target = model.nextDeparture.map({ Int($0.minutes) / 60 }) ?? model.hourRows.first?.hour else { return }
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+        let next = gridState(upcoming(at: nowMs), at: nowMs).flatMap { model.departure(at: Int($0.nextIndex)) }
+        guard let target = next.map({ Int($0.minutes) / 60 }) ?? model.hourRows.first?.hour else { return }
         DispatchQueue.main.async {
             withAnimation { proxy.scrollTo(target, anchor: .top) }
         }

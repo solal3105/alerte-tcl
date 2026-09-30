@@ -14,6 +14,7 @@ import com.alertetcl.shared.models.Vehicle
 import com.alertetcl.shared.models.VehicleType
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -32,6 +33,7 @@ class StopBoardTest {
         trips = listOf(TimetableTrip(p = 0, s = 0, t = listOf(845, 850, 854, 860)), TimetableTrip(p = 0, s = 0, t = listOf(875, 880, 884, 890)))
     )
     private val guillotiere = listOf(2)
+    private val stopNames = mapOf(10 to "Perrache", 11 to "Bellecour", 13 to "Guillotière", 14 to "Saxe")
 
     private fun passage(hhmmss: String, realTime: Boolean = true) =
         Passage(stopId = 13, ligne = "C12", direction = "Saxe", delaipassage = "3 min", heurepassage = "2026-09-15 $hhmmss", type = if (realTime) "E" else "T")
@@ -40,7 +42,7 @@ class StopBoardTest {
         id = "bus", latitude = 45.75, longitude = 4.83, bearing = 0.0, lineRef = "", lineName = "C12", vehicleType = VehicleType.BUS,
         destination = "Saxe", direction = "A", delay = delay, recordedAtEpoch = recordedAtSec,
         nextStop = StopInfo(id = "ActIV:StopArea:SP:$nextStopId:SYTRAL", stopRef = "ActIV:StopArea:SP:$nextStopId:SYTRAL",
-            stopName = if (nextStopId == 11) "Bellecour" else "Guillotière", aimedArrivalTimeEpoch = aimedAtSec, distanceFromStop = distance)
+            stopName = stopNames[nextStopId], aimedArrivalTimeEpoch = aimedAtSec, distanceFromStop = distance)
     )
 
     private fun approaching(vehicle: Vehicle, nowMs: Long) =
@@ -59,6 +61,8 @@ class StopBoardTest {
         assertEquals("À l'approche", first.headline(now))
         assertEquals("14:14", first.caption(now))
         assertEquals("Vers Bellecour, l'arrêt d'avant", first.location)
+        assertEquals("14:14", PassageTexts.headlineDetail(board, now))
+        assertEquals("14:14 · Vers Bellecour, l'arrêt d'avant", PassageTexts.rowDetail(first, now))
         assertNull(first.approach?.vehicle?.stalenessLine(now))
         // Le bus reconnu a pris l'annonce de 14:17 : il n'est compté qu'une fois.
         assertTrue(board.following.none { it.approach != null })
@@ -98,12 +102,41 @@ class StopBoardTest {
     }
 
     @Test
+    fun aBusWaitingForItsCourseIsNotApproaching() {
+        // 14:30 : le prochain arrêt du bus est Guillotière, mais sa course n'y passe qu'à 14:44 (attente au terminus).
+        val now = at(30.0)
+        val approach = approaching(bus(13, t0Sec + 44 * 60, recordedAtSec = now / 1000 - 10, distance = 800), now)
+        val first = StopBoard.upcoming(listOf(passage("14:44:00")), approach, timetable, guillotiere, now).first()
+        assertEquals(PassagePhase.LIVE, first.phase)
+        assertEquals("14 min", first.headline(now))
+        assertEquals(PassageTexts.NEXT_IS_YOURS, first.location)
+        // Sans annonce TCL, il n'a pas de délai à lui : la fiche horaire donne le passage.
+        val alone = StopBoard.upcoming(emptyList(), approach, timetable, guillotiere, now).first()
+        assertEquals(PassagePhase.SCHEDULED, alone.phase)
+        assertNull(alone.approach)
+    }
+
+    @Test
     fun anAgingPositionIsShownAsApproximate() {
         val now = at(0.0)
         val approach = approaching(bus(10, t0Sec + 5 * 60, recordedAtSec = now / 1000 - 70), now)
-        val first = StopBoard.upcoming(emptyList(), approach, timetable, guillotiere, now).first()
+        val first = StopBoard.upcoming(listOf(passage("14:14:00")), approach, timetable, guillotiere, now).first()
         assertEquals("~14 min", first.headline(now))
+        assertEquals("Vers Perrache, 2 arrêts avant le vôtre", first.location)
         assertEquals("position d'il y a 1 min 10", first.approach?.vehicle?.stalenessLine(now))
+    }
+
+    @Test
+    fun aBusThatCannotBeTiedToAnAnnouncementGetsNoNumberOfItsOwn() {
+        val now = at(0.0)
+        // Course reconnue (14:14 à Guillotière) que TCL n'annonce pas : seule l'annonce de 14:44 compte.
+        val known = approaching(bus(10, t0Sec + 5 * 60, recordedAtSec = now / 1000 - 10), now)
+        val upcoming = StopBoard.upcoming(listOf(passage("14:44:00")), known, timetable, guillotiere, now)
+        assertEquals("44 min", upcoming.first().headline(now))
+        assertTrue(upcoming.none { it.approach != null })
+        // Course inconnue (rien ne part de Perrache à 14:07) : rien ne la relie au passage de 14:03.
+        val unknown = approaching(bus(10, t0Sec + 7 * 60, recordedAtSec = now / 1000 - 10), now)
+        assertNull(StopBoard.upcoming(listOf(passage("14:03:00")), unknown, timetable, guillotiere, now).first().approach)
     }
 
     @Test
@@ -129,7 +162,24 @@ class StopBoardTest {
         val late = at(40.0)
         val lastBoard = StopBoard.board(group(emptyList()), emptyList(), timetable, guillotiere, late)
         assertTrue(lastBoard.firstIsLast)
+        assertEquals("prévu 14:44 · Dernier passage", PassageTexts.headlineDetail(lastBoard, late))
         assertEquals("Ensuite demain 14:14 · demain 14:44", PassageTexts.thenLine(lastBoard))
+    }
+
+    @Test
+    fun withoutAnythingTheCardSaysWhy() {
+        val empty = StopBoard.board(group(emptyList()), emptyList(), null, emptyList(), at(0.0))
+        assertNull(empty.first)
+        assertNull(PassageTexts.headlineDetail(empty, at(0.0)))
+        assertEquals(PassageTexts.NONE_ANNOUNCED, PassageTexts.noPassage(timetableKnown = false))
+        assertEquals(PassageTexts.NONE_PLANNED, PassageTexts.noPassage(timetableKnown = true))
+    }
+
+    @Test
+    fun theEndOfTheLineOnlyArrives() {
+        assertTrue(StopBoard.isArrivalOnly(timetable, listOf(14), "Saxe"))
+        assertFalse(StopBoard.isArrivalOnly(timetable, listOf(13), "Guillotière"))
+        assertFalse(StopBoard.isArrivalOnly(timetable, listOf(999), "Ailleurs"))
     }
 
     @Test

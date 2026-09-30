@@ -50,17 +50,15 @@ data class Vehicle(
     /** Numéro de parc extrait du VehicleRef SIRI (ex. "ActIV:Vehicle:Bus:1512:LOC" → "1512"). */
     val fleetNumber: String? get() = id.split(":").getOrNull(3)?.takeIf { it.isNotEmpty() }
 
-    /** Ponctualité : le chiffre, ce qu'il veut dire, et la phrase entière (cf. [VehicleTexts]). */
-    val delayAmount: String get() = VehicleTexts.punctualityAmount(delay)
-    val delayCaption: String get() = VehicleTexts.punctualityCaption(delay)
+    /** Ponctualité en une phrase (« 2 min de retard », « À l'heure »), cf. [VehicleTexts]. */
     val delayText: String get() = VehicleTexts.punctuality(delay)
 
-    val isDelayed: Boolean get() = VehicleTexts.isDelayed(delay)
-    val isEarly:   Boolean get() = VehicleTexts.isEarly(delay)
+    /** Retard ou avance d'au moins une minute : la ponctualité s'écrit alors en orange. */
+    val isOffSchedule: Boolean get() = VehicleTexts.isOffSchedule(delay)
 
     /**
-     * Arrivée au prochain arrêt (epoch, secondes) : son horaire prévu corrigé du retard constaté,
-     * comme l'estimation de « Où est mon bus ». Null quand TCL ne donne pas d'horaire pour cet arrêt.
+     * Arrivée au prochain arrêt (epoch, secondes) : son horaire prévu corrigé du retard constaté, comme
+     * l'estimation de [StopApproach]. Null quand TCL ne donne pas d'horaire pour cet arrêt.
      */
     val nextStopArrivalEpoch: Long? get() = nextStop?.let { stop ->
         (stop.aimedArrivalTimeEpoch ?: stop.aimedDepartureTimeEpoch)?.plus(delay)

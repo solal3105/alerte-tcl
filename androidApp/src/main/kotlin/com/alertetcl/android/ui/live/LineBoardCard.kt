@@ -95,19 +95,14 @@ internal fun LineBoardCard(
             Column(modifier = Modifier.padding(end = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (first == null) {
                     Text(
-                        if (timetableKnown) PassageTexts.NONE_PLANNED else PassageTexts.NONE_ANNOUNCED,
+                        PassageTexts.noPassage(timetableKnown),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     return@Column
                 }
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     PassageHeadline(first, nowMs, fontSize = 28.sp)
-                    val detail = listOfNotNull(
-                        first.caption(nowMs),
-                        first.shortDestination?.let { "jusqu'à $it" },
-                        PassageTexts.LAST_OF_DAY.takeIf { board.firstIsLast }
-                    ).joinToString(" · ")
-                    if (detail.isNotEmpty()) {
+                    PassageTexts.headlineDetail(board, nowMs)?.let { detail ->
                         Text(detail, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
                             overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 4.dp))
                     }
@@ -121,6 +116,7 @@ internal fun LineBoardCard(
                             stopsBefore = approach.stopsBefore,
                             atStop = first.phase == PassagePhase.AT_STOP,
                             lineColor = colorFromHex(LineColors.backgroundHex(group.line)),
+                            lineTextColor = colorFromHex(LineColors.textHex(group.line)),
                             vehicleIcon = vehicleTypeIcon(approach.vehicle.vehicleType)
                         )
                         VehicleStatusLines(first.location, approach.vehicle, nowMs)
@@ -158,7 +154,7 @@ internal fun PassageHeadline(status: PassageStatus, nowMs: Long, fontSize: TextU
  */
 @Composable
 internal fun VehicleStatusLines(lead: String?, vehicle: Vehicle, nowMs: Long) {
-    val deviates = vehicle.isDelayed || vehicle.isEarly
+    val deviates = vehicle.isOffSchedule
     val neutral = MaterialTheme.colorScheme.onSurfaceVariant
     val warning = Tokens.warning
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -190,17 +186,17 @@ private fun LiveDot() {
  * véhicule devant le prochain qu'il dessert, ou sur l'arrêt de l'usager quand il y est.
  */
 @Composable
-private fun MiniLine(stopsBefore: Int, atStop: Boolean, lineColor: Color, vehicleIcon: ImageVector) {
+private fun MiniLine(stopsBefore: Int, atStop: Boolean, lineColor: Color, lineTextColor: Color, vehicleIcon: ImageVector) {
     val shown = minOf(stopsBefore, MINI_LINE_STOPS)
     Row(modifier = Modifier.fillMaxWidth().height(22.dp), verticalAlignment = Alignment.CenterVertically) {
         if (stopsBefore > MINI_LINE_STOPS) Text("…", color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(end = 4.dp))
-        if (!atStop) VehicleMark(vehicleIcon, lineColor)
+        if (!atStop) VehicleMark(vehicleIcon, lineColor, lineTextColor)
         repeat(shown) {
             Segment(lineColor)
             Box(Modifier.size(9.dp).border(2.dp, lineColor, CircleShape))
         }
         Segment(lineColor)
-        if (atStop) VehicleMark(vehicleIcon, lineColor)
+        if (atStop) VehicleMark(vehicleIcon, lineColor, lineTextColor)
         else Box(Modifier.size(14.dp).background(lineColor, CircleShape).padding(3.dp).background(MaterialTheme.colorScheme.surfaceContainer, CircleShape))
     }
 }
@@ -211,8 +207,8 @@ private fun RowScope.Segment(color: Color) {
 }
 
 @Composable
-private fun VehicleMark(icon: ImageVector, color: Color) {
+private fun VehicleMark(icon: ImageVector, color: Color, iconColor: Color) {
     Box(Modifier.size(22.dp).background(color, CircleShape), contentAlignment = Alignment.Center) {
-        Icon(icon, null, tint = Color.White, modifier = Modifier.size(14.dp))
+        Icon(icon, null, tint = iconColor, modifier = Modifier.size(14.dp))
     }
 }

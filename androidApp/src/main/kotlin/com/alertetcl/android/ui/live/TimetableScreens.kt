@@ -685,7 +685,7 @@ private fun LiveSection(live: List<PassageStatus>?, nowMs: Long) {
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             PassageHeadline(status, nowMs, fontSize = 17.sp)
-                            listOfNotNull(status.caption(nowMs), status.location).joinToString(" · ").takeIf { it.isNotEmpty() }?.let {
+                            PassageTexts.rowDetail(status, nowMs)?.let {
                                 Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }

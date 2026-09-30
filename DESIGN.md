@@ -71,11 +71,14 @@ un seul état, calculé dans le module partagé (`StopBoard`, `PassageStatus`, t
 d'arrêt, la grille horaire et la carte : Théorique → Suivi en direct → À l'approche → À l'arrêt → Passé.
 L'état croise trois sources qui ne se rafraîchissent pas au même rythme : les annonces TCL de l'arrêt,
 les positions des véhicules (`StopApproach` : arrêts restants, horaire prévu de la course corrigé du
-retard) et la fiche horaire. Un véhicule reconnu l'emporte, son flux étant le plus frais ; tout se
-recalcule chaque seconde avec l'heure courante, jamais à partir du délai texte de TCL. Un bus dont
-l'arrêt de l'usager est le prochain est « À l'approche » partout, à moins de 30 m « À l'arrêt » ; une
-annonce dépassée depuis moins de deux minutes reste « À l'approche » ; un bus que TCL n'annonce plus
-mais qui n'a pas atteint l'arrêt reste affiché.
+retard) et la fiche horaire. Un véhicule n'apparaît que rattaché à un passage annoncé (son arrivée
+estimée à moins de 10 min de l'annonce), dont il donne alors l'heure, son flux étant le plus frais :
+jamais un chiffre à part qu'on ne saurait relier à rien. Un véhicule attendu à son prochain arrêt dans
+plus d'une heure n'est pas en route et n'est pas compté. Tout se recalcule chaque seconde avec l'heure
+courante, jamais à partir du délai texte de TCL. Un bus dont l'arrêt de l'usager est le prochain et qui
+y est attendu dans moins de trois minutes est « À l'approche » partout, à moins de 30 m « À l'arrêt » ;
+une annonce dépassée depuis moins de deux minutes reste « À l'approche » ; un bus à l'approche que TCL
+n'annonce plus reste affiché.
 
 L'en-tête tient sur une ligne (nom, commune, pictogramme PMR, rafraîchir) pour que le premier passage
 soit visible sans défiler. Puis une carte par ligne et sens (`StopPassages.group`, terminus du sens en
@@ -93,6 +96,8 @@ titre, liens carte et horaires en icônes) :
   journée est rappelé quand il part dans moins de deux heures ; la nuit, la fiche horaire prend le
   relais jusqu'aux départs du lendemain (« demain 05:12 »).
 
+Sur iOS, « Ajouter au widget » suit les cartes.
+
 Chaque couleur a un seul sens : la palette de la ligne pour son badge et sa mini-ligne, le vert pour le
 direct, le gris pour l'horaire prévu, l'orange pour un écart à l'horaire. La ponctualité « À l'heure »
 est grise. Les sens d'un arrêt sont connus à toute heure (dessertes des quais et terminus, `LineTermini`)
@@ -104,9 +109,9 @@ heure, et la section « En direct » écrit les passages avec le même gros text
 touché sur la carte dit « Prochain arrêt Génovéfains à 22:53 · À l'heure » (« Arrive à Génovéfains »
 une fois l'heure dépassée) et se retire tant qu'une fiche d'arrêt est ouverte.
 
-Cette refonte est faite sur Android ; iOS (`TransitStopViews.swift`) garde l'ancienne présentation
-(« Où est mon bus » dépliable) en attendant d'être aligné sur le même état partagé. Le suivi d'un bus
-en arrière-plan (activité en direct) a été essayé puis retiré le 16 septembre 2026.
+La présentation est la même sur iOS (`TransitStopViews.swift`, `TimetableViews.swift`) et Android
+(`LineBoardCard.kt`, `TimetableScreens.kt`). Le suivi d'un bus en arrière-plan (activité en direct) a
+été essayé puis retiré le 16 septembre 2026.
 
 ## Autour de moi
 

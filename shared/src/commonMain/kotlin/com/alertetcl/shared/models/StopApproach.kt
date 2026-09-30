@@ -15,49 +15,24 @@ data class ApproachingVehicle(
      * à la dernière position transmise. Null quand la course n'a pas pu être identifiée.
      */
     val estimatedArrivalEpoch: Long?
-) {
-    /** Grand chiffre de la fiche d'arrêt : « 3 », ou « Arrive » quand l'arrêt est le prochain. */
-    val stopsValue: String get() = if (stopsBefore == 0) "Arrive" else "$stopsBefore"
-
-    /** Légende sous le grand chiffre (« Arrive au prochain arrêt », « 3 arrêts avant le vôtre »). */
-    val stopsCaption: String get() = when (stopsBefore) {
-        0 -> "au prochain arrêt"
-        1 -> "arrêt avant le vôtre"
-        else -> "arrêts avant le vôtre"
-    }
-
-    /** Une seule ligne sous les chiffres : l'âge de la position, pour rappeler qu'elle n'est pas en direct. */
-    fun freshnessLine(nowEpochMs: Long): String =
-        vehicle.positionAgeSeconds(nowEpochMs)?.let { "Position transmise par TCL il y a ${Vehicle.formattedAge(it)}" }
-            ?: "Position sans horodatage"
-
-    /** Heure prévue « HH:mm », null sans course identifiée. */
-    val scheduledTime: String? get() = scheduledMinutes?.let { TimetableTime.format(it) }
-
-    /** Heure d'arrivée estimée « HH:mm » dans le fuseau [timeZoneId], null sans estimation. */
-    fun estimatedTime(timeZoneId: String = StopApproach.TIME_ZONE): String? =
-        estimatedArrivalEpoch?.let { TimetableTime.format(TimetableTime.serviceMinutes(it * 1000, timeZoneId)) }
-
-    /** « dans 4 min », ou « imminent » quand l'estimation est atteinte ; null sans estimation. */
-    fun arrivalText(nowEpochMs: Long): String? {
-        val eta = estimatedArrivalEpoch ?: return null
-        val remaining = eta - nowEpochMs / 1000
-        return if (remaining < 60) "imminent" else "dans ${remaining / 60} min"
-    }
-
-}
+)
 
 /**
- * « Où est mon bus » : croise les positions SIRI (prochain arrêt, horaire prévu, retard) avec la fiche
+ * Où est mon bus : croise les positions SIRI (prochain arrêt, horaire prévu, retard) avec la fiche
  * horaire d'un sens pour dire, à un arrêt, à combien d'arrêts se trouve chaque véhicule qui y vient et
  * quand il devrait y arriver. Rien n'est extrapolé depuis la position elle-même : l'estimation est
- * l'horaire prévu de la course corrigé du retard constaté par TCL, et l'âge de la position est affiché.
+ * l'horaire prévu de la course corrigé du retard constaté par TCL. [StopBoard] ne la montre que
+ * rattachée à un passage annoncé.
  */
 object StopApproach {
     const val TIME_ZONE = "Europe/Paris"
 
-    /** Quand aucun véhicule du sens n'est en route vers l'arrêt : la fonction reste visible. */
-    const val NONE_APPROACHING = "Aucun bus en route vers cet arrêt pour l'instant."
+    /**
+     * Un véhicule attendu à son prochain arrêt dans plus d'une heure n'est pas en route : sa course n'a
+     * pas commencé (dépôt) ou ses horaires sont incohérents, comme ce bus à trois arrêts annoncé deux
+     * heures plus tard.
+     */
+    const val NEXT_STOP_HORIZON_SECONDS = 3600L
 
     /**
      * Véhicules de la ligne et du sens de [timetable] qui vont encore desservir l'arrêt ([stopIds] :
@@ -75,10 +50,12 @@ object StopApproach {
         val targets = timetable.stopIndexes(stopIds.toSet(), stopName).toSet()
         if (targets.isEmpty()) return emptyList()
         val serviceDate = LocalDate.parse(TimetableTime.serviceDateIso(nowEpochMs, timeZoneId))
+        val nowSec = nowEpochMs / 1000
         val result = ArrayList<ApproachingVehicle>()
         for (vehicle in vehicles) {
             if (TimetableKeys.keyFor(vehicle.lineName) != timetable.key) continue
             if (vehicle.direction.isNotEmpty() && vehicle.direction != timetable.dir) continue
+            if ((vehicle.nextStopArrivalEpoch ?: nowSec) - nowSec > NEXT_STOP_HORIZON_SECONDS) continue
             val next = vehicle.nextStop ?: continue
             val nextId = next.numericId ?: continue
             val nextIndexes = timetable.stops.indices.filter { timetable.stops[it].id == nextId }

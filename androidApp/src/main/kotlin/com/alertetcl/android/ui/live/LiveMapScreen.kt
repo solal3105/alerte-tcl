@@ -159,7 +159,6 @@ import com.alertetcl.shared.models.StopApproach
 import com.alertetcl.shared.models.StopPassages
 import com.alertetcl.shared.models.StopBoard
 import com.alertetcl.shared.models.PassageGroup
-import com.alertetcl.shared.models.TimetableNext
 import com.alertetcl.shared.design.AppColors
 import androidx.compose.runtime.mutableStateMapOf
 import com.alertetcl.android.ui.components.LineBadge
@@ -1041,7 +1040,7 @@ private fun VehicleDetailSheet(v: Vehicle) {
                         }
                     }
                     // Pastille retard : orange seulement pour un écart (le vert est réservé au direct).
-                    val delayColor = if (v.isDelayed || v.isEarly) Tokens.warning else MaterialTheme.colorScheme.onSurfaceVariant
+                    val delayColor = if (v.isOffSchedule) Tokens.warning else MaterialTheme.colorScheme.onSurfaceVariant
                     Surface(shape = RoundedCornerShape(50), color = delayColor.copy(alpha = 0.12f)) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -1448,7 +1447,7 @@ private fun MergedStopDetailSheet(
     val groupedPassages = remember(allGroups, timetableSnapshot) {
         allGroups.filter { group ->
             val timetable = timetableSnapshot[group.key]
-            group.passages.isNotEmpty() || timetable == null || !TimetableNext.isArrivalOnly(timetable, stopIds, stop.nom)
+            group.passages.isNotEmpty() || timetable == null || !StopBoard.isArrivalOnly(timetable, stopIds, stop.nom)
         }
     }
     val approaches = remember(vehicles, timetableSnapshot) {

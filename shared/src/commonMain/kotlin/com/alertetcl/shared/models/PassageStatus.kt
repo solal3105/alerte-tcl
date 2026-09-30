@@ -12,7 +12,7 @@ enum class PassagePhase {
     SCHEDULED,
     /** Suivi en direct, à plus d'une minute. */
     LIVE,
-    /** Moins d'une minute, ou l'arrêt de l'usager est le prochain du véhicule. */
+    /** Moins d'une minute, ou l'arrêt de l'usager est le prochain du véhicule, qui y est attendu sous trois minutes. */
     APPROACHING,
     /** Le véhicule est à l'arrêt de l'usager. */
     AT_STOP,
@@ -113,6 +113,26 @@ object PassageTexts {
     const val LAST = "dernier"
     const val NONE_ANNOUNCED = "Aucun passage annoncé pour l'instant."
     const val NONE_PLANNED = "Aucun passage prévu aujourd'hui ni demain."
+
+    /** Un sens sans passage : rien de prévu quand la fiche horaire est connue, sinon rien d'annoncé. */
+    fun noPassage(timetableKnown: Boolean): String = if (timetableKnown) NONE_PLANNED else NONE_ANNOUNCED
+
+    /**
+     * La petite ligne à côté du gros texte d'une carte : l'heure exacte, « jusqu'à Debourg » pour une
+     * course qui s'arrête avant le terminus, « Dernier passage ». Null quand il n'y a rien à ajouter.
+     */
+    fun headlineDetail(board: LineBoard, nowEpochMs: Long, timeZoneId: String = StopApproach.TIME_ZONE): String? {
+        val first = board.first ?: return null
+        return listOfNotNull(
+            first.caption(nowEpochMs, timeZoneId),
+            first.shortDestination?.let { "jusqu'à $it" },
+            LAST_OF_DAY.takeIf { board.firstIsLast }
+        ).joinToString(" · ").ifEmpty { null }
+    }
+
+    /** Un passage de la liste « En direct » d'une fiche horaire : l'heure exacte, puis où est le véhicule. */
+    fun rowDetail(status: PassageStatus, nowEpochMs: Long, timeZoneId: String = StopApproach.TIME_ZONE): String? =
+        listOfNotNull(status.caption(nowEpochMs, timeZoneId), status.location).joinToString(" · ").ifEmpty { null }
 
     /** « Ensuite 23:35 · dernier 00:12 », « Dernier 00:12 », null quand il n'y a rien après le premier passage. */
     fun thenLine(board: LineBoard, timeZoneId: String = StopApproach.TIME_ZONE): String? {

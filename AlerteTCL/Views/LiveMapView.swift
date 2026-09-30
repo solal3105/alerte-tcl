@@ -71,6 +71,7 @@ struct LiveMapView: View {
                 mergedStop: mergedStop, stopsVM: stopsViewModel, liveVM: viewModel, onFocus: focusOnStop,
                 onLocateVehicle: { vehicle in focusOnApproach(vehicle: vehicle, stop: mergedStop) }
             )
+            .environment(\.liveVehicles, viewModel.vehicles)
             .presentationDetents(stopSheetDetents)
             .presentationDragIndicator(.visible)
         }
@@ -82,6 +83,7 @@ struct LiveMapView: View {
         .sheet(isPresented: $showNetwork) {
             NetworkSheet(tab: $networkTab)
                 .environmentObject(alertViewModel)
+                .environment(\.liveVehicles, viewModel.vehicles)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
@@ -302,7 +304,8 @@ struct LiveMapView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            if let focus = viewModel.stopFocus, let vehicleId = focus.vehicleId {
+            // Une fiche d'arrêt ouverte dit déjà où est chaque bus : le bandeau se retire pendant ce temps.
+            if selectedMergedStop == nil, let focus = viewModel.stopFocus, let vehicleId = focus.vehicleId {
                 VehicleFocusCard(
                     focus: focus,
                     vehicle: viewModel.vehicles.first { $0.id == vehicleId },
@@ -311,7 +314,7 @@ struct LiveMapView: View {
                 )
                 .padding(.top, 8)
                 .padding(.horizontal, 16)
-            } else if let focus = viewModel.stopFocus {
+            } else if selectedMergedStop == nil, let focus = viewModel.stopFocus {
                 StopFocusBanner(
                     focus: focus,
                     vehicleCount: viewModel.stopFocusVehicleCount,
@@ -811,9 +814,10 @@ struct VehicleDetailSheet: View {
         }
     }
 
+    /// Ponctualité : orange seulement pour un écart à l'horaire (le vert est réservé au direct).
     private var delayPill: some View {
-        let color: Color = vehicle.isDelayed ? .appWarning : (vehicle.isEarly ? Color.appAccent : Color.appSuccess)
-        let icon = vehicle.isDelayed ? "clock.badge.exclamationmark.fill" : "clock.fill"
+        let color: Color = vehicle.isOffSchedule ? .appWarning : .secondary
+        let icon = vehicle.isOffSchedule ? "clock.badge.exclamationmark.fill" : "clock.fill"
         return HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.caption2.weight(.semibold))
@@ -1194,8 +1198,9 @@ struct FilterSheet: View {
 
 // MARK: - Bandeau du véhicule touché
 
-/// Remplace le bandeau trafic quand un véhicule a été touché : trois chiffres, le délai depuis la
-/// dernière position en premier, « Voir plus » pour la fiche, une croix pour retirer le filtre.
+/// Remplace le bandeau trafic quand un véhicule a été touché : la ligne et sa destination, puis une
+/// phrase (prochain arrêt, heure tant qu'elle est à venir, ponctualité) ; l'âge de la position ne
+/// s'affiche que lorsqu'elle date. « Voir plus » pour la fiche, une croix pour retirer le filtre.
 private struct VehicleFocusCard: View {
     let focus: StopLineFocus
     let vehicle: Vehicle?
@@ -1205,7 +1210,7 @@ private struct VehicleFocusCard: View {
     private var lineColor: Color { LineColorHelper.backgroundColor(for: focus.line) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 10) {
                 LineBadge(line: focus.line, size: 13)
                 VStack(alignment: .leading, spacing: 1) {
@@ -1238,29 +1243,14 @@ private struct VehicleFocusCard: View {
             }
 
             if let vehicle {
-                TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    HStack(alignment: .top, spacing: 10) {
-                        stat(
-                            value: vehicle.positionAge.map(Vehicle.formattedAge) ?? "—",
-                            caption: "dernière position",
-                            color: vehicle.positionFreshness.color,
-                            emphasized: true
-                        )
-                        stat(
-                            value: vehicle.delayAmount,
-                            caption: vehicle.delayCaption,
-                            color: vehicle.isDelayed ? .appWarning : (vehicle.isEarly ? Color.appAccent : Color.appSuccess),
-                            emphasized: false
-                        )
-                        if let arrival = vehicle.nextStopArrival, let caption = vehicle.nextStopArrivalCaption {
-                            stat(
-                                value: arrival.formatted(date: .omitted, time: .shortened),
-                                caption: caption,
-                                color: .primary,
-                                emphasized: false
-                            )
-                        }
-                    }
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    let nowMs = Int64(context.date.timeIntervalSince1970 * 1000)
+                    let shared = vehicle.shared
+                    VehicleStatusLines(
+                        lead: shared.nextStopLine(nowEpochMs: nowMs, timeZoneId: StopApproach.shared.TIME_ZONE),
+                        vehicle: shared,
+                        nowMs: nowMs
+                    )
                 }
             } else {
                 Text("Véhicule plus suivi pour l'instant")
@@ -1277,21 +1267,6 @@ private struct VehicleFocusCard: View {
                 .strokeBorder(lineColor.opacity(0.35), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
-    }
-
-    /// Un chiffre et sa légende ; le premier, mis en avant, est plus grand.
-    private func stat(value: String, caption: String, color: Color, emphasized: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .font(.system(size: emphasized ? 22 : 15, weight: .bold, design: .rounded).monospacedDigit())
-                .foregroundStyle(color)
-                .lineLimit(1)
-            Text(caption)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

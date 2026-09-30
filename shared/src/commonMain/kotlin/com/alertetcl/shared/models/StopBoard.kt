@@ -33,8 +33,9 @@ data class TimetableGridState(
 /**
  * Les prochains passages d'un sens à un arrêt, en croisant trois sources qui ne se rafraîchissent pas
  * au même rythme : les annonces TCL de l'arrêt, les positions des véhicules ([StopApproach]) et la fiche
- * horaire. Un véhicule reconnu l'emporte (son flux est le plus frais) ; l'état se recalcule à chaque
- * appel avec l'heure courante, de sorte qu'aucun délai ne reste figé entre deux rafraîchissements.
+ * horaire. Un véhicule n'apparaît que rattaché à un passage annoncé, dont il donne alors l'heure (son
+ * flux est le plus frais) : jamais un chiffre à part qu'on ne saurait relier à rien. L'état se recalcule
+ * à chaque appel avec l'heure courante, de sorte qu'aucun délai ne reste figé entre deux rafraîchissements.
  */
 object StopBoard {
     /** Écart maximal entre l'arrivée estimée d'un véhicule et une annonce TCL pour les rapprocher. */
@@ -43,6 +44,12 @@ object StopBoard {
     const val ANNOUNCED_GRACE_SECONDS = 120L
     /** Distance au prochain arrêt, en mètres, sous laquelle le véhicule est considéré à l'arrêt. */
     const val AT_STOP_METRES = 30
+    /**
+     * Un véhicule dont l'arrêt de l'usager est le prochain n'est « À l'approche » qu'attendu dans moins de
+     * trois minutes : au-delà, sa propre course le dit en attente (terminus, départ pas encore commencé) et
+     * l'attente s'écrit en minutes.
+     */
+    const val NEXT_STOP_APPROACH_SECONDS = 3 * 60L
     /** Le dernier départ de la journée est rappelé quand il part dans moins de deux heures. */
     const val LAST_DEPARTURE_HORIZON_SECONDS = 2 * 3600L
     /** Retard et avance tolérés pour rattacher une annonce TCL à une course de la fiche horaire. */
@@ -84,8 +91,8 @@ object StopBoard {
 
     /**
      * Passages à venir, les plus proches d'abord, chacun avec son état. Les annonces TCL passées de plus
-     * de [ANNOUNCED_GRACE_SECONDS] disparaissent ; un véhicule en approche que TCL n'annonce plus (son
-     * heure est déjà passée côté TCL) reste affiché ; la fiche horaire complète jusqu'à [limit].
+     * de [ANNOUNCED_GRACE_SECONDS] disparaissent ; un véhicule « À l'approche » de l'arrêt de l'usager
+     * reste affiché même si TCL ne l'annonce plus ; la fiche horaire complète jusqu'à [limit].
      */
     fun upcoming(
         passages: List<Passage>,
@@ -103,18 +110,23 @@ object StopBoard {
         val claimed = HashSet<Int>()
 
         // Chaque véhicule en approche, du plus proche au plus lointain, prend l'annonce TCL qui lui
-        // correspond ; les véhicules d'un même sens arrivent dans l'ordre.
+        // correspond ; les véhicules d'un même sens arrivent dans l'ordre. Sans course reconnue, seul un
+        // véhicule dont le prochain arrêt est celui de l'usager se rattache sûrement : au premier passage.
         val announced = passages.mapNotNull { p -> parsePassageEpoch(p.heurepassage)?.let { p to it } }.sortedBy { it.second }
         val matched = arrayOfNulls<ApproachingVehicle>(announced.size)
-        val unmatched = ArrayList<ApproachingVehicle>()
+        val arriving = ArrayList<ApproachingVehicle>()
         var cursor = 0
         for (approach in approaching.filter { it.vehicle.positionFreshness(nowEpochMs) != PositionFreshness.STALE }) {
             val eta = approach.estimatedArrivalEpoch
-            val index = if (eta == null) cursor.takeIf { it < announced.size }
-            else (cursor until announced.size)
-                .filter { abs(announced[it].second - eta) <= MATCH_WINDOW_SECONDS }
-                .minByOrNull { abs(announced[it].second - eta) }
-            if (index == null) unmatched.add(approach) else { matched[index] = approach; cursor = index + 1 }
+            val index = when {
+                eta != null -> (cursor until announced.size)
+                    .filter { abs(announced[it].second - eta) <= MATCH_WINDOW_SECONDS }
+                    .minByOrNull { abs(announced[it].second - eta) }
+                approach.stopsBefore == 0 -> cursor.takeIf { it < announced.size }
+                else -> null
+            }
+            if (index != null) { matched[index] = approach; cursor = index + 1 }
+            else if (approach.stopsBefore == 0) arriving.add(approach)
         }
 
         val result = ArrayList<PassageStatus>()
@@ -126,9 +138,11 @@ object StopBoard {
                 ?: scheduledFor(todays, claimed, epoch, timeZoneId)
             result.add(PassageStatus(phase, arrival, scheduled, approach, shortDestination(passage)))
         }
-        for (approach in unmatched) {
-            val arrival = approach.estimatedArrivalEpoch ?: if (approach.stopsBefore == 0) nowSec else continue
-            val phase = phase(approach, live = true, arrival, nowSec) ?: continue
+        // Un véhicule que TCL n'annonce plus mais dont l'arrêt de l'usager est le prochain : « À l'approche »,
+        // jamais un délai à lui.
+        for (approach in arriving) {
+            val arrival = approach.estimatedArrivalEpoch ?: nowSec
+            val phase = phase(approach, live = true, arrival, nowSec)?.takeIf { it != PassagePhase.LIVE } ?: continue
             approach.scheduledMinutes?.let { claim(todays, claimed, it) }
             result.add(PassageStatus(phase, arrival, approach.scheduledMinutes, approach, null))
         }
@@ -152,6 +166,13 @@ object StopBoard {
         return result.sortedWith(compareBy({ rank(it.phase) }, { it.arrivalEpoch })).take(limit)
     }
 
+    /**
+     * Vrai quand ce sens ne fait qu'arriver à l'arrêt (terminus) : la fiche d'arrêt ne l'affiche pas,
+     * personne n'y monte. Faux tant que la fiche ne connaît pas l'arrêt.
+     */
+    fun isArrivalOnly(timetable: LineTimetable, stopIds: List<Int>, stopName: String?): Boolean =
+        timetable.isArrivalOnly(timetable.stopIndexes(stopIds.toSet(), stopName))
+
     /** La grille du jour [departures] (journée de service en cours) lue avec les passages à venir [upcoming]. */
     fun grid(departures: List<TimetableDeparture>, upcoming: List<PassageStatus>, nowEpochMs: Long, timeZoneId: String = StopApproach.TIME_ZONE): TimetableGridState {
         val first = upcoming.firstOrNull { !it.isTomorrow }
@@ -169,7 +190,8 @@ object StopBoard {
         if (approach != null) {
             if (approach.stopsBefore == 0) {
                 val distance = approach.vehicle.nextStop?.distanceFromStop
-                return if (distance != null && distance <= AT_STOP_METRES) PassagePhase.AT_STOP else PassagePhase.APPROACHING
+                if (distance != null && distance <= AT_STOP_METRES) return PassagePhase.AT_STOP
+                if (approach.estimatedArrivalEpoch == null || remaining < NEXT_STOP_APPROACH_SECONDS) return PassagePhase.APPROACHING
             }
             return if (remaining < 60) PassagePhase.APPROACHING else PassagePhase.LIVE
         }
