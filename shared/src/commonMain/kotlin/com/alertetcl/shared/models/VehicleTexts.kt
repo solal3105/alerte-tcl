@@ -35,4 +35,8 @@ object VehicleTexts {
 
     /** Légende de l'heure d'arrivée au prochain arrêt : « arrivée à Bellecour ». */
     fun arrivalCaption(stopName: String): String = "arrivée à $stopName"
+
+    /** « Prochain arrêt Bellecour à 22:53 », ou « Arrive à Bellecour » sans heure à venir. */
+    fun nextStop(stopName: String, time: String?): String =
+        if (time != null) "Prochain arrêt $stopName à $time" else "Arrive à $stopName"
 }

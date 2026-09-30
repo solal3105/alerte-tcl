@@ -33,4 +33,10 @@ class VehicleTextsTest {
     fun theArrivalTimeSaysWhereItArrives() {
         assertEquals("arrivée à Bellecour", VehicleTexts.arrivalCaption("Bellecour"))
     }
+
+    @Test
+    fun aPassedArrivalTimeIsNeverShownAsComing() {
+        assertEquals("Prochain arrêt Génovéfains à 22:53", VehicleTexts.nextStop("Génovéfains", "22:53"))
+        assertEquals("Arrive à Génovéfains", VehicleTexts.nextStop("Génovéfains", null))
+    }
 }

@@ -66,8 +66,17 @@ data class Vehicle(
         (stop.aimedArrivalTimeEpoch ?: stop.aimedDepartureTimeEpoch)?.plus(delay)
     }
 
-    /** Légende de cette heure : « arrivée à Bellecour ». Null sans nom d'arrêt. */
-    val nextStopArrivalCaption: String? get() = nextStop?.stopName?.let { VehicleTexts.arrivalCaption(it) }
+    /**
+     * Le prochain arrêt en une phrase : « Prochain arrêt Bellecour à 22:53 » tant que l'heure est à
+     * venir, « Arrive à Bellecour » une fois dépassée (jamais une heure passée présentée comme à venir).
+     * Null sans nom d'arrêt.
+     */
+    fun nextStopLine(nowEpochMs: Long, timeZoneId: String = StopApproach.TIME_ZONE): String? {
+        val name = nextStop?.stopName?.takeIf { it.isNotBlank() && it.toIntOrNull() == null } ?: return null
+        val time = nextStopArrivalEpoch?.takeIf { it >= nowEpochMs / 1000 }
+            ?.let { TimetableTime.format(TimetableTime.serviceMinutes(it * 1000, timeZoneId)) }
+        return VehicleTexts.nextStop(name, time)
+    }
 
     /** Âge de la dernière position transmise par TCL (RecordedAtTime SIRI), en secondes. */
     fun positionAgeSeconds(nowEpochMs: Long): Long? =
@@ -86,6 +95,15 @@ data class Vehicle(
             age < HIDE_AFTER_SECONDS -> PositionFreshness.AGING
             else                     -> PositionFreshness.STALE
         }
+    }
+
+    /**
+     * L'âge de la position, seulement quand elle n'est plus fraîche (« position d'il y a 1 min 10 ») :
+     * une position récente ne mérite pas d'être rappelée. Null sinon.
+     */
+    fun stalenessLine(nowEpochMs: Long): String? {
+        if (positionFreshness(nowEpochMs) == PositionFreshness.FRESH) return null
+        return positionAgeSeconds(nowEpochMs)?.let { "position d'il y a ${formattedAge(it)}" }
     }
 
     /** False dès que la position est obsolète : le véhicule n'est plus dessiné sur la carte. */

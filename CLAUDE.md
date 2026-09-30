@@ -125,6 +125,10 @@ Son tracé ne peut pas être affiché sur la carte. Problème côté données Gr
 
 ### Où est mon bus et suivi d'un bus
 
+`StopBoard` (module partagé) donne à chaque passage un seul état (`PassagePhase` : théorique, direct,
+à l'approche, à l'arrêt, passé) lu par la fiche d'arrêt, la grille horaire et la carte ; aucune vue
+Android ne recalcule un délai de son côté ni n'affiche le `delaipassage` texte de TCL (iOS reste à
+aligner). Règles dans `DESIGN.md` (« Prochains passages d'un arrêt »).
 `StopApproach` (module partagé) croise les positions SIRI (prochain arrêt, heure prévue, retard) avec
 la fiche horaire du sens pour donner, à un arrêt, le nombre d'arrêts restants et une arrivée estimée
 (horaire prévu de la course corrigé du retard). L'âge de la position reste affiché. Le suivi d'un bus
