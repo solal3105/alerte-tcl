@@ -1,7 +1,5 @@
 package com.alertetcl.android.ui.parking
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
@@ -101,7 +99,7 @@ import com.alertetcl.android.data.FavoritesStore
 import com.alertetcl.android.ui.map.MapCircleFab
 import com.alertetcl.android.ui.map.enableLocationComponent
 import com.alertetcl.android.ui.map.mapStyleBuilder
-import com.alertetcl.android.ui.map.recenterOnUser
+import com.alertetcl.android.ui.map.rememberLocateUser
 import com.alertetcl.android.ui.map.rememberManagedMapView
 import com.alertetcl.android.ui.openUrl
 import com.alertetcl.android.ui.theme.Tokens
@@ -224,9 +222,7 @@ fun ParkingScreen(type: ParkingType) {
         }
     }
 
-    val locationPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-    ) { granted -> if (granted) recenterOnUser(context, mapLibreMap) }
+    val locateUser = rememberLocateUser(mapLibreMap)
 
     val mapView = rememberManagedMapView()
 
@@ -329,13 +325,7 @@ fun ParkingScreen(type: ParkingType) {
             }
             MapCircleFab(
                 icon = Icons.Filled.MyLocation, contentDesc = "Ma position",
-                onClick = {
-                    val granted = androidx.core.content.ContextCompat.checkSelfPermission(
-                        context, Manifest.permission.ACCESS_FINE_LOCATION
-                    ) == PackageManager.PERMISSION_GRANTED
-                    if (granted) recenterOnUser(context, mapLibreMap)
-                    else locationPermLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                }
+                onClick = locateUser
             )
         }
 

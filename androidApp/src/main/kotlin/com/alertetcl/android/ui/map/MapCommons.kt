@@ -1,10 +1,16 @@
 package com.alertetcl.android.ui.map
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Location
 import android.location.LocationManager
 import android.os.Build
+import android.os.Looper
+import android.os.SystemClock
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -12,7 +18,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import com.alertetcl.android.ui.components.glass
 import com.alertetcl.android.ui.theme.Tokens
@@ -98,9 +106,15 @@ internal fun rememberManagedMapView(): MapView {
 
 // ── Localisation ────────────────────────────────────────────────────────────
 
-private fun hasLocationPermission(context: Context): Boolean =
-    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
-        PackageManager.PERMISSION_GRANTED
+/** Position précise ou approximative : Android 12+ laisse l'utilisateur n'accorder que la seconde. */
+internal val LOCATION_PERMISSIONS = arrayOf(
+    Manifest.permission.ACCESS_FINE_LOCATION,
+    Manifest.permission.ACCESS_COARSE_LOCATION
+)
+
+internal fun hasLocationPermission(context: Context): Boolean = LOCATION_PERMISSIONS.any {
+    ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+}
 
 /** Active le point bleu de position, sans effet si la permission n'est pas accordée. */
 internal fun enableLocationComponent(context: Context, map: MapLibreMap, style: Style) {
@@ -118,24 +132,74 @@ internal fun enableLocationComponent(context: Context, map: MapLibreMap, style: 
     }
 }
 
-/** Recentre la caméra sur la dernière position connue (GPS ou réseau, la plus récente). */
+/**
+ * Recentre la caméra sur l'utilisateur : dernière position connue si elle est récente, sinon une
+ * position demandée à l'instant (la dernière connue est souvent absente sur un vrai téléphone).
+ */
 internal fun recenterOnUser(context: Context, map: MapLibreMap?) {
     val m = map ?: return
+    currentUserLocation(context) { loc ->
+        m.animateCamera(
+            CameraUpdateFactory.newCameraPosition(
+                CameraPosition.Builder()
+                    .target(LatLng(loc.latitude, loc.longitude))
+                    .zoom(15.0)
+                    .build()
+            )
+        )
+    }
+}
+
+private const val RECENT_LOCATION_NANOS = 120_000_000_000L
+
+@SuppressLint("MissingPermission")
+private fun currentUserLocation(context: Context, onLocation: (Location) -> Unit) {
     if (!hasLocationPermission(context)) return
     val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return
-    @Suppress("MissingPermission")
-    val loc = listOfNotNull(
-        runCatching { lm.getLastKnownLocation(LocationManager.GPS_PROVIDER) }.getOrNull(),
-        runCatching { lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) }.getOrNull()
-    ).maxByOrNull { it.time } ?: return
-    m.animateCamera(
-        CameraUpdateFactory.newCameraPosition(
-            CameraPosition.Builder()
-                .target(LatLng(loc.latitude, loc.longitude))
-                .zoom(15.0)
-                .build()
-        )
-    )
+    val providers = lm.getProviders(true)
+    val last = providers
+        .mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }
+        .maxByOrNull { it.elapsedRealtimeNanos }
+    if (last != null && SystemClock.elapsedRealtimeNanos() - last.elapsedRealtimeNanos < RECENT_LOCATION_NANOS) {
+        onLocation(last)
+        return
+    }
+    val provider = listOfNotNull(
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) LocationManager.FUSED_PROVIDER else null,
+        LocationManager.NETWORK_PROVIDER,
+        LocationManager.GPS_PROVIDER
+    ).firstOrNull { it in providers }
+    if (provider == null) { last?.let(onLocation); return }
+    val deliver: (Location?) -> Unit = { fresh -> (fresh ?: last)?.let(onLocation) }
+    // Refus possible selon le fournisseur quand seule la position approximative est accordée.
+    runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            lm.getCurrentLocation(provider, null, context.mainExecutor) { deliver(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            lm.requestSingleUpdate(provider, { deliver(it) }, Looper.getMainLooper())
+        }
+    }.onFailure { last?.let(onLocation) }
+}
+
+/**
+ * Action du bouton « Ma position » : recentre si la position est autorisée, sinon la demande,
+ * puis allume le point bleu et recentre dès qu'elle est accordée.
+ */
+@Composable
+internal fun rememberLocateUser(map: MapLibreMap?): () -> Unit {
+    val context = LocalContext.current
+    val currentMap by rememberUpdatedState(map)
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        val m = currentMap ?: return@rememberLauncherForActivityResult
+        if (!hasLocationPermission(context)) return@rememberLauncherForActivityResult
+        m.style?.let { enableLocationComponent(context, m, it) }
+        recenterOnUser(context, m)
+    }
+    return {
+        if (hasLocationPermission(context)) recenterOnUser(context, currentMap)
+        else launcher.launch(LOCATION_PERMISSIONS)
+    }
 }
 
 // ── Contrôles ───────────────────────────────────────────────────────────────
