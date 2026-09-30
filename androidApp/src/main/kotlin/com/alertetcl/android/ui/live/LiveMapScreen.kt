@@ -7,8 +7,6 @@ import android.graphics.Paint
 import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.Typeface
-import android.Manifest
-import android.content.pm.PackageManager
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -137,8 +135,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.alertetcl.android.ui.colorFromHex
 import com.alertetcl.android.ui.map.MapCircleFab
 import com.alertetcl.android.ui.map.enableLocationComponent
+import com.alertetcl.android.ui.map.hasLocationPermission
 import com.alertetcl.android.ui.map.mapStyleBuilder
 import com.alertetcl.android.ui.map.recenterOnUser
+import com.alertetcl.android.ui.map.rememberLocateUser
 import com.alertetcl.android.ui.map.rememberManagedMapView
 import com.alertetcl.shared.models.BusLine
 import com.alertetcl.shared.models.LineColors
@@ -390,18 +390,28 @@ fun LiveMapScreen() {
     }
 
 
-    // Permission location pour le FAB localisation
-    val locationPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            // Activer le composant localisation si ce n'est pas encore fait
-            // (permission accordée pendant que l'appli tournait déjà)
-            val map = mapLibreMap
-            val style = map?.style
-            if (map != null && style != null) enableLocationComponent(context, map, style)
-            recenterOnUser(context, mapLibreMap)
+    val locateUser = rememberLocateUser(mapLibreMap)
+
+    // Position autorisée : point bleu, puis ouverture sur l'utilisateur une seule fois (parité iOS, pas en
+    // mode démo). Relu au retour de la demande d'autorisation de l'écran d'accueil.
+    var centeredOnUser by remember { mutableStateOf(DemoShowcase.isActive) }
+    val showUserLocation: () -> Unit = {
+        val map = mapLibreMap
+        val style = map?.style
+        if (map != null && style != null && hasLocationPermission(context)) {
+            if (!map.locationComponent.isLocationComponentActivated) enableLocationComponent(context, map, style)
+            if (!centeredOnUser) {
+                centeredOnUser = true
+                recenterOnUser(context, map, unlessMoved = true)
+            }
         }
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) showUserLocation()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val mapView = rememberManagedMapView()
@@ -469,8 +479,8 @@ fun LiveMapScreen() {
                             false
                         }
                         map.setStyle(mapStyleBuilder(isSatellite = false, isDark = isDark)) { style ->
-                            enableLocationComponent(context, map, style)
                             mapStyle = style
+                            showUserLocation()
                         }
                     }
                 }
@@ -574,13 +584,7 @@ fun LiveMapScreen() {
             MapCircleFab(icon = Icons.Filled.FilterList, contentDesc = "Filtres", active = hasActiveFilters, onClick = { showFilterSheet = true })
             MapCircleFab(
                 icon = Icons.Filled.MyLocation, contentDesc = "Ma position",
-                onClick = {
-                    val granted = androidx.core.content.ContextCompat.checkSelfPermission(
-                        context, Manifest.permission.ACCESS_FINE_LOCATION
-                    ) == PackageManager.PERMISSION_GRANTED
-                    if (granted) recenterOnUser(context, mapLibreMap)
-                    else locationPermLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                }
+                onClick = locateUser
             )
         }
     }

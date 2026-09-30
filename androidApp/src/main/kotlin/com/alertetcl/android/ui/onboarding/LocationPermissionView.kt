@@ -1,6 +1,5 @@
 package com.alertetcl.android.ui.onboarding
 
-import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -39,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alertetcl.android.ui.map.LOCATION_PERMISSIONS
 
 @Composable
 fun LocationPermissionView(onDismiss: () -> Unit) {
@@ -111,10 +111,7 @@ fun LocationPermissionView(onDismiss: () -> Unit) {
         ) {
             Button(
                 onClick = {
-                    launcher.launch(arrayOf(
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                    ))
+                    launcher.launch(LOCATION_PERMISSIONS)
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.medium,

@@ -1,7 +1,5 @@
 package com.alertetcl.android.ui.travaux
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
@@ -91,7 +89,7 @@ import com.alertetcl.shared.models.TravauxAvancement
 import com.alertetcl.android.ui.map.MapCircleFab
 import com.alertetcl.android.ui.map.enableLocationComponent
 import com.alertetcl.android.ui.map.mapStyleBuilder
-import com.alertetcl.android.ui.map.recenterOnUser
+import com.alertetcl.android.ui.map.rememberLocateUser
 import com.alertetcl.android.ui.map.rememberManagedMapView
 import com.alertetcl.android.ui.theme.Tokens
 import com.alertetcl.shared.design.AppColors
@@ -163,9 +161,7 @@ fun TravauxScreen() {
     val travauxRef = remember { mutableStateOf<List<Travaux>>(emptyList()) }
     travauxRef.value = filteredTravaux
 
-    val locationPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-    ) { granted -> if (granted) recenterOnUser(context, mapLibreMap) }
+    val locateUser = rememberLocateUser(mapLibreMap)
 
     val mapView = rememberManagedMapView()
 
@@ -270,13 +266,7 @@ fun TravauxScreen() {
             MapCircleFab(icon = Icons.Filled.FilterList, contentDesc = "Filtres", active = hasActiveFilters, onClick = { showFilterSheet = true })
             MapCircleFab(
                 icon = Icons.Filled.MyLocation, contentDesc = "Ma position",
-                onClick = {
-                    val granted = androidx.core.content.ContextCompat.checkSelfPermission(
-                        context, Manifest.permission.ACCESS_FINE_LOCATION
-                    ) == PackageManager.PERMISSION_GRANTED
-                    if (granted) recenterOnUser(context, mapLibreMap)
-                    else locationPermLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                }
+                onClick = locateUser
             )
         }
     }
