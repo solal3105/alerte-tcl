@@ -8,6 +8,8 @@ data class ApproachingVehicle(
     val vehicle: Vehicle,
     /** Arrêts que le véhicule doit encore desservir avant l'arrêt demandé (0 : c'est son prochain arrêt). */
     val stopsBefore: Int,
+    /** L'arrêt vers lequel il roule (nom de la fiche horaire), null s'il est inconnu. */
+    val towardStopName: String?,
     /** Heure prévue de passage à l'arrêt pour la course identifiée (minutes de la journée de service), null sans course identifiée. */
     val scheduledMinutes: Int?,
     /**
@@ -15,49 +17,24 @@ data class ApproachingVehicle(
      * à la dernière position transmise. Null quand la course n'a pas pu être identifiée.
      */
     val estimatedArrivalEpoch: Long?
-) {
-    /** Grand chiffre de la fiche d'arrêt : « 3 », ou « Arrive » quand l'arrêt est le prochain. */
-    val stopsValue: String get() = if (stopsBefore == 0) "Arrive" else "$stopsBefore"
-
-    /** Légende sous le grand chiffre (« Arrive au prochain arrêt », « 3 arrêts avant le vôtre »). */
-    val stopsCaption: String get() = when (stopsBefore) {
-        0 -> "au prochain arrêt"
-        1 -> "arrêt avant le vôtre"
-        else -> "arrêts avant le vôtre"
-    }
-
-    /** Une seule ligne sous les chiffres : l'âge de la position, pour rappeler qu'elle n'est pas en direct. */
-    fun freshnessLine(nowEpochMs: Long): String =
-        vehicle.positionAgeSeconds(nowEpochMs)?.let { "Position transmise par TCL il y a ${Vehicle.formattedAge(it)}" }
-            ?: "Position sans horodatage"
-
-    /** Heure prévue « HH:mm », null sans course identifiée. */
-    val scheduledTime: String? get() = scheduledMinutes?.let { TimetableTime.format(it) }
-
-    /** Heure d'arrivée estimée « HH:mm » dans le fuseau [timeZoneId], null sans estimation. */
-    fun estimatedTime(timeZoneId: String = StopApproach.TIME_ZONE): String? =
-        estimatedArrivalEpoch?.let { TimetableTime.format(TimetableTime.serviceMinutes(it * 1000, timeZoneId)) }
-
-    /** « dans 4 min », ou « imminent » quand l'estimation est atteinte ; null sans estimation. */
-    fun arrivalText(nowEpochMs: Long): String? {
-        val eta = estimatedArrivalEpoch ?: return null
-        val remaining = eta - nowEpochMs / 1000
-        return if (remaining < 60) "imminent" else "dans ${remaining / 60} min"
-    }
-
-}
+)
 
 /**
- * « Où est mon bus » : croise les positions SIRI (prochain arrêt, horaire prévu, retard) avec la fiche
+ * Où est mon bus : croise les positions SIRI (prochain arrêt, horaire prévu, retard) avec la fiche
  * horaire d'un sens pour dire, à un arrêt, à combien d'arrêts se trouve chaque véhicule qui y vient et
  * quand il devrait y arriver. Rien n'est extrapolé depuis la position elle-même : l'estimation est
- * l'horaire prévu de la course corrigé du retard constaté par TCL, et l'âge de la position est affiché.
+ * l'horaire prévu de la course corrigé du retard constaté par TCL. [StopBoard] ne la montre que
+ * rattachée à un passage annoncé.
  */
 object StopApproach {
     const val TIME_ZONE = "Europe/Paris"
 
-    /** Quand aucun véhicule du sens n'est en route vers l'arrêt : la fonction reste visible. */
-    const val NONE_APPROACHING = "Aucun bus en route vers cet arrêt pour l'instant."
+    /**
+     * Un véhicule attendu à son prochain arrêt dans plus d'une heure n'est pas en route : sa course n'a
+     * pas commencé (dépôt) ou ses horaires sont incohérents, comme ce bus à trois arrêts annoncé deux
+     * heures plus tard.
+     */
+    const val NEXT_STOP_HORIZON_SECONDS = 3600L
 
     /**
      * Véhicules de la ligne et du sens de [timetable] qui vont encore desservir l'arrêt ([stopIds] :
@@ -75,16 +52,20 @@ object StopApproach {
         val targets = timetable.stopIndexes(stopIds.toSet(), stopName).toSet()
         if (targets.isEmpty()) return emptyList()
         val serviceDate = LocalDate.parse(TimetableTime.serviceDateIso(nowEpochMs, timeZoneId))
+        val nowSec = nowEpochMs / 1000
         val result = ArrayList<ApproachingVehicle>()
         for (vehicle in vehicles) {
             if (TimetableKeys.keyFor(vehicle.lineName) != timetable.key) continue
             if (vehicle.direction.isNotEmpty() && vehicle.direction != timetable.dir) continue
+            if ((vehicle.nextStopArrivalEpoch ?: nowSec) - nowSec > NEXT_STOP_HORIZON_SECONDS) continue
             val next = vehicle.nextStop ?: continue
             val nextId = next.numericId ?: continue
             val nextIndexes = timetable.stops.indices.filter { timetable.stops[it].id == nextId }
             if (nextIndexes.isEmpty()) continue
-            val approach = fromIdentifiedTrip(vehicle, next, nextIndexes, targets, timetable, serviceDate, timeZoneId)
-                ?: fromStopOrder(vehicle, nextIndexes, targets, timetable)
+            // L'arrêt donné par TCL est le dernier suivi : son heure passée, le véhicule roule vers le suivant.
+            val passed = if (vehicle.hasPassedNextStop(nowEpochMs)) 1 else 0
+            val approach = fromIdentifiedTrip(vehicle, next, nextIndexes, passed, targets, timetable, serviceDate, timeZoneId)
+                ?: fromStopOrder(vehicle, nextIndexes, passed, targets, timetable)
                 ?: continue
             result.add(approach)
         }
@@ -92,11 +73,15 @@ object StopApproach {
         return result.take(limit)
     }
 
-    /** Course reconnue par l'heure prévue au prochain arrêt : nombre d'arrêts et estimation d'arrivée. */
+    /**
+     * Course reconnue par l'heure prévue à l'arrêt donné par TCL : nombre d'arrêts et estimation d'arrivée.
+     * [passed] vaut 1 quand le véhicule a déjà dépassé cet arrêt.
+     */
     private fun fromIdentifiedTrip(
         vehicle: Vehicle,
         next: StopInfo,
         nextIndexes: List<Int>,
+        passed: Int,
         targets: Set<Int>,
         timetable: LineTimetable,
         serviceDate: LocalDate,
@@ -108,9 +93,11 @@ object StopApproach {
         for (departure in candidates) {
             val calls = timetable.calls(departure.tripIndex, departure.shiftMinutes)
             val nextCall = calls.firstOrNull { it.stopIndex == departure.stopIndex && it.minutes == departure.minutes } ?: continue
-            val target = calls.drop(nextCall.position).firstOrNull { it.stopIndex in targets } ?: continue
+            val onward = calls.drop(nextCall.position + passed)
+            val target = onward.firstOrNull { it.stopIndex in targets } ?: continue
+            val toward = onward.first()
             val eta = aimedEpoch + (target.minutes - nextCall.minutes) * 60L + vehicle.delay
-            return ApproachingVehicle(vehicle, target.position - nextCall.position, target.minutes, eta)
+            return ApproachingVehicle(vehicle, target.position - toward.position, toward.stop.name, target.minutes, eta)
         }
         return null
     }
@@ -119,13 +106,15 @@ object StopApproach {
     private fun fromStopOrder(
         vehicle: Vehicle,
         nextIndexes: List<Int>,
+        passed: Int,
         targets: Set<Int>,
         timetable: LineTimetable
     ): ApproachingVehicle? {
         val groups = timetable.stopGroups
         val nextGroup = groups.indexOfFirst { group -> group.stopIndexes.any { it in nextIndexes } }
         val targetGroup = groups.indexOfFirst { group -> group.stopIndexes.any { it in targets } }
-        if (nextGroup < 0 || targetGroup < nextGroup) return null
-        return ApproachingVehicle(vehicle, targetGroup - nextGroup, null, null)
+        val towardGroup = nextGroup + passed
+        if (nextGroup < 0 || targetGroup < towardGroup) return null
+        return ApproachingVehicle(vehicle, targetGroup - towardGroup, groups[towardGroup].name, null, null)
     }
 }

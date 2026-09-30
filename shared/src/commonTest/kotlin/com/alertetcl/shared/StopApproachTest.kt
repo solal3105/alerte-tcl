@@ -46,12 +46,8 @@ class StopApproachTest {
         assertEquals(1, result.size)
         val approach = result[0]
         assertEquals(2, approach.stopsBefore)
-        assertEquals("14:14", approach.scheduledTime)
+        assertEquals(854, approach.scheduledMinutes)
         assertEquals(nowSec + 14 * 60 + 120, approach.estimatedArrivalEpoch)
-        assertEquals("2", approach.stopsValue)
-        assertEquals("arrêts avant le vôtre", approach.stopsCaption)
-        assertEquals("Position transmise par TCL il y a 40 s", approach.freshnessLine(nowMs))
-        assertEquals("dans 16 min", approach.arrivalText(nowMs))
     }
 
     @Test
@@ -60,8 +56,7 @@ class StopApproachTest {
         val gone = vehicle("bus-3", nextStopId = 14, aimedAtSec = nowSec + 6 * 60)
         val result = StopApproach.approaching(listOf(gone, arriving), timetable, listOf(13), "Guillotière", nowMs)
         assertEquals(listOf("bus-2"), result.map { it.vehicle.id })
-        assertEquals("Arrive", result[0].stopsValue)
-        assertEquals("au prochain arrêt", result[0].stopsCaption)
+        assertEquals(0, result[0].stopsBefore)
     }
 
     @Test
@@ -81,8 +76,6 @@ class StopApproachTest {
         assertEquals(1, result.size)
         assertEquals(2, result[0].stopsBefore)
         assertNull(result[0].estimatedArrivalEpoch)
-        assertNull(result[0].arrivalText(nowMs))
-        assertEquals("Position transmise par TCL il y a 40 s", result[0].freshnessLine(nowMs))
     }
 
     @Test
@@ -94,14 +87,15 @@ class StopApproachTest {
         assertEquals(listOf("bus-9", "bus-8"), result.map { it.vehicle.id })
         assertEquals(0, result[0].stopsBefore)
         assertEquals(1, result[1].stopsBefore)
-        assertEquals("14:40", result[1].scheduledTime)
+        assertEquals(880, result[1].scheduledMinutes)
     }
 
     @Test
-    fun anImminentArrivalIsSaidSo() {
-        val bus = vehicle("bus-10", nextStopId = 13, aimedAtSec = nowSec + 14 * 60)
-        val result = StopApproach.approaching(listOf(bus), timetable, listOf(13), "Guillotière", nowEpochMs = nowMs + 14 * 60 * 1000 - 30_000)
-        assertEquals("imminent", result[0].arrivalText(nowMs + 14 * 60 * 1000 - 30_000))
-        assertTrue(StopApproach.NONE_APPROACHING.startsWith("Aucun bus"))
+    fun aBusDueAtItsNextStopHoursFromNowIsNotComing() {
+        // À deux arrêts de Guillotière, mais attendu à Perrache dans deux heures : sa course n'a pas commencé.
+        val parked = vehicle("bus-10", nextStopId = 10, aimedAtSec = nowSec + 2 * 3600 + 5 * 60)
+        assertTrue(StopApproach.approaching(listOf(parked), timetable, listOf(13), "Guillotière", nowMs).isEmpty())
+        val late = vehicle("bus-11", nextStopId = 10, aimedAtSec = nowSec + 5 * 60, delay = 2 * 3600)
+        assertTrue(StopApproach.approaching(listOf(late), timetable, listOf(13), "Guillotière", nowMs).isEmpty())
     }
 }

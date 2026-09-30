@@ -7,6 +7,12 @@ import androidx.compose.foundation.layout.Arrangement
 import kotlinx.coroutines.delay
 import com.alertetcl.shared.services.TransitStopService
 import com.alertetcl.shared.models.TimetableLive
+import com.alertetcl.shared.models.PassagePhase
+import com.alertetcl.shared.models.PassageStatus
+import com.alertetcl.shared.models.PassageTexts
+import com.alertetcl.shared.models.StopApproach
+import com.alertetcl.shared.models.StopBoard
+import com.alertetcl.shared.models.Vehicle
 import com.alertetcl.shared.models.Passage
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.FlowRow
@@ -56,6 +62,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -130,9 +137,6 @@ private sealed class TimetableScreen {
 private fun serviceDateNow(): LocalDate =
     TimetableTime.serviceDate(Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()))
 
-private fun serviceMinutesNow(): Int =
-    TimetableTime.serviceMinutes(Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()))
-
 private val longDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", Locale.FRENCH)
 
 private fun LocalDate.formatLong(): String =
@@ -170,16 +174,19 @@ private fun StaleNotice(text: String) {
 
 /** Les fiches horaires en boîte de dialogue plein écran (depuis la fiche d'un arrêt). */
 @Composable
-fun TimetableDialog(start: TimetableStart, onDismiss: () -> Unit) {
+fun TimetableDialog(start: TimetableStart, vehicles: List<Vehicle>, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        TimetableFlow(start, onDismiss)
+        TimetableFlow(start, vehicles, onDismiss)
     }
 }
 
-/** Le parcours des fiches horaires (recherche, sens, arrêts, passages, course), avec sa barre de titre. */
+/**
+ * Le parcours des fiches horaires (recherche, sens, arrêts, passages, course), avec sa barre de titre.
+ * [vehicles] : positions en direct, pour que la grille du jour porte le même état que la fiche d'arrêt.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TimetableFlow(start: TimetableStart, onDismiss: () -> Unit) {
+fun TimetableFlow(start: TimetableStart, vehicles: List<Vehicle>, onDismiss: () -> Unit) {
     val stack = remember(start) {
         mutableStateListOf<TimetableScreen>(
             when (start) {
@@ -224,7 +231,7 @@ fun TimetableFlow(start: TimetableStart, onDismiss: () -> Unit) {
                     is TimetableScreen.Stops -> StopsScreen(screen.line, screen.direction) { timetable, stop ->
                         push(TimetableScreen.StopTimes(timetable, stop.stopIndexes, stop.name))
                     }
-                    is TimetableScreen.StopTimes -> StopTimesScreen(screen.timetable, screen.stopIndexes, screen.stopName) { departure ->
+                    is TimetableScreen.StopTimes -> StopTimesScreen(screen.timetable, screen.stopIndexes, screen.stopName, vehicles) { departure ->
                         push(TimetableScreen.Trip(screen.timetable, departure.tripIndex, departure.stopIndex))
                     }
                     is TimetableScreen.Trip -> TripScreen(screen.timetable, screen.tripIndex, screen.stopIndex)
@@ -476,13 +483,8 @@ private val shortDayFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("
 private fun LocalDate.formatShort(): String =
     java.time.LocalDate.of(year, monthNumber, dayOfMonth).format(shortDayFormatter)
 
-/** Délai annoncé par le temps réel (« 12 min », « Proche ») sous une forme lisible. */
-private fun delayLabel(raw: String): String {
-    val trimmed = raw.trim()
-    return if (trimmed.endsWith("min")) "dans $trimmed" else trimmed.lowercase()
-}
-
-private data class HourRow(val hour: Int, val departures: List<TimetableDeparture>)
+/** Une heure de la grille ; [firstIndex] : rang de son premier départ dans la journée. */
+private data class HourRow(val hour: Int, val firstIndex: Int, val departures: List<TimetableDeparture>)
 
 /**
  * Les prochains passages en direct, puis les horaires théoriques présentés comme une fiche
@@ -494,6 +496,7 @@ private fun StopTimesScreen(
     timetable: LineTimetable,
     stopIndexes: List<Int>,
     stopName: String,
+    vehicles: List<Vehicle>,
     onSelectTrip: (TimetableDeparture) -> Unit
 ) {
     val accent = lineColor(timetable.line)
@@ -512,13 +515,24 @@ private fun StopTimesScreen(
     var showOtherDays by remember { mutableStateOf(false) }
     val departures = remember(timetable, stopIndexes, date) { timetable.departures(stopIndexes, date) }
     val isServiceDay = date == today
-    val nowMinutes = remember(isServiceDay) { serviceMinutesNow() }
-    val next = remember(departures, isServiceDay, nowMinutes) {
-        if (isServiceDay) departures.firstOrNull { it.minutes >= nowMinutes } else null
+    // Passages en direct, rafraîchis toutes les 30 secondes tant que la journée en cours est affichée.
+    var live by remember(timetable, stopIndexes) { mutableStateOf<List<Passage>?>(null) }
+    val stopIds = remember(timetable, stopIndexes) { stopIndexes.mapNotNull { timetable.stops.getOrNull(it)?.id } }
+    // Même état que la fiche d'arrêt, recalculé chaque seconde : un départ ne se grise qu'une fois le bus passé.
+    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { delay(1000); nowMs = System.currentTimeMillis() } }
+    val approaching = remember(vehicles, timetable, stopIds) {
+        StopApproach.approaching(vehicles, timetable, stopIds, stopName, System.currentTimeMillis())
     }
+    val upcoming = remember(live, approaching, nowMs) {
+        StopBoard.upcoming(live.orEmpty(), approaching, timetable, stopIndexes, nowMs)
+    }
+    val grid = remember(departures, upcoming, isServiceDay) { if (isServiceDay) StopBoard.grid(departures, upcoming, nowMs) else null }
+    val next = grid?.nextIndex?.let { departures.getOrNull(it) }
     val nextId = next?.let { "${it.tripIndex}-${it.stopIndex}" }
     val rows = remember(departures) {
-        departures.groupBy { it.minutes / 60 }.entries.sortedBy { it.key }.map { HourRow(it.key, it.value) }
+        departures.withIndex().groupBy { it.value.minutes / 60 }.entries.sortedBy { it.key }
+            .map { (hour, indexed) -> HourRow(hour, indexed.first().index, indexed.map { it.value }) }
     }
     // Lettre par terminus inhabituel, dans l'ordre d'apparition (comme sur une fiche papier).
     val terminusMarks = remember(departures) {
@@ -534,9 +548,6 @@ private fun StopTimesScreen(
             .filter { it <= timetable.validToDate && timetable.isValidOn(it) }
     }
 
-    // Passages en direct, rafraîchis toutes les 30 secondes tant que la journée en cours est affichée.
-    var live by remember(timetable, stopIndexes) { mutableStateOf<List<Passage>?>(null) }
-    val stopIds = remember(timetable, stopIndexes) { stopIndexes.mapNotNull { timetable.stops.getOrNull(it)?.id } }
     if (isServiceDay) {
         LaunchedEffect(stopIds) {
             val termini = runCatching { LineTermini.all() }.getOrDefault(emptyMap())
@@ -593,7 +604,7 @@ private fun StopTimesScreen(
                 item { StaleNotice(TimetableTexts.staleNotice(timetable.validToDate.formatLong().lowercase())) }
             }
             if (isServiceDay) {
-                item { LiveSection(live) }
+                item { LiveSection(upcoming.filter { it.phase.isLive }.takeIf { live != null }, nowMs) }
             }
             if (departures.isEmpty()) {
                 item { EmptyText("Aucun passage prévu ce jour-là à cet arrêt.") }
@@ -615,11 +626,11 @@ private fun StopTimesScreen(
                             modifier = Modifier.width(48.dp).padding(top = 6.dp)
                         )
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            row.departures.forEach { d ->
+                            row.departures.forEachIndexed { i, d ->
                                 MinuteChip(
                                     departure = d,
                                     mark = if (d.isTerminus) "†" else terminusMarks[d.terminus],
-                                    isPast = isServiceDay && d.minutes < nowMinutes,
+                                    isPast = grid?.phaseOf(row.firstIndex + i) == PassagePhase.DEPARTED,
                                     isNext = "${d.tripIndex}-${d.stopIndex}" == nextId,
                                     accent = accent, accentText = accentText,
                                     onClick = { onSelectTrip(d) }
@@ -655,31 +666,29 @@ private fun StopTimesScreen(
     }
 }
 
+/** Les passages suivis en direct à cet arrêt, avec le même gros texte que la fiche d'arrêt ; null pendant le chargement. */
 @Composable
-private fun LiveSection(live: List<Passage>?) {
+private fun LiveSection(live: List<PassageStatus>?, nowMs: Long) {
     Column(modifier = Modifier.padding(bottom = 8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(start = 20.dp, top = 12.dp)) {
-            Box(Modifier.size(7.dp).background(Tokens.success, CircleShape))
-            SectionLabel("En direct")
-        }
+        SectionLabel("En direct", Modifier.padding(start = 20.dp, top = 12.dp))
         when {
             live == null -> Text("Chargement des passages en direct…", style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
-            live.isEmpty() -> Text("Aucun passage annoncé pour le moment.", style = MaterialTheme.typography.labelMedium,
+            live.isEmpty() -> Text(PassageTexts.NONE_ANNOUNCED, style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
             else -> Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                live.forEach { p ->
+                live.forEach { status ->
                     Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
                         Row(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(p.formattedTime, fontFamily = FontFamily.Monospace, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                            Text(delayLabel(p.delaipassage), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.weight(1f))
-                            if (p.isRealTime) Pill("estimé", Tokens.success.copy(alpha = 0.15f), Tokens.success)
-                            else Pill("théorique", MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant)
+                            PassageHeadline(status, nowMs, fontSize = 17.sp)
+                            PassageTexts.rowDetail(status, nowMs)?.let {
+                                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                     }
                 }
@@ -820,14 +829,6 @@ private fun TimelineDot(accent: Color, isEnd: Boolean, highlighted: Boolean, sho
             }
         }
     }
-}
-
-@Composable
-private fun Pill(text: String, background: Color, foreground: Color) {
-    Text(
-        text, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = foreground,
-        modifier = Modifier.clip(RoundedCornerShape(50)).background(background).padding(horizontal = 8.dp, vertical = 3.dp)
-    )
 }
 
 @Composable
