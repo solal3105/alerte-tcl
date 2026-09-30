@@ -137,8 +137,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.alertetcl.android.ui.colorFromHex
 import com.alertetcl.android.ui.map.MapCircleFab
 import com.alertetcl.android.ui.map.enableLocationComponent
-import com.alertetcl.android.ui.map.mapStyleBuilder
 import com.alertetcl.android.ui.map.hasLocationPermission
+import com.alertetcl.android.ui.map.mapStyleBuilder
 import com.alertetcl.android.ui.map.recenterOnUser
 import com.alertetcl.android.ui.map.rememberLocateUser
 import com.alertetcl.android.ui.map.rememberManagedMapView
@@ -398,22 +398,23 @@ fun LiveMapScreen() {
 
     val locateUser = rememberLocateUser(mapLibreMap)
 
-    // Ouverture sur la position de l'utilisateur (parité iOS) : une fois, dès que la carte est prête
-    // et la position autorisée, y compris quand l'autorisation arrive par l'écran d'accueil.
-    // Le point bleu s'allume au même moment.
+    // Position autorisée : point bleu, puis ouverture sur l'utilisateur une seule fois (parité iOS, pas en
+    // mode démo). Relu au retour de la demande d'autorisation de l'écran d'accueil.
     var centeredOnUser by remember { mutableStateOf(DemoShowcase.isActive) }
-    val centerOnUserOnce: () -> Unit = {
+    val showUserLocation: () -> Unit = {
         val map = mapLibreMap
         val style = map?.style
-        if (!centeredOnUser && map != null && style != null && hasLocationPermission(context)) {
-            centeredOnUser = true
-            enableLocationComponent(context, map, style)
-            recenterOnUser(context, map)
+        if (map != null && style != null && hasLocationPermission(context)) {
+            if (!map.locationComponent.isLocationComponentActivated) enableLocationComponent(context, map, style)
+            if (!centeredOnUser) {
+                centeredOnUser = true
+                recenterOnUser(context, map, unlessMoved = true)
+            }
         }
     }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) centerOnUserOnce()
+            if (event == Lifecycle.Event.ON_RESUME) showUserLocation()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -485,7 +486,7 @@ fun LiveMapScreen() {
                         }
                         map.setStyle(mapStyleBuilder(isSatellite = false, isDark = isDark)) { style ->
                             mapStyle = style
-                            centerOnUserOnce()
+                            showUserLocation()
                         }
                     }
                 }

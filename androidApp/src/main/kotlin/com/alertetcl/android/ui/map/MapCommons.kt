@@ -7,7 +7,7 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
 import android.os.Build
-import android.os.Looper
+import android.os.CancellationSignal
 import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
@@ -135,10 +136,14 @@ internal fun enableLocationComponent(context: Context, map: MapLibreMap, style: 
 /**
  * Recentre la caméra sur l'utilisateur : dernière position connue si elle est récente, sinon une
  * position demandée à l'instant (la dernière connue est souvent absente sur un vrai téléphone).
+ * Avec [unlessMoved], la carte reste où elle est si elle a bougé pendant l'attente (geste, arrêt
+ * ouvert) : c'est le cas de l'ouverture de l'écran, pas du bouton « Ma position ».
  */
-internal fun recenterOnUser(context: Context, map: MapLibreMap?) {
+internal fun recenterOnUser(context: Context, map: MapLibreMap?, unlessMoved: Boolean = false) {
     val m = map ?: return
+    val asked = m.cameraPosition
     currentUserLocation(context) { loc ->
+        if (unlessMoved && m.cameraPosition != asked) return@currentUserLocation
         m.animateCamera(
             CameraUpdateFactory.newCameraPosition(
                 CameraPosition.Builder()
@@ -150,6 +155,7 @@ internal fun recenterOnUser(context: Context, map: MapLibreMap?) {
     }
 }
 
+/** Au-delà, la dernière position connue est trop vieille pour recentrer sans en demander une. */
 private const val RECENT_LOCATION_NANOS = 120_000_000_000L
 
 @SuppressLint("MissingPermission")
@@ -170,15 +176,12 @@ private fun currentUserLocation(context: Context, onLocation: (Location) -> Unit
         LocationManager.GPS_PROVIDER
     ).firstOrNull { it in providers }
     if (provider == null) { last?.let(onLocation); return }
-    val deliver: (Location?) -> Unit = { fresh -> (fresh ?: last)?.let(onLocation) }
-    // Refus possible selon le fournisseur quand seule la position approximative est accordée.
+    // La version compat abandonne au bout de 30 s sur toutes les versions d'Android ; sans réponse,
+    // la dernière position connue sert quand même.
     runCatching {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            lm.getCurrentLocation(provider, null, context.mainExecutor) { deliver(it) }
-        } else {
-            @Suppress("DEPRECATION")
-            lm.requestSingleUpdate(provider, { deliver(it) }, Looper.getMainLooper())
-        }
+        LocationManagerCompat.getCurrentLocation(
+            lm, provider, null as CancellationSignal?, ContextCompat.getMainExecutor(context)
+        ) { fresh: Location? -> (fresh ?: last)?.let(onLocation) }
     }.onFailure { last?.let(onLocation) }
 }
 
@@ -191,14 +194,16 @@ internal fun rememberLocateUser(map: MapLibreMap?): () -> Unit {
     val context = LocalContext.current
     val currentMap by rememberUpdatedState(map)
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        val m = currentMap ?: return@rememberLauncherForActivityResult
-        if (!hasLocationPermission(context)) return@rememberLauncherForActivityResult
+        val m = currentMap
+        if (m == null || !hasLocationPermission(context)) return@rememberLauncherForActivityResult
         m.style?.let { enableLocationComponent(context, m, it) }
         recenterOnUser(context, m)
     }
-    return {
-        if (hasLocationPermission(context)) recenterOnUser(context, currentMap)
-        else launcher.launch(LOCATION_PERMISSIONS)
+    return remember(context, launcher) {
+        {
+            if (hasLocationPermission(context)) recenterOnUser(context, currentMap)
+            else launcher.launch(LOCATION_PERMISSIONS)
+        }
     }
 }
 
