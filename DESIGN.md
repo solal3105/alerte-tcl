@@ -106,8 +106,11 @@ et un sens qui ne fait qu'arriver à cet arrêt (terminus) n'est pas affiché.
 Dans la grille horaire du jour, le départ suivi porte le même état : un départ ne se grise qu'une fois
 le bus passé (le premier passage à venir est rattaché à sa course), à défaut deux minutes après son
 heure, et la section « En direct » écrit les passages avec le même gros texte. Le bandeau d'un véhicule
-touché sur la carte dit « Prochain arrêt Génovéfains à 22:53 · À l'heure » (« Arrive à Génovéfains »
-une fois l'heure dépassée) et se retire tant qu'une fiche d'arrêt est ouverte.
+touché sur la carte dit « Prochain arrêt Génovéfains à 22:53 · À l'heure », « À l'arrêt Génovéfains »
+à moins de 30 m, et « Vient de passer Génovéfains » une fois l'heure dépassée : TCL donne le dernier
+arrêt suivi par le véhicule, pas forcément le prochain. Le compte des arrêts restants suit la même
+règle (un bus qui a passé Bellecour roule vers l'arrêt suivant). Le bandeau se retire tant qu'une fiche
+d'arrêt est ouverte.
 
 La présentation est la même sur iOS (`TransitStopViews.swift`, `TimetableViews.swift`) et Android
 (`LineBoardCard.kt`, `TimetableScreens.kt`). Le suivi d'un bus en arrière-plan (activité en direct) a

@@ -87,7 +87,7 @@ data class PassageStatus(
     val location: String? get() {
         val approach = approach ?: return null
         if (phase == PassagePhase.AT_STOP) return PassageTexts.AT_YOUR_STOP
-        val next = approach.vehicle.nextStop?.stopName?.takeIf { it.isNotBlank() && it.toIntOrNull() == null }
+        val next = approach.towardStopName?.takeIf { it.isNotBlank() && it.toIntOrNull() == null }
         return when (approach.stopsBefore) {
             0 -> PassageTexts.NEXT_IS_YOURS
             1 -> if (next != null) "Vers $next, l'arrêt d'avant" else "1 arrêt avant le vôtre"

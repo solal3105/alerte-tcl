@@ -189,8 +189,7 @@ object StopBoard {
         val remaining = arrival - nowSec
         if (approach != null) {
             if (approach.stopsBefore == 0) {
-                val distance = approach.vehicle.nextStop?.distanceFromStop
-                if (distance != null && distance <= AT_STOP_METRES) return PassagePhase.AT_STOP
+                if (approach.vehicle.isAtNextStop) return PassagePhase.AT_STOP
                 if (approach.estimatedArrivalEpoch == null || remaining < NEXT_STOP_APPROACH_SECONDS) return PassagePhase.APPROACHING
             }
             return if (remaining < 60) PassagePhase.APPROACHING else PassagePhase.LIVE

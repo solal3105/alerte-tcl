@@ -29,8 +29,9 @@ class VehicleTextsTest {
     }
 
     @Test
-    fun aPassedArrivalTimeIsNeverShownAsComing() {
+    fun whereTheVehicleIsIsSaidInOneSentence() {
         assertEquals("Prochain arrêt Génovéfains à 22:53", VehicleTexts.nextStop("Génovéfains", "22:53"))
-        assertEquals("Arrive à Génovéfains", VehicleTexts.nextStop("Génovéfains", null))
+        assertEquals("À l'arrêt Génovéfains", VehicleTexts.atStop("Génovéfains"))
+        assertEquals("Vient de passer Génovéfains", VehicleTexts.justPassed("Génovéfains"))
     }
 }

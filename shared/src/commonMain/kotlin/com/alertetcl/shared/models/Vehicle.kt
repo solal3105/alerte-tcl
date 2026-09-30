@@ -64,16 +64,29 @@ data class Vehicle(
         (stop.aimedArrivalTimeEpoch ?: stop.aimedDepartureTimeEpoch)?.plus(delay)
     }
 
+    /** Le véhicule est à l'arrêt donné par TCL (à moins de [StopBoard.AT_STOP_METRES]). */
+    val isAtNextStop: Boolean get() = nextStop?.distanceFromStop?.let { it <= StopBoard.AT_STOP_METRES } == true
+
     /**
-     * Le prochain arrêt en une phrase : « Prochain arrêt Bellecour à 22:53 » tant que l'heure est à
-     * venir, « Arrive à Bellecour » une fois dépassée (jamais une heure passée présentée comme à venir).
-     * Null sans nom d'arrêt.
+     * TCL donne le dernier arrêt suivi, pas forcément le prochain : une fois son heure passée, le
+     * véhicule l'a dépassé, sauf s'il y est encore.
+     */
+    fun hasPassedNextStop(nowEpochMs: Long): Boolean {
+        val arrival = nextStopArrivalEpoch ?: return false
+        return !isAtNextStop && arrival < nowEpochMs / 1000
+    }
+
+    /**
+     * Où en est le véhicule, en une phrase : « À l'arrêt Bellecour », « Prochain arrêt Bellecour à
+     * 22:53 », « Vient de passer Bellecour » une fois l'heure dépassée. Null sans nom d'arrêt.
      */
     fun nextStopLine(nowEpochMs: Long, timeZoneId: String = StopApproach.TIME_ZONE): String? {
         val name = nextStop?.stopName?.takeIf { it.isNotBlank() && it.toIntOrNull() == null } ?: return null
-        val time = nextStopArrivalEpoch?.takeIf { it >= nowEpochMs / 1000 }
-            ?.let { TimetableTime.format(TimetableTime.serviceMinutes(it * 1000, timeZoneId)) }
-        return VehicleTexts.nextStop(name, time)
+        return when {
+            isAtNextStop -> VehicleTexts.atStop(name)
+            hasPassedNextStop(nowEpochMs) -> VehicleTexts.justPassed(name)
+            else -> VehicleTexts.nextStop(name, nextStopArrivalEpoch?.let { TimetableTime.format(TimetableTime.serviceMinutes(it * 1000, timeZoneId)) })
+        }
     }
 
     /** Âge de la dernière position transmise par TCL (RecordedAtTime SIRI), en secondes. */

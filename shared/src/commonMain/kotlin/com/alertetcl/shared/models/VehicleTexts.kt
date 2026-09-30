@@ -23,7 +23,11 @@ object VehicleTexts {
         return "$minutes min ${if (delaySeconds > 0) "de retard" else "d'avance"}"
     }
 
-    /** « Prochain arrêt Bellecour à 22:53 », ou « Arrive à Bellecour » sans heure à venir. */
+    /** « Prochain arrêt Bellecour à 22:53 », « Prochain arrêt Bellecour » sans heure. */
     fun nextStop(stopName: String, time: String?): String =
-        if (time != null) "Prochain arrêt $stopName à $time" else "Arrive à $stopName"
+        if (time != null) "Prochain arrêt $stopName à $time" else "Prochain arrêt $stopName"
+
+    fun atStop(stopName: String): String = "À l'arrêt $stopName"
+
+    fun justPassed(stopName: String): String = "Vient de passer $stopName"
 }

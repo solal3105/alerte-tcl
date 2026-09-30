@@ -8,6 +8,8 @@ data class ApproachingVehicle(
     val vehicle: Vehicle,
     /** Arrêts que le véhicule doit encore desservir avant l'arrêt demandé (0 : c'est son prochain arrêt). */
     val stopsBefore: Int,
+    /** L'arrêt vers lequel il roule (nom de la fiche horaire), null s'il est inconnu. */
+    val towardStopName: String?,
     /** Heure prévue de passage à l'arrêt pour la course identifiée (minutes de la journée de service), null sans course identifiée. */
     val scheduledMinutes: Int?,
     /**
@@ -60,8 +62,10 @@ object StopApproach {
             val nextId = next.numericId ?: continue
             val nextIndexes = timetable.stops.indices.filter { timetable.stops[it].id == nextId }
             if (nextIndexes.isEmpty()) continue
-            val approach = fromIdentifiedTrip(vehicle, next, nextIndexes, targets, timetable, serviceDate, timeZoneId)
-                ?: fromStopOrder(vehicle, nextIndexes, targets, timetable)
+            // L'arrêt donné par TCL est le dernier suivi : son heure passée, le véhicule roule vers le suivant.
+            val passed = if (vehicle.hasPassedNextStop(nowEpochMs)) 1 else 0
+            val approach = fromIdentifiedTrip(vehicle, next, nextIndexes, passed, targets, timetable, serviceDate, timeZoneId)
+                ?: fromStopOrder(vehicle, nextIndexes, passed, targets, timetable)
                 ?: continue
             result.add(approach)
         }
@@ -69,11 +73,15 @@ object StopApproach {
         return result.take(limit)
     }
 
-    /** Course reconnue par l'heure prévue au prochain arrêt : nombre d'arrêts et estimation d'arrivée. */
+    /**
+     * Course reconnue par l'heure prévue à l'arrêt donné par TCL : nombre d'arrêts et estimation d'arrivée.
+     * [passed] vaut 1 quand le véhicule a déjà dépassé cet arrêt.
+     */
     private fun fromIdentifiedTrip(
         vehicle: Vehicle,
         next: StopInfo,
         nextIndexes: List<Int>,
+        passed: Int,
         targets: Set<Int>,
         timetable: LineTimetable,
         serviceDate: LocalDate,
@@ -85,9 +93,11 @@ object StopApproach {
         for (departure in candidates) {
             val calls = timetable.calls(departure.tripIndex, departure.shiftMinutes)
             val nextCall = calls.firstOrNull { it.stopIndex == departure.stopIndex && it.minutes == departure.minutes } ?: continue
-            val target = calls.drop(nextCall.position).firstOrNull { it.stopIndex in targets } ?: continue
+            val onward = calls.drop(nextCall.position + passed)
+            val target = onward.firstOrNull { it.stopIndex in targets } ?: continue
+            val toward = onward.first()
             val eta = aimedEpoch + (target.minutes - nextCall.minutes) * 60L + vehicle.delay
-            return ApproachingVehicle(vehicle, target.position - nextCall.position, target.minutes, eta)
+            return ApproachingVehicle(vehicle, target.position - toward.position, toward.stop.name, target.minutes, eta)
         }
         return null
     }
@@ -96,13 +106,15 @@ object StopApproach {
     private fun fromStopOrder(
         vehicle: Vehicle,
         nextIndexes: List<Int>,
+        passed: Int,
         targets: Set<Int>,
         timetable: LineTimetable
     ): ApproachingVehicle? {
         val groups = timetable.stopGroups
         val nextGroup = groups.indexOfFirst { group -> group.stopIndexes.any { it in nextIndexes } }
         val targetGroup = groups.indexOfFirst { group -> group.stopIndexes.any { it in targets } }
-        if (nextGroup < 0 || targetGroup < nextGroup) return null
-        return ApproachingVehicle(vehicle, targetGroup - nextGroup, null, null)
+        val towardGroup = nextGroup + passed
+        if (nextGroup < 0 || targetGroup < towardGroup) return null
+        return ApproachingVehicle(vehicle, targetGroup - towardGroup, groups[towardGroup].name, null, null)
     }
 }
