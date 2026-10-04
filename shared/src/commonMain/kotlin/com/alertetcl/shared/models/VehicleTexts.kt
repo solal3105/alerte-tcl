@@ -27,7 +27,5 @@ object VehicleTexts {
     fun nextStop(stopName: String, time: String?): String =
         if (time != null) "Prochain arrêt $stopName à $time" else "Prochain arrêt $stopName"
 
-    fun atStop(stopName: String): String = "À l'arrêt $stopName"
-
     fun justPassed(stopName: String): String = "Vient de passer $stopName"
 }

@@ -103,7 +103,6 @@ object DemoShowcase {
                 stopName = "Bellecour A. Poncet",
                 aimedArrivalTimeEpoch = nowSec + 180,
                 aimedDepartureTimeEpoch = nowSec + 200,
-                distanceFromStop = 350,
                 order = 4
             )
         )

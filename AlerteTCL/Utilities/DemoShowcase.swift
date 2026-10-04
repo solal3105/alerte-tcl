@@ -106,7 +106,6 @@ enum DemoShowcase {
                     stopName: "Bellecour A. Poncet",
                     aimedArrivalTime: now.addingTimeInterval(180),
                     aimedDepartureTime: now.addingTimeInterval(200),
-                    distanceFromStop: 350,
                     order: 4
                 )
             )

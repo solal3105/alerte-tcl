@@ -196,7 +196,6 @@ actor SIRILiteService {
             stopName: extractStopName(from: stopRef),
             aimedArrivalTime: parseISO8601Date(call.AimedArrivalTime),
             aimedDepartureTime: parseISO8601Date(call.AimedDepartureTime),
-            distanceFromStop: call.DistanceFromStop,
             order: call.Order
         )
     }

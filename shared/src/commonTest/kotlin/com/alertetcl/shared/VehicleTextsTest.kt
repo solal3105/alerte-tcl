@@ -31,7 +31,6 @@ class VehicleTextsTest {
     @Test
     fun whereTheVehicleIsIsSaidInOneSentence() {
         assertEquals("Prochain arrêt Génovéfains à 22:53", VehicleTexts.nextStop("Génovéfains", "22:53"))
-        assertEquals("À l'arrêt Génovéfains", VehicleTexts.atStop("Génovéfains"))
         assertEquals("Vient de passer Génovéfains", VehicleTexts.justPassed("Génovéfains"))
     }
 }

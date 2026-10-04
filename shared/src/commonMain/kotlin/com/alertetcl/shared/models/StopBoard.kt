@@ -42,8 +42,6 @@ object StopBoard {
     const val MATCH_WINDOW_SECONDS = 10 * 60L
     /** Une annonce en direct dépassée depuis moins longtemps reste « À l'approche » (le bus n'est pas encore passé). */
     const val ANNOUNCED_GRACE_SECONDS = 120L
-    /** Distance au prochain arrêt, en mètres, sous laquelle le véhicule est considéré à l'arrêt. */
-    const val AT_STOP_METRES = 30
     /**
      * Un véhicule dont l'arrêt de l'usager est le prochain n'est « À l'approche » qu'attendu dans moins de
      * trois minutes : au-delà, sa propre course le dit en attente (terminus, départ pas encore commencé) et
@@ -189,7 +187,6 @@ object StopBoard {
         val remaining = arrival - nowSec
         if (approach != null) {
             if (approach.stopsBefore == 0) {
-                if (approach.vehicle.isAtNextStop) return PassagePhase.AT_STOP
                 if (approach.estimatedArrivalEpoch == null || remaining < NEXT_STOP_APPROACH_SECONDS) return PassagePhase.APPROACHING
             }
             return if (remaining < 60) PassagePhase.APPROACHING else PassagePhase.LIVE
@@ -202,11 +199,7 @@ object StopBoard {
         }
     }
 
-    private fun rank(phase: PassagePhase): Int = when (phase) {
-        PassagePhase.AT_STOP -> 0
-        PassagePhase.APPROACHING -> 1
-        else -> 2
-    }
+    private fun rank(phase: PassagePhase): Int = if (phase == PassagePhase.APPROACHING) 0 else 1
 
     private fun claim(todays: List<TimetableDeparture>, claimed: MutableSet<Int>, minutes: Int) {
         todays.indices.firstOrNull { it !in claimed && todays[it].minutes == minutes }?.let { claimed.add(it) }

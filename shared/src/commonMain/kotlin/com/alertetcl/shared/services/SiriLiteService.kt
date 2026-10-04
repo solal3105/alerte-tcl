@@ -125,7 +125,6 @@ class SiriLiteService {
             stopName = extractStopName(ref),
             aimedArrivalTimeEpoch = parseIsoEpoch(c.AimedArrivalTime),
             aimedDepartureTimeEpoch = parseIsoEpoch(c.AimedDepartureTime),
-            distanceFromStop = c.DistanceFromStop,
             order = c.Order
         )
     }

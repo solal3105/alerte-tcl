@@ -92,7 +92,6 @@ struct LineBoardCard: View {
                             MiniLine(
                                 line: line,
                                 stopsBefore: Int(approach.stopsBefore),
-                                atStop: first.phase == PassagePhase.atStop,
                                 vehicleIcon: (VehicleType(shared: approach.vehicle.vehicleType) ?? .bus).icon
                             )
                             VehicleStatusLines(lead: first.location, vehicle: approach.vehicle, nowMs: nowMs)
@@ -202,14 +201,13 @@ struct VehicleStatusLines: View {
 }
 
 /// Où est le véhicule : les derniers arrêts avant celui de l'usager (le plus gros, à droite), le
-/// véhicule devant le prochain qu'il dessert, ou sur l'arrêt de l'usager quand il y est.
+/// véhicule devant le prochain qu'il dessert.
 private struct MiniLine: View {
     /// Arrêts dessinés au plus ; au-delà, la ligne commence par « … ».
     private static let maxStops = 3
 
     let line: String
     let stopsBefore: Int
-    let atStop: Bool
     let vehicleIcon: String
 
     private var color: Color { LineColorHelper.backgroundColor(for: line) }
@@ -221,9 +219,7 @@ private struct MiniLine: View {
                     .foregroundStyle(.tertiary)
                     .padding(.trailing, 4)
             }
-            if !atStop {
-                vehicleMark
-            }
+            vehicleMark
             ForEach(0..<min(stopsBefore, Self.maxStops), id: \.self) { _ in
                 segment
                 Circle()
@@ -231,13 +227,9 @@ private struct MiniLine: View {
                     .frame(width: 9, height: 9)
             }
             segment
-            if atStop {
-                vehicleMark
-            } else {
-                Circle()
-                    .strokeBorder(color, lineWidth: 3.5)
-                    .frame(width: 14, height: 14)
-            }
+            Circle()
+                .strokeBorder(color, lineWidth: 3.5)
+                .frame(width: 14, height: 14)
         }
         .frame(height: 22)
         // La phrase qui suit dit la même chose.

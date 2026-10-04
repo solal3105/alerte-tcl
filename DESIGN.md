@@ -68,7 +68,7 @@ numéros de lignes qui ont disparu du réseau sont retirés des filtres au charg
 
 La fiche d'un arrêt répond à une question : quand passe mon bus, et puis-je y croire ? Chaque passage a
 un seul état, calculé dans le module partagé (`StopBoard`, `PassageStatus`, testés) et lu par la fiche
-d'arrêt, la grille horaire et la carte : Théorique → Suivi en direct → À l'approche → À l'arrêt → Passé.
+d'arrêt, la grille horaire et la carte : Théorique → Suivi en direct → À l'approche → Passé.
 L'état croise trois sources qui ne se rafraîchissent pas au même rythme : les annonces TCL de l'arrêt,
 les positions des véhicules (`StopApproach` : arrêts restants, horaire prévu de la course corrigé du
 retard) et la fiche horaire. Un véhicule n'apparaît que rattaché à un passage annoncé (son arrivée
@@ -76,15 +76,17 @@ estimée à moins de 10 min de l'annonce), dont il donne alors l'heure, son flux
 jamais un chiffre à part qu'on ne saurait relier à rien. Un véhicule attendu à son prochain arrêt dans
 plus d'une heure n'est pas en route et n'est pas compté. Tout se recalcule chaque seconde avec l'heure
 courante, jamais à partir du délai texte de TCL. Un bus dont l'arrêt de l'usager est le prochain et qui
-y est attendu dans moins de trois minutes est « À l'approche » partout, à moins de 30 m « À l'arrêt » ;
-une annonce dépassée depuis moins de deux minutes reste « À l'approche » ; un bus à l'approche que TCL
+y est attendu dans moins de trois minutes est « À l'approche » partout, jusqu'à ce que son heure à cet
+arrêt soit passée. Il n'y a pas d'état « À l'arrêt » : une position a toujours au moins 45 s de retard,
+un bus vu à l'arrêt en est le plus souvent déjà reparti (remarque de Solal du 4 octobre 2026). Une
+annonce dépassée depuis moins de deux minutes reste « À l'approche » ; un bus à l'approche que TCL
 n'annonce plus reste affiché.
 
 L'en-tête tient sur une ligne (nom, commune, pictogramme PMR, rafraîchir) pour que le premier passage
 soit visible sans défiler. Puis une carte par ligne et sens (`StopPassages.group`, terminus du sens en
 titre, liens carte et horaires en icônes) :
 
-- le gros texte est un délai (« 4 min »), un mot (« À l'approche », « À l'arrêt ») ou, au-delà d'une
+- le gros texte est un délai (« 4 min »), un mot (« À l'approche ») ou, au-delà d'une
   heure, l'heure ; jamais une heure passée. L'heure exacte suit en petit, « jusqu'à Debourg » pour une
   course qui s'arrête avant, « Dernier passage » le cas échéant ;
 - devant, la source : point vert qui pulse pour le direct, horloge grise pour l'horaire prévu ;
@@ -106,8 +108,7 @@ et un sens qui ne fait qu'arriver à cet arrêt (terminus) n'est pas affiché.
 Dans la grille horaire du jour, le départ suivi porte le même état : un départ ne se grise qu'une fois
 le bus passé (le premier passage à venir est rattaché à sa course), à défaut deux minutes après son
 heure, et la section « En direct » écrit les passages avec le même gros texte. Le bandeau d'un véhicule
-touché sur la carte dit « Prochain arrêt Génovéfains à 22:53 · À l'heure », « À l'arrêt Génovéfains »
-à moins de 30 m, et « Vient de passer Génovéfains » une fois l'heure dépassée : TCL donne le dernier
+touché sur la carte dit « Prochain arrêt Génovéfains à 22:53 · À l'heure », puis « Vient de passer Génovéfains » une fois l'heure dépassée : TCL donne le dernier
 arrêt suivi par le véhicule, pas forcément le prochain. Le compte des arrêts restants suit la même
 règle (un bus qui a passé Bellecour roule vers l'arrêt suivant). Le bandeau se retire tant qu'une fiche
 d'arrêt est ouverte.

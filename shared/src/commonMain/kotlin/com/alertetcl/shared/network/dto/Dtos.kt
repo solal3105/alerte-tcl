@@ -287,7 +287,6 @@ data class MonitoredCallDto(
     @SerialName("AimedArrivalTime") val AimedArrivalTime: String? = null,
     @SerialName("AimedDepartureTime") val AimedDepartureTime: String? = null,
     @SerialName("DepartureStatus") val DepartureStatus: String? = null,
-    @SerialName("DistanceFromStop") val DistanceFromStop: Int? = null,
     @SerialName("Order") val Order: Int? = null
 )
 

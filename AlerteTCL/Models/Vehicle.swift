@@ -93,7 +93,6 @@ struct StopInfo: Identifiable, Hashable {
     let stopName: String?
     let aimedArrivalTime: Date?
     let aimedDepartureTime: Date?
-    let distanceFromStop: Int?
     let order: Int?
     
     var timeUntilArrival: TimeInterval? {
@@ -185,7 +184,6 @@ struct MonitoredCall: Codable {
     let AimedDepartureTime: String?
     let ActualDepartureTime: String?
     let DepartureStatus: String?
-    let DistanceFromStop: Int?
     let StopPointRef: RefValue?
     let Order: Int?
 }
@@ -201,7 +199,6 @@ extension StopInfo {
             id: id, stopRef: stopRef, stopName: stopName,
             aimedArrivalTimeEpoch: aimedArrivalTime.map { KotlinLong(value: Int64($0.timeIntervalSince1970)) },
             aimedDepartureTimeEpoch: aimedDepartureTime.map { KotlinLong(value: Int64($0.timeIntervalSince1970)) },
-            distanceFromStop: distanceFromStop.map { KotlinInt(value: Int32($0)) },
             order: order.map { KotlinInt(value: Int32($0)) }
         )
     }

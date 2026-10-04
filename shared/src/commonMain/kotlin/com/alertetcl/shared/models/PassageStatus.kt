@@ -14,12 +14,10 @@ enum class PassagePhase {
     LIVE,
     /** Moins d'une minute, ou l'arrêt de l'usager est le prochain du véhicule, qui y est attendu sous trois minutes. */
     APPROACHING,
-    /** Le véhicule est à l'arrêt de l'usager. */
-    AT_STOP,
     /** Déjà passé : seule la grille horaire l'affiche, en grisé. */
     DEPARTED;
 
-    val isLive: Boolean get() = this == LIVE || this == APPROACHING || this == AT_STOP
+    val isLive: Boolean get() = this == LIVE || this == APPROACHING
 }
 
 /** Un passage à venir et ce qu'on en sait. */
@@ -51,11 +49,10 @@ data class PassageStatus(
             (isTomorrow || remainingSeconds(nowEpochMs) >= PassageTexts.MINUTES_UNTIL_SECONDS)
 
     /**
-     * Le gros texte : un délai (« 4 min »), un mot (« À l'approche », « À l'arrêt ») ou, pour un départ
+     * Le gros texte : un délai (« 4 min »), un mot (« À l'approche ») ou, pour un départ
      * à plus d'une heure, l'heure. Jamais une heure passée. « ~ » quand la position du véhicule date.
      */
     fun headline(nowEpochMs: Long, timeZoneId: String = StopApproach.TIME_ZONE): String = when (phase) {
-        PassagePhase.AT_STOP -> PassageTexts.AT_STOP
         PassagePhase.APPROACHING -> PassageTexts.APPROACHING
         PassagePhase.DEPARTED -> PassageTexts.DEPARTED
         PassagePhase.LIVE, PassagePhase.SCHEDULED -> if (headlineIsTime(nowEpochMs)) time(timeZoneId) else {
@@ -80,13 +77,12 @@ data class PassageStatus(
         if (isTomorrow) "${PassageTexts.TOMORROW} ${time(timeZoneId)}" else time(timeZoneId)
 
     /**
-     * Où est le véhicule par rapport à l'arrêt de l'usager : « À votre arrêt », « Prochain arrêt : le
-     * vôtre », « Vers Génovéfains, l'arrêt d'avant », « Vers Choulans, 3 arrêts avant le vôtre ».
+     * Où est le véhicule par rapport à l'arrêt de l'usager : « Prochain arrêt : le vôtre »,
+     * « Vers Génovéfains, l'arrêt d'avant », « Vers Choulans, 3 arrêts avant le vôtre ».
      * Null sans véhicule reconnu.
      */
     val location: String? get() {
         val approach = approach ?: return null
-        if (phase == PassagePhase.AT_STOP) return PassageTexts.AT_YOUR_STOP
         val next = approach.towardStopName?.takeIf { it.isNotBlank() && it.toIntOrNull() == null }
         return when (approach.stopsBefore) {
             0 -> PassageTexts.NEXT_IS_YOURS
@@ -101,12 +97,10 @@ object PassageTexts {
     /** Au-delà d'une heure, un départ s'écrit à l'heure plutôt qu'en minutes. */
     const val MINUTES_UNTIL_SECONDS = 3600L
 
-    const val AT_STOP = "À l'arrêt"
     const val APPROACHING = "À l'approche"
     const val DEPARTED = "Passé"
     const val SCHEDULED = "prévu"
     const val TOMORROW = "demain"
-    const val AT_YOUR_STOP = "À votre arrêt"
     const val NEXT_IS_YOURS = "Prochain arrêt : le vôtre"
     const val LAST_OF_DAY = "Dernier passage"
     const val THEN = "Ensuite"

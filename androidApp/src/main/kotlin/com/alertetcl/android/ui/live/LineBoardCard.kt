@@ -114,7 +114,6 @@ internal fun LineBoardCard(
                     ) {
                         MiniLine(
                             stopsBefore = approach.stopsBefore,
-                            atStop = first.phase == PassagePhase.AT_STOP,
                             lineColor = colorFromHex(LineColors.backgroundHex(group.line)),
                             lineTextColor = colorFromHex(LineColors.textHex(group.line)),
                             vehicleIcon = vehicleTypeIcon(approach.vehicle.vehicleType)
@@ -183,21 +182,20 @@ private fun LiveDot() {
 
 /**
  * Où est le véhicule : les derniers arrêts avant celui de l'usager (le plus gros, à droite), le
- * véhicule devant le prochain qu'il dessert, ou sur l'arrêt de l'usager quand il y est.
+ * véhicule devant le prochain qu'il dessert.
  */
 @Composable
-private fun MiniLine(stopsBefore: Int, atStop: Boolean, lineColor: Color, lineTextColor: Color, vehicleIcon: ImageVector) {
+private fun MiniLine(stopsBefore: Int, lineColor: Color, lineTextColor: Color, vehicleIcon: ImageVector) {
     val shown = minOf(stopsBefore, MINI_LINE_STOPS)
     Row(modifier = Modifier.fillMaxWidth().height(22.dp), verticalAlignment = Alignment.CenterVertically) {
         if (stopsBefore > MINI_LINE_STOPS) Text("…", color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(end = 4.dp))
-        if (!atStop) VehicleMark(vehicleIcon, lineColor, lineTextColor)
+        VehicleMark(vehicleIcon, lineColor, lineTextColor)
         repeat(shown) {
             Segment(lineColor)
             Box(Modifier.size(9.dp).border(2.dp, lineColor, CircleShape))
         }
         Segment(lineColor)
-        if (atStop) VehicleMark(vehicleIcon, lineColor, lineTextColor)
-        else Box(Modifier.size(14.dp).background(lineColor, CircleShape).padding(3.dp).background(MaterialTheme.colorScheme.surfaceContainer, CircleShape))
+        Box(Modifier.size(14.dp).background(lineColor, CircleShape).padding(3.dp).background(MaterialTheme.colorScheme.surfaceContainer, CircleShape))
     }
 }
 
