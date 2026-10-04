@@ -77,18 +77,15 @@ data class PassageStatus(
         if (isTomorrow) "${PassageTexts.TOMORROW} ${time(timeZoneId)}" else time(timeZoneId)
 
     /**
-     * Où est le véhicule par rapport à l'arrêt de l'usager : « Prochain arrêt : le vôtre »,
-     * « Vers Génovéfains, l'arrêt d'avant », « Vers Choulans, 3 arrêts avant le vôtre ».
-     * Null sans véhicule reconnu.
+     * Où est le véhicule par rapport à l'arrêt de l'usager, compté depuis le dernier arrêt qu'il a
+     * atteint, le seul que TCL donne : « Dernier arrêt atteint : Génovéfains, le vôtre est le suivant »,
+     * « Dernier arrêt atteint : Choulans, encore 2 arrêts avant le vôtre ». Null sans véhicule reconnu.
      */
     val location: String? get() {
         val approach = approach ?: return null
-        val next = approach.towardStopName?.takeIf { it.isNotBlank() && it.toIntOrNull() == null }
-        return when (approach.stopsBefore) {
-            0 -> PassageTexts.NEXT_IS_YOURS
-            1 -> if (next != null) "Vers $next, l'arrêt d'avant" else "1 arrêt avant le vôtre"
-            else -> "${if (next != null) "Vers $next, " else ""}${approach.stopsBefore} arrêts avant le vôtre"
-        }
+        val last = approach.lastStopName?.takeIf { it.isNotBlank() && it.toIntOrNull() == null }
+            ?: return PassageTexts.remaining(approach.stopsBefore).replaceFirstChar { it.uppercase() }
+        return "${VehicleTexts.lastStop(last)}, ${PassageTexts.remaining(approach.stopsBefore)}"
     }
 }
 
@@ -101,12 +98,18 @@ object PassageTexts {
     const val DEPARTED = "Passé"
     const val SCHEDULED = "prévu"
     const val TOMORROW = "demain"
-    const val NEXT_IS_YOURS = "Prochain arrêt : le vôtre"
     const val LAST_OF_DAY = "Dernier passage"
     const val THEN = "Ensuite"
     const val LAST = "dernier"
     const val NONE_ANNOUNCED = "Aucun passage annoncé pour l'instant."
     const val NONE_PLANNED = "Aucun passage prévu aujourd'hui ni demain."
+
+    /** Ce qu'il reste au véhicule avant l'arrêt de l'usager : « le vôtre est le suivant », « encore 2 arrêts avant le vôtre ». */
+    fun remaining(stopsBefore: Int): String = when (stopsBefore) {
+        0 -> "le vôtre est le suivant"
+        1 -> "encore 1 arrêt avant le vôtre"
+        else -> "encore $stopsBefore arrêts avant le vôtre"
+    }
 
     /** Un sens sans passage : rien de prévu quand la fiche horaire est connue, sinon rien d'annoncé. */
     fun noPassage(timetableKnown: Boolean): String = if (timetableKnown) NONE_PLANNED else NONE_ANNOUNCED

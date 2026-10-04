@@ -18,7 +18,8 @@ struct Vehicle: Identifiable, Hashable {
     let status: String?
     let recordedAt: Date?
     let validUntil: Date?
-    let nextStop: StopInfo?
+    /// Le dernier arrêt atteint (MonitoredCall SIRI) : TCL ne donne jamais le prochain.
+    let lastStop: StopInfo?
     
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -72,7 +73,7 @@ struct Vehicle: Identifiable, Hashable {
             vehicleType: vehicleType.shared, destination: destination, direction: direction, delay: Int32(delay), status: status,
             recordedAtEpoch: recordedAt.map { KotlinLong(value: Int64($0.timeIntervalSince1970)) },
             validUntilEpoch: validUntil.map { KotlinLong(value: Int64($0.timeIntervalSince1970)) },
-            nextStop: nextStop?.shared
+            lastStop: lastStop?.shared
         )
     }
 
@@ -94,12 +95,6 @@ struct StopInfo: Identifiable, Hashable {
     let aimedArrivalTime: Date?
     let aimedDepartureTime: Date?
     let order: Int?
-    
-    var timeUntilArrival: TimeInterval? {
-        guard let arrivalTime = aimedArrivalTime else { return nil }
-        return arrivalTime.timeIntervalSinceNow
-    }
-    
 }
 
 enum VehicleType: String, CaseIterable {

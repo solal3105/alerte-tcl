@@ -93,7 +93,7 @@ class SiriLiteService {
             val destination = extractDestination(journey.DestinationRef?.value)
             val direction = DirectionMatching.siriDirectionCode(journey.DirectionRef?.value)
             val delay = parseDurationSeconds(journey.Delay)
-            val nextStop = parseMonitoredCall(journey.MonitoredCall)
+            val lastStop = parseMonitoredCall(journey.MonitoredCall)
 
             Vehicle(
                 id = vehicleId,
@@ -109,16 +109,14 @@ class SiriLiteService {
                 status = journey.VehicleStatus,
                 recordedAtEpoch = parseIsoEpoch(activity.RecordedAtTime),
                 validUntilEpoch = parseIsoEpoch(activity.ValidUntilTime),
-                nextStop = nextStop
+                lastStop = lastStop
             )
         }
     }
 
     private fun parseMonitoredCall(c: MonitoredCallDto?): StopInfo? {
         val ref = c?.StopPointRef?.value ?: return null
-        // MonitoredCall = dernier arrêt surveillé, pas forcément le prochain.
-        // Si le bus a déjà quitté cet arrêt, on ne l'affiche pas.
-        if (c.DepartureStatus == "departed") return null
+        // MonitoredCall = dernier arrêt atteint par le véhicule, qu'il y soit encore ou qu'il l'ait quitté.
         return StopInfo(
             id = ref,
             stopRef = ref,

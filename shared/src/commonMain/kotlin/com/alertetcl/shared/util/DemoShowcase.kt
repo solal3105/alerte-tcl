@@ -77,8 +77,7 @@ object DemoShowcase {
 
     /**
      * Véhicules factices : frais (vert), vieillissant (orange), obsolète (parti de la carte, sa fiche le signale),
-     * tram frais. Le C12 annonce Bellecour A. Poncet (11518) comme prochain arrêt : la fiche de cet arrêt le montre
-     * « au prochain arrêt » (case « arret »).
+     * tram frais. Leur dernier arrêt atteint est Bellecour A. Poncet (11518), desservi il y a une minute.
      */
     fun vehicles(): List<Vehicle> {
         val nowSec = Clock.System.now().epochSeconds
@@ -97,12 +96,12 @@ object DemoShowcase {
             delay = 120,
             recordedAtEpoch = nowSec - ageSeconds,
             validUntilEpoch = nowSec + 60 - ageSeconds,
-            nextStop = StopInfo(
+            lastStop = StopInfo(
                 id = "ActIV:StopArea:SP:11518:SYTRAL",
                 stopRef = "ActIV:StopArea:SP:11518:SYTRAL",
                 stopName = "Bellecour A. Poncet",
-                aimedArrivalTimeEpoch = nowSec + 180,
-                aimedDepartureTimeEpoch = nowSec + 200,
+                aimedArrivalTimeEpoch = nowSec - 60,
+                aimedDepartureTimeEpoch = nowSec - 40,
                 order = 4
             )
         )

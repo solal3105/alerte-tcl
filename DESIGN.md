@@ -71,14 +71,17 @@ un seul état, calculé dans le module partagé (`StopBoard`, `PassageStatus`, t
 d'arrêt, la grille horaire et la carte : Théorique → Suivi en direct → À l'approche → Passé.
 L'état croise trois sources qui ne se rafraîchissent pas au même rythme : les annonces TCL de l'arrêt,
 les positions des véhicules (`StopApproach` : arrêts restants, horaire prévu de la course corrigé du
-retard) et la fiche horaire. Un véhicule n'apparaît que rattaché à un passage annoncé (son arrivée
-estimée à moins de 10 min de l'annonce), dont il donne alors l'heure, son flux étant le plus frais :
-jamais un chiffre à part qu'on ne saurait relier à rien. Un véhicule attendu à son prochain arrêt dans
-plus d'une heure n'est pas en route et n'est pas compté. Tout se recalcule chaque seconde avec l'heure
-courante, jamais à partir du délai texte de TCL. Un bus dont l'arrêt de l'usager est le prochain et qui
-y est attendu dans moins de trois minutes est « À l'approche » partout, jusqu'à ce que son heure à cet
-arrêt soit passée. Il n'y a pas d'état « À l'arrêt » : une position a toujours au moins 45 s de retard,
-un bus vu à l'arrêt en est le plus souvent déjà reparti (remarque de Solal du 4 octobre 2026). Une
+retard) et la fiche horaire. Pour un véhicule, TCL ne donne que le dernier arrêt qu'il a atteint, jamais
+le prochain, et sa position a toujours au moins 45 s de retard : les arrêts restants se comptent depuis
+le suivant, un véhicule dont le dernier arrêt est celui de l'usager y est déjà passé, et rien n'affirme
+où il se trouve à l'instant. Un véhicule n'apparaît que rattaché à un passage annoncé (son arrivée
+estimée à moins de 10 min de l'annonce), dont il donne alors l'heure : jamais un chiffre à part qu'on
+ne saurait relier à rien. Un véhicule dont le dernier arrêt est prévu dans plus d'une heure n'est pas
+en route et n'est pas compté. Tout se recalcule chaque seconde avec l'heure
+courante, jamais à partir du délai texte de TCL. Un bus dont le dernier arrêt atteint précède celui de
+l'usager et qui y est attendu dans moins de trois minutes est « À l'approche » partout. Il n'y a pas
+d'état « À l'arrêt » : un bus vu à l'arrêt en est le plus souvent déjà reparti (remarque de Solal du
+4 octobre 2026). Une
 annonce dépassée depuis moins de deux minutes reste « À l'approche » ; un bus à l'approche que TCL
 n'annonce plus reste affiché.
 
@@ -91,7 +94,8 @@ titre, liens carte et horaires en icônes) :
   course qui s'arrête avant, « Dernier passage » le cas échéant ;
 - devant, la source : point vert qui pulse pour le direct, horloge grise pour l'horaire prévu ;
 - quand le véhicule est reconnu, une mini-ligne (les derniers arrêts avant le vôtre, le véhicule
-  dessus) et une phrase : « Vers Génovéfains, l'arrêt d'avant · À l'heure ». L'âge de la position ne
+  dessus) et une phrase : « Dernier arrêt atteint : Génovéfains, le vôtre est le suivant · À l'heure », « Dernier
+  arrêt atteint : Choulans, encore 2 arrêts avant le vôtre ». L'âge de la position ne
   s'affiche que lorsqu'elle date (plus de 45 s), en gris, et le délai prend alors un « ~ ». Toucher
   cette zone cadre la carte sur le véhicule et l'arrêt ;
 - enfin « Ensuite 23:35 · dernier 00:12 » : que se passe-t-il si je le rate. Le dernier départ de la
@@ -108,10 +112,10 @@ et un sens qui ne fait qu'arriver à cet arrêt (terminus) n'est pas affiché.
 Dans la grille horaire du jour, le départ suivi porte le même état : un départ ne se grise qu'une fois
 le bus passé (le premier passage à venir est rattaché à sa course), à défaut deux minutes après son
 heure, et la section « En direct » écrit les passages avec le même gros texte. Le bandeau d'un véhicule
-touché sur la carte dit « Prochain arrêt Génovéfains à 22:53 · À l'heure », puis « Vient de passer Génovéfains » une fois l'heure dépassée : TCL donne le dernier
-arrêt suivi par le véhicule, pas forcément le prochain. Le compte des arrêts restants suit la même
-règle (un bus qui a passé Bellecour roule vers l'arrêt suivant). Le bandeau se retire tant qu'une fiche
-d'arrêt est ouverte.
+touché sur la carte dit « Dernier arrêt atteint : Génovéfains · À l'heure », et sa fiche reprend
+« Dernier arrêt atteint » avec le nom seul : ni heure ni « dans N min », l'horaire prévu de cet arrêt
+ne dit pas quand le véhicule y est passé (remarque de Solal du 4 octobre 2026). Le bandeau se retire
+tant qu'une fiche d'arrêt est ouverte.
 
 La présentation est la même sur iOS (`TransitStopViews.swift`, `TimetableViews.swift`) et Android
 (`LineBoardCard.kt`, `TimetableScreens.kt`). Le suivi d'un bus en arrière-plan (activité en direct) a

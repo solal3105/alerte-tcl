@@ -80,6 +80,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import com.alertetcl.shared.models.PositionFreshness
 import com.alertetcl.shared.util.DemoShowcase
 import com.alertetcl.shared.models.VehicleType
+import com.alertetcl.shared.models.VehicleTexts
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -127,7 +128,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1094,8 +1094,8 @@ private fun VehicleDetailSheet(v: Vehicle) {
             }
         }
 
-        // ── Timeline prochain arrêt ──
-        v.nextStop?.let { ns ->
+        // ── Dernier arrêt atteint : le seul que TCL donne, sans heure (son horaire prévu ne dit pas quand le véhicule y est passé) ──
+        v.lastStop?.let { stop ->
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surface,
@@ -1106,79 +1106,35 @@ private fun VehicleDetailSheet(v: Vehicle) {
             ) {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
                     Text(
-                        text = "DERNIER ARRÊT",
+                        text = VehicleTexts.LAST_STOP.uppercase(),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         letterSpacing = 0.5.sp
                     )
                     Spacer(Modifier.height(12.dp))
-                    Row {
-                        // Colonne dot
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
-                            modifier = Modifier.width(28.dp).padding(top = 14.dp),
-                            contentAlignment = Alignment.TopCenter
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(accentColor.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(24.dp)
+                                    .size(12.dp)
                                     .clip(CircleShape)
-                                    .background(accentColor.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(12.dp)
-                                        .clip(CircleShape)
-                                        .background(accentColor)
-                                )
-                            }
+                                    .background(accentColor)
+                            )
                         }
-                        // Contenu
-                        Row(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(start = 12.dp, top = 16.dp, bottom = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                Text(
-                                    text = ns.stopName ?: ns.stopRef,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1
-                                )
-                            }
-                            val arrivalEpoch = ns.aimedArrivalTimeEpoch ?: ns.aimedDepartureTimeEpoch
-                            if (arrivalEpoch != null) {
-                                val time = java.time.Instant.ofEpochSecond(arrivalEpoch)
-                                    .atZone(java.time.ZoneId.systemDefault())
-                                val timeStr = java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(time)
-                                val minsUntil = (arrivalEpoch - System.currentTimeMillis() / 1000L) / 60L
-                                Column(
-                                    horizontalAlignment = Alignment.End,
-                                    verticalArrangement = Arrangement.spacedBy(1.dp)
-                                ) {
-                                    Text(
-                                        text = timeStr,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                    )
-                                    if (minsUntil > 0) {
-                                        Text(
-                                            text = "dans $minsUntil min",
-                                            fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        Text(
+                            text = stop.stopName ?: stop.stopRef,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            modifier = Modifier.padding(start = 12.dp)
+                        )
                     }
                 }
             }
@@ -1557,7 +1513,7 @@ private fun MergedStopDetailSheet(
 
 /**
  * Remplace le bandeau trafic quand un véhicule a été touché : la ligne et sa destination, puis une
- * phrase (prochain arrêt, heure tant qu'elle est à venir, ponctualité) ; l'âge de la position ne
+ * phrase (dernier arrêt atteint, ponctualité) ; l'âge de la position ne
  * s'affiche que lorsqu'elle date. « Voir plus » pour la fiche, une croix pour retirer le filtre
  * (parité iOS VehicleFocusCard).
  */
@@ -1590,7 +1546,7 @@ private fun VehicleFocusBanner(focus: StopLineFocus, vehicle: Vehicle?, onMore: 
                 }
             }
             if (vehicle != null) {
-                VehicleStatusLines(vehicle.nextStopLine(nowMs), vehicle, nowMs)
+                VehicleStatusLines(vehicle.lastStopLine, vehicle, nowMs)
             } else {
                 Text("Véhicule plus suivi pour l'instant", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

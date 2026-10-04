@@ -160,8 +160,7 @@ actor SIRILiteService {
             let destination = extractDestination(from: journey.DestinationRef?.value)
             let delay = parseDelay(journey.Delay)
             
-            // Extraire les informations d'arrêts
-            let nextStop = parseMonitoredCall(journey.MonitoredCall)
+            let lastStop = parseMonitoredCall(journey.MonitoredCall)
             
             return Vehicle(
                 id: stableId,
@@ -177,7 +176,7 @@ actor SIRILiteService {
                 status: journey.VehicleStatus,
                 recordedAt: parseISO8601Date(activity.RecordedAtTime),
                 validUntil: parseISO8601Date(activity.ValidUntilTime),
-                nextStop: nextStop
+                lastStop: lastStop
             )
         }
     }
@@ -188,8 +187,7 @@ actor SIRILiteService {
             return nil
         }
 
-        // MonitoredCall = dernier arrêt surveillé (SIRI). Affiché comme tel dans l'UI,
-        // quel que soit le DepartureStatus.
+        // MonitoredCall = dernier arrêt atteint par le véhicule, qu'il y soit encore ou qu'il l'ait quitté.
         return StopInfo(
             id: stopRef,
             stopRef: stopRef,

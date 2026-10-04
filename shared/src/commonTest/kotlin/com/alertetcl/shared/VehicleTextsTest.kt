@@ -30,7 +30,7 @@ class VehicleTextsTest {
 
     @Test
     fun whereTheVehicleIsIsSaidInOneSentence() {
-        assertEquals("Prochain arrêt Génovéfains à 22:53", VehicleTexts.nextStop("Génovéfains", "22:53"))
-        assertEquals("Vient de passer Génovéfains", VehicleTexts.justPassed("Génovéfains"))
+        // TCL donne le dernier arrêt atteint, jamais le prochain, et sans heure : la position date.
+        assertEquals("Dernier arrêt atteint : Génovéfains", VehicleTexts.lastStop("Génovéfains"))
     }
 }

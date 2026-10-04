@@ -23,9 +23,9 @@ object VehicleTexts {
         return "$minutes min ${if (delaySeconds > 0) "de retard" else "d'avance"}"
     }
 
-    /** « Prochain arrêt Bellecour à 22:53 », « Prochain arrêt Bellecour » sans heure. */
-    fun nextStop(stopName: String, time: String?): String =
-        if (time != null) "Prochain arrêt $stopName à $time" else "Prochain arrêt $stopName"
+    /** Titre de l'arrêt que TCL donne pour un véhicule : le dernier qu'il a atteint, jamais le prochain. */
+    const val LAST_STOP = "Dernier arrêt atteint"
 
-    fun justPassed(stopName: String): String = "Vient de passer $stopName"
+    /** « Dernier arrêt atteint : Bellecour ». */
+    fun lastStop(stopName: String): String = "$LAST_STOP : $stopName"
 }

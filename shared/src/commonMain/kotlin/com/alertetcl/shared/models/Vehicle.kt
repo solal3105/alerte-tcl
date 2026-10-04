@@ -42,7 +42,11 @@ data class Vehicle(
     val status: String? = null,
     val recordedAtEpoch: Long? = null,
     val validUntilEpoch: Long? = null,
-    val nextStop: StopInfo? = null
+    /**
+     * Le dernier arrêt atteint par le véhicule (MonitoredCall SIRI) : TCL ne donne jamais le prochain.
+     * Le véhicule peut y être encore ou l'avoir quitté ; sa position date d'au moins 45 s.
+     */
+    val lastStop: StopInfo? = null
 ) {
     val coordinate: LatLng get() = LatLng(latitude, longitude)
 
@@ -56,31 +60,19 @@ data class Vehicle(
     val isOffSchedule: Boolean get() = VehicleTexts.isOffSchedule(delay)
 
     /**
-     * Arrivée au prochain arrêt (epoch, secondes) : son horaire prévu corrigé du retard constaté, comme
-     * l'estimation de [StopApproach]. Null quand TCL ne donne pas d'horaire pour cet arrêt.
+     * Heure du dernier arrêt atteint (epoch, secondes) : son horaire prévu corrigé du retard constaté.
+     * Null quand TCL ne donne pas d'horaire pour cet arrêt.
      */
-    val nextStopArrivalEpoch: Long? get() = nextStop?.let { stop ->
+    val lastStopTimeEpoch: Long? get() = lastStop?.let { stop ->
         (stop.aimedArrivalTimeEpoch ?: stop.aimedDepartureTimeEpoch)?.plus(delay)
     }
 
     /**
-     * TCL donne le dernier arrêt suivi, pas forcément le prochain : une fois son heure passée, le
-     * véhicule l'a dépassé. Sa distance à l'arrêt n'y change rien : la position a toujours au moins
-     * 45 s de retard, un bus vu à l'arrêt en est le plus souvent déjà reparti.
+     * Où est le véhicule, en une phrase : « Dernier arrêt atteint : Bellecour ». Rien n'est dit du
+     * prochain arrêt ni d'une heure : TCL ne donne que le dernier, et la position date. Null sans nom d'arrêt.
      */
-    fun hasPassedNextStop(nowEpochMs: Long): Boolean =
-        nextStopArrivalEpoch?.let { it < nowEpochMs / 1000 } == true
-
-    /**
-     * Où en est le véhicule, en une phrase : « Prochain arrêt Bellecour à 22:53 », « Vient de passer Bellecour » une fois l'heure dépassée. Null sans nom d'arrêt.
-     */
-    fun nextStopLine(nowEpochMs: Long, timeZoneId: String = StopApproach.TIME_ZONE): String? {
-        val name = nextStop?.stopName?.takeIf { it.isNotBlank() && it.toIntOrNull() == null } ?: return null
-        return when {
-            hasPassedNextStop(nowEpochMs) -> VehicleTexts.justPassed(name)
-            else -> VehicleTexts.nextStop(name, nextStopArrivalEpoch?.let { TimetableTime.format(TimetableTime.serviceMinutes(it * 1000, timeZoneId)) })
-        }
-    }
+    val lastStopLine: String? get() =
+        lastStop?.stopName?.takeIf { it.isNotBlank() && it.toIntOrNull() == null }?.let(VehicleTexts::lastStop)
 
     /** Âge de la dernière position transmise par TCL (RecordedAtTime SIRI), en secondes. */
     fun positionAgeSeconds(nowEpochMs: Long): Long? =

@@ -100,12 +100,12 @@ enum DemoShowcase {
                 status: nil,
                 recordedAt: now.addingTimeInterval(-ageSeconds),
                 validUntil: now.addingTimeInterval(60 - ageSeconds),
-                nextStop: StopInfo(
+                lastStop: StopInfo(
                     id: "ActIV:StopArea:SP:11518:SYTRAL",
                     stopRef: "ActIV:StopArea:SP:11518:SYTRAL",
                     stopName: "Bellecour A. Poncet",
-                    aimedArrivalTime: now.addingTimeInterval(180),
-                    aimedDepartureTime: now.addingTimeInterval(200),
+                    aimedArrivalTime: now.addingTimeInterval(-60),
+                    aimedDepartureTime: now.addingTimeInterval(-40),
                     order: 4
                 )
             )
