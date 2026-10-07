@@ -44,8 +44,8 @@ final class MergedStopAnnotation: NSObject, MKAnnotation {
 
 /// Vue d'annotation véhicule.
 ///
-/// **Mode simplifié** (sous `MapStyle.ZOOM_VEHICLE_BODY`) : disque plat 12 pt, aucun layer
-/// de flèche mis à jour → coût animation tick ≈ 0.
+/// **Mode simplifié** (sous `MapStyle.ZOOM_VEHICLE_BODY`) : disque plat 14 pt portant le sens
+/// de marche en blanc (pointe tournée selon le cap, absente si le cap est inconnu).
 ///
 /// **Mode complet** : disque 32 pt portant le pictogramme du type + flèche orbitale 10×7 pt
 /// et capsule du numéro de ligne, dans un frame 76×76 pt.
@@ -60,13 +60,16 @@ final class VehicleAnnotationView: MKAnnotationView {
         static let arrowH:   CGFloat = 7
         static let orbit:    CGFloat = 19
         static let side:     CGFloat = 76
-        static let dotSize:  CGFloat = 12   // mode simplifié
+        static let dotSize:  CGFloat = 14   // mode simplifié
+        static let dotDirectionSize: CGFloat = 8
         static let labelGap: CGFloat = 7    // sous le disque, au-delà de la course de la flèche
         static let labelHeight: CGFloat = 14
     }
 
     private let bodyLayer  = CALayer()
     private let arrowLayer = CALayer()
+    /// Sens de marche en blanc sur le disque du mode simplifié.
+    private let dotDirectionLayer = CALayer()
     /// Numéro de ligne dans une capsule, juste sous le disque.
     private let labelLayer = CALayer()
     /// Halo à la couleur de la ligne autour du véhicule sélectionné sur la carte.
@@ -99,6 +102,7 @@ final class VehicleAnnotationView: MKAnnotationView {
         layer.addSublayer(bodyLayer)
         layer.addSublayer(arrowLayer)
         layer.addSublayer(labelLayer)
+        layer.addSublayer(dotDirectionLayer)
         labelLayer.contentsGravity = .resizeAspect
         labelLayer.isHidden = true
 
@@ -110,6 +114,12 @@ final class VehicleAnnotationView: MKAnnotationView {
         arrowLayer.position        = CGPoint(x: Layout.side / 2, y: Layout.side / 2 - Layout.orbit)
         arrowLayer.contentsGravity = .resizeAspect
         arrowLayer.isHidden        = true
+
+        dotDirectionLayer.bounds   = CGRect(origin: .zero, size: CGSize(width: Layout.dotDirectionSize, height: Layout.dotDirectionSize))
+        dotDirectionLayer.position = CGPoint(x: Layout.dotSize / 2, y: Layout.dotSize / 2)
+        dotDirectionLayer.contents = MarkerImageCache.vehicleDotDirection.cgImage
+        dotDirectionLayer.contentsGravity = .resizeAspect
+        dotDirectionLayer.isHidden = true
 
         centerOffset = .zero
     }
@@ -146,7 +156,7 @@ final class VehicleAnnotationView: MKAnnotationView {
         CATransaction.setDisableActions(true)
 
         if simplified {
-            // ── Mode dot : frame 12×12, aucune flèche ──────────────────────
+            // ── Mode dot : frame 14×14, sens de marche en blanc ─────────────
             if !currentSimplified || currentLineName != vehicle.lineName {
                 let d = Layout.dotSize
                 bounds = CGRect(origin: .zero, size: CGSize(width: d, height: d))
@@ -158,6 +168,8 @@ final class VehicleAnnotationView: MKAnnotationView {
             }
             arrowLayer.isHidden = true
             labelLayer.isHidden = true
+            dotDirectionLayer.isHidden = bearing == 0
+            dotDirectionLayer.setAffineTransform(CGAffineTransform(rotationAngle: CGFloat(bearing * .pi / 180)))
             currentSimplified = true
 
         } else {
@@ -170,6 +182,7 @@ final class VehicleAnnotationView: MKAnnotationView {
                 centerOffset = .zero
                 currentLineName = nil  // forcer re-rendu du corps
             }
+            dotDirectionLayer.isHidden = true
 
             if currentLineName != vehicle.lineName || currentVehicleType != vehicle.vehicleType {
                 bodyLayer.contents = MarkerImageCache.vehicleBody(lineName: vehicle.lineName, type: vehicle.vehicleType).cgImage
@@ -211,6 +224,7 @@ final class VehicleAnnotationView: MKAnnotationView {
         currentSimplified = false
         arrowLayer.isHidden = true
         labelLayer.isHidden = true
+        dotDirectionLayer.isHidden = true
     }
 }
 

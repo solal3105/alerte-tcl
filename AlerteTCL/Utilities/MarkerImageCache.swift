@@ -125,7 +125,7 @@ enum MarkerImageCache {
     }
 
     /// Petit disque plat (dezoom) : cercle de couleur sans icône ni flèche.
-    /// Taille fixe 12×12 pt. Clé = nom de ligne (la couleur dépend uniquement de la ligne).
+    /// Taille fixe 14×14 pt. Clé = nom de ligne (la couleur dépend uniquement de la ligne).
     static func vehicleDot(lineName: String) -> UIImage {
         let key = lineName as NSString
         if let cached = vehicleDotCache.object(forKey: key) { return cached }
@@ -134,6 +134,21 @@ enum MarkerImageCache {
         return image
     }
 
+    /// Pointe de flèche blanche 8 pt (pointe vers le haut = nord), posée au centre du disque dezoom
+    /// et tournée selon le cap. Même image pour toutes les lignes.
+    static let vehicleDotDirection: UIImage = {
+        let s: CGFloat = 8
+        return imageRenderer(size: CGSize(width: s, height: s)).image { ctx in
+            let cg = ctx.cgContext
+            cg.move(to: CGPoint(x: s / 2, y: 0))
+            cg.addLine(to: CGPoint(x: s, y: s))
+            cg.addLine(to: CGPoint(x: s / 2, y: s * 0.7))
+            cg.addLine(to: CGPoint(x: 0, y: s))
+            cg.closePath()
+            UIColor.white.setFill()
+            cg.fillPath()
+        }
+    }()
 
     /// Marqueur d'une station Vélo'v : carré arrondi à la couleur de disponibilité, le pictogramme du
     /// filtre courant et le nombre compté.
@@ -339,7 +354,7 @@ enum MarkerImageCache {
     }
 
     private static func renderVehicleDot(lineName: String) -> UIImage {
-        let s: CGFloat = 12
+        let s: CGFloat = 14
         let size = CGSize(width: s, height: s)
         let color = uiColor(LineColorHelper.backgroundColor(for: lineName))
         return imageRenderer(size: size).image { ctx in

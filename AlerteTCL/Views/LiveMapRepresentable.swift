@@ -221,17 +221,14 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 guard let anim = animated[id] else { continue }
                 annotation.coordinate = anim.coordinateAt(time)
 
-                // En mode simplifié la flèche n'existe pas : skip mapView.view(for:)
-                // qui est l'opération la plus coûteuse de la boucle au dezoom.
-                guard !isSimplified else { continue }
-
+                // Le cap tourne la flèche orbitale en mode complet, et le sens de marche sur le point en dezoom.
                 let newBearing = anim.bearingAt(time)
                 annotation.bearing = newBearing
 
                 annotation.annotationView?.apply(
                     vehicle: annotation.vehicle,
                     bearing: newBearing,
-                    simplified: false
+                    simplified: isSimplified
                 )
             }
         }

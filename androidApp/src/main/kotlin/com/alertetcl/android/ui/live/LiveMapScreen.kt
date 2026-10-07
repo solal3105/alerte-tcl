@@ -212,6 +212,9 @@ private const val BUS_LAYER       = "bus-layer"
 private const val VEHICLES_HALO_LAYER = "vehicles-halo-layer"
 private const val VEHICLES_LAYER  = "vehicles-layer"
 private const val VEHICLES_ARROW_LAYER = "vehicles-arrow-layer"
+private const val VEHICLES_DOT_DIRECTION_LAYER = "vehicles-dot-direction-layer"
+/** Flèche blanche posée sur le point d'un véhicule en dezoom (même image pour toutes les lignes). */
+private const val VEHICLE_DOT_DIRECTION_ICON = "vehicle_dot_direction"
 private const val STOPS_LAYER       = "stops-layer"        // CircleLayer mode compact
 private const val STOPS_BADGE_LAYER = "stops-badge-layer"  // SymbolLayer mode badges (zoom serré)
 
@@ -667,6 +670,8 @@ fun LiveMapScreen() {
         // Register circle body + dot + arrow icons (once per unique line)
         if (style.getImage("no_arrow") == null)
             style.addImage("no_arrow", Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888))
+        if (style.getImage(VEHICLE_DOT_DIRECTION_ICON) == null)
+            style.addImage(VEHICLE_DOT_DIRECTION_ICON, vehicleDotDirectionBitmap())
 
         // Collecte les lignes manquantes sur Main (style.getImage doit rester sur Main),
         // puis construit les bitmaps Canvas sur Default pour ne pas bloquer le UI thread.
@@ -737,6 +742,25 @@ fun LiveMapScreen() {
                                 Expression.literal(MapStyle.ZOOM_VEHICLE_BODY), Expression.get("icon")
                             )
                         ),
+                        PropertyFactory.iconAllowOverlap(true),
+                        PropertyFactory.iconIgnorePlacement(true),
+                        PropertyFactory.iconSize(1f)
+                    ))
+                    // Layer 3 : sens de marche sur le point en dezoom (< 13.5), seulement si le cap est connu
+                    style.addLayer(SymbolLayer(VEHICLES_DOT_DIRECTION_LAYER, VEHICLES_SRC).withProperties(
+                        PropertyFactory.iconImage(
+                            Expression.step(
+                                Expression.zoom(),
+                                Expression.switchCase(
+                                    Expression.eq(Expression.get("arrow_icon"), Expression.literal("no_arrow")),
+                                    Expression.literal("no_arrow"),
+                                    Expression.literal(VEHICLE_DOT_DIRECTION_ICON)
+                                ),
+                                Expression.literal(MapStyle.ZOOM_VEHICLE_BODY), Expression.literal("no_arrow")
+                            )
+                        ),
+                        PropertyFactory.iconRotate(Expression.toNumber(Expression.get("bearing"))),
+                        PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_VIEWPORT),
                         PropertyFactory.iconAllowOverlap(true),
                         PropertyFactory.iconIgnorePlacement(true),
                         PropertyFactory.iconSize(1f)
@@ -2425,18 +2449,36 @@ private fun bearingArrowBitmap(line: String): Bitmap {
 }
 
 /**
- * Point dezoom — disque plat 12dp, couleur de ligne, sans texte ni bordure.
- * Miroir exact du mode simplifié iOS (latitudeDelta > 0.05 → 12pt dot).
+ * Point dezoom — disque plat 14dp, couleur de ligne, sans texte ni bordure.
+ * Miroir exact du mode simplifié iOS (14 pt) ; le sens de marche s'y pose en blanc (VEHICLES_DOT_DIRECTION_LAYER).
  */
 private fun vehicleDotBitmap(line: String): Bitmap {
     val density = android.content.res.Resources.getSystem().displayMetrics.density
     val bg = parseAndroidColor(LineColors.backgroundHex(line))
-    val size = (12 * density).toInt().coerceAtLeast(1)
+    val size = (14 * density).toInt().coerceAtLeast(1)
     val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val cx = size / 2f
     Canvas(bmp).drawCircle(cx, cx, cx, Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = bg; style = Paint.Style.FILL
     })
+    return bmp
+}
+
+/**
+ * Pointe de flèche blanche 8dp (pointe vers le haut = nord), centrée sur le point dezoom et tournée selon le cap.
+ * Miroir de `MarkerImageCache.vehicleDotDirection` sur iOS.
+ */
+private fun vehicleDotDirectionBitmap(): Bitmap {
+    val density = android.content.res.Resources.getSystem().displayMetrics.density
+    val size = (8 * density).toInt().coerceAtLeast(1).toFloat()
+    val bmp = Bitmap.createBitmap(size.toInt(), size.toInt(), Bitmap.Config.ARGB_8888)
+    val path = android.graphics.Path()
+    path.moveTo(size / 2f, 0f)
+    path.lineTo(size, size)
+    path.lineTo(size / 2f, size * 0.7f)
+    path.lineTo(0f, size)
+    path.close()
+    Canvas(bmp).drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE; style = Paint.Style.FILL })
     return bmp
 }
 
