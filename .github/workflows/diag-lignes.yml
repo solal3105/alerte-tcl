@@ -1,0 +1,66 @@
+# Diagnostic temporaire : codes de ligne du direct comparés aux lignes du réseau.
+name: Diagnostic lignes
+on:
+  push:
+    branches: ["claude/fix-live-ligne-121-f3hrxf"]
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Données
+        run: |
+          P=https://tcl-proxy.solalgendrin.workers.dev
+          curl -sS -m 120 $P/line-mapping -o map.json
+          curl -sS -m 120 $P/vehicles -o veh.json
+          curl -sS -m 120 "$P/bus-lines?limit=1000&startIndex=0&f=json" -o bus0.json
+          curl -sS -m 120 "$P/bus-lines?limit=1000&startIndex=1000&f=json" -o bus1.json
+          curl -sSL -m 300 "https://www.data.gouv.fr/api/1/datasets/r/abebedc6-28cf-4e2e-9c64-db57a40156f8" -o gtfs.zip || true
+          curl -sS -m 60 "https://raw.githubusercontent.com/solal3105/alerte-tcl/horaires/index.json" -o index.json
+          ls -la
+          head -c 600 veh.json; echo
+          python3 - <<'PY'
+          import json, re, collections, zipfile, csv, io
+          m = json.load(open('map.json'))['mapping']
+          print('mapping', len(m))
+          watch = {'20','21','22','120','121','122'}
+          print('mapping 1xx/2x', {k:v for k,v in m.items() if k in watch or v in watch})
+          inv = collections.defaultdict(list)
+          for k,v in m.items(): inv[v].append(k)
+          print('noms avec plusieurs codes', {v:ks for v,ks in inv.items() if len(ks)>1})
+          print('codes qui sont aussi des noms', {k:m[k] for k in m if k in inv})
+          for f in ('bus0.json','bus1.json'):
+              d = json.load(open(f))
+              for ft in d.get('features', []):
+                  p = ft.get('properties', {})
+                  if str(p.get('ligne','')).strip() in watch or str(p.get('code_ligne','')).strip() in watch:
+                      print('geo', {k:p.get(k) for k in ('ligne','code_ligne','sens','nom_destination','nom_trace','last_update')})
+          idx = {l['line'] for l in json.load(open('index.json'))['lines']}
+          print('lignes index', len(idx))
+          v = json.load(open('veh.json'))
+          acts = v['Siri']['ServiceDelivery']['VehicleMonitoringDelivery'][0].get('VehicleActivity', [])
+          refs = collections.Counter()
+          sample = {}
+          for a in acts:
+              j = a.get('MonitoredVehicleJourney', {})
+              r = (j.get('LineRef') or {}).get('value', '')
+              refs[r] += 1
+              sample.setdefault(r, {k: j.get(k) for k in ('LineRef','DirectionRef','DestinationRef','PublishedLineName','OperatorRef','JourneyPatternRef','FramedVehicleJourneyRef')})
+          print('vehicules', len(acts), 'lignes', len(refs))
+          unk = {}
+          for r,c in refs.items():
+              mm = re.search(r'::([^:]+):SYTRAL', r)
+              code = mm.group(1) if mm else r.split(':')[-1]
+              name = m.get(code, code)
+              if name not in idx: unk[r] = (code, name, c)
+              if code in watch or name in watch: print('siri', r, code, name, c, json.dumps(sample[r], ensure_ascii=False))
+          print('lignes du direct inconnues du réseau', json.dumps(unk, ensure_ascii=False))
+          seen = {m.get(re.search(r'::([^:]+):SYTRAL', r).group(1) if re.search(r'::([^:]+):SYTRAL', r) else r, '') or (re.search(r'::([^:]+):SYTRAL', r).group(1) if re.search(r'::([^:]+):SYTRAL', r) else r) for r in refs}
+          print('lignes du réseau sans véhicule', sorted(idx - seen))
+          print('exemple', json.dumps(acts[0], ensure_ascii=False)[:1500])
+          try:
+              z = zipfile.ZipFile('gtfs.zip')
+              rt = list(csv.DictReader(io.TextIOWrapper(z.open('routes.txt'), 'utf-8-sig')))
+              for r in rt:
+                  if r['route_short_name'] in watch: print('gtfs', r)
+          except Exception as e: print('gtfs ko', e)
+          PY
