@@ -10,13 +10,15 @@ jobs:
       - name: Données
         run: |
           P=https://tcl-proxy.solalgendrin.workers.dev
-          curl -sS -m 120 $P/line-mapping -o map.json
-          curl -sS -m 120 $P/vehicles -o veh.json
-          curl -sS -m 120 "$P/bus-lines?limit=1000&startIndex=0&f=json" -o bus0.json
-          curl -sS -m 120 "$P/bus-lines?limit=1000&startIndex=1000&f=json" -o bus1.json
+          curl -sS -m 120 -A "AlerteTCL/1.0" $P/line-mapping -o map.json
+          curl -sS -m 120 -A "AlerteTCL/1.0" $P/vehicles -o veh.json
+          curl -sS -m 120 -A "AlerteTCL/1.0" "$P/bus-lines?limit=1000&startIndex=0&f=json" -o bus0.json
+          curl -sS -m 120 -A "AlerteTCL/1.0" "$P/bus-lines?limit=1000&startIndex=1000&f=json" -o bus1.json
           curl -sSL -m 300 "https://www.data.gouv.fr/api/1/datasets/r/abebedc6-28cf-4e2e-9c64-db57a40156f8" -o gtfs.zip || true
           curl -sS -m 60 "https://raw.githubusercontent.com/solal3105/alerte-tcl/horaires/index.json" -o index.json
+          curl -sS -m 60 -A "AlerteTCL/1.0" "$P/passages?id=30016" -o pass.json
           ls -la
+          head -c 1500 pass.json; echo
           head -c 600 veh.json; echo
           python3 - <<'PY'
           import json, re, collections, zipfile, csv, io
@@ -63,4 +65,12 @@ jobs:
               for r in rt:
                   if r['route_short_name'] in watch: print('gtfs', r)
           except Exception as e: print('gtfs ko', e)
+          try:
+              ps = json.load(open('pass.json'))
+              vals = ps.get('values', ps.get('features', ps))
+              print('passages', type(vals), len(vals))
+              for x in (vals if isinstance(vals, list) else [])[:400]:
+                  s2 = json.dumps(x, ensure_ascii=False)
+                  if '21' in s2: print('pass', s2[:400])
+          except Exception as e: print('pass ko', e)
           PY
