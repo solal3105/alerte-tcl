@@ -1,0 +1,20 @@
+name: press-shots
+on:
+  push:
+    branches: [claude/project-thread-lxumai]
+    paths: ['.github/press/**', '.github/workflows/press-shots.yml']
+permissions:
+  contents: write
+jobs:
+  shoot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: cd .github/press && npm init -y >/dev/null && npm i playwright@1.56.1 && npx playwright install --with-deps chromium
+      - run: cd .github/press && node shoot.mjs; cat press-shots/report.txt
+      - run: |
+          git config user.name github-actions && git config user.email github-actions@users.noreply.github.com
+          git add -f .github/press/press-shots
+          git commit -m "Captures des articles de presse" && git push
