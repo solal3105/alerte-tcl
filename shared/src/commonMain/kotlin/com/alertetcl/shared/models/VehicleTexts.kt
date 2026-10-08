@@ -3,36 +3,29 @@ package com.alertetcl.shared.models
 import kotlin.math.abs
 
 /**
- * Les mots de la fiche d'un véhicule, partagés par iOS et Android.
+ * Les mots d'un véhicule, partagés par iOS et Android.
  *
- * La ponctualité se lit en deux morceaux, un chiffre et ce qu'il veut dire (« 2 min », « de retard »),
- * pour qu'un écart ne soit jamais montré sans être nommé. Sous une minute, l'écart n'est pas nommable :
- * le véhicule est annoncé à l'heure, sans chiffre.
+ * Un écart à l'horaire s'écrit toujours avec son sens (« 2 min de retard », « 3 min d'avance ») et
+ * c'est lui seul qui passe en orange. Sous une minute, l'écart n'est pas nommable : le véhicule est
+ * annoncé à l'heure, sans chiffre.
  */
 object VehicleTexts {
     /** En deçà de cet écart, en secondes, le véhicule est annoncé à l'heure. */
-    const val TOLERANCE_SECONDS = 60
+    private const val TOLERANCE_SECONDS = 60
 
-    fun isDelayed(delaySeconds: Int): Boolean = delaySeconds > TOLERANCE_SECONDS
-    fun isEarly(delaySeconds: Int): Boolean = delaySeconds < -TOLERANCE_SECONDS
-    private fun isOnTime(delaySeconds: Int): Boolean = !isDelayed(delaySeconds) && !isEarly(delaySeconds)
+    /** Retard ou avance d'au moins une minute. */
+    fun isOffSchedule(delaySeconds: Int): Boolean = abs(delaySeconds) > TOLERANCE_SECONDS
 
-    /** Le chiffre mis en avant : « 2 min », ou « à l'heure » quand il n'y a pas d'écart à montrer. */
-    fun punctualityAmount(delaySeconds: Int): String =
-        if (isOnTime(delaySeconds)) "à l'heure" else "${(abs(delaySeconds) + 30) / 60} min"
-
-    /** Ce que ce chiffre veut dire, écrit juste en dessous. */
-    fun punctualityCaption(delaySeconds: Int): String = when {
-        isDelayed(delaySeconds) -> "de retard"
-        isEarly(delaySeconds) -> "d'avance"
-        else -> "ponctualité"
+    /** La ponctualité en une phrase : « 2 min de retard », « 3 min d'avance », « À l'heure ». */
+    fun punctuality(delaySeconds: Int): String {
+        if (!isOffSchedule(delaySeconds)) return "À l'heure"
+        val minutes = (abs(delaySeconds) + 30) / 60
+        return "$minutes min ${if (delaySeconds > 0) "de retard" else "d'avance"}"
     }
 
-    /** La phrase entière, pour une pastille : « 2 min de retard », « À l'heure ». */
-    fun punctuality(delaySeconds: Int): String =
-        if (isOnTime(delaySeconds)) "À l'heure"
-        else "${punctualityAmount(delaySeconds)} ${punctualityCaption(delaySeconds)}"
+    /** Titre de l'arrêt que TCL donne pour un véhicule : le dernier qu'il a atteint, jamais le prochain. */
+    const val LAST_STOP = "Dernier arrêt atteint"
 
-    /** Légende de l'heure d'arrivée au prochain arrêt : « arrivée à Bellecour ». */
-    fun arrivalCaption(stopName: String): String = "arrivée à $stopName"
+    /** « Dernier arrêt atteint : Bellecour ». */
+    fun lastStop(stopName: String): String = "$LAST_STOP : $stopName"
 }

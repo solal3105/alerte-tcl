@@ -69,6 +69,11 @@ extension VehicleType {
 
     /// Couleur d'iconographie du type de véhicule (filtres, regroupements sur la carte).
     var clusterColor: Color { Color(hex: AppColors.shared.vehicleType(type: shared)) }
+
+    init?(shared: Shared.VehicleType) {
+        guard let match = VehicleType.allCases.first(where: { $0.shared == shared }) else { return nil }
+        self = match
+    }
 }
 
 extension Vehicle.PositionFreshness {
