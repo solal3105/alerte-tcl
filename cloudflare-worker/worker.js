@@ -24,8 +24,11 @@
  * Cache serveur (stale-while-revalidate) :
  *   Grand Lyon reçoit 1 requête toutes les N secondes quel que soit le nombre
  *   d'utilisateurs. Quand le cache est périmé, on sert l'ancienne réponse
- *   immédiatement et on rafraîchit en arrière-plan via ctx.waitUntil().
- *   TTL par route : vehicles/passages 15 s, parc-relais-tr 30 s,
+ *   immédiatement et on rafraîchit en arrière-plan.
+ *   Routes temps réel (vehicles, passages, alerts, parc-relais-tr, velov) : cache partagé
+ *   par un objet durable (LiveCache), seul cache effectif sur une adresse *.workers.dev.
+ *   Autres routes : caches.default.
+ *   TTL par route : passages 15 s, vehicles/parc-relais-tr 30 s,
  *                   alerts 60 s, velov 60 s, parc-relais statique 1 h, horaires 1 h, GeoServer 24 h.
  *
  * Déploiement : bash cloudflare-worker/deploy.sh
@@ -61,7 +64,7 @@ const GEO_COLLECTIONS = {
 // TTL (secondes) par route — fréquence de rafraîchissement côté serveur.
 // En dehors de ces routes, les collections GeoServer statiques utilisent GEO_TTL.
 const ROUTE_TTL = {
-  "/vehicles":       15,   // positions temps réel
+  "/vehicles":       30,   // positions temps réel (Grand Lyon les publie toutes les 30 s environ)
   "/passages":       15,   // prochains passages
   "/parc-relais-tr": 30,   // occupation P+R temps réel
   "/alerts":         60,   // alertes trafic
@@ -161,10 +164,10 @@ async function passThroughError(upstream) {
 }
 
 /**
- * Variante de doRefresh pour /velov : ~460 stations et 500 Ko côté Grand Lyon,
+ * Chargement de /velov : ~460 stations et 500 Ko côté Grand Lyon,
  * réduits aux champs affichés (≈40 Ko). Horodatage converti en secondes epoch.
  */
-async function doRefreshVelov(cacheKey, cache) {
+async function loadVelov() {
   const upstream = await fetch(VELOV_URL, { method: "GET", headers: { "Accept": "application/json", "User-Agent": "AlerteTCL-proxy/1.0" } });
   if (!upstream.ok) return passThroughError(upstream);
   const data = await upstream.json();
@@ -186,7 +189,7 @@ async function doRefreshVelov(cacheKey, cache) {
       updated:  Number.isNaN(updated) ? null : Math.floor(updated / 1000),
     };
   }).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng) && s.id > 0);
-  return storeDerived(cacheKey, cache, JSON.stringify({ stations }));
+  return new Response(JSON.stringify({ stations }), { headers: { "Content-Type": "application/json" } });
 }
 
 /**
@@ -320,6 +323,154 @@ async function cachedProxyFetch(cacheKeyURL, upstreamURL, authHeaders, ctx, ttl)
   return doRefresh(cacheKey, upstreamURL, authHeaders, cache);
 }
 
+/** En-têtes des appels authentifiés à Grand Lyon (identifiants en secrets Cloudflare). */
+function grandLyonHeaders(env) {
+  return {
+    Authorization: `Basic ${btoa(`${env.GRANDLYON_USERNAME}:${env.GRANDLYON_PASSWORD}`)}`,
+    Accept: "application/json",
+    "User-Agent": "AlerteTCL-Proxy/1.0",
+  };
+}
+
+// ── Cache partagé des routes temps réel ────────────────────────────────────
+// caches.default n'a aucun effet sur une adresse *.workers.dev : toutes les requêtes des
+// applications partaient jusqu'à Grand Lyon (459 requêtes SIRI en cinq minutes, relevées par
+// data.grandlyon.com le 8 octobre 2026). Chaque réponse temps réel est donc gardée par un objet
+// durable LiveCache, un par clé et unique sur tout le réseau Cloudflare, qui ne laisse partir
+// qu'une requête amont à la fois : Grand Lyon reçoit au plus une requête par TTL et par clé,
+// quel que soit le nombre d'utilisateurs. Chaque instance du worker garde aussi la dernière
+// réponse en mémoire jusqu'au TTL, pour ne pas solliciter l'objet durable à chaque appel.
+
+/**
+ * Route temps réel de l'URL : { key, ttl, load(env) }, { error } si les paramètres sont
+ * invalides, null pour une autre route. La clé ne retient que les paramètres utiles, pour
+ * qu'une query string arbitraire ne contourne pas le cache.
+ */
+function liveRoute(url) {
+  const { pathname, searchParams } = url;
+  const relay = (upstreamURL) => (env) => fetch(upstreamURL, { headers: grandLyonHeaders(env) });
+  switch (pathname) {
+    case "/vehicles":
+      return { key: pathname, ttl: ROUTE_TTL[pathname], load: relay(VEHICLES_URL) };
+    case "/alerts":
+      return { key: pathname, ttl: ROUTE_TTL[pathname], load: relay(ALERTS_URL) };
+    case "/parc-relais-tr":
+      return {
+        key: pathname, ttl: ROUTE_TTL[pathname],
+        load: relay(`${GEO_BASE}/${GEO_COLLECTIONS["parc-relais-tr"]}/items?f=application/json&limit=100&sortby=gid`),
+      };
+    case "/velov":
+      return { key: pathname, ttl: ROUTE_TTL[pathname], load: loadVelov };
+    case "/passages": {
+      // Chaque arrêt (et chaque tri) a sa propre clé.
+      const stopId = parsePositiveInt(searchParams.get("id"));
+      if (!stopId) return { error: new Response("Bad Request: missing or invalid id", { status: 400 }) };
+      let query = `?id=${stopId}`;
+      let upstreamURL = `${PASSAGES_URL}?field=id&value=${stopId}&compact=false&maxfeatures=2000`;
+      const sortby = searchParams.get("sortby");
+      const sortorder = searchParams.get("sortorder");
+      if (sortby && ALLOWED_SORTBY.has(sortby)) {
+        query += `&sortby=${sortby}`;
+        upstreamURL += `&sortby=${sortby}`;
+      }
+      if (sortorder && ALLOWED_SORTORDER.has(sortorder)) {
+        query += `&sortorder=${sortorder}`;
+        upstreamURL += `&sortorder=${sortorder}`;
+      }
+      return { key: pathname + query, ttl: ROUTE_TTL[pathname], load: relay(upstreamURL) };
+    }
+    default:
+      return null;
+  }
+}
+
+/** Réponse servie aux applications depuis une entrée de cache { status, body, at }. */
+function liveResponse(entry) {
+  return new Response(entry.body, {
+    status: entry.status,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Cached-At": String(entry.at) },
+  });
+}
+
+// Mémoire de l'instance du worker : clé → { status, body, at } (réponses réussies seulement).
+const isolateEntries = new Map();
+const ISOLATE_MAX_ENTRIES = 300;
+
+async function serveLive(route, env) {
+  const kept = isolateEntries.get(route.key);
+  if (kept && Date.now() - kept.at < route.ttl * 1000) return liveResponse(kept);
+
+  const stub = env.LIVE_CACHE.get(env.LIVE_CACHE.idFromName(route.key));
+  const response = await stub.fetch(`https://live-cache${route.key}`);
+  if (response.ok) {
+    if (isolateEntries.size >= ISOLATE_MAX_ENTRIES) isolateEntries.clear();
+    const entry = {
+      status: response.status,
+      body: await response.arrayBuffer(),
+      at: parseInt(response.headers.get("X-Cached-At") ?? "0", 10),
+    };
+    isolateEntries.set(route.key, entry);
+    return liveResponse(entry);
+  }
+  return response;
+}
+
+/**
+ * Objet durable : dernière réponse d'une route temps réel, en mémoire.
+ *  - Fraîche (âge < ttl)                → servie telle quelle.
+ *  - Périmée                             → servie, rafraîchissement en arrière-plan.
+ *  - Très périmée (après une période creuse) ou absente → rafraîchissement attendu
+ *    (au plus REFRESH_WAIT_MS si une ancienne réponse existe, sinon jusqu'à la réponse amont).
+ * Un seul rafraîchissement à la fois ; après un échec, pas de nouvel essai avant un TTL.
+ */
+export class LiveCache {
+  constructor(state, env) {
+    this.env = env;
+    this.entry = null;      // { status, body, at }
+    this.refreshing = null; // Promise<{ status, body, at }>
+    this.failedAt = 0;
+  }
+
+  async fetch(request) {
+    const route = liveRoute(new URL(request.url));
+    if (!route || route.error) return new Response("Not Found", { status: 404 });
+
+    const ttlMs = route.ttl * 1000;
+    const age = this.entry ? Date.now() - this.entry.at : Infinity;
+    if (age < ttlMs) return liveResponse(this.entry);
+
+    const mayRetry = Date.now() - this.failedAt >= ttlMs;
+    const refresh = this.refreshing ?? (mayRetry ? this.refresh(route) : null);
+    if (!refresh) return this.entry ? liveResponse(this.entry) : new Response("Bad Gateway", { status: 502 });
+
+    if (!this.entry) return liveResponse(await refresh);
+    // Même règle que cachedProxyFetch : au-delà de max(4 × ttl, 60 s), l'ancienne réponse
+    // montrerait des passages déjà écartés par les applications ; on attend la nouvelle.
+    if (age >= Math.max(ttlMs * 4, 60_000)) {
+      await Promise.race([refresh, new Promise(resolve => setTimeout(resolve, REFRESH_WAIT_MS))]);
+    }
+    return liveResponse(this.entry);
+  }
+
+  refresh(route) {
+    this.refreshing = (async () => {
+      try {
+        const upstream = await route.load(this.env);
+        const result = { status: upstream.status, body: await upstream.arrayBuffer(), at: Date.now() };
+        if (upstream.ok) this.entry = result;
+        else this.failedAt = Date.now();
+        return result;
+      } catch {
+        this.failedAt = Date.now();
+        return { status: 502, body: "Bad Gateway", at: Date.now() };
+      } finally {
+        this.refreshing = null;
+      }
+    })();
+    return this.refreshing;
+  }
+}
+
 // ── Collecte des positions ─────────────────────────────────────────────────
 // Une photo compacte du flux véhicules par minute, compressée, rangée par jour et par minute
 // (positions/AAAA-MM-JJ/HH-MM.json.gz, heure UTC). Elle servira à apprendre les temps de
@@ -343,12 +494,7 @@ function compactCall(call) {
 
 async function collectPositions(env) {
   if (!env.POSITIONS || !env.GRANDLYON_USERNAME || !env.GRANDLYON_PASSWORD) return;
-  const authHeaders = {
-    Authorization: `Basic ${btoa(`${env.GRANDLYON_USERNAME}:${env.GRANDLYON_PASSWORD}`)}`,
-    Accept: "application/json",
-    "User-Agent": "AlerteTCL-Proxy/1.0",
-  };
-  const upstream = await fetch(VEHICLES_URL, { headers: authHeaders });
+  const upstream = await fetch(VEHICLES_URL, { headers: grandLyonHeaders(env) });
   if (!upstream.ok) return;
   const data = await upstream.json();
 
@@ -404,17 +550,10 @@ export default {
       return new Response("Method Not Allowed", { status: 405 });
     }
 
-    const username = env.GRANDLYON_USERNAME;
-    const password = env.GRANDLYON_PASSWORD;
-    if (!username || !password) {
+    if (!env.GRANDLYON_USERNAME || !env.GRANDLYON_PASSWORD) {
       return new Response("Worker misconfigured: missing secrets", { status: 500 });
     }
-
-    const authHeaders = {
-      Authorization: `Basic ${btoa(`${username}:${password}`)}`,
-      Accept: "application/json",
-      "User-Agent": "AlerteTCL-Proxy/1.0",
-    };
+    const authHeaders = grandLyonHeaders(env);
 
     const parsedURL = new URL(request.url);
     const { pathname, searchParams } = parsedURL;
@@ -423,46 +562,20 @@ export default {
     // encode les caractères valides comme '/' en '%2F'.
     const rawSearch = parsedURL.search;
 
+    // ── /vehicles | /passages | /alerts | /parc-relais-tr | /velov ──────────
+    // Routes temps réel : cache partagé (voir liveRoute et LiveCache).
+    const live = liveRoute(parsedURL);
+    if (live) return live.error ?? serveLive(live, env);
+
     // La clé de cache = URL complète du worker (sans credentials, qui restent
     // dans authHeaders et ne sont jamais dans l'URL).
     const cacheKeyURL = request.url;
-
-    // ── /alerts ─────────────────────────────────────────────────────────────
-    if (pathname === "/alerts") {
-      return cachedProxyFetch(cacheKeyURL, ALERTS_URL, authHeaders, ctx, ROUTE_TTL["/alerts"]);
-    }
-
-    // ── /passages?id=<int>[&sortby=&sortorder=] ──────────────────────────────
-    // Chaque arrêt a sa propre clé de cache (l'URL worker inclut ?id=…).
-    if (pathname === "/passages") {
-      const stopId = parsePositiveInt(searchParams.get("id"));
-      if (!stopId) {
-        return new Response("Bad Request: missing or invalid id", { status: 400 });
-      }
-      let url = `${PASSAGES_URL}?field=id&value=${stopId}&compact=false&maxfeatures=2000`;
-      const sortby = searchParams.get("sortby");
-      const sortorder = searchParams.get("sortorder");
-      if (sortby && ALLOWED_SORTBY.has(sortby))         url += `&sortby=${sortby}`;
-      if (sortorder && ALLOWED_SORTORDER.has(sortorder)) url += `&sortorder=${sortorder}`;
-      return cachedProxyFetch(cacheKeyURL, url, authHeaders, ctx, ROUTE_TTL["/passages"]);
-    }
-
-    // ── /vehicles ───────────────────────────────────────────────────────────
-    if (pathname === "/vehicles") {
-      return cachedProxyFetch(cacheKeyURL, VEHICLES_URL, authHeaders, ctx, ROUTE_TTL["/vehicles"]);
-    }
 
     // ── /bus-termini ─────────────────────────────────────────────────────────
     // Retourne ligne+sens+nom_destination pour toutes les lignes bus (géométrie strippée).
     // Payload : 22 MB côté GeoServer → ≈50 KB retourné au client.
     if (pathname === "/bus-termini") {
       return cachedDerived(request, ctx, GEO_TTL, (cacheKey, cache) => doRefreshBusTermini(cacheKey, authHeaders, cache));
-    }
-
-    // ── /velov ──────────────────────────────────────────────────────────────
-    // Stations Vélo'v et disponibilité (données publiques, sans credential), allégées.
-    if (pathname === "/velov") {
-      return cachedDerived(request, ctx, ROUTE_TTL["/velov"], doRefreshVelov);
     }
 
     // ── /line-mapping ────────────────────────────────────────────────────────
