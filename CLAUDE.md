@@ -209,6 +209,11 @@ et un bandeau « Tout afficher » apparaît quand les filtres masquent tous les 
   arrêts et des passages (`TransitStop.isDisplayedLine`).
 - Les composants communs sont décrits dans `DESIGN.md` : badge de ligne (`LineBadge`), en-tête de
   feuille (`SheetHeader`), états chargement / vide / erreur, textes des alertes.
+- Crédits du fond de carte : les cartes Android masquent le bouton d'attribution de MapLibre (choix de
+  Solal du 12 octobre 2026, pour ne pas charger la carte). La licence d'OpenStreetMap exige pourtant de
+  les citer : c'est la section « Fond de carte » de l'onglet Info qui le fait (OpenStreetMap avec lien
+  vers sa page de copyright, OpenMapTiles via OpenFreeMap, Esri pour la vue satellite ; Plans d'Apple
+  sur iOS). Ne pas la retirer, et y ajouter toute nouvelle source de carte.
 
 ### Widgets iOS
 
