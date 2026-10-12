@@ -253,7 +253,7 @@ struct AboutView: View {
             dataRow(
                 icon: "map.fill",
                 title: "Plans d'Apple",
-                text: "Le plan et la vue satellite. Les mentions légales sont en bas de chaque carte.",
+                text: "Le plan et la vue satellite.",
                 url: nil
             )
             .background(card)

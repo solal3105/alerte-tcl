@@ -255,12 +255,12 @@ private fun MapSources() {
         Card(Modifier.fillMaxWidth()) {
             Column {
                 DataRow(Icons.Filled.Map, "OpenStreetMap",
-                    "Rues, bâtiments et noms de lieux du plan. © les contributeurs OpenStreetMap, sous licence ODbL.") {
+                    "Rues, bâtiments et noms de lieux du plan. © les contributeurs d'OpenStreetMap, sous licence ODbL.") {
                     openUrl(context, "https://www.openstreetmap.org/copyright")
                 }
                 HorizontalDivider(modifier = Modifier.padding(start = 66.dp))
                 DataRow(Icons.Filled.Layers, "OpenFreeMap",
-                    "Le dessin du plan, à partir d'OpenMapTiles.") {
+                    "Le dessin du plan. © OpenMapTiles.") {
                     openUrl(context, "https://openfreemap.org")
                 }
                 HorizontalDivider(modifier = Modifier.padding(start = 66.dp))
