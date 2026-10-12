@@ -23,10 +23,13 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LocationCity
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonOff
+import androidx.compose.material.icons.filled.SatelliteAlt
 import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.OpenInNew
@@ -58,7 +61,8 @@ import com.alertetcl.android.ui.theme.Tokens
 
 /**
  * Onglet Info : l'application d'abord (icône, nom, accroche, quatre promesses), puis qui est
- * derrière, ses autres projets avec leurs logos, d'où viennent les données. Une seule teinte
+ * derrière, ses autres projets avec leurs logos, d'où viennent les données et le fond de carte
+ * (crédits OpenStreetMap exigés par sa licence, absents des cartes elles-mêmes). Une seule teinte
  * d'interface (l'accent), le vert réservé à l'étiquette d'élu écologiste.
  */
 @Composable
@@ -77,6 +81,7 @@ fun AboutScreen() {
         item { Author() }
         item { Projects() }
         item { DataSources() }
+        item { MapSources() }
         item { Footer(versionName) }
     }
 }
@@ -237,6 +242,30 @@ private fun DataSources() {
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(18.dp)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapSources() {
+    val context = LocalContext.current
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        SectionTitle("Fond de carte")
+        Card(Modifier.fillMaxWidth()) {
+            Column {
+                DataRow(Icons.Filled.Map, "OpenStreetMap",
+                    "Rues, bâtiments et noms de lieux du plan. © les contributeurs OpenStreetMap, sous licence ODbL.") {
+                    openUrl(context, "https://www.openstreetmap.org/copyright")
+                }
+                HorizontalDivider(modifier = Modifier.padding(start = 66.dp))
+                DataRow(Icons.Filled.Layers, "OpenFreeMap",
+                    "Le dessin du plan, à partir d'OpenMapTiles.") {
+                    openUrl(context, "https://openfreemap.org")
+                }
+                HorizontalDivider(modifier = Modifier.padding(start = 66.dp))
+                DataRow(Icons.Filled.SatelliteAlt, "Esri",
+                    "La vue satellite. Images © Esri, Maxar, Earthstar Geographics.", onClick = null)
             }
         }
     }

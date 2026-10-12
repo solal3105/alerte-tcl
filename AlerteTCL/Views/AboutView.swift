@@ -23,6 +23,7 @@ struct AboutView: View {
                     author
                     projects
                     data
+                    mapSource
                     footer
                 }
                 .padding(.horizontal, 20)
@@ -240,6 +241,21 @@ struct AboutView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(18)
             }
+            .background(card)
+        }
+    }
+
+    // MARK: Le fond de carte
+
+    private var mapSource: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionTitle("Fond de carte")
+            dataRow(
+                icon: "map.fill",
+                title: "Plans d'Apple",
+                text: "Le plan et la vue satellite. Les mentions légales sont en bas de chaque carte.",
+                url: nil
+            )
             .background(card)
         }
     }
