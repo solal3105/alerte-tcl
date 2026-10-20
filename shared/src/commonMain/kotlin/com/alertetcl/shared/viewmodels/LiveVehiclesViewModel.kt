@@ -4,6 +4,7 @@ import com.alertetcl.shared.models.AnimatedVehicle
 import com.alertetcl.shared.models.StopLineFocus
 import com.alertetcl.shared.models.Vehicle
 import com.alertetcl.shared.models.VehicleType
+import com.alertetcl.shared.network.LivePolling
 import com.alertetcl.shared.services.SiriLiteService
 import com.alertetcl.shared.util.AppLogger
 import kotlinx.coroutines.CoroutineScope
@@ -18,13 +19,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
-import kotlin.math.min
-import kotlin.math.pow
 
 class LiveVehiclesViewModel(
     private val service: SiriLiteService = SiriLiteService.shared,
-    private val pollIntervalMs: Long = 15_000L,
-    private val maxIntervalMs: Long  = 60_000L,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -60,14 +57,8 @@ class LiveVehiclesViewModel(
 
     private var pollingJob: Job? = null
     private var consecutiveErrors = 0
-
-    /**
-     * Intervalle adaptatif : nominal à 15 s (aligné TTL cache Cloudflare),
-     * backoff exponentiel sur erreurs consécutives, plafonné à 60 s.
-     */
-    private val adaptiveIntervalMs: Long
-        get() = if (consecutiveErrors == 0) pollIntervalMs
-                else min((pollIntervalMs * 1.5.pow(consecutiveErrors.toDouble())).toLong(), maxIntervalMs)
+    /** Délai annoncé par le relais lors du dernier fetch réussi (rythme : [LivePolling]). */
+    private var refreshInMs: Long? = null
 
     fun focusOnStop(focus: StopLineFocus) { _stopFocus.value = focus }
 
@@ -86,10 +77,8 @@ class LiveVehiclesViewModel(
             while (isActive) {
                 val fetchStart = Clock.System.now().toEpochMilliseconds()
                 fetchOnce()
-                // Cycle net = adaptiveInterval : on soustrait la durée du fetch
-                // pour garder un intervalle total stable (parité iOS).
                 val fetchDuration = Clock.System.now().toEpochMilliseconds() - fetchStart
-                delay(maxOf(adaptiveIntervalMs - fetchDuration, 2_000L))
+                delay(LivePolling.nextDelayMs(refreshInMs, fetchDuration, consecutiveErrors))
             }
         }
     }
@@ -109,8 +98,9 @@ class LiveVehiclesViewModel(
     private suspend fun fetchOnce() {
         _isLoading.value = true
         try {
-            val newList = service.fetchVehicles()
-            updateAnimated(newList)
+            val batch = service.fetchVehicles()
+            updateAnimated(batch.vehicles)
+            refreshInMs = batch.refreshInMs
             _errorMessage.value = null
             _lastUpdateEpochMs.value = Clock.System.now().toEpochMilliseconds()
             consecutiveErrors = 0
