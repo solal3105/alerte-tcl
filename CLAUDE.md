@@ -125,7 +125,10 @@ effet : sans cache réel, chaque appel des applications partait jusqu'à data.gr
 plaint en octobre 2026. Les routes temps réel (`/vehicles`, `/passages`, `/alerts`, `/parc-relais-tr`,
 `/velov`) passent donc par l'objet durable `LiveCache` (`liveRoute` dans `worker.js`) : au plus une
 requête amont par TTL et par clé, quel que soit le nombre d'utilisateurs. Toute nouvelle route qui
-interroge Grand Lyon souvent doit passer par `liveRoute`. Mise en ligne manuelle : `bash cloudflare-worker/deploy.sh`,
+interroge Grand Lyon souvent doit passer par `liveRoute`. `/vehicles` ne suit pas un TTL fixe : la copie
+expire juste après la vague suivante attendue chez Grand Lyon (`vehiclesFreshUntil`, d'après la position la
+plus récente du lot) et l'en-tête `X-Refresh-In` dit aux applications quand redemander (`LivePolling`,
+module partagé, 15 s si l'en-tête manque). Mise en ligne manuelle : `bash cloudflare-worker/deploy.sh`,
 qui vérifie aussi que le cache répond.
 
 ### Ligne RX
