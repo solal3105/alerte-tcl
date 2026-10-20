@@ -55,21 +55,27 @@ actor SIRILiteService {
     
     private init() {}
     
-    func fetchVehiclePositions() async throws -> [Vehicle] {
+    /// Positions reçues, et délai annoncé par le relais avant sa copie suivante (rythme : `LivePolling`).
+    struct VehicleBatch {
+        let vehicles: [Vehicle]
+        let refreshInMs: Int64?
+    }
+
+    func fetchVehiclePositions() async throws -> VehicleBatch {
         #if DEBUG
         // Mode démo (-demo <cas>) : états simulés pour capture d'écran, cf. DemoShowcase.
         if let mode = DemoShowcase.current {
             switch mode {
             case "vide":
-                return []
+                return VehicleBatch(vehicles: [], refreshInMs: nil)
             case "erreur401":
                 throw ServiceError.unauthorized
             case "fige":
                 DemoShowcase.vehicleFetchCount += 1
                 if DemoShowcase.vehicleFetchCount > 1 { throw ServiceError.httpError(503) }
-                return DemoShowcase.vehicles()
+                return VehicleBatch(vehicles: DemoShowcase.vehicles(), refreshInMs: nil)
             default:
-                return DemoShowcase.vehicles()
+                return VehicleBatch(vehicles: DemoShowcase.vehicles(), refreshInMs: nil)
             }
         }
         #endif
@@ -115,7 +121,8 @@ actor SIRILiteService {
             }
             #endif
             
-            return vehicles
+            let refreshIn = httpResponse.value(forHTTPHeaderField: LivePolling.shared.REFRESH_IN_HEADER)
+            return VehicleBatch(vehicles: vehicles, refreshInMs: LivePolling.shared.refreshInMs(header: refreshIn)?.int64Value)
         } catch {
             #if DEBUG
             AppLogger.debug("❌ Erreur de décodage SIRI: \(error)")
@@ -160,8 +167,7 @@ actor SIRILiteService {
             let destination = extractDestination(from: journey.DestinationRef?.value)
             let delay = parseDelay(journey.Delay)
             
-            // Extraire les informations d'arrêts
-            let nextStop = parseMonitoredCall(journey.MonitoredCall)
+            let lastStop = parseMonitoredCall(journey.MonitoredCall)
             
             return Vehicle(
                 id: stableId,
@@ -177,7 +183,7 @@ actor SIRILiteService {
                 status: journey.VehicleStatus,
                 recordedAt: parseISO8601Date(activity.RecordedAtTime),
                 validUntil: parseISO8601Date(activity.ValidUntilTime),
-                nextStop: nextStop
+                lastStop: lastStop
             )
         }
     }
@@ -188,15 +194,13 @@ actor SIRILiteService {
             return nil
         }
 
-        // MonitoredCall = dernier arrêt surveillé (SIRI). Affiché comme tel dans l'UI,
-        // quel que soit le DepartureStatus.
+        // MonitoredCall = dernier arrêt atteint par le véhicule, qu'il y soit encore ou qu'il l'ait quitté.
         return StopInfo(
             id: stopRef,
             stopRef: stopRef,
             stopName: extractStopName(from: stopRef),
             aimedArrivalTime: parseISO8601Date(call.AimedArrivalTime),
             aimedDepartureTime: parseISO8601Date(call.AimedDepartureTime),
-            distanceFromStop: call.DistanceFromStop,
             order: call.Order
         )
     }

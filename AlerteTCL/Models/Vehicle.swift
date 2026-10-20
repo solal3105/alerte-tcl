@@ -18,32 +18,18 @@ struct Vehicle: Identifiable, Hashable {
     let status: String?
     let recordedAt: Date?
     let validUntil: Date?
-    let nextStop: StopInfo?
+    /// Le dernier arrêt atteint (MonitoredCall SIRI) : TCL ne donne jamais le prochain.
+    let lastStop: StopInfo?
     
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
     
-    /// Ponctualité : le chiffre, ce qu'il veut dire, et la phrase entière (règles du module partagé).
-    var delayAmount: String { VehicleTexts.shared.punctualityAmount(delaySeconds: Int32(delay)) }
-    var delayCaption: String { VehicleTexts.shared.punctualityCaption(delaySeconds: Int32(delay)) }
+    /// Ponctualité en une phrase (« 2 min de retard », « À l'heure »), règles du module partagé.
     var delayText: String { VehicleTexts.shared.punctuality(delaySeconds: Int32(delay)) }
 
-    var isDelayed: Bool { VehicleTexts.shared.isDelayed(delaySeconds: Int32(delay)) }
-
-    var isEarly: Bool { VehicleTexts.shared.isEarly(delaySeconds: Int32(delay)) }
-
-    /// Arrivée au prochain arrêt : son horaire prévu corrigé du retard constaté, comme l'estimation
-    /// de « Où est mon bus ». Nil quand TCL ne donne pas d'horaire pour cet arrêt.
-    var nextStopArrival: Date? {
-        guard let stop = nextStop, let aimed = stop.aimedArrivalTime ?? stop.aimedDepartureTime else { return nil }
-        return aimed.addingTimeInterval(TimeInterval(delay))
-    }
-
-    /// Légende de cette heure : « arrivée à Bellecour ». Nil sans nom d'arrêt.
-    var nextStopArrivalCaption: String? {
-        nextStop?.stopName.map { VehicleTexts.shared.arrivalCaption(stopName: $0) }
-    }
+    /// Retard ou avance d'au moins une minute : la ponctualité s'écrit alors en orange.
+    var isOffSchedule: Bool { VehicleTexts.shared.isOffSchedule(delaySeconds: Int32(delay)) }
 
     /// Numéro de parc extrait du VehicleRef SIRI (ex. "ActIV:Vehicle:Bus:1512:LOC" → "1512").
     var fleetNumber: String? {
@@ -87,7 +73,7 @@ struct Vehicle: Identifiable, Hashable {
             vehicleType: vehicleType.shared, destination: destination, direction: direction, delay: Int32(delay), status: status,
             recordedAtEpoch: recordedAt.map { KotlinLong(value: Int64($0.timeIntervalSince1970)) },
             validUntilEpoch: validUntil.map { KotlinLong(value: Int64($0.timeIntervalSince1970)) },
-            nextStop: nextStop?.shared
+            lastStop: lastStop?.shared
         )
     }
 
@@ -108,14 +94,7 @@ struct StopInfo: Identifiable, Hashable {
     let stopName: String?
     let aimedArrivalTime: Date?
     let aimedDepartureTime: Date?
-    let distanceFromStop: Int?
     let order: Int?
-    
-    var timeUntilArrival: TimeInterval? {
-        guard let arrivalTime = aimedArrivalTime else { return nil }
-        return arrivalTime.timeIntervalSinceNow
-    }
-    
 }
 
 enum VehicleType: String, CaseIterable {
@@ -200,7 +179,6 @@ struct MonitoredCall: Codable {
     let AimedDepartureTime: String?
     let ActualDepartureTime: String?
     let DepartureStatus: String?
-    let DistanceFromStop: Int?
     let StopPointRef: RefValue?
     let Order: Int?
 }
@@ -216,7 +194,6 @@ extension StopInfo {
             id: id, stopRef: stopRef, stopName: stopName,
             aimedArrivalTimeEpoch: aimedArrivalTime.map { KotlinLong(value: Int64($0.timeIntervalSince1970)) },
             aimedDepartureTimeEpoch: aimedDepartureTime.map { KotlinLong(value: Int64($0.timeIntervalSince1970)) },
-            distanceFromStop: distanceFromStop.map { KotlinInt(value: Int32($0)) },
             order: order.map { KotlinInt(value: Int32($0)) }
         )
     }

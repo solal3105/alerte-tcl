@@ -66,11 +66,8 @@ final class LiveVehiclesViewModel: ObservableObject {
     private var streamTask: Task<Void, Never>?
     private var regionUpdateTask: Task<Void, Never>?
     private var consecutiveErrors = 0
-    /// L'API SIRI Lite TCL publie de nouvelles positions toutes les ~15 s.
-    /// On fetch à 15 s pour aligner avec le TTL du cache Cloudflare (15 s) :
-    /// chaque requête retourne des données fraîches. Grand Lyon reçoit ≤ 1 req/15 s.
-    private let baseInterval: TimeInterval = 15
-    private let maxInterval: TimeInterval = 60
+    /// Délai annoncé par le relais lors du dernier fetch réussi (rythme : `LivePolling`, module partagé).
+    private var refreshInMs: Int64?
     private var isFirstLoad = true
     
     private var cachedAvailableLines: [String] = []
@@ -253,8 +250,8 @@ final class LiveVehiclesViewModel: ObservableObject {
         guard let result else { return }
 
         switch result {
-        case .success(let fetchedVehicles):
-            applyFetchedVehicles(fetchedVehicles)
+        case .success(let batch):
+            applyFetchedVehicles(batch)
             isInitialLoadComplete = true
         case .failure(let lastError):
             // Toutes les tentatives ont échoué
@@ -263,7 +260,9 @@ final class LiveVehiclesViewModel: ObservableObject {
     }
 
     /// Applique un lot de véhicules fraîchement récupéré (état, animation, filtrage).
-    private func applyFetchedVehicles(_ fetched: [Vehicle]) {
+    private func applyFetchedVehicles(_ batch: SIRILiteService.VehicleBatch) {
+        let fetched = batch.vehicles
+        refreshInMs = batch.refreshInMs
         updateAnimatedVehicles(with: fetched)
         // Les véhicules dont TCL n'a pas retransmis la position depuis `Vehicle.hideAfterSeconds` quittent la carte.
         vehicles = mergeWithGracePeriodVehicles(fetched).filter(\.isShownOnMap)
@@ -336,12 +335,6 @@ final class LiveVehiclesViewModel: ObservableObject {
     
     // MARK: - Live Data Stream
     
-    /// Intervalle effectif du stream temps réel (backoff progressif sur erreurs) — lu par le badge LIVE.
-    var adaptiveInterval: TimeInterval {
-        guard consecutiveErrors > 0 else { return baseInterval }
-        return min(baseInterval * pow(1.5, Double(consecutiveErrors)), maxInterval)
-    }
-    
     func startLiveStream() {
         // Si le stream tourne déjà, ne pas le redémarrer inutilement
         // (évite le freeze de l'animationTask lors de transitions .inactive → .active)
@@ -355,11 +348,13 @@ final class LiveVehiclesViewModel: ObservableObject {
                 
                 let fetchStart = Date()
                 await self.fetchVehiclesQuietly()
-                let fetchDuration = Date().timeIntervalSince(fetchStart)
-                
-                // Pipeline: subtract fetch time from interval so total cycle = adaptiveInterval
-                let wait = max(self.adaptiveInterval - fetchDuration, 2.0)
-                try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+                let fetchDurationMs = Int64(Date().timeIntervalSince(fetchStart) * 1000)
+                let waitMs = LivePolling.shared.nextDelayMs(
+                    refreshInMs: self.refreshInMs.map { KotlinLong(value: $0) },
+                    fetchDurationMs: fetchDurationMs,
+                    consecutiveErrors: Int32(self.consecutiveErrors)
+                )
+                try? await Task.sleep(nanoseconds: UInt64(waitMs) * 1_000_000)
             }
         }
     }
@@ -381,8 +376,7 @@ final class LiveVehiclesViewModel: ObservableObject {
     
     private func fetchVehiclesQuietly() async {
         do {
-            let fetched = try await SIRILiteService.shared.fetchVehiclePositions()
-            applyFetchedVehicles(fetched)
+            applyFetchedVehicles(try await SIRILiteService.shared.fetchVehiclePositions())
         } catch {
             consecutiveErrors += 1
             // Only surface error after 3 consecutive failures (transient tolerance)

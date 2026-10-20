@@ -14,17 +14,6 @@ data class Passage(
 ) {
     val id: String get() = "$stopId-$ligne-$heurepassage"
     val isRealTime: Boolean get() = type == "E"
-    val isTheoretical: Boolean get() = type == "T"
-
-    /** Format `HH:mm` (extrait de heurepassage `yyyy-MM-dd HH:mm:ss`). */
-    val formattedTime: String get() {
-        val parts = heurepassage.split(" ")
-        if (parts.size >= 2) {
-            val tp = parts[1].split(":")
-            if (tp.size >= 2) return "${tp[0]}:${tp[1]}"
-        }
-        return heurepassage
-    }
 }
 
 @Serializable

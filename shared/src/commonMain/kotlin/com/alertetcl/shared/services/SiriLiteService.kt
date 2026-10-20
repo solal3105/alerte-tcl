@@ -7,6 +7,7 @@ import com.alertetcl.shared.models.VehicleType
 import com.alertetcl.shared.network.ApiError
 import com.alertetcl.shared.util.DemoShowcase
 import com.alertetcl.shared.network.HttpClientProvider
+import com.alertetcl.shared.network.LivePolling
 import com.alertetcl.shared.network.NetworkConfiguration
 import com.alertetcl.shared.network.dto.MonitoredCallDto
 import com.alertetcl.shared.network.dto.SIRIResponse
@@ -20,6 +21,9 @@ import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
+
+/** Positions reçues, et délai annoncé par le relais avant sa copie suivante (cf. [LivePolling]). */
+data class VehicleBatch(val vehicles: List<Vehicle>, val refreshInMs: Long?)
 
 /**
  * Service de chargement des véhicules SIRI Lite (positions temps réel).
@@ -39,18 +43,18 @@ class SiriLiteService {
     private val trolleyRegex      = Regex("^TB\\d+$")
     private val funicularRegex    = Regex("^F\\d*$")
 
-    suspend fun fetchVehicles(): List<Vehicle> {
+    suspend fun fetchVehicles(): VehicleBatch {
         // Mode démo : états simulés pour capture d'écran, cf. DemoShowcase.
         DemoShowcase.current?.let { mode ->
             when (mode) {
-                "vide"      -> return emptyList()
+                "vide"      -> return VehicleBatch(emptyList(), null)
                 "erreur401" -> throw ApiError.Unauthorized
                 "fige"      -> {
                     DemoShowcase.vehicleFetchCount += 1
                     if (DemoShowcase.vehicleFetchCount > 1) throw ApiError.HttpError(503)
-                    return DemoShowcase.vehicles()
+                    return VehicleBatch(DemoShowcase.vehicles(), null)
                 }
-                else        -> return DemoShowcase.vehicles()
+                else        -> return VehicleBatch(DemoShowcase.vehicles(), null)
             }
         }
         val response: HttpResponse = safeRequest {
@@ -66,7 +70,10 @@ class SiriLiteService {
         val body: SIRIResponse = safeDecode { response.body() }
 
         val lineMapping = LineMappingService.shared.loadMapping()
-        return parseVehicles(body, lineMapping)
+        return VehicleBatch(
+            parseVehicles(body, lineMapping),
+            LivePolling.refreshInMs(response.headers[LivePolling.REFRESH_IN_HEADER])
+        )
     }
 
     private fun parseVehicles(siri: SIRIResponse, lineMapping: Map<String, String>): List<Vehicle> {
@@ -93,7 +100,7 @@ class SiriLiteService {
             val destination = extractDestination(journey.DestinationRef?.value)
             val direction = DirectionMatching.siriDirectionCode(journey.DirectionRef?.value)
             val delay = parseDurationSeconds(journey.Delay)
-            val nextStop = parseMonitoredCall(journey.MonitoredCall)
+            val lastStop = parseMonitoredCall(journey.MonitoredCall)
 
             Vehicle(
                 id = vehicleId,
@@ -109,23 +116,20 @@ class SiriLiteService {
                 status = journey.VehicleStatus,
                 recordedAtEpoch = parseIsoEpoch(activity.RecordedAtTime),
                 validUntilEpoch = parseIsoEpoch(activity.ValidUntilTime),
-                nextStop = nextStop
+                lastStop = lastStop
             )
         }
     }
 
     private fun parseMonitoredCall(c: MonitoredCallDto?): StopInfo? {
         val ref = c?.StopPointRef?.value ?: return null
-        // MonitoredCall = dernier arrêt surveillé, pas forcément le prochain.
-        // Si le bus a déjà quitté cet arrêt, on ne l'affiche pas.
-        if (c.DepartureStatus == "departed") return null
+        // MonitoredCall = dernier arrêt atteint par le véhicule, qu'il y soit encore ou qu'il l'ait quitté.
         return StopInfo(
             id = ref,
             stopRef = ref,
             stopName = extractStopName(ref),
             aimedArrivalTimeEpoch = parseIsoEpoch(c.AimedArrivalTime),
             aimedDepartureTimeEpoch = parseIsoEpoch(c.AimedDepartureTime),
-            distanceFromStop = c.DistanceFromStop,
             order = c.Order
         )
     }

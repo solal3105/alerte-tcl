@@ -67,35 +67,11 @@ struct Passage: Identifiable, Hashable, Codable {
     let heurepassage: String
     let type: String // E = Estimé (temps réel), T = Théorique (horaire papier)
 
-    var isRealTime: Bool {
-        type == "E"
-    }
-
     /// Le même passage pour le module partagé (regroupement par sens, « où est mon bus »).
     var shared: Shared.Passage {
         Shared.Passage(stopId: Int32(stopId), ligne: ligne, direction: direction, delaipassage: delaipassage, heurepassage: heurepassage, type: type)
     }
 
-    var isTheoretical: Bool {
-        type == "T"
-    }
-    
-    var lineColor: Color {
-        TransportMode.detectFromLine(ligne).color
-    }
-    
-    var formattedTime: String {
-        // Parse heurepassage to get just the time
-        let parts = heurepassage.split(separator: " ")
-        if parts.count >= 2 {
-            let timeParts = parts[1].split(separator: ":")
-            if timeParts.count >= 2 {
-                return "\(timeParts[0]):\(timeParts[1])"
-            }
-        }
-        return heurepassage
-    }
-    
     enum CodingKeys: String, CodingKey {
         case stopId = "id"
         case ligne

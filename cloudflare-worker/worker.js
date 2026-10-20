@@ -30,6 +30,8 @@
  *   Autres routes : caches.default.
  *   TTL par route : passages 15 s, vehicles/parc-relais-tr 30 s,
  *                   alerts 60 s, velov 60 s, parc-relais statique 1 h, horaires 1 h, GeoServer 24 h.
+ *   /vehicles suit les vagues de publication de Grand Lyon (vehiclesFreshUntil) et
+ *   annonce la prochaine dans l'en-tête X-Refresh-In, que les applications suivent.
  *
  * Déploiement : bash cloudflare-worker/deploy.sh
  */
@@ -64,7 +66,7 @@ const GEO_COLLECTIONS = {
 // TTL (secondes) par route — fréquence de rafraîchissement côté serveur.
 // En dehors de ces routes, les collections GeoServer statiques utilisent GEO_TTL.
 const ROUTE_TTL = {
-  "/vehicles":       30,   // positions temps réel (Grand Lyon les publie toutes les 30 s environ)
+  "/vehicles":       30,   // positions temps réel : sert à la reprise après échec, la fraîcheur suit vehiclesFreshUntil
   "/passages":       15,   // prochains passages
   "/parc-relais-tr": 30,   // occupation P+R temps réel
   "/alerts":         60,   // alertes trafic
@@ -359,7 +361,7 @@ function liveRoute(url) {
     fetch(upstreamURL, { headers: grandLyonHeaders(env), signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
   switch (pathname) {
     case "/vehicles":
-      return { key: pathname, ttl: ROUTE_TTL[pathname], load: relay(VEHICLES_URL) };
+      return { key: pathname, ttl: ROUTE_TTL[pathname], load: relay(VEHICLES_URL), freshUntil: vehiclesFreshUntil };
     case "/alerts":
       return { key: pathname, ttl: ROUTE_TTL[pathname], load: relay(ALERTS_URL) };
     case "/parc-relais-tr":
@@ -392,21 +394,55 @@ function liveRoute(url) {
   }
 }
 
-/** Réponse servie aux applications depuis une entrée de cache { status, body, at }. */
+// Les positions arrivent chez Grand Lyon par vagues, environ toutes les 30 s, à des instants
+// irréguliers ; la position la plus récente d'une vague a 0 à 3 s quand elle paraît (mesure du
+// 20 octobre 2026). Plutôt qu'un TTL fixe compté depuis notre dernier appel, la copie des
+// véhicules expire juste après la vague suivante attendue (position la plus récente du lot
+// + VEHICLES_WAVE_MS). Si cette vague devrait déjà être là mais n'y est pas (en retard), on
+// redemande VEHICLES_RETRY_MS plus tard ; si le flux ne bouge plus (nuit, panne), au rythme
+// lent VEHICLES_MAX_GAP_MS.
+const VEHICLES_WAVE_MS    = 33000;
+const VEHICLES_RETRY_MS   = 6000;
+const VEHICLES_MAX_GAP_MS = 45000;
+const VEHICLES_STALLED_MS = 90000;
+const RECORDED_AT = /"RecordedAtTime"\s*:\s*"([^"]+)"/g;
+
+function vehiclesFreshUntil(body, fetchedAt) {
+  let newest = 0;
+  for (const match of new TextDecoder().decode(body).matchAll(RECORDED_AT)) {
+    const time = Date.parse(match[1]);
+    if (time > newest) newest = time;
+  }
+  if (fetchedAt - newest > VEHICLES_STALLED_MS) return fetchedAt + VEHICLES_MAX_GAP_MS;
+  const expected = newest + VEHICLES_WAVE_MS;
+  if (expected <= fetchedAt) return fetchedAt + VEHICLES_RETRY_MS;
+  return Math.min(expected, fetchedAt + VEHICLES_MAX_GAP_MS);
+}
+
+/**
+ * Réponse servie aux applications depuis une entrée de cache { status, body, at, freshUntil }.
+ * X-Refresh-In (ms) dit aux applications quand redemander pour tomber sur la copie suivante.
+ */
 function liveResponse(entry) {
   return new Response(entry.body, {
     status: entry.status,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Cached-At": String(entry.at) },
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Cached-At": String(entry.at),
+      "X-Fresh-Until": String(entry.freshUntil),
+      "X-Refresh-In": String(Math.max(0, entry.freshUntil - Date.now())),
+    },
   });
 }
 
-// Mémoire de l'instance du worker : clé → { status, body, at } (réponses réussies seulement).
+// Mémoire de l'instance du worker : clé → { status, body, at, freshUntil } (réponses réussies seulement).
 const isolateEntries = new Map();
 const ISOLATE_MAX_ENTRIES = 300;
 
 async function serveLive(route, env) {
   const kept = isolateEntries.get(route.key);
-  if (kept && Date.now() - kept.at < route.ttl * 1000) return liveResponse(kept);
+  if (kept && Date.now() < kept.freshUntil) return liveResponse(kept);
 
   const stub = env.LIVE_CACHE.get(env.LIVE_CACHE.idFromName(route.key));
   const response = await stub.fetch(`https://live-cache${route.key}`);
@@ -416,6 +452,7 @@ async function serveLive(route, env) {
       status: response.status,
       body: await response.arrayBuffer(),
       at: parseInt(response.headers.get("X-Cached-At") ?? "0", 10),
+      freshUntil: parseInt(response.headers.get("X-Fresh-Until") ?? "0", 10),
     };
     isolateEntries.set(route.key, entry);
     return liveResponse(entry);
@@ -428,8 +465,9 @@ async function serveLive(route, env) {
 /**
  * Objet durable : dernière réponse d'une route temps réel, en mémoire (perdue quand l'objet,
  * inactif quelques secondes, est déchargé : la demande suivante la recharge).
- *  - Fraîche (âge < ttl)                → servie telle quelle.
- *  - Périmée                             → servie, rafraîchissement en arrière-plan.
+ *  - Fraîche (avant freshUntil : ttl, ou vague suivante pour les véhicules) → servie telle quelle.
+ *  - Périmée                             → servie, rafraîchissement en arrière-plan ; pour une route
+ *    calée sur les vagues amont, la nouvelle copie est attendue (au plus REFRESH_WAIT_MS).
  *  - Très périmée (après une période creuse) ou absente → rafraîchissement attendu
  *    (au plus REFRESH_WAIT_MS si une ancienne réponse existe, sinon jusqu'à la réponse amont).
  * Un seul rafraîchissement à la fois ; après un échec, pas de nouvel essai avant
@@ -438,8 +476,8 @@ async function serveLive(route, env) {
 export class LiveCache {
   constructor(state, env) {
     this.env = env;
-    this.entry = null;      // { status, body, at }
-    this.refreshing = null; // Promise<{ status, body, at }>
+    this.entry = null;      // { status, body, at, freshUntil }
+    this.refreshing = null; // Promise<{ status, body, at, freshUntil }>
     this.failedAt = 0;
   }
 
@@ -447,18 +485,19 @@ export class LiveCache {
     const route = liveRoute(new URL(request.url));
     if (!route || route.error) return new Response("Not Found", { status: 404 });
 
-    const ttlMs = route.ttl * 1000;
-    const age = this.entry ? Date.now() - this.entry.at : Infinity;
-    if (age < ttlMs) return liveResponse(this.entry);
+    const now = Date.now();
+    if (this.entry && now < this.entry.freshUntil) return liveResponse(this.entry);
 
-    const mayRetry = Date.now() - this.failedAt >= Math.min(ttlMs, RETRY_AFTER_FAILURE_MS);
+    const ttlMs = route.ttl * 1000;
+    const mayRetry = now - this.failedAt >= Math.min(ttlMs, RETRY_AFTER_FAILURE_MS);
     const refresh = this.refreshing ?? (mayRetry ? this.refresh(route) : null);
     if (!refresh) return this.entry ? liveResponse(this.entry) : new Response("Bad Gateway", { status: 502 });
 
     if (!this.entry) return liveResponse(await refresh);
-    // Même règle que cachedProxyFetch : au-delà de max(4 × ttl, 60 s), l'ancienne réponse
+    // Route calée sur les vagues amont : la copie suivante vient d'être publiée, on l'attend.
+    // Sinon, même règle que cachedProxyFetch : au-delà de max(4 × ttl, 60 s), l'ancienne réponse
     // montrerait des passages déjà écartés par les applications ; on attend la nouvelle.
-    if (age >= Math.max(ttlMs * 4, 60_000)) {
+    if (route.freshUntil || now - this.entry.at >= Math.max(ttlMs * 4, 60_000)) {
       let timer;
       await Promise.race([refresh, new Promise(resolve => { timer = setTimeout(resolve, REFRESH_WAIT_MS); })]);
       clearTimeout(timer);
@@ -470,13 +509,17 @@ export class LiveCache {
     this.refreshing = (async () => {
       try {
         const upstream = await route.load(this.env);
-        const result = { status: upstream.status, body: await upstream.arrayBuffer(), at: Date.now() };
+        const body = await upstream.arrayBuffer();
+        const at = Date.now();
+        const freshUntil = route.freshUntil ? route.freshUntil(body, at) : at + route.ttl * 1000;
+        const result = { status: upstream.status, body, at, freshUntil };
         if (upstream.ok) this.entry = result;
         else this.failedAt = Date.now();
         return result;
       } catch {
         this.failedAt = Date.now();
-        return { status: 502, body: "Bad Gateway", at: Date.now() };
+        const at = Date.now();
+        return { status: 502, body: "Bad Gateway", at, freshUntil: at };
       } finally {
         this.refreshing = null;
       }

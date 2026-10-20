@@ -7,6 +7,7 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
+import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.Serializable
 
@@ -54,6 +55,14 @@ object TimetableTime {
 
     fun serviceMinutes(epochMillis: Long, timeZoneId: String): Int =
         serviceMinutes(localNow(epochMillis, timeZoneId))
+
+    /** Instant (epoch, secondes) d'une heure de fiche [minutes] de la journée de service [isoDate]. */
+    fun epochSeconds(isoDate: String, minutes: Int, timeZoneId: String): Long {
+        val date = LocalDate.parse(isoDate).plus(minutes / MINUTES_PER_DAY, DateTimeUnit.DAY)
+        val inDay = minutes % MINUTES_PER_DAY
+        return LocalDateTime(date.year, date.monthNumber, date.dayOfMonth, inDay / 60, inDay % 60)
+            .toInstant(TimeZone.of(timeZoneId)).epochSeconds
+    }
 
     /** Date `yyyy-MM-dd` décalée de [days] jours. */
     fun addDays(isoDate: String, days: Int): String =

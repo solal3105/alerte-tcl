@@ -20,7 +20,6 @@ data class StopInfo(
     val stopName: String? = null,
     val aimedArrivalTimeEpoch: Long? = null,
     val aimedDepartureTimeEpoch: Long? = null,
-    val distanceFromStop: Int? = null,
     val order: Int? = null
 ) {
     /** Identifiant TCL de l'arrêt (« ActIV:StopArea:SP:11518:SYTRAL » → 11518), commun au GeoServer et aux fiches horaires. */
@@ -43,31 +42,37 @@ data class Vehicle(
     val status: String? = null,
     val recordedAtEpoch: Long? = null,
     val validUntilEpoch: Long? = null,
-    val nextStop: StopInfo? = null
+    /**
+     * Le dernier arrêt atteint par le véhicule (MonitoredCall SIRI) : TCL ne donne jamais le prochain.
+     * Le véhicule peut y être encore ou l'avoir quitté ; sa position date d'au moins 45 s.
+     */
+    val lastStop: StopInfo? = null
 ) {
     val coordinate: LatLng get() = LatLng(latitude, longitude)
 
     /** Numéro de parc extrait du VehicleRef SIRI (ex. "ActIV:Vehicle:Bus:1512:LOC" → "1512"). */
     val fleetNumber: String? get() = id.split(":").getOrNull(3)?.takeIf { it.isNotEmpty() }
 
-    /** Ponctualité : le chiffre, ce qu'il veut dire, et la phrase entière (cf. [VehicleTexts]). */
-    val delayAmount: String get() = VehicleTexts.punctualityAmount(delay)
-    val delayCaption: String get() = VehicleTexts.punctualityCaption(delay)
+    /** Ponctualité en une phrase (« 2 min de retard », « À l'heure »), cf. [VehicleTexts]. */
     val delayText: String get() = VehicleTexts.punctuality(delay)
 
-    val isDelayed: Boolean get() = VehicleTexts.isDelayed(delay)
-    val isEarly:   Boolean get() = VehicleTexts.isEarly(delay)
+    /** Retard ou avance d'au moins une minute : la ponctualité s'écrit alors en orange. */
+    val isOffSchedule: Boolean get() = VehicleTexts.isOffSchedule(delay)
 
     /**
-     * Arrivée au prochain arrêt (epoch, secondes) : son horaire prévu corrigé du retard constaté,
-     * comme l'estimation de « Où est mon bus ». Null quand TCL ne donne pas d'horaire pour cet arrêt.
+     * Heure du dernier arrêt atteint (epoch, secondes) : son horaire prévu corrigé du retard constaté.
+     * Null quand TCL ne donne pas d'horaire pour cet arrêt.
      */
-    val nextStopArrivalEpoch: Long? get() = nextStop?.let { stop ->
+    val lastStopTimeEpoch: Long? get() = lastStop?.let { stop ->
         (stop.aimedArrivalTimeEpoch ?: stop.aimedDepartureTimeEpoch)?.plus(delay)
     }
 
-    /** Légende de cette heure : « arrivée à Bellecour ». Null sans nom d'arrêt. */
-    val nextStopArrivalCaption: String? get() = nextStop?.stopName?.let { VehicleTexts.arrivalCaption(it) }
+    /**
+     * Où est le véhicule, en une phrase : « Dernier arrêt atteint : Bellecour ». Rien n'est dit du
+     * prochain arrêt ni d'une heure : TCL ne donne que le dernier, et la position date. Null sans nom d'arrêt.
+     */
+    val lastStopLine: String? get() =
+        lastStop?.stopName?.takeIf { it.isNotBlank() && it.toIntOrNull() == null }?.let(VehicleTexts::lastStop)
 
     /** Âge de la dernière position transmise par TCL (RecordedAtTime SIRI), en secondes. */
     fun positionAgeSeconds(nowEpochMs: Long): Long? =
@@ -86,6 +91,15 @@ data class Vehicle(
             age < HIDE_AFTER_SECONDS -> PositionFreshness.AGING
             else                     -> PositionFreshness.STALE
         }
+    }
+
+    /**
+     * L'âge de la position, seulement quand elle n'est plus fraîche (« position d'il y a 1 min 10 ») :
+     * une position récente ne mérite pas d'être rappelée. Null sinon.
+     */
+    fun stalenessLine(nowEpochMs: Long): String? {
+        if (positionFreshness(nowEpochMs) == PositionFreshness.FRESH) return null
+        return positionAgeSeconds(nowEpochMs)?.let { "position d'il y a ${formattedAge(it)}" }
     }
 
     /** False dès que la position est obsolète : le véhicule n'est plus dessiné sur la carte. */

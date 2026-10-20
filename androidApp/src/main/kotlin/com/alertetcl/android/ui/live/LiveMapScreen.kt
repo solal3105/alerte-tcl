@@ -51,9 +51,7 @@ import androidx.compose.material.icons.filled.Subway
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Report
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Button
@@ -82,6 +80,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import com.alertetcl.shared.models.PositionFreshness
 import com.alertetcl.shared.util.DemoShowcase
 import com.alertetcl.shared.models.VehicleType
+import com.alertetcl.shared.models.VehicleTexts
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -129,7 +128,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -156,18 +154,13 @@ import com.alertetcl.shared.models.TransportMode
 import com.alertetcl.shared.models.AnimatedVehicle
 import com.alertetcl.shared.models.TransitStop
 import com.alertetcl.shared.models.Vehicle
-import com.alertetcl.shared.models.ApproachingVehicle
 import com.alertetcl.shared.models.LineTimetable
 import com.alertetcl.shared.models.StopApproach
 import com.alertetcl.shared.models.StopPassages
+import com.alertetcl.shared.models.StopBoard
 import com.alertetcl.shared.models.PassageGroup
-import com.alertetcl.shared.models.NextDepartures
-import com.alertetcl.shared.models.TimetableNext
 import com.alertetcl.shared.design.AppColors
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.ui.draw.rotate
-import androidx.compose.material.icons.filled.ExpandMore
 import com.alertetcl.android.ui.components.LineBadge
 import com.alertetcl.android.ui.theme.Tokens
 import com.alertetcl.android.ui.theme.compose
@@ -519,7 +512,8 @@ fun LiveMapScreen() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
         if (filtersHideAll) FiltersHideAllBanner(onClear = clearFilters)
-        stopFocus?.let { focus ->
+        // Fiche d'arrêt ouverte : elle dit tout de cet arrêt, le bandeau du véhicule ne s'y superpose pas.
+        stopFocus?.takeIf { selectedStop.value == null }?.let { focus ->
             val vehicleId = focus.vehicleId
             if (vehicleId != null) {
                 val vehicle = vehicles.firstOrNull { it.id == vehicleId }
@@ -921,7 +915,7 @@ fun LiveMapScreen() {
         }
     }
     timetableStart?.let { start ->
-        TimetableDialog(start = start, onDismiss = { timetableStart = null })
+        TimetableDialog(start = start, vehicles = vehicles, onDismiss = { timetableStart = null })
     }
     if (showNetworkSheet) {
         ModalBottomSheet(onDismissRequest = { showNetworkSheet = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), contentWindowInsets = { WindowInsets.systemBars }) {
@@ -932,7 +926,7 @@ fun LiveMapScreen() {
                 }
                 Box(Modifier.fillMaxSize()) {
                     if (networkTab == 0) com.alertetcl.android.ui.alerts.AlertsScreen(viewModel = alertsVm)
-                    else TimetableFlow(start = TimetableStart.Search, onDismiss = { showNetworkSheet = false })
+                    else TimetableFlow(start = TimetableStart.Search, vehicles = vehicles, onDismiss = { showNetworkSheet = false })
                 }
             }
         }
@@ -1069,12 +1063,8 @@ private fun VehicleDetailSheet(v: Vehicle) {
                             Text(cleanDest, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         }
                     }
-                    // Pastille retard
-                    val delayColor = when {
-                        v.isDelayed -> Tokens.warning
-                        v.isEarly   -> MaterialTheme.colorScheme.primary
-                        else        -> Tokens.success
-                    }
+                    // Pastille retard : orange seulement pour un écart (le vert est réservé au direct).
+                    val delayColor = if (v.isOffSchedule) Tokens.warning else MaterialTheme.colorScheme.onSurfaceVariant
                     Surface(shape = RoundedCornerShape(50), color = delayColor.copy(alpha = 0.12f)) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -1128,8 +1118,8 @@ private fun VehicleDetailSheet(v: Vehicle) {
             }
         }
 
-        // ── Timeline prochain arrêt ──
-        v.nextStop?.let { ns ->
+        // ── Dernier arrêt atteint : le seul que TCL donne, sans heure (son horaire prévu ne dit pas quand le véhicule y est passé) ──
+        v.lastStop?.let { stop ->
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surface,
@@ -1140,79 +1130,35 @@ private fun VehicleDetailSheet(v: Vehicle) {
             ) {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
                     Text(
-                        text = "DERNIER ARRÊT",
+                        text = VehicleTexts.LAST_STOP.uppercase(),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         letterSpacing = 0.5.sp
                     )
                     Spacer(Modifier.height(12.dp))
-                    Row {
-                        // Colonne dot
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
-                            modifier = Modifier.width(28.dp).padding(top = 14.dp),
-                            contentAlignment = Alignment.TopCenter
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(accentColor.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(24.dp)
+                                    .size(12.dp)
                                     .clip(CircleShape)
-                                    .background(accentColor.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(12.dp)
-                                        .clip(CircleShape)
-                                        .background(accentColor)
-                                )
-                            }
+                                    .background(accentColor)
+                            )
                         }
-                        // Contenu
-                        Row(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(start = 12.dp, top = 16.dp, bottom = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                Text(
-                                    text = ns.stopName ?: ns.stopRef,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1
-                                )
-                            }
-                            val arrivalEpoch = ns.aimedArrivalTimeEpoch ?: ns.aimedDepartureTimeEpoch
-                            if (arrivalEpoch != null) {
-                                val time = java.time.Instant.ofEpochSecond(arrivalEpoch)
-                                    .atZone(java.time.ZoneId.systemDefault())
-                                val timeStr = java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(time)
-                                val minsUntil = (arrivalEpoch - System.currentTimeMillis() / 1000L) / 60L
-                                Column(
-                                    horizontalAlignment = Alignment.End,
-                                    verticalArrangement = Arrangement.spacedBy(1.dp)
-                                ) {
-                                    Text(
-                                        text = timeStr,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                    )
-                                    if (minsUntil > 0) {
-                                        Text(
-                                            text = "dans $minsUntil min",
-                                            fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        Text(
+                            text = stop.stopName ?: stop.stopRef,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            modifier = Modifier.padding(start = 12.dp)
+                        )
                     }
                 }
             }
@@ -1366,11 +1312,6 @@ private fun VehicleDetailSheet(v: Vehicle) {
     }
 }
 
-private fun vehicleTypeIcon(type: VehicleType): androidx.compose.ui.graphics.vector.ImageVector = when (type) {
-    VehicleType.BUS, VehicleType.TROLLEY -> Icons.Filled.DirectionsBus
-    else -> Icons.Filled.Tram
-}
-
 /**
  * Charge une image Wikimedia via le client Ktor partagé (même stack réseau que l'API).
  * Coil échoue sur upload.wikimedia.org depuis Android — bypass complet du réseau Coil.
@@ -1425,8 +1366,6 @@ private fun MergedStopDetailSheet(
     // Ordre des arrêts de chaque sens affiché, chargé une fois par fiche ouverte (« où est mon bus ») ; clé `PassageGroup.key`.
     val timetables = remember(stop.id) { mutableStateMapOf<String, LineTimetable>() }
     val timetableLookups = remember(stop.id) { mutableSetOf<String>() }
-    // Sens dépliés dans la liste des prochains passages.
-    val expandedGroups = remember(stop.id) { mutableStateListOf<String>() }
     var passagesKey by remember(stop.id) { mutableStateOf(0) }
     var passagesHadError by remember(stop.id) { mutableStateOf(false) }
     val passages = produceState<List<Passage>?>(initialValue = null, stop.id, passagesKey) {
@@ -1479,81 +1418,49 @@ private fun MergedStopDetailSheet(
         }
     }
     val timetableSnapshot: Map<String, LineTimetable> = timetables.toMap()
+    val stopIds = remember(stop.id) { stop.stops.map { it.id } }
+    // Position de l'arrêt dans la fiche de chaque sens.
+    val stopIndexes = remember(timetableSnapshot) {
+        timetableSnapshot.mapValues { (_, timetable) -> timetable.stopIndexes(stopIds.toSet(), stop.nom) }
+    }
     // Un sens qui ne fait qu'arriver ici (terminus) n'est pas affiché : personne n'y monte.
     val groupedPassages = remember(allGroups, timetableSnapshot) {
         allGroups.filter { group ->
             val timetable = timetableSnapshot[group.key]
-            group.passages.isNotEmpty() || timetable == null || !TimetableNext.isArrivalOnly(timetable, stop.stops.map { it.id }, stop.nom)
+            group.passages.isNotEmpty() || timetable == null || !StopBoard.isArrivalOnly(timetable, stopIds, stop.nom)
         }
     }
     val approaches = remember(vehicles, timetableSnapshot) {
         val nowMs = System.currentTimeMillis()
-        timetableSnapshot.mapValues { (_, timetable) ->
-            StopApproach.approaching(vehicles, timetable, stop.stops.map { it.id }, stop.nom, nowMs)
-        }.filterValues { it.isNotEmpty() }
+        timetableSnapshot.mapValues { (_, timetable) -> StopApproach.approaching(vehicles, timetable, stopIds, stop.nom, nowMs) }
     }
-    // Prochains départs de la fiche horaire des sens sans passage annoncé (le soir, une ligne peu fréquente).
-    val nextDepartures = remember(groupedPassages, timetableSnapshot) {
-        val nowMs = System.currentTimeMillis()
-        groupedPassages.filter { it.passages.isEmpty() }.mapNotNull { group ->
-            val timetable = timetableSnapshot[group.key] ?: return@mapNotNull null
-            TimetableNext.upcoming(timetable, stop.stops.map { it.id }, stop.nom, nowMs, StopApproach.TIME_ZONE)?.let { group.key to it }
-        }.toMap()
+    // L'état de chaque passage se recalcule chaque seconde : aucun délai ne reste figé entre deux rafraîchissements.
+    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(1000); nowMs = System.currentTimeMillis() } }
+    val boards = remember(groupedPassages, approaches, timetableSnapshot, nowMs) {
+        groupedPassages.map { group ->
+            StopBoard.board(group, approaches[group.key].orEmpty(), timetableSnapshot[group.key], stopIndexes[group.key].orEmpty(), nowMs)
+        }
     }
 
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-        .heightIn(max = 560.dp)
-        .verticalScroll(rememberScrollState())) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        .heightIn(max = 620.dp)
+        .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
 
-        // Header (centered) — iOS parity
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(
-                    modifier = Modifier.size(60.dp).clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.Tram, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(28.dp))
-                }
-                Text(stop.nom, fontWeight = FontWeight.Bold, fontSize = 19.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                if (stop.commune.isNotEmpty())
-                    Text(stop.commune, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-                if (stop.allLines.isNotEmpty()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        stop.allLines.take(6).forEach { line ->
-                            LineBadge(line, size = 28.dp, fontSize = 12.sp)
-                        }
-                        if (stop.allLines.size > 6) Text("+${stop.allLines.size - 6}", style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
-                    }
-                }
-                if (stop.pmr) {
-                    Row(verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Filled.Accessible, null, tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(14.dp))
-                        Text("Accessible PMR", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                    }
+        // En-tête d'une ligne : le prochain passage doit rester visible sans défiler.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stop.nom, fontWeight = FontWeight.Bold, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (stop.commune.isNotEmpty()) Text(stop.commune, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    if (stop.pmr) Icon(Icons.Filled.Accessible, "Accessible PMR", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(15.dp))
                 }
             }
-        }
-        Spacer(Modifier.height(12.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("Prochains passages", fontWeight = FontWeight.Bold, fontSize = 22.sp)
-            IconButton(onClick = { passagesKey++ }, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Filled.Refresh, "Rafraîchir les passages",
-                    tint = Tokens.accent, modifier = Modifier.size(18.dp))
+            IconButton(onClick = { passagesKey++ }) {
+                Icon(Icons.Filled.Refresh, "Rafraîchir les passages", tint = Tokens.accent, modifier = Modifier.size(20.dp))
             }
         }
-        Spacer(Modifier.height(12.dp))
         when {
             passages.value == null -> {
                 Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
@@ -1599,195 +1506,39 @@ private fun MergedStopDetailSheet(
                     }
                 }
             }
-            else -> {
-                // Une ligne par sens, dans une carte sobre ; un toucher déplie les détails du sens.
-                Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        groupedPassages.forEachIndexed { index, group ->
-                            if (index > 0) HorizontalDivider()
-                            PassageGroupRow(
-                                group = group,
-                                expanded = group.key in expandedGroups,
-                                approaching = approaches[group.key].orEmpty(),
-                                approachKnown = timetables[group.key] != null,
-                                next = nextDepartures[group.key],
-                                onToggle = { if (group.key in expandedGroups) expandedGroups.remove(group.key) else expandedGroups.add(group.key) },
-                                onLocate = { approach -> vehicles.firstOrNull { it.id == approach.vehicle.id }?.let(onLocateVehicle) },
-                                onShowOnMap = {
-                                    onFocus(
-                                        StopLineFocus(
-                                            line = group.line,
-                                            direction = group.directionCode,
-                                            destination = group.terminus,
-                                            stopName = stop.nom,
-                                            latitude = stop.latitude,
-                                            longitude = stop.longitude
-                                        )
-                                    )
-                                },
-                                onShowTimetable = {
-                                    onTimetable(TimetableStart.ForStop(group.line, group.terminus, stop.stops.map { it.id }.toSet(), stop.nom))
-                                }
+            else -> boards.forEach { board ->
+                val group = board.group
+                LineBoardCard(
+                    board = board,
+                    nowMs = nowMs,
+                    timetableKnown = timetables[group.key] != null,
+                    onLocate = { status -> status.approach?.let { a -> vehicles.firstOrNull { it.id == a.vehicle.id }?.let(onLocateVehicle) } },
+                    onShowOnMap = {
+                        onFocus(
+                            StopLineFocus(
+                                line = group.line,
+                                direction = group.directionCode,
+                                destination = group.terminus,
+                                stopName = stop.nom,
+                                latitude = stop.latitude,
+                                longitude = stop.longitude
                             )
-                        }
+                        )
+                    },
+                    onShowTimetable = {
+                        onTimetable(TimetableStart.ForStop(group.line, group.terminus, stopIds.toSet(), stop.nom))
                     }
-                }
-                Text(
-                    "Un point vert marque un passage suivi en direct ; les autres suivent l'horaire prévu. Sans passage annoncé, les heures viennent de la fiche horaire.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp)
                 )
             }
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
     }
 }
 
 /**
- * Un sens d'une ligne à cet arrêt : le terminus, les trois prochains passages, et au toucher les
- * détails (où est mon bus, voir sur la carte, tous les horaires). Sans passage annoncé, les prochains
- * départs de la fiche horaire ([next]) prennent le relais. Parité iOS `PassageGroupRow`.
- */
-@Composable
-private fun PassageGroupRow(
-    group: PassageGroup,
-    expanded: Boolean,
-    approaching: List<ApproachingVehicle>,
-    approachKnown: Boolean,
-    next: NextDepartures?,
-    onToggle: () -> Unit,
-    onLocate: (ApproachingVehicle) -> Unit,
-    onShowOnMap: () -> Unit,
-    onShowTimetable: () -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable { onToggle() },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            LineBadge(group.line, size = 32.dp, fontSize = 13.sp)
-            Text(group.terminus, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            Icon(
-                Icons.Filled.ExpandMore, null, tint = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.size(20.dp).rotate(if (expanded) 180f else 0f)
-            )
-        }
-        when {
-            group.passages.isNotEmpty() -> Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.Top) {
-                group.passages.take(3).forEachIndexed { index, p ->
-                    TimeCell(p.delaipassage.ifBlank { "--" }, first = index == 0, live = p.isRealTime, caption = group.shortDestination(p)?.let { "jusqu'à $it" })
-                }
-            }
-            next != null -> Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.Top) {
-                next.departures.take(3).forEachIndexed { index, d ->
-                    TimeCell(d.time, first = index == 0, live = false, caption = if (next.isTomorrow) TimetableNext.CAPTION_TOMORROW else TimetableNext.CAPTION_TODAY)
-                }
-            }
-            else -> Text(
-                if (approachKnown) TimetableNext.NONE_PLANNED else "Aucun passage annoncé pour l'instant.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        if (expanded) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 2.dp)) {
-                if (approaching.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Où est mon bus", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        approaching.forEach { approach ->
-                            ApproachRow(approach = approach, line = group.line, onLocate = { onLocate(approach) })
-                        }
-                    }
-                } else if (approachKnown && TransportMode.detectFromLine(group.line).showOnMapLabel != null) {
-                    Text(StopApproach.NONE_APPROACHING, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val showOnMapLabel = TransportMode.detectFromLine(group.line).showOnMapLabel
-                    if (showOnMapLabel != null) CardActionButton(showOnMapLabel, Icons.Filled.Map, Modifier.weight(1f), onShowOnMap)
-                    CardActionButton("Tous les horaires", Icons.Filled.CalendarMonth, Modifier.weight(1f), onShowTimetable)
-                }
-            }
-        }
-    }
-}
-
-/**
- * Délai ou heure en chiffres, point vert quand le véhicule est suivi en direct, légende en dessous
- * (destination courte d'un passage, « prévu » ou « demain » d'un départ théorique).
- */
-@Composable
-private fun TimeCell(value: String, first: Boolean, live: Boolean, caption: String?) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            if (live) Box(Modifier.size(6.dp).background(Tokens.success, CircleShape))
-            Text(
-                value,
-                fontSize = if (first) 17.sp else 15.sp,
-                fontWeight = if (first) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (first) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        if (caption != null) {
-            Text(caption, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-        }
-    }
-}
-
-/**
- * Un véhicule en approche : deux grands chiffres (arrêts restants, heure estimée) et une ligne sur l'âge
- * de la position. Toucher la carte montre le bus sur la carte (parité iOS).
- */
-@Composable
-private fun ApproachRow(approach: ApproachingVehicle, line: String, onLocate: (() -> Unit)?) {
-    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(1000); nowMs = System.currentTimeMillis() } }
-    val lineColor = colorFromHex(LineColors.backgroundHex(line))
-    Surface(shape = RoundedCornerShape(14.dp), color = lineColor.copy(alpha = 0.08f), modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().let { m -> if (onLocate != null) m.clickable(onClick = onLocate) else m },
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(18.dp)
-            ) {
-                ApproachStat(approach.stopsValue, approach.stopsCaption, MaterialTheme.colorScheme.onSurface)
-                ApproachStat(approach.estimatedTime()?.let { "≈ $it" } ?: "—", approach.arrivalText(nowMs) ?: "heure inconnue", MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.weight(1f))
-                Icon(Icons.Filled.ChevronRight, null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(top = 8.dp))
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(Modifier.size(7.dp).background(approach.vehicle.positionFreshness(nowMs).color.compose(), CircleShape))
-                Text(approach.freshnessLine(nowMs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
-}
-
-/** Un grand chiffre et sa légende (fiche d'arrêt). */
-@Composable
-private fun ApproachStat(value: String, caption: String, color: Color) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(value, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
-        Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
-    }
-}
-
-@Composable
-/** Action de la carte : un lien sobre à l'accent, pictogramme puis texte, sans fond. */
-private fun CardActionButton(label: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    Row(
-        modifier = modifier.heightIn(min = 36.dp).clickable { onClick() },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Icon(icon, null, tint = Tokens.accent, modifier = Modifier.size(15.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Tokens.accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-/**
- * Remplace le bandeau trafic quand un véhicule a été touché : trois chiffres, le délai depuis la
- * dernière position en premier, « Voir plus » pour la fiche, une croix pour retirer le filtre
+ * Remplace le bandeau trafic quand un véhicule a été touché : la ligne et sa destination, puis une
+ * phrase (dernier arrêt atteint, ponctualité) ; l'âge de la position ne
+ * s'affiche que lorsqu'elle date. « Voir plus » pour la fiche, une croix pour retirer le filtre
  * (parité iOS VehicleFocusCard).
  */
 @Composable
@@ -1799,9 +1550,9 @@ private fun VehicleFocusBanner(focus: StopLineFocus, vehicle: Vehicle?, onMore: 
     Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 4.dp,
         border = androidx.compose.foundation.BorderStroke(1.dp, lineColor.copy(alpha = 0.35f)),
         modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                LineBadge(focus.line, size = 30.dp, fontSize = 11.sp)
+                LineBadge(focus.line, size = 30.dp)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(focus.bannerTitle, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text("→ ${vehicle?.destination ?: focus.destination}", style = MaterialTheme.typography.labelMedium,
@@ -1819,37 +1570,11 @@ private fun VehicleFocusBanner(focus: StopLineFocus, vehicle: Vehicle?, onMore: 
                 }
             }
             if (vehicle != null) {
-                val age = vehicle.positionAgeSeconds(nowMs)
-                val delayColor = when {
-                    vehicle.isDelayed -> Tokens.warning
-                    vehicle.isEarly -> MaterialTheme.colorScheme.primary
-                    else -> Tokens.success
-                }
-                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FocusStat(age?.let { Vehicle.formattedAge(it) } ?: "—", "dernière position", vehicle.positionFreshness(nowMs).color.compose(), emphasized = true)
-                    FocusStat(vehicle.delayAmount, vehicle.delayCaption, delayColor, emphasized = false)
-                    val arrival = vehicle.nextStopArrivalEpoch
-                    val arrivalCaption = vehicle.nextStopArrivalCaption
-                    if (arrival != null && arrivalCaption != null) {
-                        val time = java.time.Instant.ofEpochSecond(arrival).atZone(java.time.ZoneId.systemDefault())
-                            .toLocalTime().let { t -> "%02d:%02d".format(t.hour, t.minute) }
-                        FocusStat(time, arrivalCaption, MaterialTheme.colorScheme.onSurface, emphasized = false)
-                    }
-                }
+                VehicleStatusLines(vehicle.lastStopLine, vehicle, nowMs)
             } else {
                 Text("Véhicule plus suivi pour l'instant", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-    }
-}
-
-/** Un chiffre et sa légende ; le premier, mis en avant, est plus grand. */
-@Composable
-private fun androidx.compose.foundation.layout.RowScope.FocusStat(value: String, caption: String, color: Color, emphasized: Boolean) {
-    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(value, fontSize = if (emphasized) 22.sp else 15.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1,
-            fontFamily = FontFamily.Monospace)
-        Text(caption, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
