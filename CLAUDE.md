@@ -118,6 +118,16 @@ fusionnées à la lecture. Tout changement de cette règle doit s'accompagner d'
 silencieuse (`notifBaselineDone.v…` côté iOS, `baseline_done_v…` côté Android), sinon toutes les
 alertes en cours repartent d'un coup en notification.
 
+### Relais Cloudflare et charge sur Grand Lyon
+
+Le relais (`cloudflare-worker/`) tourne sur une adresse `*.workers.dev`, où `caches.default` n'a aucun
+effet : sans cache réel, chaque appel des applications partait jusqu'à data.grandlyon.com, qui s'en est
+plaint en octobre 2026. Les routes temps réel (`/vehicles`, `/passages`, `/alerts`, `/parc-relais-tr`,
+`/velov`) passent donc par l'objet durable `LiveCache` (`liveRoute` dans `worker.js`) : au plus une
+requête amont par TTL et par clé, quel que soit le nombre d'utilisateurs. Toute nouvelle route qui
+interroge Grand Lyon souvent doit passer par `liveRoute`. Mise en ligne manuelle : `bash cloudflare-worker/deploy.sh`,
+qui vérifie aussi que le cache répond.
+
 ### Ligne RX
 
 La ligne RX est présente dans le flux SIRI (véhicules actifs) mais **absente du GeoServer** `/bus-lines`.
