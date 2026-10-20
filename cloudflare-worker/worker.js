@@ -75,6 +75,10 @@ const ROUTE_TTL = {
 const GEO_TTL = 86400; // lignes, arrêts — données quasi-statiques
 // Attente maximale d'un rafraîchissement bloquant (cache très périmé) avant de servir l'ancienne réponse.
 const REFRESH_WAIT_MS = 4000;
+// Abandon d'une requête amont des routes temps réel : un appel bloqué ne doit pas geler le cache.
+const UPSTREAM_TIMEOUT_MS = 8000;
+// Délai avant un nouvel essai après un échec amont (au plus le TTL de la route).
+const RETRY_AFTER_FAILURE_MS = 10000;
 
 const ALLOWED_UA        = /^AlerteTCL\//;
 const ALLOWED_SORTBY    = new Set(["heurepassage", "id"]);
@@ -168,7 +172,10 @@ async function passThroughError(upstream) {
  * réduits aux champs affichés (≈40 Ko). Horodatage converti en secondes epoch.
  */
 async function loadVelov() {
-  const upstream = await fetch(VELOV_URL, { method: "GET", headers: { "Accept": "application/json", "User-Agent": "AlerteTCL-proxy/1.0" } });
+  const upstream = await fetch(VELOV_URL, {
+    headers: { "Accept": "application/json", "User-Agent": "AlerteTCL-proxy/1.0" },
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+  });
   if (!upstream.ok) return passThroughError(upstream);
   const data = await upstream.json();
   const stations = (data.values ?? []).map(s => {
@@ -348,7 +355,8 @@ function grandLyonHeaders(env) {
  */
 function liveRoute(url) {
   const { pathname, searchParams } = url;
-  const relay = (upstreamURL) => (env) => fetch(upstreamURL, { headers: grandLyonHeaders(env) });
+  const relay = (upstreamURL) => (env) =>
+    fetch(upstreamURL, { headers: grandLyonHeaders(env), signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
   switch (pathname) {
     case "/vehicles":
       return { key: pathname, ttl: ROUTE_TTL[pathname], load: relay(VEHICLES_URL) };
@@ -412,16 +420,20 @@ async function serveLive(route, env) {
     isolateEntries.set(route.key, entry);
     return liveResponse(entry);
   }
-  return response;
+  // L'objet durable perd sa copie quand il reste inactif ; si Grand Lyon ne répond pas à ce
+  // moment-là, la dernière copie connue de cette instance vaut mieux qu'une erreur.
+  return kept ? liveResponse(kept) : response;
 }
 
 /**
- * Objet durable : dernière réponse d'une route temps réel, en mémoire.
+ * Objet durable : dernière réponse d'une route temps réel, en mémoire (perdue quand l'objet,
+ * inactif quelques secondes, est déchargé : la demande suivante la recharge).
  *  - Fraîche (âge < ttl)                → servie telle quelle.
  *  - Périmée                             → servie, rafraîchissement en arrière-plan.
  *  - Très périmée (après une période creuse) ou absente → rafraîchissement attendu
  *    (au plus REFRESH_WAIT_MS si une ancienne réponse existe, sinon jusqu'à la réponse amont).
- * Un seul rafraîchissement à la fois ; après un échec, pas de nouvel essai avant un TTL.
+ * Un seul rafraîchissement à la fois ; après un échec, pas de nouvel essai avant
+ * min(ttl, RETRY_AFTER_FAILURE_MS).
  */
 export class LiveCache {
   constructor(state, env) {
@@ -439,7 +451,7 @@ export class LiveCache {
     const age = this.entry ? Date.now() - this.entry.at : Infinity;
     if (age < ttlMs) return liveResponse(this.entry);
 
-    const mayRetry = Date.now() - this.failedAt >= ttlMs;
+    const mayRetry = Date.now() - this.failedAt >= Math.min(ttlMs, RETRY_AFTER_FAILURE_MS);
     const refresh = this.refreshing ?? (mayRetry ? this.refresh(route) : null);
     if (!refresh) return this.entry ? liveResponse(this.entry) : new Response("Bad Gateway", { status: 502 });
 
@@ -447,7 +459,9 @@ export class LiveCache {
     // Même règle que cachedProxyFetch : au-delà de max(4 × ttl, 60 s), l'ancienne réponse
     // montrerait des passages déjà écartés par les applications ; on attend la nouvelle.
     if (age >= Math.max(ttlMs * 4, 60_000)) {
-      await Promise.race([refresh, new Promise(resolve => setTimeout(resolve, REFRESH_WAIT_MS))]);
+      let timer;
+      await Promise.race([refresh, new Promise(resolve => { timer = setTimeout(resolve, REFRESH_WAIT_MS); })]);
+      clearTimeout(timer);
     }
     return liveResponse(this.entry);
   }
