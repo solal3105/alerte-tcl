@@ -12,3 +12,13 @@ compatibility_date = "2024-01-01"
 # [[r2_buckets]]
 # binding = "POSITIONS"
 # bucket_name = "tcl-positions"
+
+# Cache partagé des routes temps réel (classe LiveCache de worker.js) : caches.default n'a aucun
+# effet sur une adresse *.workers.dev. Objet durable SQLite, disponible sur l'offre gratuite.
+[[durable_objects.bindings]]
+name = "LIVE_CACHE"
+class_name = "LiveCache"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["LiveCache"]

@@ -32,6 +32,12 @@ if ! command -v wrangler &>/dev/null; then
   warn "Wrangler non trouvé — installation globale..."
   npm install -g wrangler
 fi
+# Le cache partagé (objet durable SQLite, wrangler.toml) demande Wrangler 4 ou plus.
+WRANGLER_MAJOR=$(wrangler --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 | cut -d. -f1)
+if [[ -z "$WRANGLER_MAJOR" || "$WRANGLER_MAJOR" -lt 4 ]]; then
+  warn "Wrangler trop ancien — mise à jour..."
+  npm install -g wrangler@latest
+fi
 WRANGLER_VERSION=$(wrangler --version 2>/dev/null | head -1)
 success "Wrangler $WRANGLER_VERSION prêt"
 
@@ -97,6 +103,22 @@ if [[ "$HTTP_STATUS" == "200" ]]; then
   success "Route /alerts répond HTTP 200 ✓"
 else
   warn "Route /alerts répond HTTP $HTTP_STATUS — vérifie les secrets ou le déploiement"
+fi
+
+# Deux appels à /vehicles doivent renvoyer la même copie (même X-Cached-At) :
+# preuve que Grand Lyon n'est interrogé qu'une fois par période.
+info "Test du cache partagé sur /vehicles..."
+cached_at() {
+  curl -s -o /dev/null -D - -H "User-Agent: AlerteTCL/1.0" "$WORKER_URL/vehicles" \
+    | tr -d '\r' | awk -F': ' 'tolower($1) == "x-cached-at" { print $2 }'
+}
+FIRST=$(cached_at)
+sleep 2
+SECOND=$(cached_at)
+if [[ -n "$FIRST" && "$FIRST" == "$SECOND" ]]; then
+  success "Cache partagé actif sur /vehicles ✓"
+else
+  warn "Cache partagé non confirmé sur /vehicles (« $FIRST » puis « $SECOND ») — vérifie le déploiement"
 fi
 
 # ── 7. Mise à jour automatique de l'adresse du relais côté Swift ──────────
