@@ -30,7 +30,7 @@
  *   Autres routes : caches.default.
  *   TTL par route : passages 15 s, vehicles/parc-relais-tr 30 s,
  *                   alerts 60 s, velov 60 s, parc-relais statique 1 h, horaires 1 h, GeoServer 24 h.
- *   /vehicles suit les vagues de publication de Grand Lyon (vehiclesFreshUntil) et
+ *   /vehicles suit les vagues de publication de Grand Lyon (vehiclesFreshness) et
  *   annonce la prochaine dans l'en-tête X-Refresh-In, que les applications suivent.
  *
  * Déploiement : bash cloudflare-worker/deploy.sh
@@ -66,7 +66,7 @@ const GEO_COLLECTIONS = {
 // TTL (secondes) par route — fréquence de rafraîchissement côté serveur.
 // En dehors de ces routes, les collections GeoServer statiques utilisent GEO_TTL.
 const ROUTE_TTL = {
-  "/vehicles":       30,   // positions temps réel : sert à la reprise après échec, la fraîcheur suit vehiclesFreshUntil
+  "/vehicles":       30,   // positions temps réel : sert à la reprise après échec, la fraîcheur suit vehiclesFreshness
   "/passages":       15,   // prochains passages
   "/parc-relais-tr": 30,   // occupation P+R temps réel
   "/alerts":         60,   // alertes trafic
@@ -361,7 +361,7 @@ function liveRoute(url) {
     fetch(upstreamURL, { headers: grandLyonHeaders(env), signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
   switch (pathname) {
     case "/vehicles":
-      return { key: pathname, ttl: ROUTE_TTL[pathname], load: relay(VEHICLES_URL), freshUntil: vehiclesFreshUntil };
+      return { key: pathname, ttl: ROUTE_TTL[pathname], load: relay(VEHICLES_URL), freshness: vehiclesFreshness };
     case "/alerts":
       return { key: pathname, ttl: ROUTE_TTL[pathname], load: relay(ALERTS_URL) };
     case "/parc-relais-tr":
@@ -395,28 +395,38 @@ function liveRoute(url) {
 }
 
 // Les positions arrivent chez Grand Lyon par vagues, environ toutes les 30 s, à des instants
-// irréguliers ; la position la plus récente d'une vague a 0 à 3 s quand elle paraît (mesure du
-// 20 octobre 2026). Plutôt qu'un TTL fixe compté depuis notre dernier appel, la copie des
-// véhicules expire juste après la vague suivante attendue (position la plus récente du lot
-// + VEHICLES_WAVE_MS). Si cette vague devrait déjà être là mais n'y est pas (en retard), on
-// redemande VEHICLES_RETRY_MS plus tard ; si le flux ne bouge plus (nuit, panne), au rythme
-// lent VEHICLES_MAX_GAP_MS.
-const VEHICLES_WAVE_MS    = 33000;
-const VEHICLES_RETRY_MS   = 6000;
-const VEHICLES_MAX_GAP_MS = 45000;
-const VEHICLES_STALLED_MS = 90000;
+// irréguliers, et la position la plus récente d'une vague peut déjà avoir 0 à 25 s quand elle
+// paraît : l'heure des positions ne dit donc pas quand la vague a été publiée (le 21 octobre
+// 2026, s'y fier faisait appeler Grand Lyon 5 fois par minute). On se cale sur ce qu'on observe :
+// une copie dont la position la plus récente a changé vient d'une nouvelle vague, publiée au
+// plus tôt depuis notre appel précédent ; la suivante est attendue VEHICLES_WAVE_MS plus tard.
+// VEHICLES_WAVE_MS est un peu plus court que l'écart moyen entre vagues : on arrive parfois en
+// avance, on redemande alors VEHICLES_RETRY_MS plus tard, ce qui recale l'horloge au plus près
+// de la vague (2 à 3 appels par minute). Vague manquée : VEHICLES_LATE_MS ; flux arrêté (nuit,
+// panne) : VEHICLES_STALLED_GAP_MS.
+const VEHICLES_WAVE_MS        = 29000;
+const VEHICLES_RETRY_MS       = 4000;
+const VEHICLES_LATE_AFTER_MS  = 45000;
+const VEHICLES_LATE_MS        = 15000;
+const VEHICLES_STALLED_MS     = 120000;
+const VEHICLES_STALLED_GAP_MS = 45000;
 const RECORDED_AT = /"RecordedAtTime"\s*:\s*"([^"]+)"/g;
 
-function vehiclesFreshUntil(body, fetchedAt) {
+/** { freshUntil, newest, changedAt } d'une copie des véhicules, d'après la copie précédente. */
+function vehiclesFreshness(body, fetchedAt, previous) {
   let newest = 0;
   for (const match of new TextDecoder().decode(body).matchAll(RECORDED_AT)) {
     const time = Date.parse(match[1]);
     if (time > newest) newest = time;
   }
-  if (fetchedAt - newest > VEHICLES_STALLED_MS) return fetchedAt + VEHICLES_MAX_GAP_MS;
-  const expected = newest + VEHICLES_WAVE_MS;
-  if (expected <= fetchedAt) return fetchedAt + VEHICLES_RETRY_MS;
-  return Math.min(expected, fetchedAt + VEHICLES_MAX_GAP_MS);
+  const changed = !previous?.changedAt || newest > previous.newest;
+  const changedAt = changed ? fetchedAt : previous.changedAt;
+  const sinceChange = fetchedAt - changedAt;
+  const gap = changed                              ? VEHICLES_WAVE_MS
+            : sinceChange < VEHICLES_LATE_AFTER_MS ? VEHICLES_RETRY_MS
+            : sinceChange < VEHICLES_STALLED_MS    ? VEHICLES_LATE_MS
+            :                                        VEHICLES_STALLED_GAP_MS;
+  return { freshUntil: fetchedAt + gap, newest, changedAt };
 }
 
 /**
@@ -497,7 +507,7 @@ export class LiveCache {
     // Route calée sur les vagues amont : la copie suivante vient d'être publiée, on l'attend.
     // Sinon, même règle que cachedProxyFetch : au-delà de max(4 × ttl, 60 s), l'ancienne réponse
     // montrerait des passages déjà écartés par les applications ; on attend la nouvelle.
-    if (route.freshUntil || now - this.entry.at >= Math.max(ttlMs * 4, 60_000)) {
+    if (route.freshness || now - this.entry.at >= Math.max(ttlMs * 4, 60_000)) {
       let timer;
       await Promise.race([refresh, new Promise(resolve => { timer = setTimeout(resolve, REFRESH_WAIT_MS); })]);
       clearTimeout(timer);
@@ -511,8 +521,10 @@ export class LiveCache {
         const upstream = await route.load(this.env);
         const body = await upstream.arrayBuffer();
         const at = Date.now();
-        const freshUntil = route.freshUntil ? route.freshUntil(body, at) : at + route.ttl * 1000;
-        const result = { status: upstream.status, body, at, freshUntil };
+        const freshness = route.freshness
+          ? route.freshness(body, at, this.entry)
+          : { freshUntil: at + route.ttl * 1000 };
+        const result = { status: upstream.status, body, at, ...freshness };
         if (upstream.ok) this.entry = result;
         else this.failedAt = Date.now();
         return result;

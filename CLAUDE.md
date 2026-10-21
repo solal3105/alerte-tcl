@@ -126,8 +126,8 @@ plaint en octobre 2026. Les routes temps réel (`/vehicles`, `/passages`, `/aler
 `/velov`) passent donc par l'objet durable `LiveCache` (`liveRoute` dans `worker.js`) : au plus une
 requête amont par TTL et par clé, quel que soit le nombre d'utilisateurs. Toute nouvelle route qui
 interroge Grand Lyon souvent doit passer par `liveRoute`. `/vehicles` ne suit pas un TTL fixe : la copie
-expire juste après la vague suivante attendue chez Grand Lyon (`vehiclesFreshUntil`, d'après la position la
-plus récente du lot) et l'en-tête `X-Refresh-In` dit aux applications quand redemander (`LivePolling`,
+expire juste avant la vague suivante attendue chez Grand Lyon (`vehiclesFreshness`, calée sur le dernier
+appel qui a ramené des positions nouvelles, pas sur l'heure des positions, trompeuse) et l'en-tête `X-Refresh-In` dit aux applications quand redemander (`LivePolling`,
 module partagé, 15 s si l'en-tête manque). Mise en ligne manuelle : `bash cloudflare-worker/deploy.sh`,
 qui vérifie aussi que le cache répond.
 
