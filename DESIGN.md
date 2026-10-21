@@ -87,11 +87,13 @@ n'annonce plus reste affiché.
 
 L'en-tête tient sur une ligne (nom, commune, pictogramme PMR, rafraîchir) pour que le premier passage
 soit visible sans défiler. Puis une carte par ligne et sens (`StopPassages.group`, terminus du sens en
-titre, liens carte et horaires en icônes) :
+titre, ou celui de la branche quand toutes les courses de l'arrêt y vont, liens carte et horaires en icônes) :
 
 - le gros texte est un délai (« 4 min »), un mot (« À l'approche ») ou, au-delà d'une
   heure, l'heure ; jamais une heure passée. L'heure exacte suit en petit, « jusqu'à Debourg » pour une
-  course qui s'arrête avant, « Dernier passage » le cas échéant ;
+  course qui s'arrête avant, « vers St Germain Gare » pour une course de l'autre branche (121),
+  « Dernier passage » le cas échéant ; un bus encore garé au départ de sa course n'est rattaché à
+  aucun passage (il n'est pas parti : l'annonce TCL fait foi) ;
 - devant, la source : point vert qui pulse pour le direct, horloge grise pour l'horaire prévu ;
 - quand le véhicule est reconnu, une mini-ligne (les derniers arrêts avant le vôtre, le véhicule
   dessus) et une phrase : « Dernier arrêt atteint : Génovéfains, le vôtre est le suivant · À l'heure », « Dernier

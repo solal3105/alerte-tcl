@@ -121,12 +121,69 @@ class StopBoardTest {
     }
 
     @Test
+    fun aBusParkedAtTheStartOfItsCourseLeavesTheAnnouncementAlone() {
+        // 14:25 : le bus attend à Perrache, départ de sa course prévu à 14:35 (Guillotière 14:44). TCL ne
+        // donne qu'un horaire théorique : rien ne dit que le bus partira à l'heure, le passage reste prévu.
+        val now = at(25.0)
+        val approach = approaching(bus(10, t0Sec + 35 * 60, recordedAtSec = now / 1000 - 10), now)
+        assertTrue(approach.single().waitingAtStart)
+        val first = StopBoard.upcoming(listOf(passage("14:44:00", realTime = false)), approach, timetable, guillotiere, now).first()
+        assertEquals(PassagePhase.SCHEDULED, first.phase)
+        assertNull(first.approach)
+    }
+
+    /** 121 sens A : Vaise (1) → Champagne (2), puis Limonest (3) ou Montluzin (4) → St Germain (5). */
+    private val branches = LineTimetable(
+        line = "121", key = "121", dir = "A", validFrom = "2026-09-14", validTo = "2026-12-01",
+        stops = listOf(TimetableStop(1, "Gare de Vaise"), TimetableStop(2, "Champagne Centre"), TimetableStop(3, "Limonest Cimetière"),
+            TimetableStop(4, "Chemin de Montluzin"), TimetableStop(5, "St Germain Gare")),
+        patterns = listOf(listOf(0, 1, 2), listOf(0, 1, 3, 4)),
+        services = listOf(listOf(0, 1, 2, 3, 4, 5, 6)),
+        trips = listOf(TimetableTrip(p = 1, s = 0, t = listOf(850, 855, 865, 870)), TimetableTrip(p = 0, s = 0, t = listOf(870, 875, 885)))
+    )
+
+    @Test
+    fun aCourseOfTheOtherBranchGoesTowardItsTerminusAndABranchStopIsTitledByIt() {
+        val now = at(0.0)
+        fun p(stop: Int, dest: String, hhmmss: String) = Passage(stop, "121", dest, "", "2026-09-15 $hhmmss", "E")
+        val trunk = StopBoard.board(
+            PassageGroup("121", "A", "Limonest Cimetière", 2, listOf(p(2, "St Germain Gare", "14:15:00"), p(2, "Limonest Cimetière", "14:35:00"))),
+            emptyList(), branches, listOf(1), now
+        )
+        assertEquals("Limonest Cimetière", trunk.terminus)
+        assertEquals("St Germain Gare", trunk.first?.shortDestination)
+        assertEquals("14:15 · vers St Germain Gare", PassageTexts.headlineDetail(trunk, now))
+        val branch = StopBoard.board(
+            PassageGroup("121", "A", "Limonest Cimetière", 4, listOf(p(4, "St Germain Gare", "14:25:00"))),
+            emptyList(), branches, listOf(3), now
+        )
+        assertEquals("St Germain Gare", branch.terminus)
+        assertNull(branch.first?.shortDestination)
+    }
+
+    @Test
+    fun aShortRunOnTheWayStaysUntil() {
+        // Debourg est desservi par les rames qui vont jusqu'au bout : ce n'est pas une autre branche.
+        val metro = LineTimetable(
+            line = "B", key = "B", dir = "A", validFrom = "2026-09-14", validTo = "2026-12-01",
+            stops = listOf(TimetableStop(1, "Jean Macé"), TimetableStop(2, "Debourg"), TimetableStop(3, "Gare d'Oullins")),
+            patterns = listOf(listOf(0, 1, 2), listOf(0, 1)),
+            services = listOf(listOf(0, 1, 2, 3, 4, 5, 6)),
+            trips = listOf(TimetableTrip(p = 0, s = 0, t = listOf(850, 853, 856)), TimetableTrip(p = 1, s = 0, t = listOf(860, 863)))
+        )
+        assertFalse(metro.isBranch("Debourg", "Gare d'Oullins"))
+        assertTrue(branches.isBranch("St Germain Gare", "Limonest Cimetière"))
+        assertNull(metro.terminusFrom(listOf(0)))
+    }
+
+    @Test
     fun anAgingPositionIsShownAsApproximate() {
         val now = at(0.0)
-        val approach = approaching(bus(10, t0Sec + 5 * 60, recordedAtSec = now / 1000 - 70), now)
-        val first = StopBoard.upcoming(listOf(passage("14:14:00")), approach, timetable, guillotiere, now).first()
-        assertEquals("~14 min", first.headline(now))
-        assertEquals("Dernier arrêt atteint : Perrache, encore 1 arrêt avant le vôtre", first.location)
+        // Bus parti de Perrache à 14:05, Bellecour atteint (prévu 14:10) avec 4 min d'avance.
+        val approach = approaching(bus(11, t0Sec + 10 * 60, recordedAtSec = now / 1000 - 70, delay = -240), now)
+        val first = StopBoard.upcoming(listOf(passage("14:10:00")), approach, timetable, guillotiere, now).first()
+        assertEquals("~10 min", first.headline(now))
+        assertEquals("Dernier arrêt atteint : Bellecour, le vôtre est le suivant", first.location)
         assertEquals("position d'il y a 1 min 10", first.approach?.vehicle?.stalenessLine(now))
     }
 

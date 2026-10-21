@@ -64,7 +64,7 @@ struct LineBoardCard: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 LineBadge(line: line, size: 14)
-                Text(board.group.terminus)
+                Text(board.terminus)
                     .font(.system(size: 17, weight: .semibold))
                     .lineLimit(1)
                 Spacer(minLength: 4)
