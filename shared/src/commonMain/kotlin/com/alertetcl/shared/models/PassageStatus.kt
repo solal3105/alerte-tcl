@@ -32,10 +32,12 @@ data class PassageStatus(
     val scheduledMinutes: Int?,
     /** Véhicule reconnu pour ce passage, avec sa distance en arrêts. */
     val approach: ApproachingVehicle?,
-    /** Destination d'une course qui s'arrête avant le terminus (« Debourg »). */
+    /** Destination d'une course qui ne va pas au terminus de la carte (« Debourg », ou une autre branche). */
     val shortDestination: String?,
     /** Départ de la journée de service suivante (fiche horaire, la nuit). */
-    val isTomorrow: Boolean = false
+    val isTomorrow: Boolean = false,
+    /** [shortDestination] est le terminus d'une autre branche de la ligne, pas un arrêt en route. */
+    val isBranch: Boolean = false
 ) {
     private fun remainingSeconds(nowEpochMs: Long): Long = arrivalEpoch - nowEpochMs / 1000
 
@@ -116,13 +118,14 @@ object PassageTexts {
 
     /**
      * La petite ligne à côté du gros texte d'une carte : l'heure exacte, « jusqu'à Debourg » pour une
-     * course qui s'arrête avant le terminus, « Dernier passage ». Null quand il n'y a rien à ajouter.
+     * course qui s'arrête avant le terminus, « vers St Germain Gare » pour une course de l'autre branche,
+     * « Dernier passage ». Null quand il n'y a rien à ajouter.
      */
     fun headlineDetail(board: LineBoard, nowEpochMs: Long, timeZoneId: String = StopApproach.TIME_ZONE): String? {
         val first = board.first ?: return null
         return listOfNotNull(
             first.caption(nowEpochMs, timeZoneId),
-            first.shortDestination?.let { "jusqu'à $it" },
+            first.shortDestination?.let { if (first.isBranch) "vers $it" else "jusqu'à $it" },
             LAST_OF_DAY.takeIf { board.firstIsLast }
         ).joinToString(" · ").ifEmpty { null }
     }

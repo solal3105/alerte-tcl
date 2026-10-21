@@ -19,8 +19,8 @@ data class PassageGroup(
     /** Clé stable pour les caches par sens (fiches horaires, bus en approche). */
     val key: String get() = "$line|${directionCode ?: DirectionMatching.normalize(terminus)}"
 
-    /** Destination d'un passage qui ne va pas jusqu'au terminus (« Debourg »), sinon null. */
-    fun shortDestination(passage: Passage): String? =
+    /** Destination d'un passage qui ne va pas jusqu'à [terminus] (« Debourg »), sinon null. */
+    fun shortDestination(passage: Passage, terminus: String = this.terminus): String? =
         if (DirectionMatching.namesMatch(passage.direction, terminus)) null else passage.direction
 }
 

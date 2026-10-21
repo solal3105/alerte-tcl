@@ -16,7 +16,12 @@ data class ApproachingVehicle(
      * Arrivée estimée (epoch, secondes) : l'horaire prévu de la course corrigé du retard constaté par TCL
      * à la dernière position transmise. Null quand la course n'a pas pu être identifiée.
      */
-    val estimatedArrivalEpoch: Long?
+    val estimatedArrivalEpoch: Long?,
+    /**
+     * Encore au point de départ de sa course (bus garé au terminus) : il n'est pas parti, rien ne dit
+     * encore à quelle heure il passera. [StopBoard] ne le rattache à aucun passage.
+     */
+    val waitingAtStart: Boolean = false
 )
 
 /**
@@ -90,12 +95,16 @@ object StopApproach {
             val lastCall = calls.firstOrNull { it.stopIndex == departure.stopIndex && it.minutes == departure.minutes } ?: continue
             val target = calls.drop(lastCall.position + 1).firstOrNull { it.stopIndex in targets } ?: continue
             val eta = aimedEpoch + (target.minutes - lastCall.minutes) * 60L + vehicle.delay
-            return ApproachingVehicle(vehicle, target.position - lastCall.position - 1, lastCall.stop.name, target.minutes, eta)
+            return ApproachingVehicle(vehicle, target.position - lastCall.position - 1, lastCall.stop.name, target.minutes, eta, waitingAtStart = lastCall.position == 0)
         }
         return null
     }
 
-    /** Course inconnue : on compte les arrêts sur l'ordre du sens (quais regroupés), sans heure. */
+    /**
+     * Course inconnue : on compte les arrêts sur l'ordre du sens (quais regroupés), sans heure. Seulement
+     * quand toutes les courses passant par le dernier arrêt desservent ensuite l'arrêt demandé : sur une
+     * ligne à branches (121), un bus de l'autre branche n'y viendra pas.
+     */
     private fun fromStopOrder(
         vehicle: Vehicle,
         lastIndexes: List<Int>,
@@ -106,6 +115,12 @@ object StopApproach {
         val lastGroup = groups.indexOfFirst { group -> group.stopIndexes.any { it in lastIndexes } }
         val targetGroup = groups.indexOfFirst { group -> group.stopIndexes.any { it in targets } }
         if (lastGroup < 0 || targetGroup <= lastGroup) return null
-        return ApproachingVehicle(vehicle, targetGroup - lastGroup - 1, groups[lastGroup].name, null, null)
+        val serving = timetable.patterns.filter { pattern -> pattern.any { it in lastIndexes } }
+        val allReach = serving.all { pattern ->
+            val from = pattern.indexOfFirst { it in lastIndexes }
+            pattern.drop(from + 1).any { it in targets }
+        }
+        if (!allReach) return null
+        return ApproachingVehicle(vehicle, targetGroup - lastGroup - 1, groups[lastGroup].name, null, null, waitingAtStart = timetable.isDepartureOnly(lastIndexes))
     }
 }

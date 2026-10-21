@@ -103,4 +103,14 @@ class StopApproachTest {
         val late = vehicle("bus-11", lastStopId = 10, aimedAtSec = nowSec + 5 * 60, delay = 2 * 3600)
         assertTrue(StopApproach.approaching(listOf(late), timetable, listOf(13), "Guillotière", nowMs).isEmpty())
     }
+
+    @Test
+    fun aBusOfAnotherBranchIsNotComingEvenWithoutARecognisedTrip() {
+        // Motif 0 : Perrache → Bellecour (quai 11) ; motif 1 : Perrache → Bellecour (quai 12). Un bus au quai 11
+        // à une heure inconnue ne vient pas au quai 12 d'une autre branche… mais va bien à Guillotière.
+        val branchy = timetable.copy(patterns = listOf(listOf(0, 1, 4), listOf(0, 2, 3)))
+        val bus = vehicle("bus-13", lastStopId = 11, aimedAtSec = nowSec + 7 * 60)
+        assertTrue(StopApproach.approaching(listOf(bus), branchy, listOf(13), "Guillotière", nowMs).isEmpty())
+        assertEquals(listOf("bus-13"), StopApproach.approaching(listOf(bus), branchy, listOf(14), "Saxe", nowMs).map { it.vehicle.id })
+    }
 }

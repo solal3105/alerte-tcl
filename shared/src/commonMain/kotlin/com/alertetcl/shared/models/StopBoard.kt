@@ -13,7 +13,9 @@ data class LineBoard(
     /** Dernier départ de la journée quand il approche, s'il n'est pas le passage mis en avant. */
     val lastDeparture: PassageStatus?,
     /** Le passage mis en avant est le dernier de la journée. */
-    val firstIsLast: Boolean
+    val firstIsLast: Boolean,
+    /** Titre de la carte : le terminus des courses qui partent de l'arrêt (branche), sinon celui du sens. */
+    val terminus: String = group.terminus
 )
 
 /** La grille du jour lue avec l'état des passages : ce qui est passé, le départ suivi, le reste. */
@@ -66,7 +68,13 @@ object StopBoard {
         nowEpochMs: Long,
         timeZoneId: String = StopApproach.TIME_ZONE
     ): LineBoard {
-        val upcoming = upcoming(group.passages, approaching, timetable, stopIndexes, nowEpochMs, timeZoneId, limit = 4, shortDestination = group::shortDestination)
+        val terminus = timetable?.terminusFrom(stopIndexes) ?: group.terminus
+        val upcoming = upcoming(group.passages, approaching, timetable, stopIndexes, nowEpochMs, timeZoneId, limit = 4) {
+            group.shortDestination(it, terminus)
+        }.map { status ->
+            val destination = status.shortDestination
+            if (destination != null && timetable?.isBranch(destination, terminus) == true) status.copy(isBranch = true) else status
+        }
         val first = upcoming.firstOrNull()
         val today = TimetableTime.serviceDateIso(nowEpochMs, timeZoneId)
         val last = timetable?.departures(stopIndexes, today)?.lastOrNull { !it.isTerminus }
@@ -83,7 +91,8 @@ object StopBoard {
             // Quand le dernier départ est rappelé, rien ne s'écrit après lui (pas de passage du lendemain avant lui).
             following = upcoming.drop(1).filter { !isLast(it) && (lastStatus == null || it.arrivalEpoch < lastStatus.arrivalEpoch) }.take(2),
             lastDeparture = lastStatus,
-            firstIsLast = firstIsLast
+            firstIsLast = firstIsLast,
+            terminus = terminus
         )
     }
 
@@ -114,7 +123,8 @@ object StopBoard {
         val matched = arrayOfNulls<ApproachingVehicle>(announced.size)
         val arriving = ArrayList<ApproachingVehicle>()
         var cursor = 0
-        for (approach in approaching.filter { it.vehicle.positionFreshness(nowEpochMs) != PositionFreshness.STALE }) {
+        // Un bus encore garé au départ de sa course n'annonce rien : l'annonce TCL fait foi.
+        for (approach in approaching.filter { !it.waitingAtStart && it.vehicle.positionFreshness(nowEpochMs) != PositionFreshness.STALE }) {
             val eta = approach.estimatedArrivalEpoch
             val index = when {
                 eta != null -> (cursor until announced.size)

@@ -86,7 +86,7 @@ internal fun LineBoardCard(
         Column(modifier = Modifier.padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 LineBadge(group.line, size = 30.dp)
-                Text(group.terminus, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text(board.terminus, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 TransportMode.detectFromLine(group.line).showOnMapLabel?.let { label ->
                     IconButton(onClick = onShowOnMap) { Icon(Icons.Filled.Map, label, tint = Tokens.accent, modifier = Modifier.size(20.dp)) }
                 }

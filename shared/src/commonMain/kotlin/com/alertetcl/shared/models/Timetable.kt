@@ -218,6 +218,38 @@ data class LineTimetable(
         return used.isNotEmpty() && used.all { pattern -> pattern.indices.filter { pattern[it] in stopIndexes }.all { it == pattern.lastIndex } }
     }
 
+    /**
+     * Vrai quand l'arrêt n'est que le point de départ de ce sens : un véhicule qui y est encore n'a pas
+     * commencé sa course. Faux si la fiche ne connaît pas l'arrêt.
+     */
+    fun isDepartureOnly(stopIndexes: Collection<Int>): Boolean {
+        val used = patterns.filter { pattern -> pattern.any { it in stopIndexes } }
+        return used.isNotEmpty() && used.all { pattern -> pattern.indices.filter { pattern[it] in stopIndexes }.all { it == 0 } }
+    }
+
+    /**
+     * Terminus de toutes les courses qui partent de l'arrêt quand il n'y en a qu'un, sinon null : sur une
+     * branche (la 121 vers Saint-Germain), c'est lui et non le terminus général du sens qui fait le titre.
+     */
+    fun terminusFrom(stopIndexes: Collection<Int>): String? =
+        patterns.filter { pattern -> pattern.dropLast(1).any { it in stopIndexes } }
+            .map { stops[it.last()].name }
+            .distinct()
+            .singleOrNull()
+
+    /**
+     * Vrai quand [destination] est le terminus d'une autre branche que [terminus] : aucune course qui finit
+     * à [terminus] n'y passe (Saint-Germain pour la 121 vers Limonest). Faux pour un terminus partiel
+     * desservi en route (Debourg sur le métro B), ou quand la fiche ne connaît pas les deux noms.
+     */
+    fun isBranch(destination: String, terminus: String): Boolean {
+        val endsAt = { name: String -> patterns.filter { DirectionMatching.namesMatch(stops[it.last()].name, name) } }
+        val toDestination = endsAt(destination)
+        val toTerminus = endsAt(terminus)
+        return toDestination.isNotEmpty() && toTerminus.isNotEmpty() &&
+            toTerminus.none { pattern -> pattern.any { DirectionMatching.namesMatch(stops[it].name, destination) } }
+    }
+
     /** Variante Swift : journée de service au format `yyyy-MM-dd`. */
     fun departures(stopIndexes: List<Int>, isoDate: String): List<TimetableDeparture> =
         departures(stopIndexes, LocalDate.parse(isoDate))
