@@ -1,0 +1,10 @@
+{
+  "approved_model_bounds_unchanged": true,
+  "transparent_glazing": true,
+  "open_window_apertures": 9,
+  "emissive_headlights": true,
+  "headlight_beams": 2,
+  "render_engine": "Cycles",
+  "device": "GPU",
+  "samples": 256
+}

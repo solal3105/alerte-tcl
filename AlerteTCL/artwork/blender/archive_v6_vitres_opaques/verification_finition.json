@@ -1,0 +1,9 @@
+{
+  "approved_model_bounds_unchanged": true,
+  "opaque_glazing": true,
+  "emissive_headlights": true,
+  "headlight_beams": 2,
+  "render_engine": "Cycles",
+  "device": "GPU",
+  "samples": 256
+}

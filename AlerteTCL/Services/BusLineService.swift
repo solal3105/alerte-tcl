@@ -1,4 +1,5 @@
 import Foundation
+import Shared
 import CoreLocation
 
 actor BusLineService {
@@ -82,7 +83,9 @@ actor BusLineService {
         var busLines: [BusLine] = []
         
         for feature in features {
+            // Lignes scolaires JD : jamais tracées sur la carte (588 des 784 lignes du jeu de données)
             guard let ligne = feature.properties.ligne,
+                  Shared.TransitStop.companion.isDisplayedLine(name: ligne),
                   !feature.geometry.coordinates.isEmpty else {
                 continue
             }

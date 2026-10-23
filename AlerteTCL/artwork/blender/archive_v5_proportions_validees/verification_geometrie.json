@@ -1,0 +1,345 @@
+{
+  "mesh_parts": 51,
+  "glazing_checks": 9,
+  "failures": [],
+  "parts": [
+    {
+      "object": "Cabine / volume continu",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 21.75098277133132
+    },
+    {
+      "object": "Remorque / volume continu",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 20.919993261633262
+    },
+    {
+      "object": "Articulation / soufflet continu",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 2.631065884894289
+    },
+    {
+      "object": "Pare brise enveloppant / joint fin",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.011729134365445839
+    },
+    {
+      "object": "Pare brise enveloppant / vitrage",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.030786176466454238
+    },
+    {
+      "object": "Cabine / vitre cote nez / joint fin",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.0055572205552872605
+    },
+    {
+      "object": "Cabine / vitre cote nez / joint fin / cote oppose",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.00555722055528728
+    },
+    {
+      "object": "Cabine / vitre cote nez / vitrage",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.015635257406592034
+    },
+    {
+      "object": "Cabine / vitre cote nez / vitrage / cote oppose",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.01563525740659206
+    },
+    {
+      "object": "Cabine / vitre cote articulation / joint fin",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.005933040899485495
+    },
+    {
+      "object": "Cabine / vitre cote articulation / joint fin / cote oppose",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.005933040899485628
+    },
+    {
+      "object": "Cabine / vitre cote articulation / vitrage",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.016688612642545533
+    },
+    {
+      "object": "Cabine / vitre cote articulation / vitrage / cote oppose",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.0166886126425455
+    },
+    {
+      "object": "Remorque / vitre cote articulation / joint fin",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.00592826083973932
+    },
+    {
+      "object": "Remorque / vitre cote articulation / joint fin / cote oppose",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.005928260839739196
+    },
+    {
+      "object": "Remorque / vitre cote articulation / vitrage",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.01668166072836665
+    },
+    {
+      "object": "Remorque / vitre cote articulation / vitrage / cote oppose",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.016681660728366594
+    },
+    {
+      "object": "Remorque / vitre cote arriere / joint fin",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.005928550044109721
+    },
+    {
+      "object": "Remorque / vitre cote arriere / joint fin / cote oppose",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.005928550044109794
+    },
+    {
+      "object": "Remorque / vitre cote arriere / vitrage",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.016681643471871194
+    },
+    {
+      "object": "Remorque / vitre cote arriere / vitrage / cote oppose",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.016681643471871087
+    },
+    {
+      "object": "Phare gauche / cerclage joufflu",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.00988159077931418
+    },
+    {
+      "object": "Phare gauche / reflecteur",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.0002779154032583604
+    },
+    {
+      "object": "Phare gauche / lentille bombee",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.004596142487030866
+    },
+    {
+      "object": "Phare droit / cerclage joufflu",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.009881592296067368
+    },
+    {
+      "object": "Phare droit / reflecteur",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.0002779155815479426
+    },
+    {
+      "object": "Phare droit / lentille bombee",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.004596143427289564
+    },
+    {
+      "object": "Sourire / fond",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.002176771485533474
+    },
+    {
+      "object": "Essuie glace / bout arrondi",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.0002805464593031122
+    },
+    {
+      "object": "Essuie glace / bout arrondi.001",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.0002805464593031122
+    },
+    {
+      "object": "Cabine / bande corail",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.005357756749106803
+    },
+    {
+      "object": "Cabine / bande corail / cote oppose",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.005357756749106767
+    },
+    {
+      "object": "Remorque / bande corail",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.00507753924688312
+    },
+    {
+      "object": "Remorque / bande corail / cote oppose",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.005077539246883131
+    },
+    {
+      "object": "Cabine / retour corail sur le toit",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.0035414571323445373
+    },
+    {
+      "object": "Essieu 1",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.025674549021899733
+    },
+    {
+      "object": "Roue 1 -1",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.04871187892444
+    },
+    {
+      "object": "Roue 1 +1",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.04871187892444
+    },
+    {
+      "object": "Essieu 2",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.025674549021899733
+    },
+    {
+      "object": "Roue 2 -1",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.04871187892444
+    },
+    {
+      "object": "Roue 2 +1",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.04871187892444
+    },
+    {
+      "object": "Essieu 3",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.025674549021899733
+    },
+    {
+      "object": "Roue 3 -1",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.04871187892444
+    },
+    {
+      "object": "Roue 3 +1",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.04871187892444
+    },
+    {
+      "object": "Essieu 4",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.025674549021899733
+    },
+    {
+      "object": "Roue 4 -1",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.04871187892444
+    },
+    {
+      "object": "Roue 4 +1",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.04871187892444
+    },
+    {
+      "object": "Pantographe / socle ancre au toit",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.019531786045835567
+    },
+    {
+      "object": "Pantographe / branche V",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.01070396694955495
+    },
+    {
+      "object": "Pantographe / branche V.001",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.01070396694955495
+    },
+    {
+      "object": "Pantographe / archet arrondi",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 0.033489510846721145
+    }
+  ],
+  "body_bounds": {
+    "Cabine / volume continu": [
+      [
+        -1.1483502388000488,
+        1.1483502388000488
+      ],
+      [
+        8.47334522404708e-05,
+        4.0
+      ],
+      [
+        0.30000001192092896,
+        3.0399999618530273
+      ]
+    ],
+    "Remorque / volume continu": [
+      [
+        -1.1483502388000488,
+        1.1483502388000488
+      ],
+      [
+        4.260000228881836,
+        8.0600004196167
+      ],
+      [
+        0.30000001192092896,
+        3.0399999618530273
+      ]
+    ]
+  },
+  "common_roof_height": 3.0399999618530273,
+  "wheel_body_surface_intersections": 0
+}

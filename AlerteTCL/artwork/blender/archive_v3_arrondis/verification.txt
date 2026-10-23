@@ -1,0 +1,12 @@
+CONTROLE GEOMETRIQUE DU MODELE
+
+131 pieces maillees controlees apres evaluation des modificateurs.
+8 vitrages controles contre les parois metalliques.
+12 roues, 6 essieux, 3 bogies. Degagement vertical roue/coque : 70.0 mm.
+Section commune : largeur 2.30 m ; toit 3.03 m ; plancher 0.75 m.
+Controle des appuis du pantographe sur le toit.
+Raccords plancher/passerelle et brides/cloisons controles.
+Roues controlees contre les chassis de bogie, boites d’essieu et arbres.
+Aucune camera, aucun eclairage, aucun rendu.
+
+Tous les controles ci-dessus sont passes.

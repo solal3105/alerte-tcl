@@ -1,0 +1,164 @@
+{
+  "fill" : {
+    "automatic-gradient" : "extended-srgb:0.90000,0.97500,0.95500,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "EssuieGlace.png",
+          "name" : "Detail devant le vitrage"
+        }
+      ],
+      "name" : "08 Essuie-glace",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    },
+    {
+      "blur-material" : 0.035,
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "fill" : "automatic",
+          "glass" : true,
+          "hidden" : false,
+          "image-name" : "Vitres.svg",
+          "name" : "Cinq vitres vectorielles du modele",
+          "opacity" : 1
+        }
+      ],
+      "name" : "07 Vitres / verre Apple",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.32
+      }
+    },
+    {
+      "layers" : [
+        {
+          "image-name" : "CaisseAvant.png",
+          "name" : "Porcelaine corail et phares"
+        }
+      ],
+      "name" : "06 Caisse avant",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    },
+    {
+      "layers" : [
+        {
+          "image-name" : "CaisseArriere.png",
+          "name" : "Remorque et interieur"
+        }
+      ],
+      "name" : "05 Caisse arriere",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    },
+    {
+      "layers" : [
+
+      ],
+      "name" : "04 Balises",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.04
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.12
+      }
+    },
+    {
+      "layers" : [
+        {
+          "image-name" : "Anneaux.svg",
+          "name" : "Trois cercles"
+        },
+        {
+          "image-name" : "Balayage.svg",
+          "name" : "Balayage cyan"
+        }
+      ],
+      "name" : "03 Reperes du radar",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    },
+    {
+      "layers" : [
+        {
+          "image-name" : "Couronne.svg",
+          "name" : "Bord de cristal"
+        }
+      ],
+      "name" : "02 Couronne / verre Apple",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.04
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.45
+      }
+    },
+    {
+      "layers" : [
+        {
+          "image-name" : "Cadran.svg",
+          "name" : "Fond du radar"
+        }
+      ],
+      "name" : "01 Cadran vert",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.12
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

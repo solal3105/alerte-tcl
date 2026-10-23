@@ -1,0 +1,56 @@
+{
+  "exterior_bounds_unchanged": true,
+  "shells": [
+    {
+      "shell": "Cabine / volume continu",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 4.8825603900510375
+    },
+    {
+      "shell": "Remorque / volume continu",
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "volume": 4.976365623019665
+    }
+  ],
+  "apertures": [
+    {
+      "pane": "Pare brise enveloppant / vitrage",
+      "open_into_cabin": true
+    },
+    {
+      "pane": "Cabine / vitre cote nez / vitrage",
+      "open_into_cabin": true
+    },
+    {
+      "pane": "Cabine / vitre cote nez / vitrage / cote oppose",
+      "open_into_cabin": true
+    },
+    {
+      "pane": "Cabine / vitre cote articulation / vitrage",
+      "open_into_cabin": true
+    },
+    {
+      "pane": "Cabine / vitre cote articulation / vitrage / cote oppose",
+      "open_into_cabin": true
+    },
+    {
+      "pane": "Remorque / vitre cote articulation / vitrage",
+      "open_into_cabin": true
+    },
+    {
+      "pane": "Remorque / vitre cote articulation / vitrage / cote oppose",
+      "open_into_cabin": true
+    },
+    {
+      "pane": "Remorque / vitre cote arriere / vitrage",
+      "open_into_cabin": true
+    },
+    {
+      "pane": "Remorque / vitre cote arriere / vitrage / cote oppose",
+      "open_into_cabin": true
+    }
+  ],
+  "failures": []
+}

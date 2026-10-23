@@ -1,0 +1,4 @@
+44 pieces fermees controlees. 7 vitrages controles.
+Controles passes.
+Niveaux de toiture identiques verifies sur les maillages ; bandeau bleu integre.
+6 roues controlees contre les deux coques : aucune intersection de surface.
