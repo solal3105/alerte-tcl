@@ -1,0 +1,9 @@
+{
+  "native_radar_objects": 12,
+  "compositor_enabled": false,
+  "camera_preserved": true,
+  "model_geometry_preserved": true,
+  "radar_depth": 18.791157150268553,
+  "frame_width_at_radar": 9.376527597013848,
+  "glass_transmission": 0.8999999761581421
+}

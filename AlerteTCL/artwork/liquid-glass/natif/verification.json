@@ -1,0 +1,9 @@
+{
+  "compositor": false,
+  "image_texture_nodes": 0,
+  "mesh_objects": 101,
+  "curve_objects": 7,
+  "camera_unchanged": true,
+  "glass_rim_non_manifold_edges": 0,
+  "glass_rim_volume": 2.179981289176033
+}

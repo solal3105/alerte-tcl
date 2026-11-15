@@ -205,7 +205,8 @@ et un bandeau « Tout afficher » apparaît quand les filtres masquent tous les 
   onglets (alertes, fiches horaires : `NetworkSheet` iOS, `TimetableFlow` hébergé dans la feuille Android).
   Boutons de carte en deux couleurs seulement (`MapGlassButton(active:)` / `MapCircleFab(active)`), vue
   satellite dans les filtres sur Transport, pas de capsule « LIVE ». Lignes scolaires JD exclues des
-  arrêts et des passages (`TransitStop.isDisplayedLine`).
+  arrêts, des passages et des tracés de la carte (`TransitStop.isDisplayedLine`, appliqué aussi dans
+  `BusLineService` des deux côtés : 588 des 784 lignes du GeoServer sont scolaires).
 - Les composants communs sont décrits dans `DESIGN.md` : badge de ligne (`LineBadge`), en-tête de
   feuille (`SheetHeader`), états chargement / vide / erreur, textes des alertes.
 

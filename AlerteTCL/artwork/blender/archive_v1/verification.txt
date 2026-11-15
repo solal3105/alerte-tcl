@@ -1,0 +1,17 @@
+Cabine principale · volume quad: 3456 quads, fermé, 0 arête non-manifold, 0 face dégénérée.
+Remorque · volume quad: 1944 quads, fermé, 0 arête non-manifold, 0 face dégénérée.
+Pare-brise · joint arrondi: épaisseur évaluée fermée, 0 arête non-manifold.
+Pare-brise · vitre bombée: épaisseur évaluée fermée, 0 arête non-manifold.
+Cabine gauche · fenêtre 1 · joint: épaisseur évaluée fermée, 0 arête non-manifold.
+Cabine gauche · fenêtre 1 · verre: épaisseur évaluée fermée, 0 arête non-manifold.
+Cabine gauche · fenêtre 2 · joint: épaisseur évaluée fermée, 0 arête non-manifold.
+Cabine gauche · fenêtre 2 · verre: épaisseur évaluée fermée, 0 arête non-manifold.
+Remorque gauche · joint: épaisseur évaluée fermée, 0 arête non-manifold.
+Remorque gauche · verre: épaisseur évaluée fermée, 0 arête non-manifold.
+Cabine droit · fenêtre 1 · joint: épaisseur évaluée fermée, 0 arête non-manifold.
+Cabine droit · fenêtre 1 · verre: épaisseur évaluée fermée, 0 arête non-manifold.
+Cabine droit · fenêtre 2 · joint: épaisseur évaluée fermée, 0 arête non-manifold.
+Cabine droit · fenêtre 2 · verre: épaisseur évaluée fermée, 0 arête non-manifold.
+Remorque droit · joint: épaisseur évaluée fermée, 0 arête non-manifold.
+Remorque droit · verre: épaisseur évaluée fermée, 0 arête non-manifold.
+Référence PNG embarquée. Aucun matériau ne dépend de cette image.

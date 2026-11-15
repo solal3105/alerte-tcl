@@ -1,0 +1,116 @@
+{
+  "fill" : {
+    "automatic-gradient" : "extended-srgb:0.90000,0.97500,0.95500,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "EssuieGlace.png",
+          "name" : "Detail devant le vitrage"
+        }
+      ],
+      "name" : "04 Essuie-glace",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    },
+    {
+      "blur-material" : 0.035,
+      "layers" : [
+        {
+          "image-name" : "Vitres.svg",
+          "name" : "Cinq vitres vectorielles du modele"
+        }
+      ],
+      "name" : "03 Vitres / verre Apple",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.32
+      }
+    },
+    {
+      "layers" : [
+        {
+          "image-name" : "CaisseAvant.png",
+          "name" : "Caisse avant - porcelaine et phares"
+        },
+        {
+          "image-name" : "CaisseArriere.png",
+          "name" : "Caisse arriere - remorque"
+        }
+      ],
+      "name" : "02 Tram / deux caisses",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0
+      }
+    },
+    {
+      "layers" : [
+        {
+          "image-name" : "Anneaux.svg",
+          "name" : "Trois cercles"
+        },
+        {
+          "image-name" : "Balayage.svg",
+          "name" : "Balayage cyan"
+        },
+        {
+          "image-name" : "Couronne.svg",
+          "name" : "Bord de cristal"
+        },
+        {
+          "fill-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : {
+                "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
+              }
+            }
+          ],
+          "image-name" : "Cadran.svg",
+          "name" : "Cadran vert",
+          "opacity-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : 0.85
+            }
+          ]
+        }
+      ],
+      "name" : "01 Radar / couches vectorielles",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.08
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

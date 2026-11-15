@@ -2,6 +2,7 @@ package com.alertetcl.shared.services
 
 import com.alertetcl.shared.models.BusLine
 import com.alertetcl.shared.models.TransitLine
+import com.alertetcl.shared.models.TransitStop
 import com.alertetcl.shared.network.ApiError
 import com.alertetcl.shared.network.HttpClientProvider
 import com.alertetcl.shared.network.NetworkConfiguration
@@ -54,6 +55,8 @@ class BusLineService {
             if (total == null) total = body.numberMatched
             for (feature in body.features) {
                 val name = feature.properties.ligne ?: continue
+                // Lignes scolaires JD : jamais tracées sur la carte (588 des 784 lignes du jeu de données)
+                if (!TransitStop.isDisplayedLine(name)) continue
                 feature.geometry.coordinates.forEachIndexed { idx, segment ->
                     if (segment.isNotEmpty()) {
                         lines += BusLine(id = "${feature.id}_$idx", name = name, coordinates = segment)

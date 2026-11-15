@@ -1,0 +1,24 @@
+{
+  "framing": {
+    "left": 0.18295973539352417,
+    "right": 0.8170402646064758,
+    "bottom": 0.13845103979110718,
+    "top": 0.8615490198135376,
+    "max_radius": 0.42500001740327825
+  },
+  "sizes": [
+    2048,
+    1024,
+    64
+  ],
+  "model_geometry_preserved": true,
+  "glass_transmission": 0.88,
+  "glass_roughness": 0.1,
+  "radar_range_rings": 5,
+  "radar_echoes": 2,
+  "camera_direction": [
+    -0.25781145691871643,
+    -0.9568771719932556,
+    0.1338636577129364
+  ]
+}

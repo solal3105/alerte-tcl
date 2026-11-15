@@ -1,0 +1,138 @@
+"""App-icon composition rendered from the editable, finished Blender tram.
+
+The original green/cyan medallion is rebuilt procedurally. No photo is mapped
+onto the model. The approved model and the app's existing icon are preserved.
+"""
+from pathlib import Path
+import sys, math, json
+import bpy
+import numpy as np
+from mathutils import Vector
+from bpy_extras.object_utils import world_to_camera_view
+
+ROOT=Path(__file__).resolve().parent
+OUT=ROOT.parent/'app-icon';OUT.mkdir(exist_ok=True)
+PREVIEW='--preview' in sys.argv
+bpy.ops.wm.open_mainfile(filepath=str(ROOT/'Logo_Tram.blend'))
+scene=bpy.context.scene;scene.name='Logo app / tram'
+cam=scene.camera
+
+# A slightly more frontal portrait restores the friendly face at small icon sizes.
+direction=Vector((-.43,-.90,.21)).normalized()
+target=Vector((0,3.0,1.85))
+cam.location=target+direction*14.3
+cam.rotation_euler=(-direction).to_track_quat('-Z','Y').to_euler()
+cam.data.type='PERSP';cam.data.lens=65;cam.data.shift_x=0;cam.data.shift_y=0
+scene.render.resolution_x=scene.render.resolution_y=768 if PREVIEW else 2048
+scene.render.resolution_percentage=100
+bpy.context.view_layer.update();dg=bpy.context.evaluated_depsgraph_get()
+points=[]
+for ob in scene.objects:
+    if ob.type not in {'MESH','CURVE'} or not ob.parent or not ob.parent.name.startswith('TRAM /'):continue
+    ev=ob.evaluated_get(dg);mesh=ev.to_mesh()
+    step=max(1,len(mesh.vertices)//1600)
+    points.extend(ob.matrix_world@mesh.vertices[i].co for i in range(0,len(mesh.vertices),step))
+    ev.to_mesh_clear()
+
+def projected():return [world_to_camera_view(scene,cam,p) for p in points]
+uv=projected();cx=(min(p.x for p in uv)+max(p.x for p in uv))/2;cy=(min(p.y for p in uv)+max(p.y for p in uv))/2
+cam.data.shift_x=cx-.5;cam.data.shift_y=cy-.5
+bpy.context.view_layer.update();uv=projected()
+r=max(math.hypot(p.x-.5,p.y-.5) for p in uv)
+factor=.425/r;cam.data.lens*=factor;cam.data.shift_x*=factor;cam.data.shift_y*=factor
+bpy.context.view_layer.update();uv=projected()
+framing={'left':min(p.x for p in uv),'right':max(p.x for p in uv),
+         'bottom':min(p.y for p in uv),'top':max(p.y for p in uv),
+         'max_radius':max(math.hypot(p.x-.5,p.y-.5) for p in uv)}
+assert framing['max_radius']<.432,framing
+
+# Keep real ground/contact shadows as a separate alpha contribution.
+for ob in bpy.data.collections['80 Studio - finition'].objects:
+    if ob.type=='MESH':ob.is_shadow_catcher=True
+scene.render.film_transparent=True
+scene.cycles.film_transparent_glass=True
+scene.cycles.film_transparent_roughness=.2
+
+# Saturated but controlled livery and glass highlights for a small, bright icon.
+scene.world.node_tree.nodes['Background'].inputs['Strength'].default_value=.20
+for ob in bpy.data.collections['80 Studio - finition'].objects:
+    if ob.type=='LIGHT' and ob.data.type=='AREA':ob.data.energy*=1.1
+
+def linear(hexcode):
+    c=np.array([int(hexcode[i:i+2],16)/255 for i in (0,2,4)],dtype=np.float32)
+    return np.where(c<=.04045,c/12.92,((c+.055)/1.055)**2.4)
+
+# Native generated Blender image, computed from vector geometry at final size.
+# It remains packed in the .blend and can be reproduced at any resolution.
+size=scene.render.resolution_x
+y,x=np.mgrid[0:size,0:size].astype(np.float32)
+x=(x+.5)/size-.5;y=(y+.5)/size-.5
+radius=np.hypot(x,y);angle=np.arctan2(y,x)
+wedge=(angle>=math.radians(16))&(angle<=math.radians(76))
+outer=np.clip((.46-radius)*size+.5,0,1)[...,None]
+inner=np.clip((.425-radius)*size+.5,0,1)[...,None]
+halo=np.where(wedge[...,None],linear('8FE2F9'),linear('B2F7BB'))
+glow=np.clip(1-np.hypot(x+.14,y-.19)/.83,0,1)[...,None]
+green=linear('23D955')*(1-glow*.45)+linear('4DF77B')*glow*.45
+blue=linear('039DED')*(1-glow*.4)+linear('15C2FC')*glow*.4
+disk=np.where(wedge[...,None],blue,green)
+background=np.ones((size,size,4),dtype=np.float32)
+background[:,:,:3]=(1-outer)+halo*outer
+background[:,:,:3]=background[:,:,:3]*(1-inner)+disk*inner
+bg=bpy.data.images.new('Logo / medaillon vert cyan',width=size,height=size,alpha=False,float_buffer=True)
+bg.colorspace_settings.name='Linear Rec.709';bg.pixels.foreach_set(background.ravel());bg.update();bg.pack()
+
+scene.use_nodes=True;nodes=scene.node_tree.nodes;nodes.clear();links=scene.node_tree.links
+rl=nodes.new('CompositorNodeRLayers');rl.location=(-1250,100)
+glare=nodes.new('CompositorNodeGlare');glare.glare_type='FOG_GLOW';glare.quality='HIGH';glare.location=(-1050,100)
+glare.inputs['Threshold'].default_value=2;glare.inputs['Strength'].default_value=.12;glare.inputs['Size'].default_value=.16
+links.new(rl.outputs['Image'],glare.inputs['Image'])
+# Apply the photographic view transform to the tram only. The flat brand colors
+# and white canvas must remain exact sRGB, rather than being tone-mapped by AgX.
+straight=nodes.new('CompositorNodePremulKey');straight.mapping='PREMUL_TO_STRAIGHT';straight.location=(-850,100)
+links.new(glare.outputs['Image'],straight.inputs['Image'])
+agx=nodes.new('CompositorNodeConvertColorSpace');agx.from_color_space='Linear Rec.709';agx.to_color_space='AgX Base sRGB';agx.location=(-650,100)
+links.new(straight.outputs['Image'],agx.inputs['Image'])
+contrast=nodes.new('CompositorNodeCurveRGB');contrast.location=(-430,100)
+contrast.mapping.curves[3].points.new(.25,.21);contrast.mapping.curves[3].points.new(.75,.79);contrast.mapping.update()
+links.new(agx.outputs['Image'],contrast.inputs['Image'])
+decode=nodes.new('CompositorNodeConvertColorSpace');decode.from_color_space='sRGB';decode.to_color_space='Linear Rec.709';decode.location=(-180,100)
+links.new(contrast.outputs['Image'],decode.inputs['Image'])
+premul=nodes.new('CompositorNodePremulKey');premul.mapping='STRAIGHT_TO_PREMUL';premul.location=(30,100)
+links.new(decode.outputs['Image'],premul.inputs['Image'])
+image=nodes.new('CompositorNodeImage');image.image=bg;image.location=(30,-160)
+over=nodes.new('CompositorNodeAlphaOver');over.location=(250,20);over.inputs[0].default_value=1
+links.new(image.outputs['Image'],over.inputs[1]);links.new(premul.outputs['Image'],over.inputs[2])
+out=nodes.new('CompositorNodeComposite');out.location=(470,20);links.new(over.outputs['Image'],out.inputs['Image'])
+scene.view_settings.view_transform='Standard';scene.view_settings.look='None';scene.view_settings.exposure=0;scene.view_settings.gamma=1
+
+scene.render.engine='CYCLES';scene.cycles.samples=48 if PREVIEW else 256
+scene.cycles.use_denoising=True;scene.cycles.adaptive_threshold=.035 if PREVIEW else .009
+scene.cycles.max_bounces=16;scene.cycles.transmission_bounces=12;scene.cycles.transparent_max_bounces=12
+prefs=bpy.context.preferences.addons['cycles'].preferences;prefs.compute_device_type='METAL';prefs.get_devices()
+for d in prefs.devices:d.use=d.type=='METAL'
+scene.cycles.device='GPU' if any(d.type=='METAL' for d in prefs.devices) else 'CPU'
+scene.render.image_settings.file_format='PNG';scene.render.image_settings.color_mode='RGB';scene.render.image_settings.color_depth='8'
+scene.render.filepath=str(OUT/('apercu_logo.png' if PREVIEW else 'AlerteTCL_Icon_2048.png'))
+scene['composition_logo']='Medaillon vert et cyan inspire du logo original, rendu du tram 3D actuel avec verre transparent.'
+scene['cadre_logo']=json.dumps(framing)
+if not PREVIEW:bpy.ops.wm.save_as_mainfile(filepath=str(ROOT/'Logo_App_Tram.blend'),compress=True)
+bpy.ops.render.render(write_still=True)
+if not PREVIEW:
+    final=bpy.data.images.load(scene.render.filepath,check_existing=False)
+    final.name='Logo app / rendu final';final.pack()
+    for ws in bpy.data.workspaces:
+        if ws.name=='Tram - Rendu':
+            ws.name='Logo - Rendu'
+            for screen in ws.screens:
+                for area in screen.areas:
+                    if area.type=='IMAGE_EDITOR':area.spaces.active.image=final
+    # Scale the already color-managed render without applying a second view transform.
+    for side in (1024,64):
+        export=bpy.data.images.load(str(OUT/'AlerteTCL_Icon_2048.png'),check_existing=False)
+        export.scale(side,side);export.file_format='PNG'
+        export.filepath_raw=str(OUT/f'AlerteTCL_Icon_{side}.png');export.save()
+        bpy.data.images.remove(export)
+    bpy.ops.wm.save_as_mainfile(filepath=str(ROOT/'Logo_App_Tram.blend'),compress=True)
+    (OUT/'verification_logo.json').write_text(json.dumps({'framing':framing,'sizes':[2048,1024,64],'model_geometry_preserved':True},indent=2))
+print('APP_ICON_READY',scene.render.filepath,framing)

@@ -1,0 +1,1447 @@
+{
+  "summary": {
+    "mesh_parts": 131,
+    "glazing_clearance_checks": 8,
+    "wheels": 12,
+    "bogies": 3,
+    "minimum_wheel_body_clearance_m": 0.07,
+    "body_width_m": 2.3,
+    "roof_height_m": 3.03,
+    "floor_height_m": 0.75,
+    "cameras": 0,
+    "lights": 0,
+    "gangway_and_flange_contact_checks": true,
+    "wheel_running_gear_clearance_checks": true,
+    "failures": 0
+  },
+  "parts": [
+    {
+      "object": "Avant gauche",
+      "vertices": 3008,
+      "faces": 3010,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.121494378
+    },
+    {
+      "object": "Avant droit",
+      "vertices": 3008,
+      "faces": 3010,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.12149438
+    },
+    {
+      "object": "front / toit",
+      "vertices": 1938,
+      "faces": 1936,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.413434752
+    },
+    {
+      "object": "front / bas de caisse -1",
+      "vertices": 306,
+      "faces": 304,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.036244047
+    },
+    {
+      "object": "front / bas de caisse 1",
+      "vertices": 306,
+      "faces": 304,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.036244047
+    },
+    {
+      "object": "front / plancher",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.35733347
+    },
+    {
+      "object": "front / longeron",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.030288194
+    },
+    {
+      "object": "front / longeron.001",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.030288194
+    },
+    {
+      "object": "Avant / nez creux et baie de pare-brise",
+      "vertices": 10479,
+      "faces": 9904,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.310909396
+    },
+    {
+      "object": "Avant / prolongement plancher",
+      "vertices": 882,
+      "faces": 880,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.061190364
+    },
+    {
+      "object": "Avant / pare-chocs enveloppant",
+      "vertices": 1690,
+      "faces": 1688,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.011130546
+    },
+    {
+      "object": "front / bande corail -1",
+      "vertices": 2738,
+      "faces": 2736,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.006321245
+    },
+    {
+      "object": "front / bande corail 1",
+      "vertices": 2738,
+      "faces": 2736,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.006321245
+    },
+    {
+      "object": "Avant / montant corail -1",
+      "vertices": 338,
+      "faces": 336,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 8.1816e-05
+    },
+    {
+      "object": "Avant / montant corail 1",
+      "vertices": 338,
+      "faces": 336,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 8.1816e-05
+    },
+    {
+      "object": "Avant / ruban corail sur le toit",
+      "vertices": 342,
+      "faces": 340,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.00478453
+    },
+    {
+      "object": "front / cloison intercirculation",
+      "vertices": 3680,
+      "faces": 3680,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.15005143
+    },
+    {
+      "object": "Arriere gauche",
+      "vertices": 1536,
+      "faces": 1536,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.104529554
+    },
+    {
+      "object": "Arriere droit",
+      "vertices": 1536,
+      "faces": 1536,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.104529554
+    },
+    {
+      "object": "rear / toit",
+      "vertices": 1938,
+      "faces": 1936,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.355675507
+    },
+    {
+      "object": "rear / bas de caisse -1",
+      "vertices": 306,
+      "faces": 304,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.031180543
+    },
+    {
+      "object": "rear / bas de caisse 1",
+      "vertices": 306,
+      "faces": 304,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.031180543
+    },
+    {
+      "object": "rear / plancher",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.307407161
+    },
+    {
+      "object": "rear / longeron",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.026055018
+    },
+    {
+      "object": "rear / longeron.001",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.026055018
+    },
+    {
+      "object": "rear / bande corail -1",
+      "vertices": 2738,
+      "faces": 2736,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.005409533
+    },
+    {
+      "object": "rear / bande corail 1",
+      "vertices": 2738,
+      "faces": 2736,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.005409533
+    },
+    {
+      "object": "rear / cloison intercirculation",
+      "vertices": 3680,
+      "faces": 3680,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.150051441
+    },
+    {
+      "object": "Arriere / face terminale",
+      "vertices": 6992,
+      "faces": 6992,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.231307388
+    },
+    {
+      "object": "Arriere / prolongement plancher",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.019032811
+    },
+    {
+      "object": "Arriere / feu de position",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000413113
+    },
+    {
+      "object": "Arriere / feu de position.001",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000413113
+    },
+    {
+      "object": "Avant gauche / grande vitre avant / joint",
+      "vertices": 1024,
+      "faces": 1024,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.00607124
+    },
+    {
+      "object": "Avant gauche / grande vitre avant / verre",
+      "vertices": 1682,
+      "faces": 1680,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.019367357
+    },
+    {
+      "object": "Avant gauche / grande vitre arriere / joint",
+      "vertices": 1024,
+      "faces": 1024,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.006071242
+    },
+    {
+      "object": "Avant gauche / grande vitre arriere / verre",
+      "vertices": 1682,
+      "faces": 1680,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.019367358
+    },
+    {
+      "object": "Arriere gauche / grande baie bleue / joint",
+      "vertices": 1024,
+      "faces": 1024,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.008423025
+    },
+    {
+      "object": "Arriere gauche / grande baie bleue / verre",
+      "vertices": 1682,
+      "faces": 1680,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.034112312
+    },
+    {
+      "object": "Avant droit / grande vitre avant / joint",
+      "vertices": 1024,
+      "faces": 1024,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.00607124
+    },
+    {
+      "object": "Avant droit / grande vitre avant / verre",
+      "vertices": 1682,
+      "faces": 1680,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.019367357
+    },
+    {
+      "object": "Avant droit / grande vitre arriere / joint",
+      "vertices": 1024,
+      "faces": 1024,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.006071242
+    },
+    {
+      "object": "Avant droit / grande vitre arriere / verre",
+      "vertices": 1682,
+      "faces": 1680,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.019367358
+    },
+    {
+      "object": "Arriere droit / grande baie bleue / joint",
+      "vertices": 1024,
+      "faces": 1024,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.008423025
+    },
+    {
+      "object": "Arriere droit / grande baie bleue / verre",
+      "vertices": 1682,
+      "faces": 1680,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.034112312
+    },
+    {
+      "object": "Pare-brise / joint",
+      "vertices": 1024,
+      "faces": 1024,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.008550211
+    },
+    {
+      "object": "Pare-brise / verre",
+      "vertices": 1682,
+      "faces": 1680,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.043356266
+    },
+    {
+      "object": "Lunette arriere / joint",
+      "vertices": 1024,
+      "faces": 1024,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.00758627
+    },
+    {
+      "object": "Lunette arriere / verre",
+      "vertices": 1682,
+      "faces": 1680,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.031696021
+    },
+    {
+      "object": "Soufflet / six plis continus",
+      "vertices": 6400,
+      "faces": 6400,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.098250063
+    },
+    {
+      "object": "Passerelle / plancher commun",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.031101905
+    },
+    {
+      "object": "Soufflet / bride de fixation",
+      "vertices": 768,
+      "faces": 768,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.00589584
+    },
+    {
+      "object": "Soufflet / bride de fixation.001",
+      "vertices": 768,
+      "faces": 768,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.005895843
+    },
+    {
+      "object": "Bogie 1 / longeron lateral",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.01651953
+    },
+    {
+      "object": "Bogie 1 / suspension",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.003275245
+    },
+    {
+      "object": "Bogie 1 / coupelle",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000820749
+    },
+    {
+      "object": "Bogie 1 / coupelle.001",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000820748
+    },
+    {
+      "object": "Bogie 1 / longeron lateral.001",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.01651953
+    },
+    {
+      "object": "Bogie 1 / suspension.001",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.003275245
+    },
+    {
+      "object": "Bogie 1 / coupelle.002",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000820749
+    },
+    {
+      "object": "Bogie 1 / coupelle.003",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000820748
+    },
+    {
+      "object": "Bogie 1 / traverse",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.025759937
+    },
+    {
+      "object": "Bogie 1 / pivot de caisse",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.008880293
+    },
+    {
+      "object": "Bogie 1 / essieu",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.014311377
+    },
+    {
+      "object": "Bogie 1 / boite essieu",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.004071978
+    },
+    {
+      "object": "Bogie 1 / roue -1 -1",
+      "vertices": 960,
+      "faces": 960,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.028718378
+    },
+    {
+      "object": "Bogie 1 / boite essieu.001",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.004071978
+    },
+    {
+      "object": "Bogie 1 / roue -1 +1",
+      "vertices": 960,
+      "faces": 960,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.028718378
+    },
+    {
+      "object": "Bogie 1 / essieu.001",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.014311377
+    },
+    {
+      "object": "Bogie 1 / boite essieu.002",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.004071978
+    },
+    {
+      "object": "Bogie 1 / roue +1 -1",
+      "vertices": 960,
+      "faces": 960,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.028718383
+    },
+    {
+      "object": "Bogie 1 / boite essieu.003",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.004071978
+    },
+    {
+      "object": "Bogie 1 / roue +1 +1",
+      "vertices": 960,
+      "faces": 960,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.028718383
+    },
+    {
+      "object": "Bogie 2 / longeron lateral",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.01651953
+    },
+    {
+      "object": "Bogie 2 / suspension",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.003275245
+    },
+    {
+      "object": "Bogie 2 / coupelle",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000820749
+    },
+    {
+      "object": "Bogie 2 / coupelle.001",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000820748
+    },
+    {
+      "object": "Bogie 2 / longeron lateral.001",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.01651953
+    },
+    {
+      "object": "Bogie 2 / suspension.001",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.003275245
+    },
+    {
+      "object": "Bogie 2 / coupelle.002",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000820749
+    },
+    {
+      "object": "Bogie 2 / coupelle.003",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000820748
+    },
+    {
+      "object": "Bogie 2 / traverse",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.025759937
+    },
+    {
+      "object": "Bogie 2 / pivot de caisse",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.008880293
+    },
+    {
+      "object": "Bogie 2 / essieu",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.014311377
+    },
+    {
+      "object": "Bogie 2 / boite essieu",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.004071978
+    },
+    {
+      "object": "Bogie 2 / roue -1 -1",
+      "vertices": 960,
+      "faces": 960,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.028718383
+    },
+    {
+      "object": "Bogie 2 / boite essieu.001",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.004071978
+    },
+    {
+      "object": "Bogie 2 / roue -1 +1",
+      "vertices": 960,
+      "faces": 960,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.028718383
+    },
+    {
+      "object": "Bogie 2 / essieu.001",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.014311377
+    },
+    {
+      "object": "Bogie 2 / boite essieu.002",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.004071978
+    },
+    {
+      "object": "Bogie 2 / roue +1 -1",
+      "vertices": 960,
+      "faces": 960,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.028718384
+    },
+    {
+      "object": "Bogie 2 / boite essieu.003",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.004071978
+    },
+    {
+      "object": "Bogie 2 / roue +1 +1",
+      "vertices": 960,
+      "faces": 960,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.028718384
+    },
+    {
+      "object": "Bogie 3 / longeron lateral",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.01651953
+    },
+    {
+      "object": "Bogie 3 / suspension",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.003275245
+    },
+    {
+      "object": "Bogie 3 / coupelle",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000820749
+    },
+    {
+      "object": "Bogie 3 / coupelle.001",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000820748
+    },
+    {
+      "object": "Bogie 3 / longeron lateral.001",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.01651953
+    },
+    {
+      "object": "Bogie 3 / suspension.001",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.003275245
+    },
+    {
+      "object": "Bogie 3 / coupelle.002",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000820749
+    },
+    {
+      "object": "Bogie 3 / coupelle.003",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000820748
+    },
+    {
+      "object": "Bogie 3 / traverse",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.025759937
+    },
+    {
+      "object": "Bogie 3 / pivot de caisse",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.008880293
+    },
+    {
+      "object": "Bogie 3 / essieu",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.014311377
+    },
+    {
+      "object": "Bogie 3 / boite essieu",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.004071978
+    },
+    {
+      "object": "Bogie 3 / roue -1 -1",
+      "vertices": 960,
+      "faces": 960,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.028718385
+    },
+    {
+      "object": "Bogie 3 / boite essieu.001",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.004071978
+    },
+    {
+      "object": "Bogie 3 / roue -1 +1",
+      "vertices": 960,
+      "faces": 960,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.028718385
+    },
+    {
+      "object": "Bogie 3 / essieu.001",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.014311377
+    },
+    {
+      "object": "Bogie 3 / boite essieu.002",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.004071978
+    },
+    {
+      "object": "Bogie 3 / roue +1 -1",
+      "vertices": 960,
+      "faces": 960,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.028718378
+    },
+    {
+      "object": "Bogie 3 / boite essieu.003",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.004071978
+    },
+    {
+      "object": "Bogie 3 / roue +1 +1",
+      "vertices": 960,
+      "faces": 960,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.028718378
+    },
+    {
+      "object": "Phare gauche / boitier",
+      "vertices": 320,
+      "faces": 320,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.007113116
+    },
+    {
+      "object": "Phare gauche / reflecteur",
+      "vertices": 256,
+      "faces": 256,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000151166
+    },
+    {
+      "object": "Phare gauche / lentille",
+      "vertices": 258,
+      "faces": 320,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.004543677
+    },
+    {
+      "object": "Phare droit / boitier",
+      "vertices": 320,
+      "faces": 320,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.007113116
+    },
+    {
+      "object": "Phare droit / reflecteur",
+      "vertices": 256,
+      "faces": 256,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000151166
+    },
+    {
+      "object": "Phare droit / lentille",
+      "vertices": 258,
+      "faces": 320,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.004543677
+    },
+    {
+      "object": "Sourire / fond arrondi",
+      "vertices": 2178,
+      "faces": 2176,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.002001839
+    },
+    {
+      "object": "Essuie-glace / pivot",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000268956
+    },
+    {
+      "object": "Essuie-glace / fixation lame",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.000151225
+    },
+    {
+      "object": "Essuie-glace / lame douce",
+      "vertices": 512,
+      "faces": 450,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.004142777
+    },
+    {
+      "object": "Pantographe / isolateur",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.001123135
+    },
+    {
+      "object": "Pantographe / isolateur.001",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.001123135
+    },
+    {
+      "object": "Pantographe / isolateur.002",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.001123135
+    },
+    {
+      "object": "Pantographe / isolateur.003",
+      "vertices": 384,
+      "faces": 338,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.001123135
+    },
+    {
+      "object": "Pantographe / socle doux",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.032065002
+    },
+    {
+      "object": "Pantographe / branche du V",
+      "vertices": 512,
+      "faces": 450,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.010436165
+    },
+    {
+      "object": "Pantographe / branche du V.001",
+      "vertices": 512,
+      "faces": 450,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.010436165
+    },
+    {
+      "object": "Pantographe / pivot",
+      "vertices": 512,
+      "faces": 450,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.007457158
+    },
+    {
+      "object": "Pantographe / archet arrondi",
+      "vertices": 152,
+      "faces": 150,
+      "non_manifold_edges": 0,
+      "degenerate_faces": 0,
+      "loose_vertices": 0,
+      "signed_volume_m3": 0.046566524
+    }
+  ],
+  "glazing": [
+    {
+      "glass": "Avant gauche / grande vitre avant / verre",
+      "wall": "Avant gauche",
+      "triangle_intersections": 0
+    },
+    {
+      "glass": "Avant gauche / grande vitre arriere / verre",
+      "wall": "Avant gauche",
+      "triangle_intersections": 0
+    },
+    {
+      "glass": "Arriere gauche / grande baie bleue / verre",
+      "wall": "Arriere gauche",
+      "triangle_intersections": 0
+    },
+    {
+      "glass": "Avant droit / grande vitre avant / verre",
+      "wall": "Avant droit",
+      "triangle_intersections": 0
+    },
+    {
+      "glass": "Avant droit / grande vitre arriere / verre",
+      "wall": "Avant droit",
+      "triangle_intersections": 0
+    },
+    {
+      "glass": "Arriere droit / grande baie bleue / verre",
+      "wall": "Arriere droit",
+      "triangle_intersections": 0
+    },
+    {
+      "glass": "Pare-brise / verre",
+      "wall": "Avant / nez creux et baie de pare-brise",
+      "triangle_intersections": 0
+    },
+    {
+      "glass": "Lunette arriere / verre",
+      "wall": "Arriere / face terminale",
+      "triangle_intersections": 0
+    }
+  ],
+  "wheels": [
+    {
+      "object": "Bogie 1 / roue -1 -1",
+      "bounds_m": [
+        [
+          -0.8400000333786011,
+          -0.6349999904632568
+        ],
+        [
+          -2.5950000286102295,
+          -2.044999837875366
+        ],
+        [
+          0.0,
+          0.550000011920929
+        ]
+      ]
+    },
+    {
+      "object": "Bogie 1 / roue -1 +1",
+      "bounds_m": [
+        [
+          0.6349999904632568,
+          0.8400000333786011
+        ],
+        [
+          -2.5950000286102295,
+          -2.044999837875366
+        ],
+        [
+          0.0,
+          0.550000011920929
+        ]
+      ]
+    },
+    {
+      "object": "Bogie 1 / roue +1 -1",
+      "bounds_m": [
+        [
+          -0.8400000333786011,
+          -0.6349999904632568
+        ],
+        [
+          -1.875,
+          -1.3250000476837158
+        ],
+        [
+          0.0,
+          0.550000011920929
+        ]
+      ]
+    },
+    {
+      "object": "Bogie 1 / roue +1 +1",
+      "bounds_m": [
+        [
+          0.6349999904632568,
+          0.8400000333786011
+        ],
+        [
+          -1.875,
+          -1.3250000476837158
+        ],
+        [
+          0.0,
+          0.550000011920929
+        ]
+      ]
+    },
+    {
+      "object": "Bogie 2 / roue -1 -1",
+      "bounds_m": [
+        [
+          -0.8400000333786011,
+          -0.6349999904632568
+        ],
+        [
+          -0.35500001907348633,
+          0.19500000774860382
+        ],
+        [
+          0.0,
+          0.550000011920929
+        ]
+      ]
+    },
+    {
+      "object": "Bogie 2 / roue -1 +1",
+      "bounds_m": [
+        [
+          0.6349999904632568,
+          0.8400000333786011
+        ],
+        [
+          -0.35500001907348633,
+          0.19500000774860382
+        ],
+        [
+          0.0,
+          0.550000011920929
+        ]
+      ]
+    },
+    {
+      "object": "Bogie 2 / roue +1 -1",
+      "bounds_m": [
+        [
+          -0.8400000333786011,
+          -0.6349999904632568
+        ],
+        [
+          0.3649999797344208,
+          0.9149999618530273
+        ],
+        [
+          0.0,
+          0.550000011920929
+        ]
+      ]
+    },
+    {
+      "object": "Bogie 2 / roue +1 +1",
+      "bounds_m": [
+        [
+          0.6349999904632568,
+          0.8400000333786011
+        ],
+        [
+          0.3649999797344208,
+          0.9149999618530273
+        ],
+        [
+          0.0,
+          0.550000011920929
+        ]
+      ]
+    },
+    {
+      "object": "Bogie 3 / roue -1 -1",
+      "bounds_m": [
+        [
+          -0.8400000333786011,
+          -0.6349999904632568
+        ],
+        [
+          1.6150000095367432,
+          2.1649999618530273
+        ],
+        [
+          0.0,
+          0.550000011920929
+        ]
+      ]
+    },
+    {
+      "object": "Bogie 3 / roue -1 +1",
+      "bounds_m": [
+        [
+          0.6349999904632568,
+          0.8400000333786011
+        ],
+        [
+          1.6150000095367432,
+          2.1649999618530273
+        ],
+        [
+          0.0,
+          0.550000011920929
+        ]
+      ]
+    },
+    {
+      "object": "Bogie 3 / roue +1 -1",
+      "bounds_m": [
+        [
+          -0.8400000333786011,
+          -0.6349999904632568
+        ],
+        [
+          2.3349997997283936,
+          2.884999990463257
+        ],
+        [
+          0.0,
+          0.550000011920929
+        ]
+      ]
+    },
+    {
+      "object": "Bogie 3 / roue +1 +1",
+      "bounds_m": [
+        [
+          0.6349999904632568,
+          0.8400000333786011
+        ],
+        [
+          2.3349997997283936,
+          2.884999990463257
+        ],
+        [
+          0.0,
+          0.550000011920929
+        ]
+      ]
+    }
+  ],
+  "failures": []
+}

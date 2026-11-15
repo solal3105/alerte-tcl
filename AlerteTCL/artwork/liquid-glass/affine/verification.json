@@ -1,0 +1,21 @@
+{
+  "document": "artwork/liquid-glass/AlerteTCL_Verre_Corrige.icon",
+  "groups": 4,
+  "layers": 8,
+  "matching_artboard": 1024,
+  "assets": [
+    "EssuieGlace.png",
+    "Vitres.svg",
+    "CaisseAvant.png",
+    "CaisseArriere.png",
+    "Anneaux.svg",
+    "Balayage.svg",
+    "Couronne.svg",
+    "Cadran.svg"
+  ],
+  "ui_open_verified": true,
+  "ui_group_limit_warning": false,
+  "mesh_imported_into_icon_composer": false,
+  "native_master": "artwork/blender/Logo_Verre_Natif.blend",
+  "sha256": "fcb187777fde0cfb93f7cb39f918234fb56df9b7fed40ebf4cdddf3e1fde565e"
+}

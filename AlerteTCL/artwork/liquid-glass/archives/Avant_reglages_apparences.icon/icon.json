@@ -1,0 +1,102 @@
+{
+  "fill": {
+    "automatic-gradient": "extended-srgb:0.90000,0.97500,0.95500,1.00000"
+  },
+  "groups": [
+    {
+      "name": "04 Essuie-glace",
+      "layers": [
+        {
+          "name": "Detail devant le vitrage",
+          "image-name": "EssuieGlace.png"
+        }
+      ],
+      "specular": false,
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      },
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0
+      }
+    },
+    {
+      "name": "03 Vitres / verre Apple",
+      "layers": [
+        {
+          "name": "Cinq vitres vectorielles du modele",
+          "image-name": "Vitres.svg"
+        }
+      ],
+      "specular": true,
+      "translucency": {
+        "enabled": true,
+        "value": 0.32
+      },
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0
+      },
+      "blur-material": 0.035
+    },
+    {
+      "name": "02 Tram / deux caisses",
+      "layers": [
+        {
+          "name": "Caisse avant - porcelaine et phares",
+          "image-name": "CaisseAvant.png"
+        },
+        {
+          "name": "Caisse arriere - remorque",
+          "image-name": "CaisseArriere.png"
+        }
+      ],
+      "specular": false,
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      },
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0
+      }
+    },
+    {
+      "name": "01 Radar / couches vectorielles",
+      "layers": [
+        {
+          "name": "Trois cercles",
+          "image-name": "Anneaux.svg"
+        },
+        {
+          "name": "Balayage cyan",
+          "image-name": "Balayage.svg"
+        },
+        {
+          "name": "Bord de cristal",
+          "image-name": "Couronne.svg"
+        },
+        {
+          "name": "Cadran vert",
+          "image-name": "Cadran.svg"
+        }
+      ],
+      "specular": false,
+      "translucency": {
+        "enabled": true,
+        "value": 0.08
+      },
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "circles": [
+      "watchOS"
+    ],
+    "squares": "shared"
+  }
+}
