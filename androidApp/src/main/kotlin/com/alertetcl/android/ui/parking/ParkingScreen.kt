@@ -189,7 +189,7 @@ fun ParkingScreen(type: ParkingType) {
     if (DemoShowcase.isActive) {
         LaunchedEffect(mapLibreMap) {
             if (DemoShowcase.current?.startsWith("velov") == true) {
-                mapLibreMap?.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(DemoShowcase.CENTER_LAT, DemoShowcase.CENTER_LON), 16.0))
+                mapLibreMap?.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(DemoShowcase.CENTER_LAT, DemoShowcase.CENTER_LON), if (DemoShowcase.current == "velov-electriques") 13.5 else 16.0))
             }
         }
         LaunchedEffect(Unit) {
@@ -197,8 +197,8 @@ fun ParkingScreen(type: ParkingType) {
             if (demo.startsWith("velov")) {
                 store.setVelovFilter(if (demo == "velov-electriques") VelovFilter.ELECTRIC else VelovFilter.ALL)
                 if (demo == "velov-station") {
-                    kotlinx.coroutines.delay(6_000)
-                    vm.selectVelovStation(DemoShowcase.velovStations().first())
+                    kotlinx.coroutines.delay(15_000)
+                    vm.selectVelovStation(vm.velovStations.value.firstOrNull { it.id == 2008 })
                 }
             }
         }
