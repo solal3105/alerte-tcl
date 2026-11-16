@@ -96,7 +96,7 @@ struct AddToWidgetSheet: View {
         } label: {
             HStack(spacing: 14) {
                 LineBadge(line: option.line, size: 14)
-                    .frame(width: 56, alignment: .leading)
+                    .frame(minWidth: 56, alignment: .leading)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("vers \(option.direction)")
                         .font(.subheadline.weight(.medium))
@@ -397,7 +397,7 @@ struct WidgetStopsView: View {
                     ForEach(bridge.stops) { stop in
                         HStack(spacing: 14) {
                             LineBadge(line: stop.line, size: 14)
-                                .frame(width: 56, alignment: .leading)
+                                .frame(minWidth: 56, alignment: .leading)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(stop.stopName).font(.subheadline.weight(.semibold))
                                 Text("vers \(stop.direction)").font(.caption).foregroundStyle(.secondary)

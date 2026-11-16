@@ -162,6 +162,7 @@ import com.alertetcl.shared.models.PassageGroup
 import com.alertetcl.shared.design.AppColors
 import androidx.compose.runtime.mutableStateMapOf
 import com.alertetcl.android.ui.components.LineBadge
+import com.alertetcl.android.ui.components.LineNumberText
 import com.alertetcl.android.ui.theme.Tokens
 import com.alertetcl.android.ui.theme.compose
 import com.alertetcl.shared.services.BusLineService
@@ -1031,11 +1032,12 @@ private fun VehicleDetailSheet(v: Vehicle) {
                                 tint = accentText,
                                 modifier = Modifier.size(20.dp)
                             )
-                            Text(
-                                text = v.lineName,
+                            LineNumberText(
+                                v.lineName,
                                 color = accentText,
                                 fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp)
                             )
                         }
                     }
@@ -1900,18 +1902,7 @@ private fun LineFilterRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Box(
-            modifier = Modifier.size(30.dp)
-                .background(colorFromHex(LineColors.backgroundHex(line)), MaterialTheme.shapes.small),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                line,
-                color = colorFromHex(LineColors.textHex(line)),
-                fontSize = when { line.length <= 2 -> 11.sp; line.length == 3 -> 9.sp; else -> 7.sp },
-                fontWeight = FontWeight.Black
-            )
-        }
+        LineBadge(line, size = 30.dp)
         Text(line, modifier = Modifier.weight(1f), fontSize = 15.sp)
         IconButton(onClick = onToggleFavorite, modifier = Modifier.size(28.dp)) {
             Icon(

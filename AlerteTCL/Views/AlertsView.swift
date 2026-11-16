@@ -1106,22 +1106,19 @@ struct AlertLineBadgeView: View {
         LineColorHelper.needsBorder(for: lineName)
     }
     
+    /// Carré de `size` de côté, élargi quand le numéro (en grande taille de texte) ne tient plus.
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.2)
-                .fill(bgColor)
-                .frame(width: size, height: size)
-                .overlay(
-                    RoundedRectangle(cornerRadius: size * 0.2)
-                        .stroke(Color.appNeutralBorder, lineWidth: needsBorder ? 1 : 0)
-                )
-            
-            Text(lineName)
-                .font(.system(size: size * 0.28, weight: .black))
-                .foregroundStyle(textColor)
-                .minimumScaleFactor(0.5)
-                .lineLimit(1)
-        }
+        Text(lineName)
+            .lineBadgeFont(size: size * 0.28, weight: .black)
+            .foregroundStyle(textColor)
+            .padding(.horizontal, size * 0.12)
+            .frame(minWidth: size, minHeight: size)
+            .background(RoundedRectangle(cornerRadius: size * 0.2).fill(bgColor))
+            .overlay(
+                RoundedRectangle(cornerRadius: size * 0.2)
+                    .stroke(Color.appNeutralBorder, lineWidth: needsBorder ? 1 : 0)
+            )
+            .layoutPriority(1)
     }
 }
 

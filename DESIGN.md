@@ -247,9 +247,13 @@ Une seule forme : un carré aux coins arrondis à 20 % de sa taille, fond et tex
 officielle, texte en graisse maximale, et une bordure discrète quand le fond est clair
 (`LineColors.needsBorder`). Trois tailles d'usage : petite (28 à 32 pt, listes et bandeaux), moyenne
 (44 à 56 pt, fiches), grande (72 pt, feuille d'options). La taille du texte se déduit de la taille
-du badge et de la longueur du nom ; un nom long (C20E, JD205) élargit le badge plutôt que d'être
-coupé (Android). iOS : `AlertLineBadgeView` ; Android : `LineBadge`
-(`ui/components/LineBadge.kt`).
+du badge et de la longueur du nom, puis suit la taille de texte choisie dans les réglages du
+téléphone (jusqu'au double sur iOS). Le numéro n'est jamais coupé, sur les deux plateformes : un nom
+long (C20EX, BRMB) ou une très grande taille de texte élargit le badge ; si la place manque vraiment
+(grille, pictogramme de taille fixe), le texte rapetisse juste assez pour tenir. Le badge passe avant
+le texte voisin, qui se raccourcit le premier. iOS : `AlertLineBadgeView` et la capsule `LineBadge`
+(police commune `lineBadgeFont`) ; Android : `LineBadge` et `LineNumberText`
+(`ui/components/LineBadge.kt`). Les badges des widgets iOS gardent leur taille fixe.
 
 ## Feuilles
 
