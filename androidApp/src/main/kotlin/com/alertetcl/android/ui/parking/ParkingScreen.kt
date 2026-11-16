@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -431,10 +432,12 @@ fun ParkingScreen(type: ParkingType) {
 
     velovSelection?.let { selection ->
         // Ouverte en entier, sans palier à mi-hauteur : le graphique de la prévision se voit dès l'ouverture.
+        // Seule la barre du bas est réservée : la fiche n'atteint jamais la barre d'état, dont la hauteur
+        // laisserait sinon une bande vide au-dessus de la poignée.
         ModalBottomSheet(
             onDismissRequest = { vm.selectVelovStation(null) },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            contentWindowInsets = { WindowInsets.systemBars }
+            contentWindowInsets = { WindowInsets.navigationBars }
         ) {
             VelovStationSheet(
                 selection = selection,
