@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime as dt
 import gzip
 import json
+import os
 import time
 import urllib.parse
 import urllib.request
@@ -28,23 +29,31 @@ RETRY_DELAYS = (2, 8, 30, 90)
 # Jours illisibles de suite au-delà desquels la lecture s'arrête (chaque jour a déjà eu tous ses essais).
 MAX_FAILED_DAYS = 3
 HOUR = 3600
+DAY = 86_400
+# Délai après minuit UTC au bout duquel un jour passé ne change plus (le relais le fige après dix minutes).
+DAY_SETTLED_AFTER = HOUR
+CACHE_SUFFIX = ".json.gz"
 # Une station dont le nombre de vélos ne bouge pas pendant autant d'heures ouvertes d'affilée est
 # figée (capteur en panne, station hors service non déclarée) : ses relevés n'apprennent rien.
 FROZEN_HOURS = 48
 
 
-def fetch_json(base_url: str, path: str, wait=time.sleep):
+def fetch(base_url: str, path: str, wait=time.sleep) -> bytes:
     """GET sur le relais, avec quelques essais espacés ; la réponse peut être compressée."""
     request = urllib.request.Request(base_url.rstrip("/") + path, headers={"User-Agent": USER_AGENT, "Accept-Encoding": "gzip"})
     for delay in (*RETRY_DELAYS, None):
         try:
             with urllib.request.urlopen(request, timeout=120) as response:
                 body = response.read()
-                return json.loads(gzip.decompress(body) if response.headers.get("Content-Encoding") == "gzip" else body)
+                return gzip.decompress(body) if response.headers.get("Content-Encoding") == "gzip" else body
         except Exception:
             if delay is None:
                 raise
             wait(delay)
+
+
+def fetch_json(base_url: str, path: str, wait=time.sleep):
+    return json.loads(fetch(base_url, path, wait))
 
 
 def stack(blocks: list[np.ndarray]) -> np.ndarray:
@@ -66,22 +75,49 @@ def day_table(document: dict) -> np.ndarray:
     return stack(blocks)
 
 
-def download(base_url: str, first_day: dt.date, log) -> np.ndarray:
-    """Tous les relevés gardés par le relais depuis `first_day`, un jour après l'autre (jamais deux
-    requêtes à la fois). Un jour illisible est sauté : les garde-fous jugeront s'il en reste assez.
-    Après MAX_FAILED_DAYS jours illisibles de suite, le relais est tenu pour en panne et laissé tranquille."""
-    days = sorted(day for day in fetch_json(base_url, "/velov-releves")["jours"] if day >= first_day.isoformat())
+def day_readings(base_url: str, day: str, now: int, cache: str | None) -> np.ndarray:
+    """Relevés d'un jour UTC. Un jour terminé ne change plus : s'il est déjà dans le dossier `cache`, le
+    relais n'est pas sollicité ; sinon il y est rangé tel que le relais l'a rendu, pour les fois suivantes.
+    Une copie abîmée est simplement relue au relais."""
+    copy = os.path.join(cache, day + CACHE_SUFFIX) if cache else None
+    if copy and os.path.exists(copy):
+        try:
+            with gzip.open(copy) as source:
+                return day_table(json.load(source))
+        except Exception:
+            pass
+    body = fetch(base_url, "/velov-releves?" + urllib.parse.urlencode({"jour": day}))
+    table = day_table(json.loads(body))
+    settled = dt.datetime.fromisoformat(day).replace(tzinfo=dt.timezone.utc).timestamp() + DAY + DAY_SETTLED_AFTER
+    if copy and len(table) and now >= settled:
+        os.makedirs(cache, exist_ok=True)
+        with gzip.open(copy + ".tmp", "wb") as out:
+            out.write(body)
+        os.replace(copy + ".tmp", copy)
+    return table
+
+
+def download(base_url: str, first_day: dt.date, now: int, cache: str | None, log) -> np.ndarray:
+    """Tous les relevés depuis `first_day`, un jour après l'autre (jamais deux requêtes à la fois) : ceux
+    qu'annonce le relais et ceux déjà gardés dans `cache` (facultatif), d'où sortent les jours plus anciens.
+    Un jour illisible est sauté : les garde-fous jugeront s'il en reste assez. Après MAX_FAILED_DAYS jours
+    illisibles de suite, le relais est tenu pour en panne et laissé tranquille."""
+    kept = {name[:-len(CACHE_SUFFIX)] for name in (os.listdir(cache) if cache and os.path.isdir(cache) else []) if name.endswith(CACHE_SUFFIX)}
+    for day in sorted(kept):
+        if day < first_day.isoformat():
+            os.remove(os.path.join(cache, day + CACHE_SUFFIX))
+    days = sorted(day for day in kept.union(fetch_json(base_url, "/velov-releves")["jours"]) if day >= first_day.isoformat())
     tables, failed_in_a_row = [], 0
     for day in days:
         try:
-            tables.append(day_table(fetch_json(base_url, "/velov-releves?" + urllib.parse.urlencode({"jour": day}))))
+            tables.append(day_readings(base_url, day, now, cache))
             failed_in_a_row = 0
         except Exception as exc:
             log(f"  {day} : illisible ({exc})")
             failed_in_a_row += 1
             if failed_in_a_row == MAX_FAILED_DAYS:
                 raise
-    log(f"  {len(tables)} jour(s) lus sur {len(days)} annoncés")
+    log(f"  {len(tables)} jour(s) lus sur {len(days)}, dont {len(kept.intersection(days))} déjà gardé(s)")
     return stack(tables)
 
 

@@ -36,7 +36,7 @@ def new_station(live: dict, surveyed: list[dict]) -> dict:
     entry = {"id": live["id"], "nom": display_name(live["name"]), "commune": "", "lat": live["lat"], "lon": live["lng"]}
     nearest = min(surveyed, key=lambda s: distance_km(s, entry), default=None)
     if nearest and distance_km(nearest, entry) <= NEIGHBOUR_KM:
-        entry.update({key: nearest[key] for key in SURVEYED if nearest.get(key) is not None})
+        entry.update({key: nearest[key] for key in SURVEYED})
     return entry
 
 

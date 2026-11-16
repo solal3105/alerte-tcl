@@ -33,6 +33,11 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: Tests du script des fiches horaires
         run: python3 -m unittest discover -s horaires
+      - name: Tests du robot de prévision Vélo'v
+        run: |
+          python3 -m venv "${RUNNER_TEMP}/venv-velov"
+          "${RUNNER_TEMP}/venv-velov/bin/pip" install -q -r velov-prevision/requirements.txt
+          "${RUNNER_TEMP}/venv-velov/bin/python" -m unittest discover -s velov-prevision
       - name: Tests du module partagé
         run: ./gradlew :shared:testDebugUnitTest --no-configuration-cache
       - name: Compiler l'application Android

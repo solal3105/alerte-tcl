@@ -4,6 +4,8 @@ from __future__ import annotations
 import datetime as dt
 import gzip
 import json
+import os
+import tempfile
 import unittest
 from unittest import mock
 
@@ -158,34 +160,81 @@ class RelayTest(unittest.TestCase):
                 readings.fetch_json("https://relais.example", "/velov", wait=waits.append)
         self.assertEqual(list(readings.RETRY_DELAYS), waits)
 
-    def test_days_are_read_from_the_first_wanted_day_and_an_unreadable_day_is_skipped(self):
-        asked = []
 
-        def answer(base_url: str, path: str):
-            asked.append(path)
-            if path == "/velov-releves":
-                return {"jours": ["2026-10-03", "2026-10-05", "2026-10-04", "2026-10-06"]}
-            if path.endswith("2026-10-05"):
-                raise OSError("panne")
-            return document(snapshot(0, [1001, 3, 2, 10, 15, 1]))
 
-        with mock.patch("readings.fetch_json", side_effect=answer):
-            table = readings.download("https://relais.example", dt.date(2026, 10, 4), lambda msg: None)
-        self.assertEqual(["/velov-releves", "/velov-releves?jour=2026-10-04", "/velov-releves?jour=2026-10-05", "/velov-releves?jour=2026-10-06"], asked)
-        self.assertEqual(2, len(table))
+# Mardi 6 octobre 2026, 02:15 UTC : les 4 et 5 octobre sont terminés, le 6 est en cours.
+NOW = T0 + 86_400 + 8100
+
+
+class DownloadTest(unittest.TestCase):
+    DAYS = ["2026-10-03", "2026-10-05", "2026-10-04", "2026-10-06"]
+
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory()
+        self.addCleanup(self.folder.cleanup)
+        self.asked = []
+        self.failing = ()
+
+    def answer(self, base_url: str, path: str, wait=None) -> bytes:
+        self.asked.append(path)
+        if path == "/velov-releves":
+            return json.dumps({"jours": self.DAYS}).encode()
+        if path.endswith(self.failing):
+            raise OSError("panne")
+        return json.dumps(document(snapshot(0, [1001, 3, 2, 10, 15, 1]))).encode()
+
+    def download(self, cache: str | None = None) -> np.ndarray:
+        with mock.patch("readings.fetch", side_effect=self.answer):
+            return readings.download("https://relais.example", dt.date(2026, 10, 4), NOW, cache, lambda msg: None)
+
+    def test_days_are_read_in_order_from_the_first_wanted_day(self):
+        self.assertEqual(3, len(self.download()))
+        self.assertEqual(["/velov-releves", "/velov-releves?jour=2026-10-04", "/velov-releves?jour=2026-10-05", "/velov-releves?jour=2026-10-06"], self.asked)
+
+    def test_an_unreadable_day_is_skipped(self):
+        self.failing = ("2026-10-05",)
+        self.assertEqual(2, len(self.download()))
 
     def test_reading_stops_when_the_relay_keeps_failing(self):
-        asked = []
+        self.DAYS = [f"2026-10-{day:02d}" for day in range(4, 14)]
+        self.failing = tuple(self.DAYS)
+        with self.assertRaises(OSError):
+            self.download()
+        self.assertEqual(1 + readings.MAX_FAILED_DAYS, len(self.asked))
 
-        def answer(base_url: str, path: str):
-            asked.append(path)
-            if path == "/velov-releves":
-                return {"jours": [f"2026-10-{day:02d}" for day in range(1, 11)]}
-            raise OSError("panne")
+    def test_finished_days_are_kept_and_not_asked_again(self):
+        first = self.download(self.folder.name)
+        self.assertEqual(["2026-10-04.json.gz", "2026-10-05.json.gz"], sorted(os.listdir(self.folder.name)))
+        self.asked.clear()
+        np.testing.assert_array_equal(first, self.download(self.folder.name))
+        self.assertEqual(["/velov-releves", "/velov-releves?jour=2026-10-06"], self.asked)
 
-        with mock.patch("readings.fetch_json", side_effect=answer), self.assertRaises(OSError):
-            readings.download("https://relais.example", dt.date(2026, 10, 1), lambda msg: None)
-        self.assertEqual(1 + readings.MAX_FAILED_DAYS, len(asked))
+    def test_a_kept_day_survives_its_disappearance_from_the_relay(self):
+        self.download(self.folder.name)
+        self.DAYS = ["2026-10-06"]
+        self.assertEqual(3, len(self.download(self.folder.name)))
+
+    def test_a_damaged_copy_is_read_again_from_the_relay(self):
+        self.download(self.folder.name)
+        with open(os.path.join(self.folder.name, "2026-10-04.json.gz"), "wb") as out:
+            out.write(b"abime")
+        self.asked.clear()
+        self.assertEqual(3, len(self.download(self.folder.name)))
+        self.assertIn("/velov-releves?jour=2026-10-04", self.asked)
+        with gzip.open(os.path.join(self.folder.name, "2026-10-04.json.gz")) as source:
+            self.assertEqual(1, len(json.load(source)["releves"]))
+
+    def test_copies_older_than_the_first_wanted_day_are_removed(self):
+        old = os.path.join(self.folder.name, "2026-10-01.json.gz")
+        with open(old, "wb") as out:
+            out.write(b"")
+        self.download(self.folder.name)
+        self.assertFalse(os.path.exists(old))
+
+    def test_the_cache_folder_is_optional_and_created_when_needed(self):
+        cache = os.path.join(self.folder.name, "absent")
+        self.assertEqual(3, len(self.download(cache)))
+        self.assertEqual(2, len(os.listdir(cache)))
 
 
 if __name__ == "__main__":

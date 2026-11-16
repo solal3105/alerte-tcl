@@ -24,8 +24,11 @@ GOOD = verdict(1.0)
 BAD = verdict(1.0, good=False)
 
 
-def model(version: str, generated: int = 1) -> bytes:
-    return bundle.encode({"format": 1, "version": version, "genere": generated, "calendrier": {"feries": [], "vacances": []}, "stations": []})
+CALENDAR = {"feries": ["2026-11-01"], "vacances": [[1792188000000, 1793574000000]]}
+
+
+def model(version: str, generated: int = 1, calendar: dict = CALENDAR) -> bytes:
+    return bundle.encode({"format": 1, "version": version, "genere": generated, "calendrier": calendar, "stations": []})
 
 
 def grid(days: float, end: int = NOW) -> Grid:
@@ -56,17 +59,19 @@ class RunTest(unittest.TestCase):
         return content
 
     def run_robot(self, online: control.Verdict = GOOD, candidate=build_forecast.TooEarly("trop tôt"), readings_grid=None,
-                  holes: tuple[str, ...] = (), scheduled: bool = False) -> list[str]:
-        """Une exécution avec un relais, un contrôle et un entraînement simulés. `candidate` : le verdict du
-        modèle de la semaine (version 2026-10-19), ou l'erreur que lève son entraînement."""
+                  holes: tuple[str, ...] = (), scheduled: bool = False, calendar: dict = CALENDAR) -> list[str]:
+        """Une exécution avec un relais, un calendrier, un contrôle et un entraînement simulés. `candidate` :
+        le verdict du modèle de la semaine (version 2026-10-19), ou l'erreur que lève son entraînement."""
         readings_grid = grid(30) if readings_grid is None else readings_grid
         trained = candidate if isinstance(candidate, Exception) else (json.loads(model("2026-10-19", NOW)), candidate)
-        args = argparse.Namespace(relais="https://relais.example", en_ligne=self.online, amorce=self.seed, out=self.out, planifie=scheduled)
+        args = argparse.Namespace(relais="https://relais.example", en_ligne=self.online, amorce=self.seed, out=self.out, planifie=scheduled, cache=None)
         with mock.patch("readings.download", side_effect=readings_grid if isinstance(readings_grid, Exception) else None) as self.download, \
                 mock.patch("readings.build_grid", return_value=None if isinstance(readings_grid, Exception) else readings_grid), \
                 mock.patch("training.control_rows", return_value={"xq": np.zeros(3)}), \
                 mock.patch("control.week_defects", return_value=list(holes)), \
-                mock.patch("control.judge", return_value=online), \
+                mock.patch("control.judge", return_value=online) as self.judge, \
+                mock.patch("holidays.build_calendar", return_value=(calendar, None)), \
+                mock.patch("build_forecast.live_stations", return_value=[]), \
                 mock.patch("build_forecast.build_candidate", side_effect=trained if isinstance(trained, Exception) else None, return_value=trained) as self.training, \
                 mock.patch("build_forecast.log"):
             return build_forecast.run(args, NOW)
@@ -100,6 +105,21 @@ class RunTest(unittest.TestCase):
         index, content = self.written()
         self.assertEqual(published, content)
         self.assertEqual({"format": 1, "version": "2026-10-12", "genere": NOW - 7 * DAY - 3600, "verifie": NOW, "taille": len(content)}, index)
+
+    def test_a_kept_model_is_republished_with_the_calendar_of_the_day(self):
+        self.publish("2026-10-12", NOW - 7 * DAY)
+        longer = {"feries": ["2026-11-01", "2028-12-25"], "vacances": CALENDAR["vacances"] + [[1797634800000, 1799017200000]]}
+        self.assertEqual([], self.run_robot(calendar=longer))
+        index, content = self.written()
+        self.assertEqual(model("2026-10-12", NOW - 7 * DAY - 3600, longer), content)
+        self.assertEqual({"format": 1, "version": "2026-10-12", "genere": NOW - 7 * DAY - 3600, "verifie": NOW, "taille": len(content)}, index)
+        # Le modèle est noté avec le calendrier qu'il portera une fois republié.
+        self.assertEqual(longer, self.judge.call_args.args[0]["calendrier"])
+
+    def test_the_seed_is_first_published_with_the_calendar_of_the_day(self):
+        longer = {"feries": ["2028-12-25"], "vacances": []}
+        self.assertEqual([], self.run_robot(calendar=longer))
+        self.assertEqual(model("2026-10-20", calendar=longer), self.written()[1])
 
     def test_a_defective_candidate_is_not_published(self):
         published = self.publish("2026-10-12", NOW - 7 * DAY)
@@ -181,14 +201,13 @@ class RunTest(unittest.TestCase):
 
 class CandidateTest(unittest.TestCase):
     def test_no_candidate_below_three_weeks_of_training(self):
-        short = grid(27)
         with self.assertRaises(build_forecast.TooEarly), mock.patch("training.train") as train:
-            build_forecast.build_candidate(short, 20 * 96, {}, {}, {"stations": []}, "https://relais.example", NOW)
+            build_forecast.build_candidate(grid(27), 20 * 96, {}, CALENDAR, [], NOW)
         train.assert_not_called()
 
     def test_no_candidate_when_the_training_weeks_are_mostly_holes(self):
         with self.assertRaises(build_forecast.TooEarly), mock.patch("training.train") as train:
-            build_forecast.build_candidate(grid(40), 33 * 96, {}, {}, {"stations": []}, "https://relais.example", NOW)
+            build_forecast.build_candidate(grid(40), 33 * 96, {}, CALENDAR, [], NOW)
         train.assert_not_called()
 
 

@@ -7,7 +7,9 @@ applications.
 ## Chaîne de traitement
 
 1. Le relais Cloudflare relève l'état de toutes les stations toutes les 5 minutes et garde
-   75 jours (`/velov-releves`). Le robot ne lit que le relais, jamais Grand Lyon.
+   75 jours (`/velov-releves`). Le robot ne lit que le relais, jamais Grand Lyon, un jour après
+   l'autre ; il garde les jours terminés d'une semaine à l'autre (cache GitHub Actions) et ne
+   redemande que les nouveaux. Sans ce cache, il relit tout.
 2. `.github/workflows/velov-prevision.yml` lance `build_forecast.py` chaque lundi vers 3 h (et
    le mercredi en rattrapage si le lundi n'a rien pu contrôler). Le script :
    - met les relevés sur une grille au quart d'heure et écarte les stations figées
@@ -89,7 +91,8 @@ Un modèle est **bon** si, sur cette semaine :
 
 - à chacun des huit horizons contrôlés (15 min à 24 h), la fourchette 10-90 contient la réalité
   entre 65 % et 95 % du temps, pour les vélos comme pour les places (étude d'origine : 79 à
-  87 % ; rejeu sur 2026 : 71 à 89 % pour un modèle frais, le plus bas à la rentrée) ;
+  87 % ; rejeu à douze dates de 2026 : 69 à 89 % pour un modèle frais, le plus bas au début
+  des vacances d'hiver et à la rentrée) ;
 - à partir de 2 h, la médiane et les deux probabilités font mieux que « comme maintenant »
   (erreur moyenne, score de Brier). Avant 2 h l'état présent est presque imbattable, la
   comparaison ne dirait rien de la santé du modèle.
@@ -99,8 +102,8 @@ Décision :
 | Situation | Ce qui est publié | `verifie` | Workflow |
 |---|---|---|---|
 | Candidat bon, et pas plus de 3 % moins bien noté que le modèle en ligne (pinball moyen) | le candidat | maintenant | réussi |
-| Candidat mauvais ou nettement moins bon, modèle en ligne encore bon | le modèle en ligne, inchangé | maintenant | réussi |
-| Pas de candidat possible (moins de 3 semaines de relevés avant la semaine de contrôle), modèle en ligne bon | le modèle en ligne, inchangé | maintenant | réussi |
+| Candidat mauvais ou nettement moins bon, modèle en ligne encore bon | le modèle en ligne, calendrier prolongé | maintenant | réussi |
+| Pas de candidat possible (moins de 3 semaines de relevés avant la semaine de contrôle), modèle en ligne bon | le modèle en ligne, calendrier prolongé | maintenant | réussi |
 | Aucun modèle bon | rien | inchangé | **échec** |
 | Semaine non jugeable (relais en panne, relevés troués ou trop vieux) | rien | inchangé | réussi ; **échec** si le dernier contrôle a plus de 14 jours |
 | Entraînement en erreur, ou lecteur Python en désaccord avec LightGBM | le modèle en ligne s'il est bon | maintenant | **échec** |
@@ -115,10 +118,13 @@ applications) et ses scores comparés à ceux de LightGBM sur toute la semaine d
 
 ## Ce qui tient dans la durée
 
-- **Calendrier.** Jours fériés calculés (Pâques compris) de l'année précédente à l'année N+2.
-  Vacances scolaires de Lyon lues sur l'API du ministère (data.education.gouv.fr, jeu
+- **Calendrier.** Refait à chaque passage et placé dans tout fichier publié, y compris un modèle
+  reconduit (même `version`, les arbres ne changent pas ; il est noté avec ce calendrier). Jours
+  fériés calculés (Pâques compris) de l'année précédente à la fin de l'année N+2. Vacances
+  scolaires de Lyon lues sur l'API du ministère (data.education.gouv.fr, jeu
   `fr-en-calendrier-scolaire`) ; si elle ne répond pas, répond de travers ou voit moins loin que
-  le calendrier en ligne, celui-ci est repris. Une panne de calendrier ne bloque jamais.
+  le calendrier en ligne, les vacances de celui-ci sont reprises. Une panne de calendrier ne
+  bloque jamais ; les vacances ne vont pas plus loin que ce que le ministère a publié.
 - **Stations nouvelles.** L'altitude et les distances au métro, au tram et à la gare ont été
   relevées une fois par l'étude d'origine (elles sont dans l'amorce). Une station apparue depuis
   prend sa position et son nom au relais (`/velov`), et l'altitude et les distances de la station
@@ -126,8 +132,10 @@ applications) et ses scores comparés à ceux de LightGBM sur toute la semaine d
   sinon ces clés sont omises et le modèle les traite comme manquantes.
 - **Amorce.** `amorce/modele.json` est le modèle du prototype (entraîné du 25 août au 20 octobre
   2026), assemblé par `build_seed.py`. Tant que la branche n'existe pas, il tient lieu de modèle
-  en ligne : il est publié dès qu'il passe le contrôle sur 7 jours de relevés, puis remplacé par
-  le premier candidat (4 semaines après le début de la collecte).
+  en ligne : il est publié (avec le calendrier du jour) dès qu'il passe le contrôle sur 7 jours
+  de relevés, puis remplacé par le premier candidat, 4 semaines après le début de la collecte.
+  Appris en automne, il peut ne pas passer en hiver (au rejeu de janvier, sa médiane ne bat plus
+  « comme maintenant » à 2 h) : rien n'est alors publié jusqu'au premier candidat, sans alerte.
 - **Dépendances.** `requirements.txt` fixe les versions majeures ; le workflow rejoue les tests
   avant chaque entraînement et se réarme lui-même (`gh workflow enable`), GitHub désactivant les
   workflows planifiés d'un dépôt sans activité depuis 60 jours.
@@ -143,5 +151,5 @@ python3 -m venv /tmp/velov && /tmp/velov/bin/pip install -r velov-prevision/requ
 ```
 
 `--en-ligne <dossier>` désigne une copie de la branche `velov-prevision` (sans lui, l'amorce est
-tenue pour le modèle en ligne), `--relais` un autre relais, `--maintenant 2026-10-27T13:00:00`
-rejoue une date. Un passage complet prend une dizaine de minutes et 1,5 Go de mémoire.
+tenue pour le modèle en ligne), `--cache <dossier>` garde les jours lus, `--relais` vise un autre
+relais, `--maintenant 2026-10-27T13:00:00` rejoue une date. Un passage complet prend environ cinq minutes sur quatre cœurs et 1,5 Go de mémoire.

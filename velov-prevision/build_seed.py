@@ -9,13 +9,11 @@ que le robot n'a rien publié. À relancer seulement si l'amorce doit être refa
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import json
 import os
 import time
 
 import bundle
-import holidays
 
 
 def main() -> None:
@@ -32,10 +30,8 @@ def main() -> None:
 
     with open(args.controle, encoding="utf-8") as source:
         controle = json.load(source)
-    calendrier = part("calendrier.json")
-    # Le prototype s'arrêtait aux jours fériés de son année : on y ajoute ceux des années suivantes.
-    calendrier["feries"] = sorted(set(calendrier["feries"]) | set(holidays.public_holidays(dt.date.today())))
-    seed = bundle.assemble(args.version, int(time.time()), part("modele.json"), part("habitude.json"), part("stations.json"), calendrier, controle)
+    # Le calendrier du prototype s'arrête fin 2026 : le robot le remplace par celui du jour à chaque publication.
+    seed = bundle.assemble(args.version, int(time.time()), part("modele.json"), part("habitude.json"), part("stations.json"), part("calendrier.json"), controle)
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "wb") as out:
         out.write(bundle.encode(seed))

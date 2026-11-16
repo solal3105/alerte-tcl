@@ -4,7 +4,7 @@ ce qui fait qu'un modèle est « bon », et lequel publier entre le candidat et 
 
 Les seuils viennent du contrôle de l'étude d'origine (20 au 27 octobre 2026 : fourchette 10-90
 juste 79 à 87 fois sur 100, médiane meilleure que « comme maintenant » dès 2 h) et d'un rejeu du
-robot à treize dates de 2026 sur les relevés de l'étude, vacances et rentrée comprises.
+robot à douze dates de 2026 sur les relevés de l'étude, vacances et rentrée comprises.
 """
 from __future__ import annotations
 
@@ -21,8 +21,9 @@ MIN_STATIONS = 300
 MIN_ROWS = 20_000
 # Part des cas où la réalité doit tomber dans la fourchette 10-90, pour les vélos comme pour les places
 # (80 en théorie, un peu plus à court terme parce que les vélos se comptent en entiers). Au rejeu, un
-# modèle frais reste entre 71 et 89 % toute l'année ; le plus bas est la semaine de la rentrée, quand il
-# n'a vu que l'été. Plus étroit, le seuil ferait échouer cette semaine-là le meilleur modèle disponible.
+# modèle frais reste entre 69 et 89 % toute l'année ; le plus bas tombe la première semaine des vacances
+# d'hiver et celle de la rentrée, quand il n'a encore rien vu de pareil. Plus étroit, le seuil ferait
+# échouer ces semaines-là le meilleur modèle disponible.
 COVERAGE_RANGE = (0.65, 0.95)
 # À partir de cet horizon (en heures), la médiane et les deux probabilités doivent battre « comme
 # maintenant ». Avant, l'état présent est presque imbattable (à 15 min la médiane de l'étude fait

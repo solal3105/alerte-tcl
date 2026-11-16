@@ -28,8 +28,8 @@ import readings
 import stations
 import training
 from reader import STEP
+from readings import DAY
 
-DAY = 86_400
 # Fenêtres de la recette : huit semaines d'entraînement, puis la semaine de contrôle.
 TRAIN_DAYS = 56
 CONTROL_DAYS = 7
@@ -98,7 +98,7 @@ def live_stations(relay: str) -> list[dict]:
         return []
 
 
-def build_candidate(grid: readings.Grid, cut_slot: int, check: dict, online: dict, seed: dict, relay: str, now: int) -> tuple[dict, control.Verdict]:
+def build_candidate(grid: readings.Grid, cut_slot: int, check: dict, calendrier: dict, described: list[dict], now: int) -> tuple[dict, control.Verdict]:
     """Entraîne le modèle de la semaine et le note sur les lignes de contrôle `check`. Lève une erreur
     si l'entraînement est impossible ou si le lecteur ne retrouve pas les scores de LightGBM."""
     first_slot = max(0, cut_slot - TRAIN_DAYS * DAY // STEP)
@@ -108,10 +108,6 @@ def build_candidate(grid: readings.Grid, cut_slot: int, check: dict, online: dic
     if len(rows["xq"]) < MIN_TRAIN_ROWS:
         raise TooEarly(f"{len(rows['xq'])} lignes d'entraînement, il en faut {MIN_TRAIN_ROWS}")
     log(f"Entraînement : {len(rows['xq'])} lignes du {iso(grid.start + first_slot * STEP)} au {iso(grid.start + cut_slot * STEP)}")
-    calendrier, fallback = holidays.build_calendar(utc_day(now), online.get("calendrier", {}))
-    if fallback:
-        log(f"::warning::Vacances scolaires reprises du modèle en ligne ({fallback})")
-    described = stations.describe(grid, seed["stations"], online.get("stations", []), live_stations(relay))
     modeles, habitude, boosters = training.train(rows, described, calendrier, log)
     cut = grid.start + cut_slot * STEP
     candidate = bundle.assemble(version_of(cut), now, modeles, habitude, described, calendrier, {})
@@ -139,6 +135,8 @@ def run(args: argparse.Namespace, now: int) -> list[str]:
         try:
             online = json.loads(online_bytes)
         except ValueError:
+            online = None
+        if not isinstance(online, dict):
             online = {}
     log("Modèle en ligne : " + (f"version {index['version']}, contrôlé le {iso(index['verifie'])}" if index else "aucun, amorce du dépôt"))
     if args.planifie and index is not None and now - index["verifie"] < RECENT_CHECK:
@@ -154,7 +152,7 @@ def run(args: argparse.Namespace, now: int) -> list[str]:
     log("Lecture des relevés auprès du relais")
     try:
         first_day = utc_day(now - (TRAIN_DAYS + CONTROL_DAYS + WARMUP_DAYS) * DAY)
-        grid = readings.build_grid(readings.download(args.relais, first_day, log))
+        grid = readings.build_grid(readings.download(args.relais, first_day, now, args.cache, log))
     except Exception as exc:
         return wait(f"relais illisible ({exc})")
     if grid is None:
@@ -171,6 +169,16 @@ def run(args: argparse.Namespace, now: int) -> list[str]:
     if holes:
         return wait(" ; ".join(holes))
 
+    # Tout fichier publié porte un calendrier à jour, y compris un modèle reconduit tel quel : c'est donc
+    # avec lui que le modèle en ligne est noté, et republié.
+    calendrier, fallback = holidays.build_calendar(utc_day(now), online.get("calendrier", {}))
+    if fallback:
+        last = max((end for _, end in calendrier["vacances"]), default=0) // 1000
+        log(f"::warning::Vacances scolaires reprises du modèle en ligne ({fallback}) ; dernières connues : jusqu'au {iso(last)}")
+    if "calendrier" in online and online["calendrier"] != calendrier:
+        online = {**online, "calendrier": calendrier}
+        online_bytes = bundle.encode(online)
+
     incidents = []
     summary = []
     verdict = control.judge(online, check)
@@ -180,7 +188,8 @@ def run(args: argparse.Namespace, now: int) -> list[str]:
         log("Le modèle en ligne est déjà celui de cette semaine : pas de nouvel entraînement")
     else:
         try:
-            candidate, candidate_verdict = build_candidate(grid, cut_slot, check, online, seed, args.relais, now)
+            described = stations.describe(grid, seed["stations"], online.get("stations", []), live_stations(args.relais))
+            candidate, candidate_verdict = build_candidate(grid, cut_slot, check, calendrier, described, now)
         except TooEarly as exc:
             log(f"Pas de candidat cette semaine : {exc}")
         except Exception as exc:
@@ -194,12 +203,12 @@ def run(args: argparse.Namespace, now: int) -> list[str]:
         summary.insert(0, f"Nouveau modèle publié : version {published['version']}, {published['taille']} octets.\n")
     elif choice == "en_ligne":
         published = bundle.write(args.out, online_bytes, now)
-        summary.insert(0, f"Modèle {published['version']} conservé, contrôle rafraîchi.\n")
+        summary.insert(0, f"Modèle {published['version']} conservé (calendrier à jour), contrôle rafraîchi.\n")
     else:
         summary.insert(0, "Aucun modèle n'a passé le contrôle : rien n'est publié.\n")
         # Avant toute publication, une amorce qui a vieilli n'est pas un incident tant qu'aucun candidat n'a pu être entraîné.
         if index is not None or candidate_verdict is not None:
-            incidents.append("aucun modèle n'a passé le contrôle : " + " ; ".join(verdict.defects + (candidate_verdict.defects if candidate_verdict else [])))
+            incidents.append("aucun modèle n'a passé le contrôle, rien n'est publié (défauts de chacun dans le résumé)")
     log("\n".join(summary))
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as out:
@@ -213,6 +222,7 @@ def main() -> int:
     parser.add_argument("--en-ligne", help="dossier contenant index.json et modele.json actuellement publiés (absent avant la première publication)")
     parser.add_argument("--amorce", default=bundle.SEED_PATH, help="modèle d'amorce, tenu pour « en ligne » tant que rien n'est publié")
     parser.add_argument("--out", default="velov-prevision-out", help="dossier où écrire les fichiers à publier")
+    parser.add_argument("--cache", help="dossier où garder les jours de relevés déjà lus, d'une exécution à l'autre (facultatif)")
     parser.add_argument("--planifie", action="store_true", help="exécution planifiée : ne rien faire si le dernier contrôle réussi est récent")
     parser.add_argument("--maintenant", help="date et heure UTC à tenir pour « maintenant » (essais), ex. 2026-10-27T13:00:00")
     args = parser.parse_args()

@@ -46,6 +46,15 @@ jobs:
         # arrête le workflow avant tout entraînement, la publication précédente reste en ligne.
         run: python3 -m unittest discover -s velov-prevision
 
+      - name: Retrouver les relevés déjà lus
+        # Un jour terminé ne change plus : le robot garde les siens d'une semaine à l'autre et ne redemande
+        # au relais que les jours nouveaux. Sans cette copie (première fois, cache purgé), il relit tout.
+        uses: actions/cache/restore@v4
+        with:
+          path: velov-releves
+          key: velov-releves-${{ github.run_id }}
+          restore-keys: velov-releves-
+
       - name: Récupérer le modèle en ligne
         run: |
           depot="https://github.com/${GITHUB_REPOSITORY}.git"
@@ -64,6 +73,7 @@ jobs:
           python3 velov-prevision/build_forecast.py
           --en-ligne "${RUNNER_TEMP}/velov-en-ligne"
           --out "${RUNNER_TEMP}/velov-out"
+          --cache velov-releves
           ${{ github.event_name == 'schedule' && '--planifie' || '' }}
 
       - name: Publier sur la branche velov-prevision
@@ -86,6 +96,15 @@ jobs:
           # Un seul commit par publication : l'historique de la branche reste vide,
           # le dépôt principal ne grossit pas avec les modèles.
           git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" velov-prevision
+
+      - name: Garder les relevés lus
+        # La clé dépend du contenu : rien n'est renvoyé quand aucun jour ne s'est ajouté (rattrapage du mercredi,
+        # dont la seule lecture suffit à empêcher GitHub de purger un cache inutilisé depuis sept jours).
+        if: ${{ !cancelled() && hashFiles('velov-releves/**') != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: velov-releves
+          key: velov-releves-${{ hashFiles('velov-releves/**') }}
 
       - name: Garder la planification active
         # GitHub désactive les workflows planifiés d'un dépôt public sans activité depuis

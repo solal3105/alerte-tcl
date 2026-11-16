@@ -160,6 +160,21 @@ minutes, point coloré de loin et carré avec le nombre de vélos dès `MapStyle
 « seulement les vélos électriques » persisté (`FavoritesStore.velovElectricOnly`, `UserDefaults`
 `parking.velovElectricOnly`).
 
+### Prévision Vélo'v
+
+La prévision d'une station (vélos et places dans les 24 h, par pas de 15 min, avec déciles) se calcule
+sur l'appareil : `VelovForecastService` (module partagé) garde sur le téléphone le modèle publié et
+`VelovForecastModel` le parcourt (forêts LightGBM aplaties ; test de référence contre le prototype
+`prevision.js`, `VelovForecastTest`). Aucune prévision n'est montrée si le dernier contrôle du modèle
+(`verifie`) a plus de 21 jours (`VelovForecastFreshness`) : mieux vaut rien que du faux. Tout tourne sans
+intervention : le relais relève l'état des stations toutes les 5 minutes à partir de sa copie de `/velov`
+(objet durable `VelovReadings`, 75 jours gardés, route `/velov-releves`), sans requête de plus chez Grand
+Lyon tant que l'application est utilisée ; chaque lundi, `.github/workflows/velov-prevision.yml` lance
+`velov-prevision/build_forecast.py`, qui réapprend sur les huit semaines précédentes, contrôle sur la
+dernière semaine et ne publie (branche orpheline `velov-prevision`, relayée sous `/velov-prevision/`) qu'un
+modèle qui passe les garde-fous et n'est pas moins bon que celui en ligne. Formats, seuils et amorce :
+`velov-prevision/README.md`. Ne jamais publier de relevés station par station dans le dépôt.
+
 ### Onglet « Autour de moi »
 
 Trois onglets : Transport, Autour de moi, Info (route Android `ville`, `CityView` / `CityScreen`).

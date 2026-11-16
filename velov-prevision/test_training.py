@@ -154,6 +154,13 @@ class TrainingTest(unittest.TestCase):
                          {objective: sum(m["objectif"] == objective for m in self.bundle["modeles"].values()) for objective in ("quantile", "binary", "cross_entropy")})
         self.assertTrue(all(1 <= len(m["arbres"]) <= 25 for m in self.bundle["modeles"].values()))
 
+    def test_trees_are_laid_out_as_the_applications_require(self):
+        # Un enfant est toujours rangé après son parent : l'application refuse un arbre où l'on pourrait tourner en rond.
+        for forest in self.bundle["modeles"].values():
+            for tree in forest["arbres"]:
+                for node, children in enumerate(zip(tree["g"], tree["r"])):
+                    self.assertTrue(all(child > node or 0 <= ~child < len(tree["v"]) for child in children))
+
     def test_the_reader_finds_the_scores_of_lightgbm_in_the_published_file(self):
         self.assertLess(training.reader_gap(self.bundle, self.boosters, self.check), 1e-6)
 
