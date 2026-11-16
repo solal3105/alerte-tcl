@@ -96,28 +96,51 @@ Semaine de contrôle : les 7 derniers jours de relevés. Elle n'est jugeable que
 datent de moins de 2 jours et qu'elle compte au moins 120 heures de départ, 300 stations et
 20 000 lignes par horizon (une semaine pleine : 168 heures, 450 stations, 75 000 lignes).
 
-Un modèle est **bon** si, sur cette semaine :
+Un modèle est **bon** si, sur cette semaine, pour chacune des quatre sortes (vélos, électriques,
+mécaniques, places) :
 
 - à chacun des huit horizons contrôlés (15 min à 24 h), la fourchette 10-90 contient la réalité
-  entre 65 % et 95 % du temps, pour les vélos comme pour les places (étude d'origine : 79 à
-  87 % ; rejeu à douze dates de 2026 : 69 à 89 % pour un modèle frais, le plus bas au début
-  des vacances d'hiver et à la rentrée) ;
-- à partir de 2 h, la médiane et les deux probabilités font mieux que « comme maintenant »
-  (erreur moyenne, score de Brier). Avant 2 h l'état présent est presque imbattable, la
-  comparaison ne dirait rien de la santé du modèle.
+  entre 65 % et 95 % du temps (60 % à 97 % pour les mécaniques, plus dispersés) ;
+- la médiane fait mieux que « comme maintenant » (erreur moyenne) à partir de 2 h, de 6 h pour
+  les mécaniques. Avant, l'état présent est presque imbattable, la comparaison ne dirait rien de
+  la santé du modèle ;
+- la probabilité d'en trouver au moins un fait mieux que « comme maintenant » (score de Brier) à
+  partir de 2 h.
+
+Ces seuils viennent d'un rejeu sur huit semaines de 2026 (fin janvier, vacances d'hiver et de
+printemps, mi-août, rentrée, octobre), chacune jugée avec le modèle entraîné sur les semaines
+d'avant :
+
+| Sorte | Fourchette 10-90 juste | Erreur de la médiane / « comme maintenant », au pire | Brier / « comme maintenant », au pire dès 2 h |
+|---|---|---|---|
+| Vélos | 69 à 87 % | 90 % dès 2 h | 58 % |
+| Électriques | 76 à 88 % | 88 % dès 2 h | 57 % |
+| Mécaniques | 68 à 92 % | 102 % à 2 h, 94 % à 3 h, 89 % dès 6 h | 66 % |
+| Places | 69 à 87 % | 90 % dès 2 h | 62 % |
+
+Le plus bas des fourchettes tombe au début des vacances d'hiver et à la rentrée, quand le modèle
+n'a encore rien vu de pareil.
+
+Pour départager deux modèles, une seule **note** : pour chaque sorte de vélos, la perte pinball
+des cinq déciles rapportée à celle de « comme maintenant » (sommées sur les huit horizons), puis
+la moyenne des trois sortes. Vélos, électriques et mécaniques pèsent donc un tiers chacun, quel
+que soit le nombre de vélos qu'ils comptent ; les places, déduites des vélos, n'ajoutent rien.
+Plus bas = meilleur, 1 = « comme maintenant » (0,51 à 0,61 au rejeu).
 
 Décision :
 
 | Situation | Ce qui est publié | `verifie` | Workflow |
 |---|---|---|---|
-| Candidat bon, et pas plus de 3 % moins bien noté que le modèle en ligne (pinball moyen) | le candidat | maintenant | réussi |
+| Candidat bon, et pas plus de 3 % moins bien noté que le modèle en ligne | le candidat | maintenant | réussi |
 | Candidat mauvais ou nettement moins bon, modèle en ligne encore bon | le modèle en ligne, calendrier prolongé | maintenant | réussi |
 | Pas de candidat possible (moins de 3 semaines de relevés avant la semaine de contrôle), modèle en ligne bon | le modèle en ligne, calendrier prolongé | maintenant | réussi |
 | Aucun modèle bon | rien | inchangé | **échec** |
 | Semaine non jugeable (relais en panne, relevés troués ou trop vieux) | rien | inchangé | réussi ; **échec** si le dernier contrôle a plus de 14 jours |
 | Entraînement en erreur, ou lecteur Python en désaccord avec LightGBM | le modèle en ligne s'il est bon | maintenant | **échec** |
 
-À qualité voisine le candidat l'emporte : il connaît mieux le réseau du moment. Un échec envoie
+À qualité voisine le candidat l'emporte : il connaît mieux le réseau du moment (au rejeu, le
+modèle de la semaine d'avant est noté 0,9 % moins bien que celui de la semaine en octobre, 5,9 %
+à la rentrée). Un échec envoie
 le courriel habituel de GitHub ; la publication précédente reste en ligne et les applications
 cachent d'elles-mêmes les prévisions si plus aucun contrôle ne réussit pendant 21 jours.
 
@@ -146,8 +169,9 @@ applications) et ses scores comparés à ceux de LightGBM sur toute la semaine d
   relevés, puis remplacé par le premier candidat, 4 semaines après le début de la collecte. Il
   donne aussi au robot les repères géographiques des stations. Appris en automne, il peut ne pas
   passer en hiver : rien n'est alors publié jusqu'au premier candidat, sans alerte. Pour le
-  refaire : un passage du robot sur la période voulue (`--maintenant`, `--amorce` l'amorce
-  actuelle sous un autre numéro de version, `--out`), puis copier le `modele.json` écrit.
+  refaire : un passage du robot sur la période voulue (`--maintenant`, `--out`), puis copier le
+  `modele.json` écrit. Le robot ne réentraîne pas la semaine du modèle qu'il tient pour en ligne :
+  pour refaire la même période, lui donner par `--amorce` une copie dont la `version` diffère.
 - **Dépendances.** `requirements.txt` fixe les versions majeures ; le workflow rejoue les tests
   avant chaque entraînement et se réarme lui-même (`gh workflow enable`), GitHub désactivant les
   workflows planifiés d'un dépôt sans activité depuis 60 jours.
@@ -164,4 +188,4 @@ python3 -m venv /tmp/velov && /tmp/velov/bin/pip install -r velov-prevision/requ
 
 `--en-ligne <dossier>` désigne une copie de la branche `velov-prevision` (sans lui, l'amorce est
 tenue pour le modèle en ligne), `--cache <dossier>` garde les jours lus, `--relais` vise un autre
-relais, `--maintenant 2026-10-27T13:00:00` rejoue une date. Un passage complet prend environ cinq minutes sur quatre cœurs et 1,5 Go de mémoire.
+relais, `--maintenant 2026-10-27T13:00:00` rejoue une date. Un passage complet prend sept à huit minutes sur quatre cœurs et 1,6 Go de mémoire.

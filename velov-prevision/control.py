@@ -2,9 +2,9 @@
 Contrôle d'un modèle sur la semaine la plus récente (jamais vue à l'entraînement) et garde-fous :
 ce qui fait qu'un modèle est « bon », et lequel publier entre le candidat et celui déjà en ligne.
 
-Les seuils viennent du contrôle de l'étude d'origine (20 au 27 octobre 2026 : fourchette 10-90
-juste 79 à 87 fois sur 100, médiane meilleure que « comme maintenant » dès 2 h) et d'un rejeu du
-robot à douze dates de 2026 sur les relevés de l'étude, vacances et rentrée comprises.
+Les seuils viennent d'un rejeu du robot sur les relevés de l'étude d'origine : huit semaines de
+contrôle de 2026 (fin janvier, vacances d'hiver et de printemps, mi-août, rentrée, octobre), chacune
+jugée avec le modèle entraîné sur les semaines qui la précèdent.
 """
 from __future__ import annotations
 
@@ -21,18 +21,25 @@ MIN_STATIONS = 300
 MIN_ROWS = 20_000
 KINDS = (*reader.BIKES, reader.DOCKS)
 LABELS = {"velos": "vélos", "elec": "vélos électriques", "meca": "vélos mécaniques", "bornes": "places"}
-# Part des cas où la réalité doit tomber dans la fourchette 10-90, par sorte (80 en théorie, davantage
-# quand les nombres sont petits : une fourchette en entiers déborde toujours un peu, et une station sans
-# électrique en reste souvent là). PROVISOIRE, à régler sur le rejeu.
-COVERAGE_RANGE = {"velos": (0.65, 0.95), "elec": (0.65, 0.99), "meca": (0.65, 0.99), "bornes": (0.65, 0.95)}
+# Part des cas où la réalité doit tomber dans la fourchette 10-90 (80 en théorie). Au rejeu, un modèle
+# frais reste entre 69 et 87 % pour les vélos et les places, 76 et 88 % pour les électriques, 68 et
+# 92 % pour les mécaniques (67 % avec le modèle de la semaine d'avant) ; le plus bas tombe la première
+# semaine des vacances d'hiver et celle de la rentrée, quand il n'a encore rien vu de pareil. Plus
+# étroit, le seuil ferait échouer ces semaines-là le meilleur modèle disponible ; un modèle abîmé, lui,
+# tombe bien plus bas (moins de 30 % avec des déciles décalés).
+COVERAGE_RANGE = {"velos": (0.65, 0.95), "elec": (0.65, 0.95), "meca": (0.60, 0.97), "bornes": (0.65, 0.95)}
 # Horizon (en heures) à partir duquel la médiane de chaque sorte doit battre « comme maintenant ». Avant,
-# l'état présent est presque imbattable : la comparaison ne dirait rien de la santé du modèle. PROVISOIRE.
+# l'état présent est presque imbattable et la comparaison ne dirait rien de la santé du modèle. Au
+# rejeu, l'erreur de la médiane vaut au plus 90 % de celle de « comme maintenant » dès 2 h pour les
+# vélos, les électriques et les places. Les mécaniques bougent moins : à 2 h la médiane perd encore
+# en août et en octobre (102 %), à 3 h elle gagne de peu (94 %), dès 6 h nettement (89 % au plus).
 MEDIAN_BEATS_FROM = {"velos": 2, "elec": 2, "meca": 6, "bornes": 2}
-# La probabilité d'en trouver au moins un doit, elle, battre « comme maintenant » dès 2 h pour toutes les sortes.
+# La probabilité d'en trouver au moins un doit battre « comme maintenant » dès 2 h pour toutes les sortes
+# (score de Brier ; au rejeu, 66 % de celui de « comme maintenant » au plus).
 PROBABILITY_BEATS_FROM = 2
 # Le candidat remplace le modèle en ligne tant que sa note n'est pas plus mauvaise de plus de 3 % :
-# à qualité voisine, le plus récent connaît mieux le réseau du moment. Au rejeu, deux entraînements sur
-# les mêmes semaines diffèrent de 0,5 %, et le modèle de la semaine fait 3 à 6 % de mieux que le précédent.
+# à qualité voisine, le plus récent connaît mieux le réseau du moment. Au rejeu, le modèle de la semaine
+# d'avant est noté 0,9 % moins bien que celui de la semaine en octobre, 5,9 % à la rentrée.
 TOLERANCE = 0.03
 
 
