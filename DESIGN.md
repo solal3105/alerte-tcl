@@ -207,9 +207,10 @@ gris fermé, barème de `VelovStation.availabilityFor` sur les jetons des parkin
 (`MapStyle.ZOOM_STOPS`), un carré arrondi avec un vélo et le nombre de vélos disponibles. Le filtre
 « Seulement les vélos électriques », dans les filtres de l'onglet, ne compte que ceux-là, avec un éclair
 à la place du vélo. La capsule « LIVE » et son compte à rebours valent pour ce type comme pour les
-voitures. La fiche donne le nom lisible de la station, l'adresse, les vélos (électriques et mécaniques)
-et les places libres, l'heure de la dernière mise à jour et un itinéraire à pied. Le rouge du type
-dans le sélecteur est le jeton `AppColors.velov`.
+voitures. La fiche donne le nom lisible de la station, son état du moment en une ligne (« 5 classiques ·
+9 électriques · 4 places », `VelovStation.stateText`), ce qui y est prévu (« Prévision Vélo'v ») et un
+itinéraire à pied ; ni adresse ni heure de mise à jour. Le rouge du type dans le sélecteur est le jeton
+`AppColors.velov`.
 
 Les barèmes métier sont au même endroit : importance et avancement d'un chantier, progression d'un
 chantier (du rouge au vert en onze paliers), disponibilité et type d'un parking, nature d'un chantier
@@ -248,8 +249,9 @@ comme pour une place.
 
 **La fiche**, sous l'état réel de la station :
 
-- le sélecteur de filtre et, en face, l'heure de l'échéance : « Maintenant », « Dans 30 min · 19 h 15 »,
-  « Demain · 8 h 30 » (le lendemain à plus de deux heures ; avant, le délai reste plus parlant) ;
+- le sélecteur de filtre, le même que celui de la carte (le changer dans la fiche le change sur la
+  carte), puis l'heure de l'échéance : « Maintenant », « Dans 30 min · 19 h 15 », « Demain · 8 h 30 »
+  (le lendemain à plus de deux heures ; avant, le délai reste plus parlant) ;
 - le chiffre principal : la fourchette « 7 à 17 vélos » (déciles 10 et 90 arrondis, « 12 vélos » s'ils
   donnent le même nombre), ou le compte réel à l'échéance 0. Dessous, « 8 fois sur 10 » : la part des
   cas où cette fourchette a dit vrai pendant la semaine de contrôle du robot, pour ce filtre, arrondie
@@ -272,6 +274,13 @@ comme pour une place.
   stations ouvertes les plus proches, à moins de 600 m à vol d'oiseau, où la chance est au moins
   « probable » à la même échéance et pour le même filtre. Chaque ligne : le nom, « 6 min à pied · 0 à
   9 vélos » (vol d'oiseau × 1,3 à 80 m par minute, une minute au moins) et la chance dans sa couleur.
+  Toucher une voisine montre sa fiche à la même échéance, avec un retour vers la station d'où l'on vient.
+
+Avec une prévision, la fiche s'ouvre à sa pleine hauteur : à mi-hauteur le graphique serait coupé et le
+curseur caché. Rien ne bouge sous le doigt pendant que le curseur glisse : les lignes du chiffre gardent
+leur place même vides. Le curseur de la fiche part de l'échéance de la carte mais ne déplace pas celui
+de la carte. Quand les stations sont relevées de nouveau (chaque minute), l'échéance choisie est gardée
+et la prévision repart du nouveau relevé.
 
 **La carte.** Un panneau en bas porte le curseur : titre « Maintenant », « Aujourd'hui à 19 h 45 » ou
 « Demain à 8 h 30 » ; « Glissez pour voir la prévision » tant qu'il n'a pas bougé ; un bouton
@@ -337,7 +346,8 @@ Toute feuille commence par le même en-tête : un titre, un sous-titre facultati
 badge ou une icône à gauche, et un bouton « Fermer » à droite. Android : `SheetHeader`
 (`ui/components/SheetHeader.kt`) ; iOS : barre de navigation avec le titre et un bouton « Fermer »
 ou « Annuler ». Les feuilles à choix (options de notification, filtres) s'ouvrent à leur pleine
-hauteur ; les fiches (véhicule, arrêt, parking, chantier) s'ouvrent à mi-hauteur et se déploient.
+hauteur ; les fiches (véhicule, arrêt, parking, chantier) s'ouvrent à mi-hauteur et se déploient,
+sauf la fiche d'une station Vélo'v qui a une prévision (« Prévision Vélo'v »).
 Aucune feuille ne porte de bandeau décoratif (dégradé, halo) : la couleur d'un mode ne sert qu'à
 l'icône ou au libellé du mode, jamais de fond.
 

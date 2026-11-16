@@ -14,6 +14,7 @@ import com.alertetcl.shared.models.ParkingType
 import com.alertetcl.shared.models.TransportMode
 import com.alertetcl.shared.models.TravauxImportance
 import com.alertetcl.shared.models.VehicleType
+import com.alertetcl.shared.models.VelovChanceLevel
 
 /** Variante de la couleur adaptée au thème courant. */
 @Composable
@@ -46,6 +47,14 @@ object Tokens {
 
     @Composable @ReadOnlyComposable
     fun parkingType(type: ParkingType): Color = AppColors.parkingType(type).compose()
+
+    /** Chance de trouver un vélo ou une place à une station Vélo'v, en texte. */
+    @Composable @ReadOnlyComposable
+    fun velovChance(level: VelovChanceLevel): Color = AppColors.velovChance(level).compose()
+
+    /** La même chance sur la piste du curseur de prévision, où « probable » prend le vert atténué. */
+    @Composable @ReadOnlyComposable
+    fun velovChanceTrack(level: VelovChanceLevel): Color = AppColors.velovChanceTrack(level).compose()
 
     @Composable @ReadOnlyComposable
     fun travauxImportance(importance: TravauxImportance): Color =

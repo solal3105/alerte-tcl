@@ -58,27 +58,11 @@ data class VelovStation(
         }
     }
 
-    val availability: AvailabilityColor get() = availabilityFor(VelovFilter.ALL)
-
-    /** Le total, le détail par motorisation étant déjà donné par les compteurs de la fiche. */
-    val bikesText: String get() = when {
-        !open -> "Station fermée"
-        bikes <= 0 -> "Aucun vélo disponible"
-        else -> "$bikes vélo${if (bikes > 1) "s" else ""} disponible${if (bikes > 1) "s" else ""}"
-    }
-
-    val standsText: String get() = when {
-        !open -> ""
-        stands <= 0 -> "Aucune place libre pour rendre un vélo"
-        else -> "$stands place${if (stands > 1) "s" else ""} libre${if (stands > 1) "s" else ""} pour rendre un vélo"
-    }
-
-    /** « Mis à jour il y a 3 min », ou vide sans horodatage. */
-    fun updatedText(nowEpochMs: Long): String {
-        val at = updated ?: return ""
-        val age = (nowEpochMs / 1000 - at).coerceAtLeast(0)
-        return "Mis à jour il y a ${Vehicle.formattedAge(age)}"
-    }
+    /** L'état du moment en une ligne : « 5 classiques · 9 électriques · 4 places », ou « Station fermée ». */
+    val stateText: String get() =
+        if (!open) "Station fermée"
+        else listOf(VelovFilter.MECHANICAL, VelovFilter.ELECTRIC, VelovFilter.STANDS)
+            .joinToString(" · ") { VelovTexts.count(shownCount(it), it) }
 }
 
 /**

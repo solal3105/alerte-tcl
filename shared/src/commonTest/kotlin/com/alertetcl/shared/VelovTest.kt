@@ -20,10 +20,10 @@ class VelovTest {
 
     @Test
     fun availabilityFollowsTheBikesAndTheStationState() {
-        assertEquals(AvailabilityColor.GREEN, station(3).availability)
-        assertEquals(AvailabilityColor.ORANGE, station(2).availability)
-        assertEquals(AvailabilityColor.RED, station(0).availability)
-        assertEquals(AvailabilityColor.GRAY, station(8, open = false).availability)
+        assertEquals(AvailabilityColor.GREEN, station(3).availabilityFor(VelovFilter.ALL))
+        assertEquals(AvailabilityColor.ORANGE, station(2).availabilityFor(VelovFilter.ALL))
+        assertEquals(AvailabilityColor.RED, station(0).availabilityFor(VelovFilter.ALL))
+        assertEquals(AvailabilityColor.GRAY, station(8, open = false).availabilityFor(VelovFilter.ALL))
     }
 
     @Test
@@ -59,13 +59,9 @@ class VelovTest {
     }
 
     @Test
-    fun textsAreWrittenInFullSentences() {
-        assertEquals("8 vélos disponibles", station(8, ebikes = 6).bikesText)
-        assertEquals("1 vélo disponible", station(1, ebikes = 1).bikesText)
-        assertEquals("Aucun vélo disponible", station(0).bikesText)
-        assertEquals("Station fermée", station(4, open = false).bikesText)
-        assertEquals("5 places libres pour rendre un vélo", station(3).standsText)
-        assertEquals("Aucune place libre pour rendre un vélo", station(3, stands = 0).standsText)
-        assertEquals("Mis à jour il y a 2 min", station(3).updatedText((1_789_473_600L + 120) * 1000))
+    fun theStateOfTheMomentFitsOnOneLine() {
+        assertEquals("2 classiques · 6 électriques · 5 places", station(8, ebikes = 6).stateText)
+        assertEquals("0 classique · 1 électrique · 5 places", station(1, ebikes = 1).stateText)
+        assertEquals("Station fermée", station(4, open = false).stateText)
     }
 }

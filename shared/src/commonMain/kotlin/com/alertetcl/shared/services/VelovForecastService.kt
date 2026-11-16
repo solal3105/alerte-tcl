@@ -74,6 +74,7 @@ class VelovForecastService {
      * Vrai s'il y a des prévisions à montrer : un modèle est arrivé et le robot le confirme encore.
      * C'est la condition d'affichage du curseur d'heure de la carte.
      */
+    @Throws(Exception::class)
     suspend fun isAvailable(originEpochMs: Long): Boolean = withContext(Dispatchers.Default) {
         current().usableModel(originEpochMs) != null
     }
@@ -83,6 +84,7 @@ class VelovForecastService {
      * disponible, station fermée, ou que le modèle ne connaît pas. [stations] (toutes celles de la
      * carte) sert à proposer des voisines plus sûres.
      */
+    @Throws(Exception::class)
     suspend fun sheet(station: VelovStation, stations: List<VelovStation>, originEpochMs: Long): VelovForecastSheet? = withContext(Dispatchers.Default) {
         current().usableModel(originEpochMs)?.let { VelovForecastSheet.of(it, station, stations, originEpochMs) }
     }
@@ -95,6 +97,7 @@ class VelovForecastService {
      * Null quand une autre échéance a été demandée entre-temps (le curseur a continué de glisser) :
      * la carte garde alors ce qu'elle montre, la réponse à la dernière demande suit.
      */
+    @Throws(Exception::class)
     suspend fun markers(stations: List<VelovStation>, originEpochMs: Long, step: Int, filter: VelovFilter): List<VelovForecastMarker>? = withContext(Dispatchers.Default) {
         val held = current()
         val markers = held.markers?.takeIf { held.usableModel(originEpochMs) != null } ?: return@withContext emptyList()

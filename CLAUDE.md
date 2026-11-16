@@ -162,10 +162,15 @@ minutes, point coloré de loin et carré avec le nombre de vélos dès `MapStyle
 
 ### Prévision Vélo'v
 
-La prévision d'une station (vélos et places dans les 24 h, par pas de 15 min, avec déciles) se calcule
-sur l'appareil : `VelovForecastService` (module partagé) garde sur le téléphone le modèle publié et
-`VelovForecastModel` le parcourt (forêts LightGBM aplaties ; test de référence contre le prototype
-`prevision.js`, `VelovForecastTest`). Aucune prévision n'est montrée si le dernier contrôle du modèle
+La prévision d'une station (tous les vélos, classiques, électriques et places dans les 24 h, par pas de
+15 min, avec déciles et chance d'en trouver au moins un) se calcule sur l'appareil :
+`VelovForecastService` (module partagé) garde sur le téléphone le modèle publié et `VelovForecastModel`
+le parcourt (forêts LightGBM aplaties ; test de référence contre le prototype `prevision.js`,
+`VelovForecastTest`). Ce qui s'affiche vient aussi du module partagé, par filtre de la carte
+(`VelovFilter`) : `VelovForecastSheet` pour la fiche (graphique des 24 h, curseur d'heure, fourchette,
+chance, période à risque, « Plus sûr à côté »), `VelovForecastMapPanel` et `VelovForecastMarker` pour le
+curseur d'heure de la carte ; les vues (`VelovForecastViews.swift`, `VelovForecastViews.kt`) ne font que
+dessiner, règles dans `DESIGN.md` (« Prévision Vélo'v »). Aucune prévision n'est montrée si le dernier contrôle du modèle
 (`verifie`) a plus de 21 jours (`VelovForecastFreshness`) : mieux vaut rien que du faux. Tout tourne sans
 intervention : le relais relève l'état des stations toutes les 5 minutes à partir de sa copie de `/velov`
 (objet durable `VelovReadings`, 75 jours gardés, route `/velov-releves`), sans requête de plus chez Grand

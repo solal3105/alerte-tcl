@@ -7,6 +7,11 @@ import kotlin.math.roundToInt
  * vélos, classiques, électriques ou places, au singulier jusqu'à 1.
  */
 object VelovTexts {
+    /** Ce que les lecteurs d'écran annoncent pour le graphe, le curseur et le choix de ce qui est compté. */
+    const val CHART_LABEL = "Prévision sur 24 heures"
+    const val SLIDER_LABEL = "Heure de la prévision"
+    const val FILTER_LABEL = "Ce que compte la prévision"
+
     /** Le nom de ce que compte [filter], accordé avec [count] : « vélos », « classique », « places ». */
     fun unit(filter: VelovFilter, count: Int): String {
         val one = when (filter) {

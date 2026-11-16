@@ -24,6 +24,16 @@ final class ParkingViewModel: ObservableObject {
         name: UserDefaults.standard.string(forKey: ParkingViewModel.velovFilterKey)
     )
     private static let velovFilterKey = "parking.velovFilter"
+    /// Heure où `velovStations` a été relevé (epoch, ms) : le départ des prévisions, le même pour la
+    /// carte et pour la fiche d'une station.
+    @Published private(set) var velovOriginEpochMs: Int64 = 0
+    /// Vrai quand une prévision existe pour le relevé courant : la carte montre alors son curseur d'heure.
+    @Published private(set) var velovForecastAvailable = false
+    /// Échéance du curseur d'heure de la carte : 0 pour « Maintenant », puis une par quart d'heure.
+    @Published private(set) var velovForecastStep: Int32 = 0
+    /// Marqueurs prévus à l'échéance du curseur. Nil à « Maintenant », et tant que la première prévision
+    /// demandée n'est pas arrivée : la carte dessine alors l'état réel.
+    @Published private var velovForecastMarkers: [VelovMapMarker]?
     @Published var isLoading = false
     @Published var error: String?
     @Published var lastUpdate: Date?
@@ -42,6 +52,9 @@ final class ParkingViewModel: ObservableObject {
                 // 1. Vider immédiatement l'affichage pour feedback instantané
                 parkings = []
                 velovStations = []
+                velovForecastAvailable = false
+                velovForecastStep = 0
+                velovForecastMarkers = nil
                 invalidateClusterCache()
                 error = nil
                 
@@ -302,25 +315,38 @@ final class ParkingViewModel: ObservableObject {
         isLoading = true
         error = nil
         defer { isLoading = false }
+        // Premier affichage des stations : le modèle de prévision se charge pendant qu'elles arrivent.
+        if velovStations.isEmpty { VelovForecastService.companion.shared.warmUp() }
         do {
             let stations = try await VelovService.companion.shared.fetchStations(forceRefresh: false)
             guard !Task.isCancelled, selectedParkingType == .velov else { return }
+            // Le tableau est gardé tel que le module partagé l'a rendu : c'est lui que la prévision reçoit.
             velovStations = stations
-            lastUpdate = Date()
+            let now = Date()
+            velovOriginEpochMs = Int64(now.timeIntervalSince1970 * 1000)
+            lastUpdate = now
+            await refreshVelovForecast()
         } catch {
             AppLogger.debug("⚠️ Stations Vélo'v indisponibles : \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
     }
 
-    /// Stations dans la région visible, comme les parkings.
-    var visibleVelovStations: [VelovStation] {
-        guard let region = visibleRegion else { return velovStations }
+    /// Ce que la carte dessine dans la région visible, comme les parkings : l'état réel de chaque
+    /// station, ou sa prévision quand le curseur d'heure a quitté « Maintenant ».
+    var visibleVelovMarkers: [VelovMapMarker] {
+        let markers = velovForecastMarkers ?? velovStations.map { VelovMapMarker(station: $0, filter: velovFilter) }
+        guard let region = visibleRegion else { return markers }
         let minLat = region.center.latitude - region.span.latitudeDelta
         let maxLat = region.center.latitude + region.span.latitudeDelta
         let minLon = region.center.longitude - region.span.longitudeDelta
         let maxLon = region.center.longitude + region.span.longitudeDelta
-        return velovStations.filter { $0.lat >= minLat && $0.lat <= maxLat && $0.lng >= minLon && $0.lng <= maxLon }
+        return markers.filter { $0.station.lat >= minLat && $0.station.lat <= maxLat && $0.station.lng >= minLon && $0.station.lng <= maxLon }
+    }
+
+    /// La station `id` dans le dernier relevé : une fiche ouverte suit ainsi les rafraîchissements.
+    func velovStation(id: Int32) -> VelovStation? {
+        velovStations.first { $0.id == id }
     }
 
     /// Voitures et Vélo'v ont une disponibilité en direct, rechargée toutes les minutes.
@@ -331,6 +357,56 @@ final class ParkingViewModel: ObservableObject {
         guard filter != velovFilter else { return }
         velovFilter = filter
         UserDefaults.standard.set(filter.name, forKey: Self.velovFilterKey)
+        refreshVelovForecastMarkers()
+    }
+
+    // MARK: - Prévision Vélo'v
+
+    /// Déplace le curseur d'heure de la carte. À « Maintenant », la carte reprend aussitôt l'état réel ;
+    /// au-delà, elle garde ce qu'elle montre jusqu'à l'arrivée de la prévision demandée.
+    func selectVelovForecastStep(_ step: Int32) {
+        guard step != velovForecastStep else { return }
+        velovForecastStep = step
+        refreshVelovForecastMarkers()
+    }
+
+    /// La prévision de `station` pour sa fiche, sur le relevé et l'heure de départ de la carte ; nil
+    /// quand il n'y a rien à montrer (pas de prévision, station fermée ou inconnue du modèle).
+    func velovForecastSheet(for station: VelovStation) async -> VelovForecastSheet? {
+        try? await VelovForecastService.companion.shared.sheet(station: station, stations: velovStations, originEpochMs: velovOriginEpochMs)
+    }
+
+    /// À chaque relevé des stations (toutes les minutes) : la prévision est-elle encore disponible ?
+    /// Le curseur garde son échéance, qui part désormais du nouveau relevé (l'heure visée avance d'une
+    /// minute), et la carte ce qu'elle montre jusqu'à l'arrivée des marqueurs recalculés. Si la prévision
+    /// n'est plus disponible, le curseur disparaît et la carte revient à l'état réel.
+    private func refreshVelovForecast() async {
+        let origin = velovOriginEpochMs
+        let available = (try? await VelovForecastService.companion.shared.isAvailable(originEpochMs: origin))?.boolValue ?? false
+        guard origin == velovOriginEpochMs, selectedParkingType == .velov else { return }
+        velovForecastAvailable = available
+        if !available { velovForecastStep = 0 }
+        refreshVelovForecastMarkers()
+    }
+
+    /// Demande les marqueurs de l'échéance, du relevé et du filtre courants. Annuler une tâche Swift
+    /// n'arrête pas le calcul Kotlin : une réponse nulle (demande dépassée par une plus récente) ou
+    /// arrivée après un changement d'échéance, de relevé ou de filtre est ignorée.
+    private func refreshVelovForecastMarkers() {
+        let step = velovForecastStep
+        guard step > 0 else {
+            velovForecastMarkers = nil
+            return
+        }
+        let stations = velovStations
+        let origin = velovOriginEpochMs
+        let filter = velovFilter
+        Task { [weak self] in
+            let markers = try? await VelovForecastService.companion.shared.markers(stations: stations, originEpochMs: origin, step: step, filter: filter)
+            guard let self, let markers,
+                  step == self.velovForecastStep, origin == self.velovOriginEpochMs, filter == self.velovFilter else { return }
+            self.velovForecastMarkers = markers.map { VelovMapMarker(forecast: $0, filter: filter) }
+        }
     }
 
     /// Recharge le type courant quand il a des données en direct.

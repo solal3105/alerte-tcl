@@ -63,6 +63,7 @@
 		AAA20005 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20013 /* AppGroup.swift */; };
 		AAA20006 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20013 /* AppGroup.swift */; };
 		AB100015 /* VelovViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB100004 /* VelovViews.swift */; };
+		AB1000B2 /* VelovForecastViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1000B1 /* VelovForecastViews.swift */; };
 		AAA20003 /* ColorHex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20012 /* ColorHex.swift */; };
 		A1000044 /* TransitStopViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000045 /* TransitStopViewModel.swift */; };
 		AAA00001 /* AlerteTCLApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00011 /* AlerteTCLApp.swift */; };
@@ -183,6 +184,7 @@
 		AAA20012 /* ColorHex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorHex.swift; sourceTree = "<group>"; };
 		AAA20013 /* AppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroup.swift; sourceTree = "<group>"; };
 		AB100004 /* VelovViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VelovViews.swift; sourceTree = "<group>"; };
+		AB1000B1 /* VelovForecastViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VelovForecastViews.swift; sourceTree = "<group>"; };
 		A1000045 /* TransitStopViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopViewModel.swift; sourceTree = "<group>"; };
 		AAA00010 /* AlerteTCL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AlerteTCL.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAA00011 /* AlerteTCLApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlerteTCLApp.swift; sourceTree = "<group>"; };
@@ -344,6 +346,7 @@
 			children = (
 				A200000C /* TimetableViews.swift */,
 				AB100004 /* VelovViews.swift */,
+				AB1000B1 /* VelovForecastViews.swift */,
 				AB100006 /* CityView.swift */,
 				AB1000A1 /* IntroView.swift */,
 				4FD3050C2F1E68CB00EAFA92 /* WidgetViews.swift */,
@@ -552,6 +555,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AB100015 /* VelovViews.swift in Sources */,
+				AB1000B2 /* VelovForecastViews.swift in Sources */,
 				AB100016 /* GlassStyle.swift in Sources */,
 				AB1000A4 /* AppIconView.swift in Sources */,
 				AB100017 /* CityView.swift in Sources */,

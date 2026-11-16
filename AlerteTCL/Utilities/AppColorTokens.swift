@@ -181,6 +181,14 @@ extension ParkingType {
     }
 }
 
+extension VelovChanceLevel {
+    /// Couleur du palier en texte : le pourcentage et son mot.
+    var color: Color { Color(token: AppColors.shared.velovChance(level: self)) }
+
+    /// Couleur du palier sur la piste du curseur d'heure, où « probable » prend le vert atténué.
+    var trackColor: Color { Color(token: AppColors.shared.velovChanceTrack(level: self)) }
+}
+
 extension CityTile {
     /// Pictogramme de la tuile : celui de son type de stationnement, un marteau pour les chantiers.
     var icon: String { parkingType.flatMap(ParkingType.init(shared:))?.icon ?? "hammer.fill" }

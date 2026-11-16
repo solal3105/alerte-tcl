@@ -27,6 +27,8 @@ struct ParkingMapView: View {
     @State private var isSatellite = false
     @State private var showFilters = false
     @State private var transitLines: [TransitLine] = []
+    /// Hauteur du panneau de prévision Vélo'v : la carte garde ses mentions et son centre au-dessus de lui.
+    @State private var forecastPanelHeight: CGFloat = 0
     @Binding var link: WidgetLink?
 
     init(parkingType: ParkingType, link: Binding<WidgetLink?>) {
@@ -46,8 +48,9 @@ struct ParkingMapView: View {
                 .presentationDragIndicator(.visible)
         }
         .sheet(item: $selectedVelovStation) { station in
-            VelovStationSheet(station: station)
-                .presentationDetents([.medium, .large])
+            // Avec une prévision, la fiche s'ouvre en grand : le graphique des 24 heures en est le centre.
+            VelovStationSheet(station: station, viewModel: viewModel)
+                .presentationDetents(viewModel.velovForecastAvailable ? [.large] : [.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showFilters) {
@@ -178,13 +181,15 @@ struct ParkingMapView: View {
                     }
                 }
 
-                // Stations Vélo'v : point de loin, carré avec le nombre de vélos dès le zoom des arrêts.
+                // Stations Vélo'v : point de loin, carré avec le nombre compté dès le zoom des arrêts.
+                // Chaque annotation est identifiée par sa station : quand le curseur d'heure glisse, son
+                // marqueur change de nombre et de couleur sur place, sans être retiré puis reposé.
                 if viewModel.selectedParkingType == .velov {
                     let compact = mapZoom < MapStyle.shared.ZOOM_STOPS
-                    ForEach(viewModel.visibleVelovStations) { station in
-                        Annotation("", coordinate: CLLocationCoordinate2D(latitude: station.lat, longitude: station.lng)) {
-                            VelovMarker(station: station, filter: viewModel.velovFilter, compact: compact)
-                                .onTapGesture { selectedVelovStation = station }
+                    ForEach(viewModel.visibleVelovMarkers) { marker in
+                        Annotation("", coordinate: CLLocationCoordinate2D(latitude: marker.station.lat, longitude: marker.station.lng)) {
+                            VelovMarker(marker: marker, compact: compact)
+                                .onTapGesture { selectedVelovStation = marker.station }
                         }
                     }
                 }
@@ -195,6 +200,7 @@ struct ParkingMapView: View {
             }
             .mapStyle(isSatellite ? .imagery(elevation: .realistic) : .standard(pointsOfInterest: .excludingAll))
             .mapControlVisibility(.hidden)
+            .safeAreaPadding(.bottom, viewModel.velovForecastAvailable ? forecastPanelHeight : 0)
             .ignoresSafeArea(edges: .top)
             .onMapCameraChange { context in
                 currentSpan = context.region.span
@@ -290,10 +296,22 @@ struct ParkingMapView: View {
                     }
                 }
                 .padding(.trailing, 24)
-                .padding(.bottom, 24)
+                .padding(.bottom, viewModel.velovForecastAvailable ? 4 : 24)
+            }
+
+            // Vélo'v : le curseur d'heure, seulement quand une prévision est disponible.
+            if viewModel.velovForecastAvailable {
+                VelovForecastTimePanel(originEpochMs: viewModel.velovOriginEpochMs, step: viewModel.velovForecastStep) {
+                    viewModel.selectVelovForecastStep($0)
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { forecastPanelHeight = $0 }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.isLoadingInBackground)
+        .animation(.default, value: viewModel.velovForecastAvailable)
     }
 }
 
