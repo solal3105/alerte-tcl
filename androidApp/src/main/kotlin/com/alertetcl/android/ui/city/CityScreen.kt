@@ -31,8 +31,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +45,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.alertetcl.android.data.FavoritesStore
+import com.alertetcl.android.ui.components.NewBadge
 import com.alertetcl.android.ui.components.glass
 import com.alertetcl.android.ui.map.mapStyleBuilder
 import com.alertetcl.android.ui.map.recenterOnUser
@@ -61,27 +65,29 @@ import org.maplibre.android.geometry.LatLng
  * Vélo'v, chantiers, avec leurs chiffres en direct), puis la carte de la tuile choisie sous une capsule
  * de retour ; le geste retour du système ramène aussi à l'accueil. En démo « velov… », la carte des
  * stations s'ouvre directement.
+ *
+ * [velovForecastNew] allume la pastille « Nouveau » de la tuile des Vélo'v (`NewBadges`) ; ouvrir leur
+ * carte la retient comme vue, ce qui éteint aussi celle de l'onglet.
  */
 @Composable
-fun CityScreen() {
+fun CityScreen(velovForecastNew: Boolean) {
+    val context = LocalContext.current
+    val store = remember { FavoritesStore(context) }
     var chosenName by rememberSaveable {
         mutableStateOf(if (DemoShowcase.current?.startsWith("velov") == true) CityTile.VELOV.name else null)
     }
     val chosen = chosenName?.let { CityTile.valueOf(it) }
     BackHandler(enabled = chosen != null) { chosenName = null }
+    LaunchedEffect(chosen) {
+        if (chosen == CityTile.VELOV) store.setVelovForecastBadgeOpened()
+    }
     if (chosen == null) {
-        CityChooser(onChoose = { chosenName = it.name })
+        CityChooser(velovForecastNew = velovForecastNew, onChoose = { chosenName = it.name })
         return
     }
-    Box(modifier = Modifier.fillMaxSize()) {
-        val type = chosen.parkingType
-        if (type == null) TravauxScreen() else ParkingScreen(type)
-        CityHeader(
-            tile = chosen,
-            modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(start = 16.dp, top = 12.dp),
-            onBack = { chosenName = null }
-        )
-    }
+    val header: @Composable () -> Unit = { CityHeader(tile = chosen, onBack = { chosenName = null }) }
+    val type = chosen.parkingType
+    if (type == null) TravauxScreen(header) else ParkingScreen(type, header)
 }
 
 private fun tileIcon(tile: CityTile): ImageVector = when (tile.parkingType) {
@@ -94,7 +100,7 @@ private fun tileIcon(tile: CityTile): ImageVector = when (tile.parkingType) {
 
 /** Accueil : la carte de la ville, immobile, sous un voile ; les tuiles de verre par-dessus. */
 @Composable
-private fun CityChooser(onChoose: (CityTile) -> Unit) {
+private fun CityChooser(velovForecastNew: Boolean, onChoose: (CityTile) -> Unit) {
     val tiles = CityTile.all
     Box(modifier = Modifier.fillMaxSize()) {
         MapBackdrop()
@@ -112,7 +118,9 @@ private fun CityChooser(onChoose: (CityTile) -> Unit) {
             Spacer(Modifier.height(6.dp))
             tiles.filter { it.parkingType != null }.chunked(2).forEach { row ->
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    row.forEach { tile -> CityTileCard(tile, Modifier.weight(1f)) { onChoose(tile) } }
+                    row.forEach { tile ->
+                        CityTileCard(tile, Modifier.weight(1f), isNew = velovForecastNew && tile == CityTile.VELOV) { onChoose(tile) }
+                    }
                 }
             }
             tiles.filter { it.parkingType == null }.forEach { tile ->
@@ -147,7 +155,7 @@ private fun MapBackdrop() {
 }
 
 @Composable
-private fun CityTileCard(tile: CityTile, modifier: Modifier, wide: Boolean = false, onClick: () -> Unit) {
+private fun CityTileCard(tile: CityTile, modifier: Modifier, wide: Boolean = false, isNew: Boolean = false, onClick: () -> Unit) {
     val shape = RoundedCornerShape(28.dp)
     Box(
         modifier = modifier
@@ -167,6 +175,7 @@ private fun CityTileCard(tile: CityTile, modifier: Modifier, wide: Boolean = fal
                 TileTexts(tile)
             }
         }
+        if (isNew) NewBadge(modifier = Modifier.align(Alignment.TopEnd))
     }
 }
 
@@ -191,9 +200,9 @@ private fun TileIcon(tile: CityTile, size: Int = 52, iconSize: Int = 26) {
 
 /** Capsule en verre en haut de la carte : la tuile affichée, un toucher ramène à l'accueil. */
 @Composable
-private fun CityHeader(tile: CityTile, modifier: Modifier, onBack: () -> Unit) {
+private fun CityHeader(tile: CityTile, onBack: () -> Unit) {
     Row(
-        modifier = modifier
+        modifier = Modifier
             .glass(RoundedCornerShape(50), alpha = 0.78f)
             .clickable { onBack() }
             .padding(start = 10.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),

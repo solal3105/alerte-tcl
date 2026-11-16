@@ -169,7 +169,9 @@ le parcourt (forêts LightGBM aplaties ; test de référence contre le prototype
 `VelovForecastTest`). Ce qui s'affiche vient aussi du module partagé, par filtre de la carte
 (`VelovFilter`) : `VelovForecastSheet` pour la fiche (graphique des 24 h, curseur d'heure, fourchette,
 chance, période à risque, « Plus sûr à côté »), `VelovForecastMapPanel` et `VelovForecastMarker` pour le
-curseur d'heure de la carte ; les vues (`VelovForecastViews.swift`, `VelovForecastViews.kt`) ne font que
+curseur d'heure de la carte (fourchette « 3–8 », la même que la fiche ; les 96 échéances sont calculées
+d'avance en arrière-plan par `prepareMarkers`, que les vues appellent à l'apparition du curseur, après
+chaque relevé et à chaque changement de filtre) ; les vues (`VelovForecastViews.swift`, `VelovForecastViews.kt`) ne font que
 dessiner, règles dans `DESIGN.md` (« Prévision Vélo'v »). Aucune prévision n'est montrée si le dernier contrôle du modèle
 (`verifie`) a plus de 21 jours (`VelovForecastFreshness`) : mieux vaut rien que du faux. Tout tourne sans
 intervention : le relais relève l'état des stations toutes les 5 minutes à partir de sa copie de `/velov`
@@ -191,6 +193,9 @@ pousse dans une `NavigationStack` (retour système), Android pose une capsule de
 `BackHandler`. Style verre partagé : `glassSurface` + `MapGlassButton` (iOS, `GlassStyle.swift`),
 `Modifier.glass` (Android, `ui/components/Glass.kt`) ; jamais de verre dans du verre. La fiche d'un
 parking n'affiche que des données réelles (pas de « type d'usagers » ni de « type d'ouvrage »).
+Pastille « Nouveau » de la prévision Vélo'v sur la tuile Vélo'v et sur l'onglet : `NewBadges` (module
+partagé, testé ; jusqu'au 1er mars 2027, tant que la carte Vélo'v n'a pas été ouverte et qu'une prévision
+existe), « ouverte » retenue par chaque plateforme.
 
 ### Écran d'intro
 
@@ -200,7 +205,9 @@ bouton selon l'endroit d'où l'intro a été ouverte, règle d'affichage, testé
 `IntroScreen.kt` sur Android ; la page des widgets n'existe que sur iOS, où elle rend trois widgets
 réels avec les vues de l'extension. Les captures qui illustrent les pages sont celles du site
 (`website/assets/v13-*.jpg`), copiées dans les assets des deux applications. La révision vue est
-gardée par chaque plateforme et l'écran reste consultable depuis l'onglet Info. Changer les textes
+gardée par chaque plateforme : après une mise à jour, `Intro.pages(includeWidgets, seenRevision)` ne
+rend qu'une page d'annonce et les pages ajoutées depuis (chaque page porte sa révision) ; l'écran reste
+consultable en entier depuis l'onglet Info (`NEVER_SEEN`). Changer les textes
 d'une version se fait dans le module partagé, jamais dans les vues, et augmenter la révision suffit
 à faire reparaître l'intro.
 

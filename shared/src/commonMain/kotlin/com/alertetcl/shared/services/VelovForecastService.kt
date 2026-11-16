@@ -18,7 +18,6 @@ import com.alertetcl.shared.network.safeRequest
 import com.alertetcl.shared.platform.readLocalFile
 import com.alertetcl.shared.platform.writeLocalFile
 import com.alertetcl.shared.util.AppLogger
-import com.alertetcl.shared.util.LatestOnly
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
@@ -60,14 +59,17 @@ class VelovForecastService {
     private val updateMutex = Mutex()
     private var attemptedAt = 0L
 
-    /** Un seul calcul de marqueurs à la fois (leur mémoire n'est pas faite pour plusieurs fils), le dernier demandé d'abord. */
-    private val markersQueue = LatestOnly()
+    /** Le seul fil où vivent les marqueurs de carte : leurs calculs y passent un à un, les demandes entre deux. */
+    private val markersContext = Dispatchers.Default.limitedParallelism(1)
 
-    /** Le modèle en mémoire (null : aucun sur disque), ce que l'on sait de sa fraîcheur, et les marqueurs de carte déjà calculés avec lui. */
-    private class Held(val model: VelovForecastModel?, val receipt: VelovForecastReceipt) {
-        val markers: VelovForecastMarkers? = model?.let(::VelovForecastMarkers)
+    /** Le modèle en mémoire (null : aucun sur disque), ce que l'on sait de sa fraîcheur, et les marqueurs de carte calculés avec lui. */
+    private inner class Held(val model: VelovForecastModel?, val receipt: VelovForecastReceipt) {
+        val markers: VelovForecastMarkers? = model?.let { VelovForecastMarkers(it, scope, markersContext) }
 
         fun usableModel(originEpochMs: Long): VelovForecastModel? = model?.takeIf { receipt.canShow(originEpochMs / 1000) }
+
+        /** Les marqueurs, s'il y a une prévision à montrer pour des stations relevées à [originEpochMs]. */
+        fun usableMarkers(originEpochMs: Long): VelovForecastMarkers? = markers?.takeIf { usableModel(originEpochMs) != null }
     }
 
     /**
@@ -90,18 +92,29 @@ class VelovForecastService {
     }
 
     /**
+     * Calcule d'avance, en arrière-plan, les marqueurs des 96 échéances de la carte pour [stations]
+     * relevées à [originEpochMs] et pour [filter], en partant de celles qui entourent la dernière
+     * demandée. Rend la main tout de suite. À appeler quand le curseur d'heure apparaît, après chaque
+     * relevé des stations et à chaque changement de filtre ; le rappeler avec les mêmes arguments ne
+     * recommence rien. Sans prévision disponible, ne fait rien.
+     */
+    fun prepareMarkers(stations: List<VelovStation>, originEpochMs: Long, filter: VelovFilter) {
+        scope.launch { current().usableMarkers(originEpochMs)?.prepare(stations, originEpochMs, filter) }
+    }
+
+    /**
      * Les marqueurs de la carte à l'échéance [step] (1 à 96) pour [filter] : une liste vide sans
-     * prévision disponible, et pas de marqueur pour une station fermée ou inconnue du modèle. Une
-     * échéance déjà demandée pour les mêmes [stations], la même heure et le même filtre revient aussitôt.
+     * prévision disponible ou à l'échéance 0, et pas de marqueur pour une station fermée ou inconnue
+     * du modèle. Une échéance déjà calculée ([prepareMarkers]) pour les mêmes [stations], la même heure
+     * et le même filtre revient aussitôt ; une autre est calculée avant toutes les autres.
      *
      * Null quand une autre échéance a été demandée entre-temps (le curseur a continué de glisser) :
      * la carte garde alors ce qu'elle montre, la réponse à la dernière demande suit.
      */
     @Throws(Exception::class)
     suspend fun markers(stations: List<VelovStation>, originEpochMs: Long, step: Int, filter: VelovFilter): List<VelovForecastMarker>? = withContext(Dispatchers.Default) {
-        val held = current()
-        val markers = held.markers?.takeIf { held.usableModel(originEpochMs) != null } ?: return@withContext emptyList()
-        markersQueue.run { markers.at(stations, originEpochMs, step, filter) }
+        val markers = current().usableMarkers(originEpochMs) ?: return@withContext emptyList()
+        markers.at(stations, originEpochMs, step, filter)
     }
 
     /** Le modèle gardé, en demandant au passage sa mise à jour si c'est le moment. */

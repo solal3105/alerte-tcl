@@ -17,21 +17,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableIntState
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.structuralEqualityPolicy
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -44,6 +47,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
@@ -69,7 +73,6 @@ import com.alertetcl.shared.models.VelovFilter
 import com.alertetcl.shared.models.VelovForecast
 import com.alertetcl.shared.models.VelovForecastChartPoint
 import com.alertetcl.shared.models.VelovForecastMapPanel
-import com.alertetcl.shared.models.VelovForecastNeighbour
 import com.alertetcl.shared.models.VelovForecastPanel
 import com.alertetcl.shared.models.VelovForecastReadout
 import com.alertetcl.shared.models.VelovForecastSheet
@@ -81,6 +84,10 @@ import kotlin.math.roundToInt
 // Prévision Vélo'v à l'écran : le bloc de la fiche d'une station (graphique des 24 heures et son curseur)
 // et le panneau du curseur d'heure de la carte. Textes, nombres et paliers viennent du module partagé
 // (`VelovForecastSheet`, `VelovForecastMapPanel`) ; ce fichier ne calcule que de la géométrie.
+//
+// Pour que le curseur suive le doigt, l'échéance n'est lue que par ce qui en dépend : le chiffre, la
+// piste et « Plus sûr à côté » se recomposent à chaque cran, le curseur du graphique se redessine seul
+// sur sa propre couche, et les courbes ne sont tracées qu'une fois par filtre et par taille.
 
 /**
  * Marge de chaque côté de l'axe des heures, commune au graphique, à la piste du curseur et aux repères :
@@ -118,26 +125,25 @@ fun VelovForecastSection(
     initialStep: Int,
     onOpenStation: (VelovStation) -> Unit
 ) {
-    var step by rememberSaveable { mutableIntStateOf(initialStep) }
-    val readout = forecast?.let { remember(it, filter, step) { it.readout(filter, step) } }
+    val step = rememberSaveable { mutableIntStateOf(initialStep) }
+    // Ce qui est prévu à l'échéance du curseur, calculé une fois par cran et lu seulement par ce qui l'affiche.
+    val readout = forecast?.let { sheet -> remember(sheet, filter) { derivedStateOf { sheet.readout(filter, step.intValue) } } }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         VelovCard {
             VelovFilterBar(filter, onFilter, Modifier.padding(horizontal = AxisInset).fillMaxWidth(), onMap = false)
             if (forecast == null || readout == null) {
                 Spacer(Modifier.height(ChartHeight))
             } else {
-                VelovForecastReadings(forecast.panel(filter), readout, onStepChange = { step = it })
+                VelovForecastReadings(remember(forecast, filter) { forecast.panel(filter) }, readout, step)
             }
         }
-        if (readout != null && readout.saferNearby.isNotEmpty()) {
-            VelovSaferNearby(readout.saferNearby, onOpenStation)
-        }
+        if (readout != null) VelovSaferNearby(readout, onOpenStation)
     }
 }
 
 /** Carte de la fiche : une surface discrète, sans marge horizontale pour que le graphique aille d'un bord à l'autre. */
 @Composable
-private fun VelovCard(content: @Composable ColumnScope.() -> Unit) {
+internal fun VelovCard(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -147,14 +153,24 @@ private fun VelovCard(content: @Composable ColumnScope.() -> Unit) {
     }
 }
 
-/** Ce qui est prévu à l'échéance du curseur, le graphique des 24 heures, le curseur et la période à risque. */
+/**
+ * Ce qui est prévu à l'échéance du curseur, le graphique des 24 heures, le curseur et la période à
+ * risque. Ne lit pas l'échéance elle-même : il ne se recompose pas quand le curseur glisse.
+ */
 @Composable
-private fun VelovForecastReadings(panel: VelovForecastPanel, readout: VelovForecastReadout, onStepChange: (Int) -> Unit) {
+private fun VelovForecastReadings(panel: VelovForecastPanel, readout: State<VelovForecastReadout>, step: MutableIntState) {
+    val shown = { step.intValue }
+    val move = { target: Int -> step.intValue = target }
     VelovReadout(readout)
     // Le graphique, la piste et les repères partagent le même axe : glisser sur l'un ou l'autre déplace le curseur.
-    Column(modifier = Modifier.timeScrub(readout.step, onStepChange)) {
-        VelovForecastChart(panel, readout.step)
-        VelovTimeTrack(readout.step, onStepChange, description = "${readout.time}, ${readout.count}", trackLevels = panel.trackLevels)
+    Column(modifier = Modifier.timeScrub(shown, move)) {
+        VelovForecastChart(panel, shown)
+        VelovTimeTrack(
+            step = shown,
+            onStepChange = move,
+            description = { readout.value.let { "${it.time}, ${it.count}" } },
+            trackLevels = panel.trackLevels
+        )
         VelovTickRow(panel.ticks)
     }
     panel.risk?.let { risk ->
@@ -176,7 +192,8 @@ private fun VelovForecastReadings(panel: VelovForecastPanel, readout: VelovForec
  * ne bouge pas sous le doigt quand le curseur quitte la première échéance.
  */
 @Composable
-private fun VelovReadout(readout: VelovForecastReadout) {
+private fun VelovReadout(readout: State<VelovForecastReadout>) {
+    val shown = readout.value
     val secondary = MaterialTheme.colorScheme.onSurfaceVariant
     Row(
         modifier = Modifier.padding(horizontal = AxisInset).fillMaxWidth(),
@@ -184,12 +201,12 @@ private fun VelovReadout(readout: VelovForecastReadout) {
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(readout.time, style = MaterialTheme.typography.labelLarge, color = secondary, maxLines = 1)
+            Text(shown.time, style = MaterialTheme.typography.labelLarge, color = secondary, maxLines = 1)
             // Même règle que les numéros de ligne : une seule ligne, qui rapetisse plutôt que d'être coupée.
-            LineNumberText(readout.count, color = MaterialTheme.colorScheme.onSurface, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text(readout.reliability.orEmpty(), style = MaterialTheme.typography.bodySmall, color = secondary, maxLines = 1)
+            LineNumberText(shown.count, color = MaterialTheme.colorScheme.onSurface, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            Text(shown.reliability.orEmpty(), style = MaterialTheme.typography.bodySmall, color = secondary, maxLines = 1)
         }
-        readout.chance?.let { chance ->
+        shown.chance?.let { chance ->
             val color = Tokens.velovChance(chance.level)
             Column(horizontalAlignment = Alignment.End) {
                 Text(chance.text, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
@@ -199,81 +216,103 @@ private fun VelovReadout(readout: VelovForecastReadout) {
     }
 }
 
+/** Le cadre du graphique dans une surface de [size] : bords de l'échelle et place de chaque point sur les deux axes. */
+private class ChartFrame(private val density: Density, private val size: Size, private val scaleMax: Int) {
+    val top = with(density) { 10.dp.toPx() }
+    val bottom = size.height - with(density) { 6.dp.toPx() }
+    val left = density.axisX(0f, size.width)
+    val right = density.axisX(1f, size.width)
+
+    fun x(position: Double): Float = density.axisX(position.toFloat(), size.width)
+    fun y(count: Double): Float = bottom - (count / scaleMax).toFloat() * (bottom - top)
+
+    /** Tracé d'une courbe d'un bout à l'autre ; avec [back], la bande refermée entre les deux courbes. */
+    fun outline(
+        points: List<VelovForecastChartPoint>,
+        forward: (VelovForecastChartPoint) -> Double,
+        back: ((VelovForecastChartPoint) -> Double)? = null
+    ): Path = Path().apply {
+        points.forEachIndexed { rank, point ->
+            if (rank == 0) moveTo(x(point.position), y(forward(point))) else lineTo(x(point.position), y(forward(point)))
+        }
+        if (back != null) {
+            points.asReversed().forEach { point -> lineTo(x(point.position), y(back(point))) }
+            close()
+        }
+    }
+}
+
 /**
  * Graphique des 24 heures : la valeur la plus probable (trait), la fourchette 10-90 (bande claire) et la
  * fourchette 30-70 (bande soutenue), à l'accent, sur une échelle de 0 à [VelovForecastPanel.scaleMax],
  * seul nombre écrit. Un trait pointillé marque minuit ; le curseur montre l'échéance [step].
+ *
+ * Deux couches : le fond (échelle, minuit, bandes et trait), tracé une fois par panneau et par taille, et
+ * le curseur, sur sa propre couche, qui lit l'échéance au moment de dessiner : seul lui se redessine
+ * quand le curseur glisse.
  */
 @Composable
-private fun VelovForecastChart(panel: VelovForecastPanel, step: Int) {
+private fun VelovForecastChart(panel: VelovForecastPanel, step: () -> Int) {
     val accent = Tokens.accent
     val rule = MaterialTheme.colorScheme.outlineVariant
     val cursor = MaterialTheme.colorScheme.onSurface
     val dot = MaterialTheme.colorScheme.surface
     val labelStyle = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
     val measurer = rememberTextMeasurer()
-    Canvas(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(ChartHeight)
             .semantics { contentDescription = VelovTexts.CHART_LABEL }
     ) {
-        val top = 10.dp.toPx()
-        val bottom = size.height - 6.dp.toPx()
-        val left = axisX(0f, size.width)
-        val right = axisX(1f, size.width)
-        fun x(position: Double): Float = axisX(position.toFloat(), size.width)
-        fun y(count: Double): Float = bottom - (count / panel.scaleMax).toFloat() * (bottom - top)
-
-        // Tracé d'une courbe d'un bout à l'autre ; avec [back], la bande refermée entre les deux courbes.
-        fun outline(
-            forward: (VelovForecastChartPoint) -> Double,
-            back: ((VelovForecastChartPoint) -> Double)? = null
-        ): Path = Path().apply {
-            panel.points.forEachIndexed { rank, point ->
-                if (rank == 0) moveTo(x(point.position), y(forward(point))) else lineTo(x(point.position), y(forward(point)))
+        Spacer(
+            modifier = Modifier.matchParentSize().drawWithCache {
+                val frame = ChartFrame(this, size, panel.scaleMax)
+                val wide = frame.outline(panel.points, VelovForecastChartPoint::high, VelovForecastChartPoint::low)
+                val core = frame.outline(panel.points, VelovForecastChartPoint::midHigh, VelovForecastChartPoint::midLow)
+                val median = frame.outline(panel.points, VelovForecastChartPoint::median)
+                val medianStroke = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                val hairline = 1.dp.toPx()
+                val labelTop = frame.top + 2.dp.toPx()
+                val scale = measurer.measure(panel.scaleMax.toString(), labelStyle)
+                // Minuit et le jour qui commence, écrit à droite du trait, ou à gauche s'il buterait sur le nombre de l'échelle.
+                val midnight = panel.midnight?.let { tick ->
+                    val at = frame.x(tick.position)
+                    val day = measurer.measure(tick.label, labelStyle)
+                    val gap = 5.dp.toPx()
+                    val fits = at + gap + day.size.width <= frame.right - scale.size.width - gap
+                    Triple(at, day, if (fits) at + gap else at - gap - day.size.width)
+                }
+                val dash = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 3.dp.toPx()))
+                onDrawBehind {
+                    // Échelle : le zéro, le haut de l'axe et son nombre.
+                    drawLine(rule, Offset(frame.left, frame.bottom), Offset(frame.right, frame.bottom), strokeWidth = hairline)
+                    drawLine(rule, Offset(frame.left, frame.top), Offset(frame.right, frame.top), strokeWidth = hairline)
+                    drawText(scale, topLeft = Offset(frame.right - scale.size.width, labelTop))
+                    midnight?.let { (at, day, dayX) ->
+                        drawLine(rule, Offset(at, frame.top), Offset(at, frame.bottom), strokeWidth = hairline, pathEffect = dash)
+                        drawText(day, topLeft = Offset(dayX, labelTop))
+                    }
+                    drawPath(wide, accent, alpha = 0.16f)
+                    drawPath(core, accent, alpha = 0.30f)
+                    drawPath(median, accent, style = medianStroke)
+                }
             }
-            if (back != null) {
-                panel.points.asReversed().forEach { point -> lineTo(x(point.position), y(back(point))) }
-                close()
-            }
-        }
-
-        // Échelle : le zéro, le haut de l'axe et son nombre.
-        drawLine(rule, Offset(left, bottom), Offset(right, bottom), strokeWidth = 1.dp.toPx())
-        drawLine(rule, Offset(left, top), Offset(right, top), strokeWidth = 1.dp.toPx())
-        val scale = measurer.measure(panel.scaleMax.toString(), labelStyle)
-        drawText(scale, topLeft = Offset(right - scale.size.width, top + 2.dp.toPx()))
-
-        // Minuit et le jour qui commence, écrit à droite du trait, ou à gauche s'il buterait sur le nombre de l'échelle.
-        panel.midnight?.let { midnight ->
-            val at = x(midnight.position)
-            drawLine(
-                rule, Offset(at, top), Offset(at, bottom), strokeWidth = 1.dp.toPx(),
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 3.dp.toPx()))
-            )
-            val day = measurer.measure(midnight.label, labelStyle)
-            val gap = 5.dp.toPx()
-            val fits = at + gap + day.size.width <= right - scale.size.width - gap
-            drawText(day, topLeft = Offset(if (fits) at + gap else at - gap - day.size.width, top + 2.dp.toPx()))
-        }
-
-        drawPath(outline(VelovForecastChartPoint::high, VelovForecastChartPoint::low), accent, alpha = 0.16f)
-        drawPath(outline(VelovForecastChartPoint::midHigh, VelovForecastChartPoint::midLow), accent, alpha = 0.30f)
-        drawPath(
-            outline(VelovForecastChartPoint::median), accent,
-            style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
-
         // Curseur : un trait qui descend jusqu'au pouce de la piste, la fourchette de l'échéance en gras
         // (réduite à un point à la première, qui est l'état réel) et la valeur la plus probable.
-        val point = panel.points.getOrNull(step) ?: return@Canvas
-        val at = x(point.position)
-        val median = Offset(at, y(point.median))
-        drawLine(cursor, Offset(at, top), Offset(at, size.height), strokeWidth = 1.5.dp.toPx())
-        drawLine(accent, Offset(at, y(point.high)), Offset(at, y(point.low)), strokeWidth = 7.dp.toPx(), cap = StrokeCap.Round)
-        drawCircle(dot, radius = 5.5.dp.toPx(), center = median)
-        drawCircle(accent, radius = 5.5.dp.toPx(), center = median, style = Stroke(width = 3.dp.toPx()))
+        Spacer(
+            modifier = Modifier.matchParentSize().graphicsLayer { }.drawBehind {
+                val point = panel.points.getOrNull(step()) ?: return@drawBehind
+                val frame = ChartFrame(this, size, panel.scaleMax)
+                val at = frame.x(point.position)
+                val center = Offset(at, frame.y(point.median))
+                drawLine(cursor, Offset(at, frame.top), Offset(at, size.height), strokeWidth = 1.5.dp.toPx())
+                drawLine(accent, Offset(at, frame.y(point.high)), Offset(at, frame.y(point.low)), strokeWidth = 7.dp.toPx(), cap = StrokeCap.Round)
+                drawCircle(dot, radius = 5.5.dp.toPx(), center = center)
+                drawCircle(accent, radius = 5.5.dp.toPx(), center = center, style = Stroke(width = 3.dp.toPx()))
+            }
+        )
     }
 }
 
@@ -283,12 +322,12 @@ private fun VelovForecastChart(panel: VelovForecastPanel, step: Int) {
  * à la feuille, qui défile ou se referme.
  */
 @Composable
-private fun Modifier.timeScrub(step: Int, onStepChange: (Int) -> Unit): Modifier {
+private fun Modifier.timeScrub(step: () -> Int, onStepChange: (Int) -> Unit): Modifier {
     val shown by rememberUpdatedState(step)
     val onStep by rememberUpdatedState(onStepChange)
     fun PointerInputScope.moveTo(x: Float) {
         val target = stepAt(x, size.width.toFloat())
-        if (target != shown) onStep(target)
+        if (target != shown()) onStep(target)
     }
     return this
         .pointerInput(Unit) { detectTapGestures(onTap = { moveTo(it.x) }) }
@@ -306,15 +345,16 @@ private fun Modifier.timeScrub(step: Int, onStepChange: (Int) -> Unit): Modifier
  * de chaque échéance ([trackLevels]), et le pouce doit tomber exactement sous le curseur du graphique.
  * Sans paliers (carte), la piste est neutre et remplie à l'accent jusqu'au pouce. Les gestes viennent de
  * [timeScrub], posé par l'appelant ; les lecteurs d'écran règlent l'échéance par [onStepChange] et
- * entendent [description].
+ * entendent [description]. L'échéance est lue ici : à chaque cran, seule la piste se recompose.
  */
 @Composable
 private fun VelovTimeTrack(
-    step: Int,
+    step: () -> Int,
     onStepChange: (Int) -> Unit,
-    description: String,
+    description: () -> String,
     trackLevels: List<VelovChanceLevel>? = null
 ) {
+    val current = step()
     val accent = Tokens.accent
     val idle = MaterialTheme.colorScheme.outlineVariant
     val trackColors = trackLevels?.let { levels ->
@@ -327,9 +367,9 @@ private fun VelovTimeTrack(
             .height(ThumbRadius * 2 + 6.dp)
             .semantics {
                 contentDescription = VelovTexts.SLIDER_LABEL
-                stateDescription = description
+                stateDescription = description()
                 progressBarRangeInfo = ProgressBarRangeInfo(
-                    current = step.toFloat(),
+                    current = current.toFloat(),
                     range = 0f..VelovForecast.STEP_COUNT.toFloat(),
                     steps = VelovForecast.STEP_COUNT - 1
                 )
@@ -343,7 +383,7 @@ private fun VelovTimeTrack(
         val thickness = TrackThickness.toPx()
         val left = axisX(0f, size.width)
         val bar = Rect(left, centerY - thickness / 2, axisX(1f, size.width), centerY + thickness / 2)
-        val thumbX = axisX(step.toFloat() / VelovForecast.STEP_COUNT, size.width)
+        val thumbX = axisX(current.toFloat() / VelovForecast.STEP_COUNT, size.width)
         clipPath(Path().apply { addRoundRect(RoundRect(bar, CornerRadius(thickness / 2))) }) {
             if (trackColors == null) {
                 drawRect(idle, bar.topLeft, bar.size)
@@ -389,9 +429,14 @@ private fun VelovTickRow(ticks: List<VelovForecastTick>) {
     }
 }
 
-/** « Plus sûr à côté » : les stations voisines où la chance est bonne à la même échéance ; en toucher une ouvre sa fiche. */
+/**
+ * « Plus sûr à côté » : les stations voisines où la chance est bonne à la même échéance ; en toucher une
+ * ouvre sa fiche. Ne se recompose que quand la liste change, pas à chaque cran du curseur.
+ */
 @Composable
-private fun VelovSaferNearby(neighbours: List<VelovForecastNeighbour>, onOpenStation: (VelovStation) -> Unit) {
+private fun VelovSaferNearby(readout: State<VelovForecastReadout>, onOpenStation: (VelovStation) -> Unit) {
+    val neighbours by remember(readout) { derivedStateOf(structuralEqualityPolicy()) { readout.value.saferNearby } }
+    if (neighbours.isEmpty()) return
     VelovCard {
         Text(
             VelovForecastSheet.SAFER_NEARBY_TITLE,
@@ -428,13 +473,12 @@ private fun VelovSaferNearby(neighbours: List<VelovForecastNeighbour>, onOpenSta
 }
 
 /**
- * Panneau de verre posé en bas de la carte des stations : l'heure regardée, le curseur qui la choisit et,
- * dès qu'il a bougé, le bouton qui ramène à l'état réel. Pas de légende : les couleurs sont celles des
- * marqueurs de toujours.
+ * Panneau de verre posé en bas de la carte des stations : l'heure regardée et le curseur qui la choisit.
+ * Pas de bouton pour revenir à « Maintenant » : on y revient en glissant. Pas de légende : les couleurs
+ * sont celles des marqueurs de toujours.
  */
 @Composable
 fun VelovTimePanel(panel: VelovForecastMapPanel, step: Int, onStepChange: (Int) -> Unit, modifier: Modifier = Modifier) {
-    val accent = Tokens.accent
     Column(
         modifier = modifier
             .glass(RoundedCornerShape(26.dp), alpha = 0.86f)
@@ -442,24 +486,14 @@ fun VelovTimePanel(panel: VelovForecastMapPanel, step: Int, onStepChange: (Int) 
             .pointerInput(Unit) { detectTapGestures { } }
             .padding(top = 10.dp, bottom = 12.dp)
     ) {
-        Row(modifier = Modifier.padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(panel.title, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                // La ligne garde sa place quand la consigne s'efface : le panneau ne change pas de hauteur sous le doigt.
-                Text(panel.hint.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-            }
-            panel.nowButton?.let { label ->
-                TextButton(
-                    onClick = { onStepChange(0) },
-                    colors = ButtonDefaults.textButtonColors(containerColor = accent.copy(alpha = 0.12f), contentColor = accent)
-                ) {
-                    Text(label, fontWeight = FontWeight.SemiBold)
-                }
-            }
+        Column(modifier = Modifier.padding(horizontal = 18.dp)) {
+            Text(panel.title, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            // La ligne garde sa place quand la consigne s'efface : le panneau ne change pas de hauteur sous le doigt.
+            Text(panel.hint.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
         // La marge de l'axe (16 dp) plus 2 dp : le pouce s'aligne sur le texte du panneau.
-        Column(modifier = Modifier.padding(horizontal = 2.dp).timeScrub(step, onStepChange)) {
-            VelovTimeTrack(step, onStepChange, description = panel.title)
+        Column(modifier = Modifier.padding(horizontal = 2.dp).timeScrub({ step }, onStepChange)) {
+            VelovTimeTrack(step = { step }, onStepChange = onStepChange, description = { panel.title })
             VelovTickRow(panel.ticks)
         }
     }

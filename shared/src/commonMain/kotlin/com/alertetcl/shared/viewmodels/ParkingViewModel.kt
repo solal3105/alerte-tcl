@@ -138,6 +138,7 @@ class ParkingViewModel(
     fun setVelovFilter(filter: VelovFilter) {
         if (filter == velovFilter) return
         velovFilter = filter
+        prepareVelovMarkers()
         refreshVelovForecast()
     }
 
@@ -262,8 +263,20 @@ class ParkingViewModel(
         velovOriginEpochMs = origin
         velovForecastAvailable = available
         if (!available) _velovForecastStep.value = 0
+        prepareVelovMarkers()
         refreshVelovForecast()
         _velovSelection.value?.let { open -> showVelovStation(latestReading(open.station)) }
+    }
+
+    /**
+     * Fait calculer d'avance, en arrière-plan, les marqueurs des 96 échéances pour le relevé, l'heure et
+     * le filtre du moment : le curseur de la carte y trouve ensuite chaque échéance prête. Appelé quand
+     * le curseur apparaît, à chaque relevé neuf et à chaque changement de filtre ; sans prévision à
+     * montrer, rien n'est demandé.
+     */
+    private fun prepareVelovMarkers() {
+        val origin = velovForecastOrigin ?: return
+        velovForecastService.prepareMarkers(_velovStations.value, origin, velovFilter)
     }
 
     /** Remet le panneau et les marqueurs de la carte d'accord avec le relevé, l'échéance et le filtre. */
@@ -275,12 +288,13 @@ class ParkingViewModel(
             _velovForecastMarkers.value = null
             return
         }
-        // La même liste et la même heure tant que le curseur glisse : le service garde les échéances déjà vues.
+        // La même liste et la même heure tant que le curseur glisse : le service a préparé leurs échéances
+        // ([prepareVelovMarkers]) et répond aussitôt.
         val stations = _velovStations.value
         val filter = velovFilter
         scope.launch {
             // Null : le curseur a continué de glisser, la carte garde ce qu'elle montre et la réponse à la
-            // dernière demande suit. Les demandes ne sont pas annulées, pour que la carte change en chemin.
+            // dernière demande suit.
             val markers = forecastOrNull { velovForecastService.markers(stations, origin, step, filter) } ?: return@launch
             // Le curseur a pu revenir à « Maintenant » pendant le calcul.
             if (_velovForecastStep.value > 0) _velovForecastMarkers.value = markers

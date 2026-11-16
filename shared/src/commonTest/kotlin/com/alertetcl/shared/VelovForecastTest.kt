@@ -41,8 +41,7 @@ import kotlin.test.assertTrue
  *   sous un nom qu'il calcule : la sortie de chaque modèle est donc celle de son parcours d'arbres et
  *   de ses variables. Pour l'ensemble des vélos, la fourchette est celle de `Prevision.prevoir` ; pour
  *   les classiques et les électriques, le script refait la même ligne (nombre présent de la sorte
- *   ajouté, tri, bornes) après avoir vérifié qu'elle redonne exactement celle des vélos. `loneMedian`
- *   est le décile 50 seul, borné mais pas reclassé parmi les autres : ce que lit un marqueur de carte.
+ *   ajouté, tri, bornes) après avoir vérifié qu'elle redonne exactement celle des vélos.
  * Chaque sonde part des deux côtés au moins une fois sur l'ensemble des cas, et les déciles d'une même
  * sorte s'y croisent souvent (le tri compte).
  */
@@ -84,10 +83,10 @@ class VelovForecastTest {
 
     /** Ce qui est attendu d'une sorte de vélos : par échéance donnée, puis en somme sur les 96. */
     @Serializable
-    private class Kind(val deciles: List<List<Double>>, val probability: List<Double>, val loneMedian: List<Double>, val sums: Sums)
+    private class Kind(val deciles: List<List<Double>>, val probability: List<Double>, val sums: Sums)
 
     @Serializable
-    private class Sums(val deciles: List<Double>, val probability: Double, val loneMedian: Double)
+    private class Sums(val deciles: List<Double>, val probability: Double)
 
     private val cases = json.decodeFromString(ListSerializer(Expected.serializer()), VelovForecastFixture.EXPECTED)
     private val bikeKinds = listOf(VelovFilter.ALL, VelovFilter.MECHANICAL, VelovFilter.ELECTRIC)
@@ -140,26 +139,13 @@ class VelovForecastTest {
     }
 
     @Test
-    fun aMapMarkerReadsTheMedianModelAndTheProbabilityOnly() {
+    fun theChanceAloneIsTheChanceOfTheWholeForecast() {
         for (case in cases) {
             val stations = listOf(case.velovStation)
-            val state = case.forecastState
-            val forecast = model.forecast(case.station, state, case.start)
-            var loneMedians = bikeKinds.associateWith { 0.0 }
+            val forecast = model.forecast(case.station, case.forecastState, case.start)
             for (number in 1..96) for (filter in VelovFilter.ordered) {
-                val glance = model.glances(stations, case.start, number, filter).single()
-                val what = "${case.name}, échéance $number, $filter"
-                assertEquals(forecast.steps[number - 1].outlook(filter).probability, glance.probability, what)
-                val rank = case.steps.indexOf(number)
-                if (filter == VelovFilter.STANDS) {
-                    val bikes = model.glances(stations, case.start, number, VelovFilter.ALL).single().median
-                    assertEquals(state.docksLeftBy(bikes), glance.median, what)
-                } else {
-                    loneMedians = loneMedians + (filter to loneMedians.getValue(filter) + glance.median)
-                    if (rank >= 0) assertClose(case.kind(filter).loneMedian[rank], glance.median, what)
-                }
+                assertEquals(forecast.steps[number - 1].outlook(filter).probability, model.chances(stations, case.start, number, filter).single(), "${case.name}, échéance $number, $filter")
             }
-            for (filter in bikeKinds) assertClose(case.kind(filter).sums.loneMedian, loneMedians.getValue(filter), "${case.name}, somme, $filter")
         }
     }
 
@@ -170,10 +156,10 @@ class VelovForecastTest {
         val start = cases.first().start
         for (filter in VelovFilter.ordered) {
             val together = model.outlooks(stations, start, 8, filter)
-            val glances = model.glances(stations, start, 8, filter)
+            val chances = model.chances(stations, start, 8, filter)
             stations.forEachIndexed { rank, station ->
                 assertEquals(model.forecast(station, start).steps[7].outlook(filter), together[rank], "${station.id}, $filter")
-                assertEquals(together[rank].probability, glances[rank].probability, "${station.id}, $filter")
+                assertEquals(together[rank].probability, chances[rank], "${station.id}, $filter")
             }
         }
     }

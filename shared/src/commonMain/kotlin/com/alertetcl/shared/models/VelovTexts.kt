@@ -26,12 +26,13 @@ object VelovTexts {
     /** « 14 vélos », « 1 classique », « 0 place » */
     fun count(count: Int, filter: VelovFilter): String = "$count ${unit(filter, count)}"
 
-    /** Une fourchette prévue : « 7 à 17 vélos », ou « 12 vélos » quand ses deux bornes s'arrondissent au même nombre. */
-    internal fun range(low: Double, high: Double, filter: VelovFilter): String {
-        val from = low.roundToInt()
-        val to = high.roundToInt()
-        return if (from == to) count(from, filter) else "$from à $to ${unit(filter, to)}"
-    }
+    /** Une fourchette prévue ([VelovForecastOutlook.range]) : « 7 à 17 vélos », ou « 12 vélos » quand ses deux bornes sont égales. */
+    internal fun range(range: IntRange, filter: VelovFilter): String =
+        if (range.first == range.last) count(range.first, filter) else "${range.first} à ${range.last} ${unit(filter, range.last)}"
+
+    /** La même fourchette sur un marqueur de carte, sans unité : « 3–8 », ou « 5 » quand ses deux bornes sont égales. */
+    internal fun shortRange(range: IntRange): String =
+        if (range.first == range.last) "${range.first}" else "${range.first}–${range.last}"
 
     /**
      * Ce que vaut la fourchette : « 8 fois sur 10 », d'après la part des cas ([coverage], 0 à 1) où le

@@ -24,6 +24,7 @@
 		4F9DFFA02F1457EE00E01BFB /* FavoriteLinesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF9E2F1457EE00E01BFB /* FavoriteLinesService.swift */; };
 		4F9DFFA12F1457EE00E01BFB /* ParkingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF9F2F1457EE00E01BFB /* ParkingService.swift */; };
 		4F9DFFA32F1457F900E01BFB /* ParkingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */; };
+		B7E0A1C12FC0000100A1B2C3 /* NewBadgesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E0A1C02FC0000100A1B2C3 /* NewBadgesViewModel.swift */; };
 		4F9DFFB92F146B6F00E01BFB /* tcl_stops.json in Resources */ = {isa = PBXBuildFile; fileRef = 4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */; };
 		4F9DFFC72F146EFE00E01BFB /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */; };
 		4F9DFFC92F146EFE00E01BFB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC82F146EFE00E01BFB /* SwiftUI.framework */; };
@@ -145,6 +146,7 @@
 		4F9DFF9E2F1457EE00E01BFB /* FavoriteLinesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteLinesService.swift; sourceTree = "<group>"; };
 		4F9DFF9F2F1457EE00E01BFB /* ParkingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingService.swift; sourceTree = "<group>"; };
 		4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingViewModel.swift; sourceTree = "<group>"; };
+		B7E0A1C02FC0000100A1B2C3 /* NewBadgesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewBadgesViewModel.swift; sourceTree = "<group>"; };
 		4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = tcl_stops.json; path = Resources/tcl_stops.json; sourceTree = "<group>"; };
 		4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AlerteTCLWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -334,6 +336,7 @@
 			children = (
 				4F38BD2D2F15B0E200E05786 /* TravauxViewModel.swift */,
 				4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */,
+				B7E0A1C02FC0000100A1B2C3 /* NewBadgesViewModel.swift */,
 				AAA00019 /* AlertViewModel.swift */,
 				AAA00029 /* LiveVehiclesViewModel.swift */,
 				A1000045 /* TransitStopViewModel.swift */,
@@ -624,6 +627,7 @@
 				4F38BD222F1591C900E05786 /* BusLineService.swift in Sources */,
 				4FLC0DE12F0000000000001A /* LineCodeMappingService.swift in Sources */,
 				4F9DFFA32F1457F900E01BFB /* ParkingViewModel.swift in Sources */,
+				B7E0A1C12FC0000100A1B2C3 /* NewBadgesViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

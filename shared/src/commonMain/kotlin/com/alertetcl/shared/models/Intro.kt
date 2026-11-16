@@ -11,6 +11,8 @@ enum class IntroVisual {
     MAP,
     CITY,
     VELOV,
+    VELOV_FORECAST_MAP,
+    VELOV_FORECAST_SHEET,
     ALERTS,
     WIDGETS,
     FIXES
@@ -29,11 +31,12 @@ data class IntroPage(
  *
  * Il s'ouvre à la première utilisation et après chaque mise à jour qui change [REVISION] ; chaque
  * plateforme retient la révision déjà vue (iOS `UserDefaults`, Android `FavoritesStore`) et la
- * compare par [shouldShow]. Il reste consultable depuis l'onglet Info.
+ * compare par [shouldShow]. Après une mise à jour, il ne montre que ce qui est arrivé depuis la
+ * révision vue ([pages]). Il reste consultable en entier depuis l'onglet Info.
  */
 object Intro {
     /** Révision du contenu : l'augmenter fait reparaître l'intro une fois après la mise à jour. */
-    const val REVISION = 1
+    const val REVISION = 2
 
     /** Révision enregistrée tant que l'intro n'a jamais été vue. */
     const val NEVER_SEEN = 0
@@ -44,40 +47,77 @@ object Intro {
     /**
      * Les pages dans l'ordre d'affichage. [includeWidgets] n'est vrai que sur iOS : Android n'a pas
      * de widgets.
+     *
+     * [seenRevision] est la révision déjà vue. Jamais vue ([NEVER_SEEN], et toujours depuis l'onglet
+     * Info) : toutes les pages, la page d'ouverture d'abord. Vue avant la dernière mise à jour :
+     * seulement ce qui est arrivé depuis, derrière une page qui annonce la mise à jour. Déjà à jour :
+     * toutes les pages, comme depuis l'onglet Info.
      */
-    fun pages(includeWidgets: Boolean): List<IntroPage> = buildList {
-        add(
-            IntroPage(
-                visual = IntroVisual.APP,
-                title = "Lyon Pocket, version 2",
-                body = "Voici ce qui change pour vous, écran par écran."
-            )
-        )
-        add(
+    fun pages(includeWidgets: Boolean, seenRevision: Int): List<IntroPage> {
+        val shown = SECTIONS.filter { includeWidgets || it.page.visual != IntroVisual.WIDGETS }
+        val news = shown.filter { it.revision > seenRevision }
+        return if (seenRevision == NEVER_SEEN || news.isEmpty()) listOf(OPENING) + shown.map { it.page }
+        else listOf(UPDATE) + news.map { it.page }
+    }
+
+    /**
+     * Libellé du bouton principal. Sur la dernière page il dit où l'on arrive : la carte au premier
+     * lancement ([atLaunch]), l'onglet Info quand l'intro a été rouverte depuis là.
+     */
+    fun buttonTitle(pageIndex: Int, pageCount: Int, atLaunch: Boolean): String = when {
+        pageIndex < pageCount - 1 -> "Suivant"
+        atLaunch -> "Voir la carte"
+        else -> "Fermer"
+    }
+
+    /** Une page et la révision qui l'a ajoutée. */
+    private class Section(val revision: Int, val page: IntroPage)
+
+    /** Première page de l'intro complète. */
+    private val OPENING = IntroPage(
+        visual = IntroVisual.APP,
+        title = "Lyon Pocket, version 2",
+        body = "Voici ce qui change pour vous, écran par écran."
+    )
+
+    /** Première page après une mise à jour : elle annonce ce qu'apporte la dernière révision. */
+    private val UPDATE = IntroPage(
+        visual = IntroVisual.APP,
+        title = "Du nouveau pour les Vélo'v",
+        body = "Lyon Pocket prévoit maintenant les vélos et les places de chaque station sur les 24 prochaines heures."
+    )
+
+    /** Les pages qui suivent la première, dans l'ordre de l'intro complète. */
+    private val SECTIONS = listOf(
+        Section(
+            1,
             IntroPage(
                 visual = IntroVisual.STOP,
                 title = "L'heure d'arrivée de votre bus",
                 body = "Ouvrez un arrêt : vous voyez à quelle heure le prochain bus y arrive et combien " +
                     "d'arrêts il lui reste. Son retard est déjà compté dans l'heure annoncée."
             )
-        )
-        add(
+        ),
+        Section(
+            1,
             IntroPage(
                 visual = IntroVisual.TIMETABLE,
                 title = "Les horaires de toute la journée",
                 body = "Chaque ligne a sa fiche complète, sens par sens et arrêt par arrêt, pour aujourd'hui, " +
                     "demain ou une date plus lointaine. Elle vient du SYTRAL et se recharge chaque nuit."
             )
-        )
-        add(
+        ),
+        Section(
+            1,
             IntroPage(
                 visual = IntroVisual.MAP,
                 title = "Une ligne à la fois sur la carte",
                 body = "Touchez un véhicule : la carte ne garde que sa ligne, à ses couleurs officielles, avec " +
                     "son retard et l'âge de sa position."
             )
-        )
-        add(
+        ),
+        Section(
+            1,
             IntroPage(
                 visual = IntroVisual.CITY,
                 title = "Autour de moi",
@@ -85,34 +125,55 @@ object Intro {
                     "vélos, les places deux-roues et les chantiers. Les chiffres du moment s'affichent dès " +
                     "l'accueil."
             )
-        )
-        add(
+        ),
+        Section(
+            1,
             IntroPage(
                 visual = IntroVisual.VELOV,
                 title = "Les vélos libres, station par station",
                 body = "Chaque station montre ses vélos et ses places, et change de couleur quand elle se vide. " +
                     "Un filtre ne garde que celles où il reste un vélo électrique."
             )
-        )
-        add(
+        ),
+        Section(
+            2,
+            IntroPage(
+                visual = IntroVisual.VELOV_FORECAST_MAP,
+                title = "Les Vélo'v à l'heure de votre choix",
+                body = "Faites glisser le curseur en bas de la carte des stations : chacune affiche les vélos à " +
+                    "prévoir à l'heure choisie, par exemple « 3–8 », jusqu'à 24 heures à l'avance."
+            )
+        ),
+        Section(
+            2,
+            IntroPage(
+                visual = IntroVisual.VELOV_FORECAST_SHEET,
+                title = "Les 24 heures d'une station",
+                body = "Touchez une station : vous voyez les vélos à prévoir heure par heure, combien de fois sur " +
+                    "10 c'est juste, et vos chances de trouver un vélo ou une place. Les électriques ont leur " +
+                    "propre prévision."
+            )
+        ),
+        Section(
+            1,
             IntroPage(
                 visual = IntroVisual.ALERTS,
                 title = "Des notifications sur vos lignes",
                 body = "Abonnez-vous aux lignes que vous prenez et choisissez les perturbations qui méritent de " +
                     "vous déranger. Une ligne renumérotée est suivie sans mise à jour."
             )
-        )
-        if (includeWidgets) {
-            add(
-                IntroPage(
-                    visual = IntroVisual.WIDGETS,
-                    title = "Six widgets sur l'écran d'accueil",
-                    body = "Ils affichent vos prochains départs, l'état de vos lignes, un parking, une station " +
-                        "Vélo'v ou les chantiers autour de vous, sans ouvrir l'application."
-                )
+        ),
+        Section(
+            1,
+            IntroPage(
+                visual = IntroVisual.WIDGETS,
+                title = "Six widgets sur l'écran d'accueil",
+                body = "Ils affichent vos prochains départs, l'état de vos lignes, un parking, une station " +
+                    "Vélo'v ou les chantiers autour de vous, sans ouvrir l'application."
             )
-        }
-        add(
+        ),
+        Section(
+            1,
             IntroPage(
                 visual = IntroVisual.FIXES,
                 title = "Soixante-douze défauts corrigés",
@@ -125,15 +186,5 @@ object Intro {
                 )
             )
         )
-    }
-
-    /**
-     * Libellé du bouton principal. Sur la dernière page il dit où l'on arrive : la carte au premier
-     * lancement ([atLaunch]), l'onglet Info quand l'intro a été rouverte depuis là.
-     */
-    fun buttonTitle(pageIndex: Int, pageCount: Int, atLaunch: Boolean): String = when {
-        pageIndex < pageCount - 1 -> "Suivant"
-        atLaunch -> "Voir la carte"
-        else -> "Fermer"
-    }
+    )
 }

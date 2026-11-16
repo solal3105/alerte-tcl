@@ -91,7 +91,7 @@ class VelovForecastSheet internal constructor(
             step = shown,
             time = if (timeline.isNextDay(shown) && shown > SOON_STEPS) "Demain · ${timeline.clock(shown)}"
             else "Dans ${VelovForecastTimeline.delay(shown)} · ${timeline.clock(shown)}",
-            count = VelovTexts.range(outlook.at(VelovForecastOutlook.LOW), outlook.at(VelovForecastOutlook.HIGH), filter),
+            count = VelovTexts.range(outlook.range, filter),
             reliability = VelovTexts.reliability(coverage[filter]),
             chance = chance,
             saferNearby = if (chance.level.isSafe) emptyList() else saferNearby(shown, filter)

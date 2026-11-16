@@ -45,6 +45,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.alertetcl.android.ui.components.SheetHeader
 import com.alertetcl.android.ui.components.glass
 import com.alertetcl.android.ui.theme.Tokens
@@ -104,10 +105,10 @@ private fun velovFilterIcon(filter: VelovFilter): ImageVector = when (filter) {
 }
 
 /**
- * Fiche d'une station Vélo'v : son nom et son état réel sur une ligne, ce qui y est prévu dans les
- * 24 heures ([VelovForecastSection] : graphique et curseur, dès l'ouverture), l'itinéraire à pied. Sans
- * prévision à montrer (modèle absent ou plus confirmé, station fermée ou inconnue du modèle), il ne reste
- * que l'état réel et l'itinéraire, sans mention de la prévision.
+ * Fiche d'une station Vélo'v : son nom, une tuile de son état réel ([VelovNowTile]), une tuile de ce qui
+ * y est prévu dans les 24 heures ([VelovForecastSection] : graphique et curseur, dès l'ouverture),
+ * l'itinéraire à pied. Sans prévision à montrer (modèle absent ou plus confirmé, station fermée ou
+ * inconnue du modèle), il ne reste que l'état réel et l'itinéraire, sans mention de la prévision.
  *
  * Le filtre est celui de la carte : le changer ici le change aussi sur la carte. [initialStep] est
  * l'échéance du curseur de la carte à l'ouverture ; elle n'appartient ensuite qu'à la fiche. Toucher une
@@ -133,7 +134,6 @@ fun VelovStationSheet(
         SheetHeader(
             title = station.displayName,
             onClose = onClose,
-            subtitle = station.stateText,
             leading = if (selection.hasPrevious) {
                 {
                     IconButton(onClick = onBack) {
@@ -146,6 +146,7 @@ fun VelovStationSheet(
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            VelovNowTile(station)
             if (showsForecast) VelovForecastSection(selection.forecast, filter, onFilter, initialStep, onOpenNeighbour)
             Button(
                 onClick = {
@@ -163,21 +164,63 @@ fun VelovStationSheet(
 }
 
 /**
- * Marqueur d'une station Vélo'v au zoom serré : carré arrondi à la couleur de disponibilité, le
- * pictogramme du filtre courant et le nombre compté (parité iOS `VelovMarker`).
+ * L'état réel de la station, en tête de fiche : vélos classiques, vélos électriques et places libres côte
+ * à côte, chacun avec le pictogramme de son filtre, son nombre et son mot ; « Station fermée » si elle
+ * l'est.
  */
-fun velovMarkerBitmap(count: Int, colorHex: String, filter: VelovFilter): Bitmap {
+@Composable
+private fun VelovNowTile(station: VelovStation) {
+    VelovCard {
+        if (!station.open) {
+            Text(
+                station.stateText,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        } else {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                VelovFilter.detailed.forEach { filter ->
+                    val count = station.shownCount(filter)
+                    Column(
+                        modifier = Modifier.weight(1f).semantics(mergeDescendants = true) { },
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(velovFilterIcon(filter), null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                        Text(count.toString(), fontSize = 26.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(
+                            VelovTexts.unit(filter, count),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Marqueur d'une station Vélo'v au zoom serré : carré arrondi à la couleur de disponibilité, le
+ * pictogramme du filtre courant et [label], le nombre compté ou la fourchette prévue (parité iOS
+ * `VelovMarker`). Le carré s'élargit pour une fourchette (« 12–25 ») en gardant autour du texte la
+ * marge d'un nombre.
+ */
+fun velovMarkerBitmap(label: String, colorHex: String, filter: VelovFilter): Bitmap {
     val density = android.content.res.Resources.getSystem().displayMetrics.density
-    val size = (30 * density).toInt()
-    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE; textSize = 10f * density; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); textAlign = Paint.Align.CENTER }
+    val height = (30 * density).toInt()
+    val width = maxOf(height, (text.measureText(label) + 10 * density).toInt())
+    val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     val inset = 1.5f * density
-    val rect = RectF(inset, inset, size - inset, size - inset)
+    val rect = RectF(inset, inset, width - inset, height - inset)
     val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.parseColor(colorHex); style = Paint.Style.FILL; setShadowLayer(2f * density, 0f, density, AndroidColor.argb(64, 0, 0, 0)) }
     canvas.drawRoundRect(rect, 9 * density, 9 * density, fill)
     val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.argb(230, 255, 255, 255); style = Paint.Style.STROKE; strokeWidth = 1.5f * density }
     canvas.drawRoundRect(rect, 9 * density, 9 * density, stroke)
-    val cx = size / 2f
+    val cx = width / 2f
     if (filter == VelovFilter.STANDS) {
         // Un « P » de place libre, comme le pictogramme des parkings.
         val letter = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -210,7 +253,6 @@ fun velovMarkerBitmap(count: Int, colorHex: String, filter: VelovFilter): Bitmap
         canvas.drawLine(cx - 1f * density, 7f * density, cx + 2.5f * density, 6f * density, glyph)
         canvas.drawLine(cx - 5.5f * density, wheelY, cx + 1.5f * density, wheelY, glyph)
     }
-    val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE; textSize = 10f * density; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); textAlign = Paint.Align.CENTER }
-    canvas.drawText(count.toString(), cx, size - 4.5f * density, text)
+    canvas.drawText(label, cx, height - 4.5f * density, text)
     return bmp
 }

@@ -22,6 +22,7 @@ l'objet `Tokens` (`ui/theme/Tokens.kt`) qui expose les mêmes noms à Compose.
 | warning | `#EF6C00` | `#FFA726` | perturbation, position vieillissante, parking presque plein |
 | error | `#D32F2F` | `#EF5350` | perturbation majeure, position obsolète, parking complet, fermé |
 | favorite | `#F9A825` | `#FFD54F` | étoile des lignes favorites |
+| mapChrome | `#F2F2F7` | `#1C1C1E` | haut des cartes « Autour de moi », sous le titre et les filtres : la carte en sort par un dégradé de transparence posé par les vues |
 
 L'accent est fixe sur les deux plateformes : Android n'emprunte pas la couleur du fond d'écran
 (couleur dynamique Material désactivée) pour que l'interface soit la même que sur iOS.
@@ -139,16 +140,28 @@ chargé par `CityOverviewService`, chaque source indépendante).
 Une tuile ouvre la carte correspondante (parkings ou chantiers). Sur iOS elle est poussée dans une
 `NavigationStack` : bouton de retour système, geste de balayage, titre de la tuile en ligne, barre
 transparente. Sur Android, une capsule de verre en haut rappelle la tuile et ramène à l'accueil, et le
-geste retour du système fait de même.
+geste retour du système fait de même ; elle est posée, avec la barre de filtres des Vélo'v, sur le
+dégradé de `mapChrome` vers le transparent (`MapTopBar`, `ui/components/MapTopBar.kt`, le même pour
+toutes les cartes de l'onglet).
 
-Tout l'onglet est en verre : tuiles et capsule de retour Android reposent sur `glassSurface` (iOS,
-Liquid Glass dès iOS 26 et matériau translucide avec liseré clair avant) ou `Modifier.glass` (Android,
-fond translucide et liseré en dégradé). Les boutons ronds des cartes sont, sur iOS 26, les styles de
-bouton en verre du système (`.glass` au repos, `.glassProminent` actif), qui répondent au toucher sans
-délai ; jamais un effet de verre posé par-dessus un bouton. Jamais de verre dans du verre : l'icône
+Tout l'onglet est en verre : tuiles et capsule de retour Android reposent sur `glassSurface` (iOS :
+un voile de `appMapChrome` et un liseré `neutralBorder` sur Liquid Glass dès iOS 26, sur un matériau
+translucide avant ; le verre seul d'iOS 27 laissait trop passer la carte) ou `Modifier.glass` (Android,
+fond translucide et liseré en dégradé). Les boutons ronds des cartes sont, sur iOS 26, le style de
+bouton en verre plein du système (`.glassProminent`, teinté `appMapChrome` au repos, de l'accent
+actif), qui répond au toucher sans délai ; jamais un effet de verre posé par-dessus un bouton. Sur iOS,
+le haut de chaque carte (`MapTopBar` : retour, titre, barre de filtres Vélo'v) est posé sur un dégradé
+de `appMapChrome` vers le transparent, qui ne capte aucun toucher. Jamais de verre dans du verre : l'icône
 d'une tuile est sur un disque uni. L'accent de l'application est la teinte de toute l'interface
 (interrupteurs compris), pas la couleur « primaire » du système. La fiche d'un parking ne montre que ce
 que la donnée contient (plus de « type d'usagers » ni de « type d'ouvrage » inventés).
+
+Une nouveauté se signale par une pastille « Nouveau » (`NewBadges.LABEL`). Celle de la prévision Vélo'v
+est posée à la fois sur la tuile « Stations Vélo'v » et sur l'onglet « Autour de moi », d'après la même
+réponse (`NewBadges.showsVelovForecast`) : tant que la carte des Vélo'v n'a pas été ouverte (chaque
+plateforme le retient et le note à l'ouverture de cette carte), qu'une prévision peut s'y montrer, et
+jusqu'au 1er mars 2027 à minuit, heure de Lyon. Le haut des cartes de l'onglet, sous le titre et la
+barre de filtres, part du jeton `mapChrome` et s'en dégage vers le bas par un dégradé de transparence.
 
 ## Écran d'intro
 
@@ -167,9 +180,16 @@ des capsules d'avancement et le bouton principal plein à l'accent, dont le libe
 partagé et dit où l'on arrive : « Suivant », puis « Voir la carte » sur la dernière page au
 lancement, « Fermer » quand l'intro a été rouverte depuis l'onglet Info. « Passer l'intro » reste offert en
 haut à droite jusqu'à l'avant-dernière page. L'intro passe avant les demandes de position et de
-notifications, et reste consultable depuis l'onglet Info par « Revoir la présentation ». Chaque
+notifications, et reste consultable en entier depuis l'onglet Info par « Revoir la présentation ». Chaque
 plateforme retient la révision vue (`intro.seenRevision` dans les préférences iOS,
 `intro_seen_revision` dans le stockage Android).
+
+Après une mise à jour, l'intro ne montre que ce qui est arrivé depuis la révision vue : une première
+page à l'icône de l'application qui annonce la mise à jour, puis les pages nouvelles
+(`Intro.pages(includeWidgets, seenRevision)`). À la révision 2 (prévision Vélo'v) : « Du nouveau pour
+les Vélo'v », puis le curseur d'heure de la carte (`IntroVisual.VELOV_FORECAST_MAP`) et la fiche d'une
+station (`VELOV_FORECAST_SHEET`), chacune illustrée par une vraie capture. Une première utilisation
+voit toutes les pages, ces deux-là juste après celle des stations Vélo'v.
 
 ## Onglet Info
 
@@ -207,9 +227,10 @@ gris fermé, barème de `VelovStation.availabilityFor` sur les jetons des parkin
 (`MapStyle.ZOOM_STOPS`), un carré arrondi avec un vélo et le nombre de vélos disponibles. Le filtre
 « Seulement les vélos électriques », dans les filtres de l'onglet, ne compte que ceux-là, avec un éclair
 à la place du vélo. La capsule « LIVE » et son compte à rebours valent pour ce type comme pour les
-voitures. La fiche donne le nom lisible de la station, son état du moment en une ligne (« 5 classiques ·
-9 électriques · 4 places », `VelovStation.stateText`), ce qui y est prévu (« Prévision Vélo'v ») et un
-itinéraire à pied ; ni adresse ni heure de mise à jour. Le rouge du type dans le sélecteur est le jeton
+voitures. La fiche donne le nom lisible de la station, son état du moment dans une case compacte à trois
+comptes (classiques, électriques, places : chacun son nombre et son mot, dans l'ordre de
+`VelovFilter.detailed`, lus par `shownCount` et `VelovTexts.unit` ; « Station fermée » sinon), ce qui y
+est prévu (« Prévision Vélo'v ») et un itinéraire à pied ; ni adresse ni heure de mise à jour. Le rouge du type dans le sélecteur est le jeton
 `AppColors.velov`.
 
 Les barèmes métier sont au même endroit : importance et avancement d'un chantier, progression d'un
@@ -283,21 +304,29 @@ de la carte. Quand les stations sont relevées de nouveau (chaque minute), l'éc
 et la prévision repart du nouveau relevé.
 
 **La carte.** Un panneau en bas porte le curseur : titre « Maintenant », « Aujourd'hui à 19 h 45 » ou
-« Demain à 8 h 30 » ; « Glissez pour voir la prévision » tant qu'il n'a pas bougé ; un bouton
-« Maintenant » dès qu'il a bougé ; pas de légende. À l'échéance 0 les marqueurs sont ceux de l'état
-réel, inchangés. Au-delà, chaque marqueur porte le nombre le plus probable de ce que compte le filtre
-et la couleur de la chance d'en trouver au moins un (tableau ci-dessus), pour les quatre filtres. Une
+« Demain à 8 h 30 » ; « Glissez pour voir la prévision » à l'échéance 0 seulement ; ni bouton pour
+revenir à « Maintenant » (on y revient en glissant), ni légende. À l'échéance 0 les marqueurs sont ceux
+de l'état réel, inchangés. Au-delà, chaque marqueur porte la fourchette de ce que compte le filtre, la
+même que le chiffre de la fiche (déciles 10 et 90 arrondis, places déduites des vélos de la même
+façon) écrite court : « 3–8 » (tiret demi-cadratin, sans espace ni unité), « 5 » quand les deux bornes
+sont égales ; et la couleur de la chance d'en trouver au moins un (tableau ci-dessus), pour les quatre
+filtres. Une
 station fermée ou inconnue du modèle n'a pas de marqueur tant que le curseur n'est pas revenu à
 « Maintenant » : l'application ne montre pas une estimation qu'elle n'a pas, et un marqueur gris sans
 nombre dirait « fermée », ce qu'elle ne sait pas davantage pour demain. Toucher une station ouvre sa
 fiche sur l'échéance du curseur.
 
-Pour que le curseur suive le doigt, un marqueur ne lit que deux modèles (le décile 50 et la
-probabilité), chaque échéance déjà vue est gardée tant que le relevé, l'heure et le filtre ne changent
-pas, et une demande dépassée par une plus récente n'est pas calculée (la carte garde alors ce qu'elle
-montre). Ce décile 50 n'est pas reclassé parmi les autres comme sur la fiche : sur le modèle de novembre
-2026, le nombre du marqueur s'écarte de la médiane de la fiche dans 0,6 % des cas (d'un vélo presque
-toujours) et ne sort jamais de la fourchette écrite.
+Pour que le curseur suive le doigt sans attendre, les marqueurs des 96 échéances sont calculés d'avance,
+en arrière-plan (`VelovForecastService.prepareMarkers`, appelé quand le panneau apparaît, après chaque
+relevé des stations et à chaque changement de filtre), en partant de celles qui entourent la dernière
+position du curseur. Une échéance prête s'affiche aussitôt ; une autre passe avant les autres, et une
+demande dépassée par une plus récente répond null (la carte garde alors ce qu'elle montre). Tout est
+recalculé quand le relevé, l'heure ou le filtre change. Un marqueur lit les mêmes six modèles que la
+fiche (les cinq déciles, reclassés, et la probabilité) : avec seulement les déciles 10 et 90, la
+fourchette de la carte s'écarterait de celle de la fiche quand les déciles se croisent. Sur le modèle
+de novembre 2026 et 458 stations, mesuré sur la JVM d'un ordinateur : une échéance en 30 à 47 ms, les
+96 en 3 à 4,7 s selon le filtre, une échéance prête en moins de 0,1 ms, une échéance demandée pendant
+le calcul d'avance en 40 à 70 ms.
 
 ## Widgets iOS
 

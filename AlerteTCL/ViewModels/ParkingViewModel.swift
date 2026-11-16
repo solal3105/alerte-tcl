@@ -30,7 +30,9 @@ final class ParkingViewModel: ObservableObject {
     /// Vrai quand une prévision existe pour le relevé courant : la carte montre alors son curseur d'heure.
     @Published private(set) var velovForecastAvailable = false
     /// Échéance du curseur d'heure de la carte : 0 pour « Maintenant », puis une par quart d'heure.
-    @Published private(set) var velovForecastStep: Int32 = 0
+    /// Pas publiée : le panneau du curseur affiche lui-même l'échéance sous le doigt, et la carte n'est
+    /// redessinée qu'une fois par échéance, à l'arrivée de ses marqueurs.
+    private(set) var velovForecastStep: Int32 = 0
     /// Marqueurs prévus à l'échéance du curseur. Nil à « Maintenant », et tant que la première prévision
     /// demandée n'est pas arrivée : la carte dessine alors l'état réel.
     @Published private var velovForecastMarkers: [VelovMapMarker]?
@@ -357,6 +359,7 @@ final class ParkingViewModel: ObservableObject {
         guard filter != velovFilter else { return }
         velovFilter = filter
         UserDefaults.standard.set(filter.name, forKey: Self.velovFilterKey)
+        prepareVelovForecastMarkers()
         refreshVelovForecastMarkers()
     }
 
@@ -386,7 +389,15 @@ final class ParkingViewModel: ObservableObject {
         guard origin == velovOriginEpochMs, selectedParkingType == .velov else { return }
         velovForecastAvailable = available
         if !available { velovForecastStep = 0 }
+        prepareVelovForecastMarkers()
         refreshVelovForecastMarkers()
+    }
+
+    /// Fait calculer en arrière-plan les marqueurs des 96 échéances du relevé et du filtre courants,
+    /// dès que le curseur est affiché : en glissant, chaque échéance est alors déjà prête.
+    private func prepareVelovForecastMarkers() {
+        guard velovForecastAvailable else { return }
+        VelovForecastService.companion.shared.prepareMarkers(stations: velovStations, originEpochMs: velovOriginEpochMs, filter: velovFilter)
     }
 
     /// Demande les marqueurs de l'échéance, du relevé et du filtre courants. Annuler une tâche Swift

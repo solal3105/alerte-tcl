@@ -167,6 +167,9 @@ struct TravauxMapView: View {
     
     private var overlayControls: some View {
         VStack {
+            // Le dégradé du haut, sous le bouton de retour et le titre.
+            MapTopBar {}
+
             Spacer()
             
             HStack(alignment: .bottom) {

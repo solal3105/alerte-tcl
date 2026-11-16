@@ -5,6 +5,7 @@ import com.alertetcl.shared.models.AvailabilityColor
 import com.alertetcl.shared.models.VelovChance
 import com.alertetcl.shared.models.VelovChanceLevel
 import com.alertetcl.shared.models.VelovFilter
+import com.alertetcl.shared.models.VelovForecastOutlook
 import com.alertetcl.shared.models.VelovTexts
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -82,20 +83,24 @@ class VelovChanceTest {
         assertEquals("classique", VelovTexts.unit(VelovFilter.MECHANICAL, 1))
     }
 
+    /** La fourchette écrite d'une prévision dont les déciles 10 et 90 valent [low] et [high]. */
+    private fun range(low: Double, high: Double, filter: VelovFilter) =
+        VelovTexts.range(VelovForecastOutlook(VelovForecastOutlook.SHOWN_LEVELS, listOf(low, low, low, high, high), 0.5).range, filter)
+
     @Test
     fun aRangeIsWrittenWithItsRoundedBounds() {
-        assertEquals("7 à 17 vélos", VelovTexts.range(6.6, 17.4, VelovFilter.ALL))
-        assertEquals("0 à 2 classiques", VelovTexts.range(0.0, 2.3, VelovFilter.MECHANICAL))
-        assertEquals("0 à 2 électriques", VelovTexts.range(0.4, 1.6, VelovFilter.ELECTRIC))
-        assertEquals("0 à 9 places", VelovTexts.range(0.0, 9.0, VelovFilter.STANDS))
-        assertEquals("0 à 1 vélo", VelovTexts.range(0.2, 1.4, VelovFilter.ALL), "le nom s'accorde avec la borne haute")
+        assertEquals("7 à 17 vélos", range(6.6, 17.4, VelovFilter.ALL))
+        assertEquals("0 à 2 classiques", range(0.0, 2.3, VelovFilter.MECHANICAL))
+        assertEquals("0 à 2 électriques", range(0.4, 1.6, VelovFilter.ELECTRIC))
+        assertEquals("0 à 9 places", range(0.0, 9.0, VelovFilter.STANDS))
+        assertEquals("0 à 1 vélo", range(0.2, 1.4, VelovFilter.ALL), "le nom s'accorde avec la borne haute")
     }
 
     @Test
     fun boundsThatRoundToTheSameNumberAreWrittenOnce() {
-        assertEquals("12 vélos", VelovTexts.range(11.6, 12.4, VelovFilter.ALL))
-        assertEquals("1 place", VelovTexts.range(0.6, 1.2, VelovFilter.STANDS))
-        assertEquals("0 électrique", VelovTexts.range(0.0, 0.3, VelovFilter.ELECTRIC))
+        assertEquals("12 vélos", range(11.6, 12.4, VelovFilter.ALL))
+        assertEquals("1 place", range(0.6, 1.2, VelovFilter.STANDS))
+        assertEquals("0 électrique", range(0.0, 0.3, VelovFilter.ELECTRIC))
     }
 
     @Test

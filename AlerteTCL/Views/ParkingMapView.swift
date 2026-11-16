@@ -181,14 +181,16 @@ struct ParkingMapView: View {
                     }
                 }
 
-                // Stations Vélo'v : point de loin, carré avec le nombre compté dès le zoom des arrêts.
-                // Chaque annotation est identifiée par sa station : quand le curseur d'heure glisse, son
-                // marqueur change de nombre et de couleur sur place, sans être retiré puis reposé.
+                // Stations Vélo'v : point de loin, carré avec le nombre compté (ou la fourchette prévue)
+                // dès le zoom des arrêts. Chaque annotation est identifiée par sa station : quand le
+                // curseur d'heure glisse, son marqueur change de texte et de couleur sur place, sans être
+                // retiré puis reposé, et seuls les marqueurs qui changent sont redessinés.
                 if viewModel.selectedParkingType == .velov {
                     let compact = mapZoom < MapStyle.shared.ZOOM_STOPS
                     ForEach(viewModel.visibleVelovMarkers) { marker in
                         Annotation("", coordinate: CLLocationCoordinate2D(latitude: marker.station.lat, longitude: marker.station.lng)) {
                             VelovMarker(marker: marker, compact: compact)
+                                .equatable()
                                 .onTapGesture { selectedVelovStation = marker.station }
                         }
                     }
@@ -253,11 +255,13 @@ struct ParkingMapView: View {
     
     private var overlayControls: some View {
         VStack {
-            // Vélo'v : le choix de ce que les stations affichent, en haut de la carte.
-            if viewModel.selectedParkingType == .velov {
-                VelovFilterBar(selected: viewModel.velovFilter) { viewModel.selectVelovFilter($0) }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
+            // Sous le titre, sur le dégradé du haut ; pour les Vélo'v, le choix de ce que les stations affichent.
+            MapTopBar {
+                if viewModel.selectedParkingType == .velov {
+                    VelovFilterBar(selected: viewModel.velovFilter) { viewModel.selectVelovFilter($0) }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                }
             }
 
             Spacer()

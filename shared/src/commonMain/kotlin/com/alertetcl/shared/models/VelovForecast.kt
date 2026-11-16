@@ -2,6 +2,7 @@ package com.alertetcl.shared.models
 
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /** État d'une station au moment où part une prévision. */
 data class VelovForecastState(
@@ -47,6 +48,12 @@ data class VelovForecastOutlook(
     /** Le nombre prévu au décile [level], un des niveaux de [levels]. */
     fun at(level: Int): Double = deciles[levels.indexOf(level)]
 
+    /**
+     * La fourchette écrite, sur la fiche comme sur un marqueur de carte : les déciles 10 et 90 arrondis,
+     * les seuls dont le robot mesure la justesse.
+     */
+    internal val range: IntRange get() = at(LOW).roundToInt()..at(HIGH).roundToInt()
+
     companion object {
         // Niveaux lus par l'affichage, que tout modèle accepté fournit : la fourchette large (celle du
         // « N fois sur 10 »), la fourchette serrée du graphique et la valeur la plus probable.
@@ -86,6 +93,3 @@ data class VelovForecast(val state: VelovForecastState, val steps: List<VelovFor
         const val STEP_MS = STEP_MINUTES * 60_000L
     }
 }
-
-/** Ce qu'un marqueur de carte montre d'une station à une échéance : le nombre le plus probable et la probabilité d'en trouver au moins un. */
-internal class VelovForecastGlance(val median: Double, val probability: Double)

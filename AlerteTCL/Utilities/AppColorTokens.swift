@@ -28,6 +28,8 @@ extension Color {
     static let appNeutral = Color(token: AppColors.shared.neutral)
     static let appNeutralFill = Color(token: AppColors.shared.neutralFill)
     static let appNeutralBorder = Color(token: AppColors.shared.neutralBorder)
+    /// Fond des barres posées sur une carte : le dégradé du haut et le dépoli du verre.
+    static let appMapChrome = Color(token: AppColors.shared.mapChrome)
     static let stopMarker = Color(hex: AppColors.shared.stopMarker)
 }
 

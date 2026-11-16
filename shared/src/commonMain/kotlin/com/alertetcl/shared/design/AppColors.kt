@@ -57,6 +57,12 @@ object AppColors {
     /** Texte sur fond clair. */
     val onLight = "#1B1B1F"
 
+    /**
+     * Haut des cartes de l'onglet « Autour de moi », sous le titre et la barre de filtres : la carte part
+     * de cette couleur et s'en dégage vers le bas. Le dégradé de transparence est posé par les vues.
+     */
+    val mapChrome = ThemedColor("#F2F2F7", "#1C1C1E")
+
     /** Marqueur d'un arrêt sur la carte (hors couleur de ligne). */
     val stopMarker = "#1976D2"
     /** Noyau des arrêts de bus, et des bus C, sur la carte ; métro et tram prennent la couleur de leur ligne. */

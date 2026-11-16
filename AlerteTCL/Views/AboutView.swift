@@ -1,4 +1,5 @@
 import SwiftUI
+import Shared
 
 /// Onglet Info : l'application d'abord (icône, nom, accroche, quatre promesses), puis qui est
 /// derrière, ses autres projets avec leurs logos, d'où viennent les données. Une seule teinte
@@ -34,7 +35,7 @@ struct AboutView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showWidgets) { WidgetGalleryView() }
             .fullScreenCover(isPresented: $showIntro) {
-                IntroView(atLaunch: false) { showIntro = false }
+                IntroView(atLaunch: false, seenRevision: Intro.shared.NEVER_SEEN) { showIntro = false }
             }
         }
     }

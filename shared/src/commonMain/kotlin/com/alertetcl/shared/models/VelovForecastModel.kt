@@ -31,7 +31,6 @@ internal class VelovForecastModel @Throws(IllegalArgumentException::class) const
     }
 
     private val deciles: List<Int> = bundle.deciles
-    private val medianRank = bundle.deciles.indexOf(VelovForecastOutlook.MEDIAN)
     private val bikes = Kind(bundle, VelovFilter.ALL)
     private val mechanical = Kind(bundle, VelovFilter.MECHANICAL)
     private val electric = Kind(bundle, VelovFilter.ELECTRIC)
@@ -87,16 +86,13 @@ internal class VelovForecastModel @Throws(IllegalArgumentException::class) const
         }
 
     /**
-     * Ce qu'un marqueur de carte montre de chacune des [stations] à l'échéance [step] : deux modèles par
-     * station seulement, celui du décile 50 et celui de la probabilité, pour que le curseur de la carte
-     * suive le doigt. Ce décile 50 n'est pas reclassé parmi les autres comme dans [outlooks] : quand les
-     * déciles se croisent, le nombre peut s'écarter un peu de la médiane de la fiche (mesure dans `DESIGN.md`).
+     * La seule probabilité d'en trouver au moins un que [outlooks] donnerait, pour chacune des [stations] :
+     * un modèle par station au lieu de six, pour trier les voisines d'une fiche avant de calculer la
+     * fourchette des retenues.
      */
-    fun glances(stations: List<VelovStation>, nowEpochMs: Long, step: Int, filter: VelovFilter): List<VelovForecastGlance> =
-        atStep(stations, nowEpochMs, step) { x, state ->
-            val median = kind(filter).median(x, state)
-            if (filter == VelovFilter.STANDS) VelovForecastGlance(state.docksLeftBy(median), dockForest.predict(x))
-            else VelovForecastGlance(median, kind(filter).probability(x))
+    fun chances(stations: List<VelovStation>, nowEpochMs: Long, step: Int, filter: VelovFilter): List<Double> =
+        atStep(stations, nowEpochMs, step) { x, _ ->
+            if (filter == VelovFilter.STANDS) dockForest.predict(x) else kind(filter).probability(x)
         }
 
     /** Le calendrier, le même pour toutes les stations, n'est lu qu'une fois. */
@@ -137,9 +133,6 @@ internal class VelovForecastModel @Throws(IllegalArgumentException::class) const
             val present = state.count(filter)
             return VelovForecastOutlook(deciles, decileForests.map { it.predict(x) + present }.sorted().map(state::bounded), probability(x))
         }
-
-        fun median(x: DoubleArray, state: VelovForecastState): Double =
-            state.bounded(decileForests[medianRank].predict(x) + state.count(filter))
 
         fun probability(x: DoubleArray): Double = anyForest.predict(x)
     }

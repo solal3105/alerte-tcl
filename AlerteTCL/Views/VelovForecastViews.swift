@@ -27,7 +27,7 @@ struct VelovForecastAxis {
 }
 
 extension View {
-    /// Carte d'une fiche de station Vélo'v (prévision, voisines).
+    /// Carte d'une fiche de station Vélo'v (état du moment, prévision, voisines).
     func velovForecastCard() -> some View {
         padding(16).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
     }
@@ -35,93 +35,145 @@ extension View {
 
 // MARK: - Graphique
 
+/// Les échelles du graphique d'un panneau dans un cadre de taille donnée : l'axe des heures et la
+/// hauteur d'un compte, de 0 au haut de l'échelle. Les deux couches du graphique les partagent.
+private struct VelovForecastChartScale {
+    static let topInset: CGFloat = 10
+    private static let bottomInset: CGFloat = 6
+
+    let axis: VelovForecastAxis
+    let plotHeight: CGFloat
+    private let scaleMax: Double
+
+    init(size: CGSize, panel: VelovForecastPanel) {
+        axis = VelovForecastAxis(width: size.width)
+        plotHeight = size.height - Self.topInset - Self.bottomInset
+        scaleMax = Double(panel.scaleMax)
+    }
+
+    func y(_ value: Double) -> CGFloat {
+        Self.topInset + plotHeight * CGFloat(1 - value / scaleMax)
+    }
+
+    func line(_ through: [CGPoint]) -> Path {
+        var path = Path()
+        path.addLines(through)
+        return path
+    }
+}
+
 /// Graphique des 24 heures d'une station, à l'accent : la valeur la plus probable (trait), la
 /// fourchette 10-90 (bande claire) et la fourchette 30-70 (bande soutenue), de 0 au haut de l'échelle,
-/// avec le trait de minuit et le repère de l'échéance choisie.
+/// avec le trait de minuit et le repère de l'échéance choisie. Les courbes ne dépendent que du panneau
+/// et ne sont pas redessinées quand le curseur glisse : seul le repère, en surimpression, suit.
 struct VelovForecastChart: View {
     let panel: VelovForecastPanel
     let step: Int32
 
     static let height: CGFloat = 190
-    private static let topInset: CGFloat = 10
-    private static let bottomInset: CGFloat = 6
+
+    var body: some View {
+        VelovForecastChartCurves(panel: panel)
+            .equatable()
+            .overlay { VelovForecastChartCursor(panel: panel, step: step) }
+            .frame(height: Self.height)
+            // Les repères sont tenus par la géométrie : leur texte grandit avec les réglages, jusqu'à un plafond.
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(VelovTexts.shared.CHART_LABEL)
+    }
+}
+
+/// Les courbes, les bandes, l'échelle et minuit : une couche qui ne change qu'avec le panneau (le
+/// filtre ou un nouveau relevé), jamais avec l'échéance.
+private struct VelovForecastChartCurves: View, Equatable {
+    let panel: VelovForecastPanel
+
     private static let labelGap: CGFloat = 5
-    private static let dotRadius: CGFloat = 5.5
+
+    /// Le module partagé garde un panneau par filtre : le même objet, ce sont les mêmes courbes.
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.panel === rhs.panel }
 
     var body: some View {
         Canvas { context, size in
-            let axis = VelovForecastAxis(width: size.width)
+            let scale = VelovForecastChartScale(size: size, panel: panel)
+            let axis = scale.axis
             let points = panel.points
-            let plotHeight = size.height - Self.topInset - Self.bottomInset
-            let scaleMax = Double(panel.scaleMax)
-            func y(_ value: Double) -> CGFloat {
-                Self.topInset + plotHeight * CGFloat(1 - value / scaleMax)
-            }
             func curve(_ value: KeyPath<VelovForecastChartPoint, Double>) -> [CGPoint] {
-                points.map { CGPoint(x: axis.x($0.position), y: y($0[keyPath: value])) }
+                points.map { CGPoint(x: axis.x($0.position), y: scale.y($0[keyPath: value])) }
             }
             func band(_ lower: KeyPath<VelovForecastChartPoint, Double>, _ upper: KeyPath<VelovForecastChartPoint, Double>) -> Path {
-                var path = Path()
-                path.addLines(curve(upper) + curve(lower).reversed())
+                var path = scale.line(curve(upper) + curve(lower).reversed())
                 path.closeSubpath()
-                return path
-            }
-            func line(_ through: [CGPoint]) -> Path {
-                var path = Path()
-                path.addLines(through)
                 return path
             }
 
             // Le zéro et le haut de l'échelle, seul nombre écrit sur l'axe.
-            for value in [0, scaleMax] {
-                let segment = line([CGPoint(x: axis.x(0), y: y(value)), CGPoint(x: axis.x(1), y: y(value))])
+            for value in [0, Double(panel.scaleMax)] {
+                let segment = scale.line([CGPoint(x: axis.x(0), y: scale.y(value)), CGPoint(x: axis.x(1), y: scale.y(value))])
                 context.stroke(segment, with: .color(.appNeutralBorder), lineWidth: 1)
             }
+            let labelY = VelovForecastChartScale.topInset + 2
             let scaleLabel = context.resolve(Text(verbatim: "\(panel.scaleMax)").font(.caption2).foregroundColor(.secondary))
-            context.draw(scaleLabel, at: CGPoint(x: axis.x(1), y: Self.topInset + 2), anchor: .topTrailing)
+            context.draw(scaleLabel, at: CGPoint(x: axis.x(1), y: labelY), anchor: .topTrailing)
 
             // Minuit : le nom du jour suit le trait, ou le précède quand il toucherait le nombre de l'échelle.
             if let midnight = panel.midnight {
                 let midnightX = axis.x(midnight.position)
-                let dashes = line([CGPoint(x: midnightX, y: Self.topInset), CGPoint(x: midnightX, y: Self.topInset + plotHeight)])
+                let dashes = scale.line([
+                    CGPoint(x: midnightX, y: VelovForecastChartScale.topInset),
+                    CGPoint(x: midnightX, y: VelovForecastChartScale.topInset + scale.plotHeight),
+                ])
                 context.stroke(dashes, with: .color(.appNeutralBorder), style: StrokeStyle(lineWidth: 1, dash: [2, 3]))
                 let dayLabel = context.resolve(Text(midnight.label).font(.caption2).foregroundColor(.secondary))
                 let lastFreeX = axis.x(1) - scaleLabel.measure(in: size).width - Self.labelGap
                 let fitsAfter = midnightX + Self.labelGap + dayLabel.measure(in: size).width <= lastFreeX
                 context.draw(
                     dayLabel,
-                    at: CGPoint(x: fitsAfter ? midnightX + Self.labelGap : midnightX - Self.labelGap, y: Self.topInset + 2),
+                    at: CGPoint(x: fitsAfter ? midnightX + Self.labelGap : midnightX - Self.labelGap, y: labelY),
                     anchor: fitsAfter ? .topLeading : .topTrailing
                 )
             }
 
             context.fill(band(\.low, \.high), with: .color(Color.appAccent.opacity(0.16)))
             context.fill(band(\.midLow, \.midHigh), with: .color(Color.appAccent.opacity(0.30)))
-            context.stroke(line(curve(\.median)), with: .color(.appAccent), style: StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
+            context.stroke(scale.line(curve(\.median)), with: .color(.appAccent), style: StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
+        }
+    }
+}
 
-            // Repère de l'échéance : un trait qui descend jusqu'au pouce du curseur, la fourchette large
-            // en gras et la valeur la plus probable en pastille.
+/// Le repère de l'échéance, seule couche redessinée quand le curseur glisse : un trait qui descend
+/// jusqu'au pouce du curseur, la fourchette large en gras et la valeur la plus probable en pastille.
+private struct VelovForecastChartCursor: View {
+    let panel: VelovForecastPanel
+    let step: Int32
+
+    private static let dotRadius: CGFloat = 5.5
+
+    var body: some View {
+        Canvas { context, size in
+            let points = panel.points
             guard points.indices.contains(Int(step)) else { return }
+            let scale = VelovForecastChartScale(size: size, panel: panel)
             let selected = points[Int(step)]
-            let cursorX = axis.x(selected.position)
-            context.stroke(line([CGPoint(x: cursorX, y: Self.topInset), CGPoint(x: cursorX, y: size.height)]), with: .color(.primary), lineWidth: 1.5)
+            let cursorX = scale.axis.x(selected.position)
             context.stroke(
-                line([CGPoint(x: cursorX, y: y(selected.high)), CGPoint(x: cursorX, y: y(selected.low))]),
+                scale.line([CGPoint(x: cursorX, y: VelovForecastChartScale.topInset), CGPoint(x: cursorX, y: size.height)]),
+                with: .color(.primary),
+                lineWidth: 1.5
+            )
+            context.stroke(
+                scale.line([CGPoint(x: cursorX, y: scale.y(selected.high)), CGPoint(x: cursorX, y: scale.y(selected.low))]),
                 with: .color(.appAccent),
                 style: StrokeStyle(lineWidth: 7, lineCap: .round)
             )
             let dot = Path(ellipseIn: CGRect(
-                x: cursorX - Self.dotRadius, y: y(selected.median) - Self.dotRadius,
+                x: cursorX - Self.dotRadius, y: scale.y(selected.median) - Self.dotRadius,
                 width: 2 * Self.dotRadius, height: 2 * Self.dotRadius
             ))
             context.fill(dot, with: .style(.background))
             context.stroke(dot, with: .color(.appAccent), lineWidth: 3)
         }
-        .frame(height: Self.height)
-        // Les repères sont tenus par la géométrie : leur texte grandit avec les réglages, jusqu'à un plafond.
-        .dynamicTypeSize(...DynamicTypeSize.xxLarge)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(VelovTexts.shared.CHART_LABEL)
     }
 }
 
@@ -129,6 +181,7 @@ struct VelovForecastChart: View {
 
 /// Curseur d'heure, le même sur la fiche d'une station et sur la carte : une échéance par quart
 /// d'heure, de 0 (« Maintenant ») à la dernière, posées aux abscisses du graphique (`VelovForecastAxis`).
+/// Quand il glisse, seuls le pouce (et, sur la carte, le remplissage de la piste) sont redessinés.
 struct VelovForecastSlider: View {
     let step: Int32
     /// Palier de chaque échéance, qui colore la piste (fiche) ; nil pour une piste neutre remplie à
@@ -140,63 +193,23 @@ struct VelovForecastSlider: View {
     let valueText: String
     let onSelect: (Int32) -> Void
 
-    private static let thumbSize: CGFloat = 2 * VelovForecastAxis.inset
-    private static let trackHeight: CGFloat = 8
+    fileprivate static let thumbSize: CGFloat = 2 * VelovForecastAxis.inset
     /// Place laissée à l'ombre du pouce, au-dessus et au-dessous.
     private static let shadowMargin: CGFloat = 3
 
-    private var lastStep: Int32 { VelovForecast.companion.STEP_COUNT }
+    fileprivate static var lastStep: Int32 { VelovForecast.companion.STEP_COUNT }
+
+    /// La place du pouce sur l'axe, de 0 à 1.
+    private var position: Double { Double(step) / Double(Self.lastStep) }
 
     var body: some View {
         VStack(spacing: 2) {
-            Canvas { context, size in
-                let axis = VelovForecastAxis(width: size.width)
-                let thumbX = axis.x(Double(step) / Double(lastStep))
-                let track = CGRect(
-                    x: axis.x(0), y: (size.height - Self.trackHeight) / 2,
-                    width: axis.x(1) - axis.x(0), height: Self.trackHeight
-                )
-                var clipped = context
-                clipped.clip(to: Path(roundedRect: track, cornerRadius: Self.trackHeight / 2))
-                if let trackLevels {
-                    // Le segment de rang i va de l'échéance i à la suivante, un rien plus large pour ne pas laisser de jour.
-                    for (rank, level) in trackLevels.enumerated() {
-                        let from = axis.x(Double(rank) / Double(lastStep))
-                        let to = axis.x(Double(rank + 1) / Double(lastStep))
-                        clipped.fill(Path(CGRect(x: from, y: track.minY, width: to - from + 0.5, height: track.height)), with: .color(level.trackColor))
-                    }
-                } else {
-                    clipped.fill(Path(track), with: .color(.appNeutralBorder))
-                    clipped.fill(Path(CGRect(x: track.minX, y: track.minY, width: thumbX - track.minX, height: track.height)), with: .color(.appAccent))
-                }
-                let thumb = Path(ellipseIn: CGRect(
-                    x: thumbX - Self.thumbSize / 2, y: (size.height - Self.thumbSize) / 2,
-                    width: Self.thumbSize, height: Self.thumbSize
-                ))
-                context.drawLayer { layer in
-                    layer.addFilter(.shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1))
-                    layer.fill(thumb, with: .color(.white))
-                }
-            }
-            .frame(height: Self.thumbSize + 2 * Self.shadowMargin)
-
-            // Une ligne à la hauteur du texte, sur laquelle chaque heure se pose à son abscisse.
-            Text(verbatim: " ")
-                .font(.caption2)
-                .frame(maxWidth: .infinity)
-                .hidden()
-                .overlay {
-                    GeometryReader { geometry in
-                        let axis = VelovForecastAxis(width: geometry.size.width)
-                        ForEach(ticks, id: \.position) { tick in
-                            Text(tick.label)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .fixedSize()
-                                .position(x: axis.x(tick.position), y: geometry.size.height / 2)
-                        }
-                    }
-                }
+            VelovForecastSliderTrack(levels: trackLevels, filledTo: trackLevels == nil ? position : nil)
+                .equatable()
+                .overlay { VelovForecastSliderThumb(position: position) }
+                .frame(height: Self.thumbSize + 2 * Self.shadowMargin)
+            VelovForecastSliderTicks(ticks: ticks)
+                .equatable()
         }
         .dynamicTypeSize(...DynamicTypeSize.xxLarge)
         // Le doigt se pose sur toute la hauteur, heures comprises, et le pouce le suit.
@@ -205,7 +218,7 @@ struct VelovForecastSlider: View {
                 Color.clear
                     .contentShape(Rectangle())
                     .gesture(DragGesture(minimumDistance: 0).onChanged { drag in
-                        select(VelovForecastAxis(width: geometry.size.width).step(at: drag.location.x, lastStep: lastStep))
+                        select(VelovForecastAxis(width: geometry.size.width).step(at: drag.location.x, lastStep: Self.lastStep))
                     })
             }
         }
@@ -222,8 +235,80 @@ struct VelovForecastSlider: View {
     }
 
     private func select(_ candidate: Int32) {
-        let bounded = min(max(candidate, 0), lastStep)
+        let bounded = min(max(candidate, 0), Self.lastStep)
         if bounded != step { onSelect(bounded) }
+    }
+}
+
+/// La piste du curseur : colorée par palier (fiche), qui ne change qu'avec le panneau, ou neutre et
+/// remplie à l'accent jusqu'au pouce (carte).
+private struct VelovForecastSliderTrack: View, Equatable {
+    let levels: [VelovChanceLevel]?
+    /// Jusqu'où la piste neutre est remplie, de 0 à 1 ; nil sur une piste colorée par palier.
+    let filledTo: Double?
+
+    private static let height: CGFloat = 8
+
+    var body: some View {
+        Canvas { context, size in
+            let axis = VelovForecastAxis(width: size.width)
+            let lastStep = Double(VelovForecastSlider.lastStep)
+            let track = CGRect(x: axis.x(0), y: (size.height - Self.height) / 2, width: axis.x(1) - axis.x(0), height: Self.height)
+            context.clip(to: Path(roundedRect: track, cornerRadius: Self.height / 2))
+            if let levels {
+                // Le segment de rang i va de l'échéance i à la suivante, un rien plus large pour ne pas laisser de jour.
+                for (rank, level) in levels.enumerated() {
+                    let from = axis.x(Double(rank) / lastStep)
+                    let to = axis.x(Double(rank + 1) / lastStep)
+                    context.fill(Path(CGRect(x: from, y: track.minY, width: to - from + 0.5, height: track.height)), with: .color(level.trackColor))
+                }
+            } else {
+                context.fill(Path(track), with: .color(.appNeutralBorder))
+                let filled = axis.x(filledTo ?? 0) - track.minX
+                context.fill(Path(CGRect(x: track.minX, y: track.minY, width: filled, height: track.height)), with: .color(.appAccent))
+            }
+        }
+    }
+}
+
+/// Le pouce du curseur, posé à sa place sur l'axe.
+private struct VelovForecastSliderThumb: View {
+    let position: Double
+
+    var body: some View {
+        Canvas { context, size in
+            let thumbX = VelovForecastAxis(width: size.width).x(position)
+            let side = VelovForecastSlider.thumbSize
+            let thumb = Path(ellipseIn: CGRect(x: thumbX - side / 2, y: (size.height - side) / 2, width: side, height: side))
+            context.drawLayer { layer in
+                layer.addFilter(.shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1))
+                layer.fill(thumb, with: .color(.white))
+            }
+        }
+    }
+}
+
+/// Les heures écrites sous la piste, chacune à son abscisse, sur une ligne à la hauteur du texte.
+private struct VelovForecastSliderTicks: View, Equatable {
+    let ticks: [VelovForecastTick]
+
+    var body: some View {
+        Text(verbatim: " ")
+            .font(.caption2)
+            .frame(maxWidth: .infinity)
+            .hidden()
+            .overlay {
+                GeometryReader { geometry in
+                    let axis = VelovForecastAxis(width: geometry.size.width)
+                    ForEach(ticks, id: \.position) { tick in
+                        Text(tick.label)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .fixedSize()
+                            .position(x: axis.x(tick.position), y: geometry.size.height / 2)
+                    }
+                }
+            }
     }
 }
 
@@ -241,10 +326,8 @@ struct VelovForecastCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker(VelovTexts.shared.FILTER_LABEL, selection: Binding(get: { filter }, set: onSelectFilter)) {
-                ForEach(VelovFilter.companion.ordered) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
+            VelovForecastFilterPicker(filter: filter, onSelect: onSelectFilter)
+                .equatable()
 
             reading
 
@@ -314,50 +397,63 @@ struct VelovForecastCard: View {
     }
 }
 
+/// Le sélecteur de filtre de la fiche, laissé tel quel quand seul le curseur bouge.
+private struct VelovForecastFilterPicker: View, Equatable {
+    let filter: VelovFilter
+    let onSelect: (VelovFilter) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.filter == rhs.filter }
+
+    var body: some View {
+        Picker(VelovTexts.shared.FILTER_LABEL, selection: Binding(get: { filter }, set: onSelect)) {
+            ForEach(VelovFilter.companion.ordered) { Text($0.title).tag($0) }
+        }
+        .pickerStyle(.segmented)
+    }
+}
+
 // MARK: - Carte
 
 /// Panneau de verre posé en bas de la carte Vélo'v : l'heure que montrent les marqueurs et le curseur
-/// qui la choisit, de « Maintenant » à dans 24 heures.
+/// qui la choisit, de « Maintenant » à dans 24 heures (on y revient en glissant). Le panneau tient
+/// lui-même l'échéance sous le doigt : elle s'affiche aussitôt, sans attendre la carte, dont les
+/// marqueurs suivent dès que leur liste arrive.
 struct VelovForecastTimePanel: View {
     /// Heure où les stations ont été relevées : le départ du curseur.
     let originEpochMs: Int64
-    let step: Int32
     let onSelect: (Int32) -> Void
+    @State private var step: Int32
+
+    init(originEpochMs: Int64, step: Int32, onSelect: @escaping (Int32) -> Void) {
+        self.originEpochMs = originEpochMs
+        self.onSelect = onSelect
+        _step = State(initialValue: step)
+    }
 
     var body: some View {
         let panel = VelovForecastMapPanel.companion.at(originEpochMs: originEpochMs, step: step)
-        VStack(spacing: 8) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(panel.title)
-                        .font(.title3.bold())
-                        .monospacedDigit()
-                    // La ligne garde sa place quand la consigne s'efface : le curseur ne bouge pas sous le doigt.
-                    Text(panel.hint ?? " ")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-                if let nowButton = panel.nowButton {
-                    Button {
-                        onSelect(0)
-                    } label: {
-                        Text(nowButton)
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(Color.appAccent)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(Color.appAccent.opacity(0.12), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(panel.title)
+                    .font(.title3.bold())
+                    .monospacedDigit()
+                // La ligne garde sa place quand la consigne s'efface : le curseur ne bouge pas sous le doigt.
+                Text(panel.hint ?? " ")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
             .lineLimit(1)
 
-            VelovForecastSlider(step: step, trackLevels: nil, ticks: panel.ticks, valueText: panel.title, onSelect: onSelect)
+            VelovForecastSlider(step: step, trackLevels: nil, ticks: panel.ticks, valueText: panel.title) { selected in
+                step = selected
+                onSelect(selected)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
         .glassSurface(RoundedRectangle(cornerRadius: 26))
+        // Le curseur montré, la prévision est vue : la pastille « Nouveau » n'a plus lieu d'être.
+        .onAppear { NewBadgesViewModel.shared.markVelovForecastSeen() }
     }
 }

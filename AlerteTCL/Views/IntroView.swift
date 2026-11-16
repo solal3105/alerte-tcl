@@ -7,12 +7,22 @@ import Shared
 /// jour qui change la révision du contenu, et reste consultable depuis l'onglet Info.
 struct IntroView: View {
     /// Vrai quand l'intro s'ouvre au lancement : le dernier bouton mène alors à la carte.
-    var atLaunch = true
+    let atLaunch: Bool
     /// Appelé quand l'intro est terminée ou passée : l'appelant enregistre la révision vue.
     let onFinish: () -> Void
 
     @State private var position: Int?
-    private let pages: [IntroPage] = Intro.shared.pages(includeWidgets: true)
+    /// Les pages, choisies une fois pour toutes à l'ouverture : enregistrer la révision vue en
+    /// refermant l'intro ne doit pas les changer pendant qu'elle disparaît.
+    @State private var pages: [IntroPage]
+
+    /// `seenRevision` : la révision déjà vue, au lancement (le module partagé choisit les pages d'après
+    /// elle), ou `Intro.NEVER_SEEN` quand l'intro est rouverte depuis l'onglet Info.
+    init(atLaunch: Bool, seenRevision: Int32, onFinish: @escaping () -> Void) {
+        self.atLaunch = atLaunch
+        self.onFinish = onFinish
+        _pages = State(initialValue: Intro.shared.pages(includeWidgets: true, seenRevision: seenRevision))
+    }
 
     private var index: Int { position ?? 0 }
     private var isLast: Bool { index >= pages.count - 1 }
@@ -193,6 +203,8 @@ private struct IntroVisualView: View {
         case .map: return "IntroCarte"
         case .city: return "IntroAutour"
         case .velov: return "IntroVelov"
+        case .velovForecastMap: return "IntroVelovPrevisionCarte"
+        case .velovForecastSheet: return "IntroVelovPrevisionFiche"
         default: return "IntroAlertes"
         }
     }

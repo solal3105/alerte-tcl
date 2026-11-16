@@ -3,6 +3,7 @@ package com.alertetcl.shared
 import com.alertetcl.shared.models.AvailabilityColor
 import com.alertetcl.shared.models.VelovFilter
 import com.alertetcl.shared.models.VelovStation
+import com.alertetcl.shared.models.VelovTexts
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -63,5 +64,12 @@ class VelovTest {
         assertEquals("2 classiques · 6 électriques · 5 places", station(8, ebikes = 6).stateText)
         assertEquals("0 classique · 1 électrique · 5 places", station(1, ebikes = 1).stateText)
         assertEquals("Station fermée", station(4, open = false).stateText)
+    }
+
+    @Test
+    fun theDetailOfTheMomentIsClassicElectricThenDocks() {
+        assertEquals(listOf(VelovFilter.MECHANICAL, VelovFilter.ELECTRIC, VelovFilter.STANDS), VelovFilter.detailed)
+        val station = station(8, ebikes = 6)
+        assertEquals(listOf("2 classiques", "6 électriques", "5 places"), VelovFilter.detailed.map { "${station.shownCount(it)} ${VelovTexts.unit(it, station.shownCount(it))}" })
     }
 }

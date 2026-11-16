@@ -51,12 +51,13 @@ struct VelovFilterBar: View {
 }
 
 /// Ce que le marqueur d'une station affiche sur la carte : son état réel à « Maintenant », ce qui y
-/// est prévu quand le curseur d'heure a bougé.
+/// est prévu (une fourchette, « 3–8 ») quand le curseur d'heure a bougé.
 struct VelovMapMarker: Identifiable {
     let station: VelovStation
-    let count: Int
+    /// Le texte du carré, tel quel : un nombre, ou la fourchette prévue mise en forme par le module partagé.
+    let label: String
     let availability: AvailabilityColor
-    /// Le filtre pour lequel le nombre a été compté : le pictogramme du marqueur le suit.
+    /// Le filtre pour lequel le texte a été établi : le pictogramme du marqueur le suit.
     let filter: VelovFilter
 
     var id: Int32 { station.id }
@@ -64,7 +65,7 @@ struct VelovMapMarker: Identifiable {
     /// L'état réel de la station.
     init(station: VelovStation, filter: VelovFilter) {
         self.station = station
-        self.count = Int(station.shownCount(filter: filter))
+        self.label = "\(station.shownCount(filter: filter))"
         self.availability = station.availabilityFor(filter: filter)
         self.filter = filter
     }
@@ -72,39 +73,39 @@ struct VelovMapMarker: Identifiable {
     /// Une prévision calculée pour `filter`.
     init(forecast: VelovForecastMarker, filter: VelovFilter) {
         self.station = forecast.station
-        self.count = Int(forecast.count)
+        self.label = forecast.label
         self.availability = forecast.availability
         self.filter = filter
     }
 }
 
 /// Marqueur d'une station sur la carte des parkings : un point à la couleur de disponibilité de loin,
-/// le carré avec le nombre compté par le filtre au zoom des arrêts.
-struct VelovMarker: View {
+/// le carré avec le texte du marqueur au zoom des arrêts. Comparable : quand le curseur d'heure
+/// glisse, seuls les marqueurs dont le texte ou la couleur change sont redessinés.
+struct VelovMarker: View, Equatable {
     let marker: VelovMapMarker
     let compact: Bool
 
-    private var color: Color { Color(token: AppColors.shared.parkingAvailability(color: marker.availability)) }
+    static func == (lhs: VelovMarker, rhs: VelovMarker) -> Bool {
+        lhs.compact == rhs.compact && lhs.marker.id == rhs.marker.id && lhs.marker.label == rhs.marker.label
+            && lhs.marker.availability == rhs.marker.availability && lhs.marker.filter == rhs.marker.filter
+    }
 
+    /// Deux images pré-rendues et gardées (`MarkerImageCache`) : ni ombre ni forme recalculée par marqueur.
     var body: some View {
-        if compact {
-            Circle()
-                .fill(color)
-                .frame(width: 16, height: 16)
-                .shadow(color: color.opacity(0.5), radius: 3, x: 0, y: 1)
-                .overlay(Circle().stroke(.white, lineWidth: 2))
-        } else {
-            Image(uiImage: MarkerImageCache.velovMarker(
-                count: marker.count,
+        Image(uiImage: compact
+            ? MarkerImageCache.velovDot(availability: marker.availability)
+            : MarkerImageCache.velovMarker(
+                label: marker.label,
                 availability: marker.availability,
                 symbol: velovFilterSymbol(marker.filter == .all ? .mechanical : marker.filter)
-            ))
-        }
+            )
+        )
     }
 }
 
-/// Fiche d'une station Vélo'v : son état réel en une ligne, ce qui y est prévu dans les 24 heures,
-/// l'itinéraire à pied. Une voisine « plus sûre » s'ouvre à la suite, avec le retour du système.
+/// Fiche d'une station Vélo'v : son état réel, ce qui y est prévu dans les 24 heures, l'itinéraire à
+/// pied. Une voisine « plus sûre » s'ouvre à la suite, avec le retour du système.
 struct VelovStationSheet: View {
     let station: VelovStation
     @ObservedObject var viewModel: ParkingViewModel
@@ -118,13 +119,14 @@ struct VelovStationSheet: View {
 }
 
 /// Une station dans la fiche. Le filtre est celui de la carte (le changer ici le change là-bas) ;
-/// l'échéance part de celle de la carte, puis n'appartient qu'à cette page.
+/// l'échéance part de celle de la carte, puis n'appartient qu'au bloc de prévision de cette page.
 private struct VelovStationPage: View {
     @ObservedObject var viewModel: ParkingViewModel
     let close: () -> Void
+    /// L'échéance à l'ouverture de la page.
+    let step: Int32
     /// La station telle que le dernier relevé la donne : la page suit les rafraîchissements de la carte.
     @State private var station: VelovStation
-    @State private var step: Int32
     @State private var forecast: VelovForecastSheet?
     /// Vrai tant que la prévision n'a pas répondu : sa place est réservée, la fiche ne saute pas.
     @State private var isForecastPending = true
@@ -132,26 +134,20 @@ private struct VelovStationPage: View {
     init(station: VelovStation, viewModel: ParkingViewModel, step: Int32, close: @escaping () -> Void) {
         self.viewModel = viewModel
         self.close = close
+        self.step = step
         _station = State(initialValue: station)
-        _step = State(initialValue: step)
     }
 
     var body: some View {
-        let readout = forecast?.readout(filter: viewModel.velovFilter, step: step)
         ScrollView {
             VStack(spacing: 14) {
-                header
+                Text(station.displayName)
+                    .font(.title2.bold())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+                VelovNowTile(station: station)
                 if forecast != nil || (isForecastPending && viewModel.velovForecastAvailable) {
-                    VelovForecastCard(
-                        panel: forecast?.panel(filter: viewModel.velovFilter),
-                        readout: readout,
-                        filter: viewModel.velovFilter,
-                        onSelectFilter: { viewModel.selectVelovFilter($0) },
-                        onSelectStep: { step = $0 }
-                    )
-                }
-                if let neighbours = readout?.saferNearby, !neighbours.isEmpty {
-                    saferNearby(neighbours)
+                    VelovForecastSection(forecast: forecast, viewModel: viewModel, step: step, close: close)
                 }
                 Button(action: openWalkingDirections) {
                     Label("Itinéraire à pied", systemImage: "figure.walk")
@@ -186,20 +182,83 @@ private struct VelovStationPage: View {
         }
     }
 
-    /// Le nom de la station et son état réel en une ligne.
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(station.displayName)
-                .font(.title2.bold())
-                .foregroundStyle(.primary)
-            Text(station.stateText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+    private func openWalkingDirections() {
+        let coordinate = CLLocationCoordinate2D(latitude: station.lat, longitude: station.lng)
+        let item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
+        item.name = "Vélo'v \(station.displayName)"
+        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
+    }
+}
+
+/// L'état réel de la station, en tête de fiche : vélos classiques, vélos électriques et places libres
+/// côte à côte, chacun en nombre et en mot sous le pictogramme de son filtre, ou « Station fermée ».
+private struct VelovNowTile: View {
+    let station: VelovStation
+
+    var body: some View {
+        Group {
+            if station.open {
+                HStack(spacing: 8) {
+                    ForEach(VelovFilter.companion.detailed) { filter in
+                        let count = station.shownCount(filter: filter)
+                        VStack(spacing: 2) {
+                            Image(systemName: velovFilterSymbol(filter))
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            Text(verbatim: "\(count)")
+                                .font(.title2.bold())
+                                .monospacedDigit()
+                            Text(VelovTexts.shared.unit(filter: filter, count: count))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            } else {
+                Text(station.stateText)
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+            }
         }
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 4)
+        .velovForecastCard()
+    }
+}
+
+/// Le bloc de prévision d'une page et ses voisines « plus sûres ». Il garde seul l'échéance du curseur :
+/// en glissant, lui seul se redessine, pas l'en-tête ni l'état du moment.
+private struct VelovForecastSection: View {
+    let forecast: VelovForecastSheet?
+    @ObservedObject var viewModel: ParkingViewModel
+    let close: () -> Void
+    @State private var step: Int32
+
+    init(forecast: VelovForecastSheet?, viewModel: ParkingViewModel, step: Int32, close: @escaping () -> Void) {
+        self.forecast = forecast
+        self.viewModel = viewModel
+        self.close = close
+        _step = State(initialValue: step)
+    }
+
+    var body: some View {
+        let filter = viewModel.velovFilter
+        let readout = forecast?.readout(filter: filter, step: step)
+        VStack(spacing: 14) {
+            VelovForecastCard(
+                panel: forecast?.panel(filter: filter),
+                readout: readout,
+                filter: filter,
+                onSelectFilter: { viewModel.selectVelovFilter($0) },
+                onSelectStep: { step = $0 }
+            )
+            if let neighbours = readout?.saferNearby, !neighbours.isEmpty {
+                saferNearby(neighbours)
+            }
+        }
     }
 
     /// « Plus sûr à côté » : les voisines où la chance est meilleure à la même échéance.
@@ -235,12 +294,5 @@ private struct VelovStationPage: View {
             }
         }
         .velovForecastCard()
-    }
-
-    private func openWalkingDirections() {
-        let coordinate = CLLocationCoordinate2D(latitude: station.lat, longitude: station.lng)
-        let item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
-        item.name = "Vélo'v \(station.displayName)"
-        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
     }
 }

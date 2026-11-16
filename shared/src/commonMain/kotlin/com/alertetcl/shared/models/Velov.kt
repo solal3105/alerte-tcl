@@ -61,8 +61,7 @@ data class VelovStation(
     /** L'état du moment en une ligne : « 5 classiques · 9 électriques · 4 places », ou « Station fermée ». */
     val stateText: String get() =
         if (!open) "Station fermée"
-        else listOf(VelovFilter.MECHANICAL, VelovFilter.ELECTRIC, VelovFilter.STANDS)
-            .joinToString(" · ") { VelovTexts.count(shownCount(it), it) }
+        else VelovFilter.detailed.joinToString(" · ") { VelovTexts.count(shownCount(it), it) }
 }
 
 /**
@@ -78,6 +77,12 @@ enum class VelovFilter(val title: String, val caption: String) {
     companion object {
         /** Ordre de la barre de filtres, partagé par iOS et Android. */
         val ordered: List<VelovFilter> = listOf(ALL, MECHANICAL, ELECTRIC, STANDS)
+
+        /**
+         * Le détail de l'état du moment, dans l'ordre de la fiche : classiques, électriques, places.
+         * Chaque plateforme y lit `shownCount` et `VelovTexts.unit` pour chaque case.
+         */
+        val detailed: List<VelovFilter> = listOf(MECHANICAL, ELECTRIC, STANDS)
 
         /** Relit une préférence enregistrée, et revient à « Tous » si elle est absente ou inconnue. */
         fun fromName(name: String?): VelovFilter = ordered.firstOrNull { it.name == name } ?: ALL

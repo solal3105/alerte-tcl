@@ -58,6 +58,7 @@ import com.alertetcl.android.R
 import com.alertetcl.android.ui.intro.IntroDialog
 import com.alertetcl.android.ui.openUrl
 import com.alertetcl.android.ui.theme.Tokens
+import com.alertetcl.shared.models.Intro
 
 /**
  * Onglet Info : l'application d'abord (icône, nom, accroche, quatre promesses), puis qui est
@@ -143,7 +144,7 @@ private fun NewInThisVersion() {
             )
         }
     }
-    if (showIntro) IntroDialog(atLaunch = false, onFinish = { showIntro = false })
+    if (showIntro) IntroDialog(atLaunch = false, seenRevision = Intro.NEVER_SEEN, onFinish = { showIntro = false })
 }
 
 @Composable

@@ -38,13 +38,12 @@ internal class VelovForecastNearby(
     private val answers = HashMap<Pair<Int, VelovFilter>, List<VelovForecastNeighbour>>()
 
     fun saferAt(step: Int, filter: VelovFilter): List<VelovForecastNeighbour> = answers.getOrPut(step to filter) {
-        val glances = model.glances(candidates.map { it.station }, originEpochMs, step, filter)
-        val safe = candidates.filterIndexed { rank, _ -> VelovChance.of(glances[rank].probability).level.isSafe }.take(MAX_SHOWN)
+        val chances = model.chances(candidates.map { it.station }, originEpochMs, step, filter)
+        val safe = candidates.filterIndexed { rank, _ -> VelovChance.of(chances[rank]).level.isSafe }.take(MAX_SHOWN)
         val outlooks = model.outlooks(safe.map { it.station }, originEpochMs, step, filter)
         safe.mapIndexed { rank, candidate ->
             val outlook = outlooks[rank]
-            val range = VelovTexts.range(outlook.at(VelovForecastOutlook.LOW), outlook.at(VelovForecastOutlook.HIGH), filter)
-            VelovForecastNeighbour(candidate.station, "${walk(candidate.meters)} · $range", VelovChance.of(outlook.probability))
+            VelovForecastNeighbour(candidate.station, "${walk(candidate.meters)} · ${VelovTexts.range(outlook.range, filter)}", VelovChance.of(outlook.probability))
         }
     }
 

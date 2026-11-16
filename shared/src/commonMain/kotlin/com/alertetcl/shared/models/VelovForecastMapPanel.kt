@@ -8,10 +8,8 @@ package com.alertetcl.shared.models
 data class VelovForecastMapPanel(
     /** « Maintenant », « Aujourd'hui à 19 h 45 », « Demain à 8 h 30 » */
     val title: String,
-    /** « Glissez pour voir la prévision », tant que le curseur n'a pas bougé. */
+    /** « Glissez pour voir la prévision », à l'échéance 0 seulement. Aucun bouton n'y ramène : on y revient en glissant. */
     val hint: String?,
-    /** Libellé du bouton qui ramène le curseur à l'échéance 0 ; null quand il y est déjà. */
-    val nowButton: String?,
     /** Heures écrites sous le curseur, toutes les 3 h. */
     val ticks: List<VelovForecastTick>
 ) {
@@ -24,9 +22,9 @@ data class VelovForecastMapPanel(
             val timeline = VelovForecastTimeline(originEpochMs)
             val shown = VelovForecastTimeline.bounded(step)
             val ticks = timeline.ticks(TICK_HOURS)
-            if (shown == 0) return VelovForecastMapPanel(VelovForecastTimeline.NOW, HINT, null, ticks)
+            if (shown == 0) return VelovForecastMapPanel(VelovForecastTimeline.NOW, HINT, ticks)
             val day = if (timeline.isNextDay(shown)) "Demain" else "Aujourd'hui"
-            return VelovForecastMapPanel("$day à ${timeline.clock(shown)}", null, VelovForecastTimeline.NOW, ticks)
+            return VelovForecastMapPanel("$day à ${timeline.clock(shown)}", null, ticks)
         }
     }
 }

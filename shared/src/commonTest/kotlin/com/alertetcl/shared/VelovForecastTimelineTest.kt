@@ -138,7 +138,6 @@ class VelovForecastTimelineTest {
         val now = panel(0)
         assertEquals("Maintenant", now.title)
         assertEquals("Glissez pour voir la prévision", now.hint)
-        assertNull(now.nowButton)
     }
 
     @Test
@@ -148,7 +147,6 @@ class VelovForecastTimelineTest {
         assertEquals("Demain à 9 h", panel(57).title)
         assertEquals("Demain à 0 h", panel(21).title)
         assertNull(panel(4).hint)
-        assertEquals("Maintenant", panel(4).nowButton)
     }
 
     @Test

@@ -151,12 +151,20 @@ enum MarkerImageCache {
     }()
 
     /// Marqueur d'une station Vélo'v : carré arrondi à la couleur de disponibilité, le pictogramme du
-    /// filtre courant et le nombre compté.
-    static func velovMarker(count: Int, availability: AvailabilityColor, symbol: String) -> UIImage {
-        let key = "velov-\(count)-\(availability.name)-\(symbol)" as NSString
+    /// filtre courant et le texte du marqueur (un nombre, ou une fourchette « 12–25 » qui l'élargit).
+    static func velovMarker(label: String, availability: AvailabilityColor, symbol: String) -> UIImage {
+        let key = "velov-\(label)-\(availability.name)-\(symbol)" as NSString
         if let cached = velovCache.object(forKey: key) { return cached }
-        let color = uiColor(Color(token: AppColors.shared.parkingAvailability(color: availability)))
-        let image = renderVelovMarker(bikes: count, color: color, symbol: symbol)
+        let image = renderVelovMarker(label: label, color: velovColor(availability), symbol: symbol)
+        velovCache.setObject(image, forKey: key)
+        return image
+    }
+
+    /// Point d'une station Vélo'v vue de loin : disque à la couleur de disponibilité cerclé de blanc.
+    static func velovDot(availability: AvailabilityColor) -> UIImage {
+        let key = "velov-dot-\(availability.name)" as NSString
+        if let cached = velovCache.object(forKey: key) { return cached }
+        let image = renderVelovDot(color: velovColor(availability))
         velovCache.setObject(image, forKey: key)
         return image
     }
@@ -180,7 +188,8 @@ enum MarkerImageCache {
     private static let bearingArrowCache: NSCache<NSString, UIImage>     = makeCache(name: "marker.arrow",       limit: 128)
     private static let vehicleDotCache:   NSCache<NSString, UIImage>      = makeCache(name: "marker.dot",         limit: 128)
     private static let sharedDotCache: NSCache<NSString, UIImage>        = makeCache(name: "marker.stopDot",     limit: 64)
-    private static let velovCache: NSCache<NSString, UIImage>            = makeCache(name: "marker.velov",       limit: 256)
+    // Les fourchettes prévues multiplient les textes : de quoi garder toutes celles d'un glissement du curseur.
+    private static let velovCache: NSCache<NSString, UIImage>            = makeCache(name: "marker.velov",       limit: 1024)
 
     private static func makeCache<K, V>(name: String, limit: Int) -> NSCache<K, V> {
         let cache = NSCache<K, V>()
@@ -258,8 +267,19 @@ enum MarkerImageCache {
         }
     }
 
-    private static func renderVelovMarker(bikes: Int, color: UIColor, symbol: String) -> UIImage {
-        let size = CGSize(width: 30, height: 30)
+    private static func velovColor(_ availability: AvailabilityColor) -> UIColor {
+        uiColor(Color(token: AppColors.shared.parkingAvailability(color: availability)))
+    }
+
+    private static func renderVelovMarker(label: String, color: UIColor, symbol: String) -> UIImage {
+        let text = label as NSString
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 10, weight: .heavy),
+            .foregroundColor: UIColor.white,
+        ]
+        let textSize = text.size(withAttributes: attributes)
+        // Carré de 30 pt pour un nombre, élargi pour qu'une fourchette garde 5 pt de marge de chaque côté.
+        let size = CGSize(width: max(30, ceil(textSize.width) + 13), height: 30)
         return imageRenderer(size: size).image { ctx in
             let cg = ctx.cgContext
             let rect = CGRect(origin: .zero, size: size).insetBy(dx: 1.5, dy: 1.5)
@@ -277,13 +297,25 @@ enum MarkerImageCache {
                 let s = icon.size
                 icon.draw(in: CGRect(x: (size.width - s.width) / 2, y: 4, width: s.width, height: s.height))
             }
-            let text = "\(bikes)" as NSString
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 10, weight: .heavy),
-                .foregroundColor: UIColor.white,
-            ]
-            let textSize = text.size(withAttributes: attributes)
             text.draw(at: CGPoint(x: (size.width - textSize.width) / 2, y: size.height - textSize.height - 3), withAttributes: attributes)
+        }
+    }
+
+    private static func renderVelovDot(color: UIColor) -> UIImage {
+        // Disque de 16 pt, liseré blanc de 2 pt à cheval sur son bord, et la place de son ombre autour.
+        let diameter: CGFloat = 16
+        let margin: CGFloat = 5
+        let side = diameter + 2 * margin
+        return imageRenderer(size: CGSize(width: side, height: side)).image { ctx in
+            let cg = ctx.cgContext
+            let disc = CGRect(x: margin, y: margin, width: diameter, height: diameter)
+            cg.setShadow(offset: CGSize(width: 0, height: 1), blur: 3, color: color.withAlphaComponent(0.5).cgColor)
+            color.setFill()
+            cg.fillEllipse(in: disc)
+            cg.setShadow(offset: .zero, blur: 0, color: nil)
+            cg.setStrokeColor(UIColor.white.cgColor)
+            cg.setLineWidth(2)
+            cg.strokeEllipse(in: disc)
         }
     }
 

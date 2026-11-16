@@ -65,11 +65,12 @@ import kotlinx.coroutines.launch
 /**
  * Écran d'intro : une page par nouveauté, illustrée par l'écran correspondant de l'application, avec
  * les textes du module partagé ([Intro]). Il s'ouvre à la première utilisation et après une mise à
- * jour qui change la révision du contenu, et reste consultable depuis l'onglet Info.
+ * jour qui change la révision du contenu, et reste consultable depuis l'onglet Info. Les pages
+ * dépendent de la révision déjà vue ([seenRevision], [Intro.NEVER_SEEN] depuis l'onglet Info).
  */
 @Composable
-fun IntroScreen(atLaunch: Boolean, onFinish: () -> Unit) {
-    val pages = remember { Intro.pages(includeWidgets = false) }
+fun IntroScreen(atLaunch: Boolean, seenRevision: Int, onFinish: () -> Unit) {
+    val pages = remember(seenRevision) { Intro.pages(includeWidgets = false, seenRevision = seenRevision) }
     val pager = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()
     val isLast = pager.currentPage >= pages.size - 1
@@ -266,6 +267,8 @@ private fun screenshot(visual: IntroVisual): Int = when (visual) {
     IntroVisual.MAP -> R.drawable.intro_carte
     IntroVisual.CITY -> R.drawable.intro_autour
     IntroVisual.VELOV -> R.drawable.intro_velov
+    IntroVisual.VELOV_FORECAST_MAP -> R.drawable.intro_velov_prevision_carte
+    IntroVisual.VELOV_FORECAST_SHEET -> R.drawable.intro_velov_prevision_fiche
     else -> R.drawable.intro_alertes
 }
 
@@ -303,11 +306,11 @@ private fun Halo(size: Int, alpha: Float, accent: Color, x: Float, y: Float) {
 
 /** L'intro en plein écran, par-dessus l'écran courant. */
 @Composable
-fun IntroDialog(atLaunch: Boolean, onFinish: () -> Unit) {
+fun IntroDialog(atLaunch: Boolean, seenRevision: Int, onFinish: () -> Unit) {
     Dialog(
         onDismissRequest = onFinish,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
-        IntroScreen(atLaunch = atLaunch, onFinish = onFinish)
+        IntroScreen(atLaunch = atLaunch, seenRevision = seenRevision, onFinish = onFinish)
     }
 }
