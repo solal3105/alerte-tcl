@@ -68,8 +68,8 @@ struct ParkingMapView: View {
                 hasSetInitialLocation = true
                 if demo == "velov-station" {
                     Task {
-                        try? await Task.sleep(nanoseconds: 8_000_000_000)
-                        selectedVelovStation = viewModel.velovStation(id: 2008)
+                        try? await Task.sleep(nanoseconds: 4_000_000_000)
+                        selectedVelovStation = Shared.DemoShowcase.shared.velovStations().first
                     }
                 }
             }

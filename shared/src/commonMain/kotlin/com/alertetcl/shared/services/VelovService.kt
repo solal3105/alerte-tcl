@@ -7,6 +7,7 @@ import com.alertetcl.shared.network.HttpClientProvider
 import com.alertetcl.shared.network.NetworkConfiguration
 import com.alertetcl.shared.network.safeDecode
 import com.alertetcl.shared.network.safeRequest
+import com.alertetcl.shared.util.DemoShowcase
 import io.ktor.client.call.body
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
@@ -26,6 +27,7 @@ class VelovService {
 
     @Throws(Exception::class)
     suspend fun fetchStations(forceRefresh: Boolean = false): List<VelovStation> {
+        if (DemoShowcase.isActive) return DemoShowcase.velovStations()
         if (!forceRefresh) {
             mutex.withLock {
                 val stations = cached
