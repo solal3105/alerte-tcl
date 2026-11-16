@@ -30,7 +30,7 @@ struct LineBadge: View {
     
     var body: some View {
         Text(line)
-            .font(.system(size: size, weight: .bold))
+            .lineBadgeFont(size: size, weight: .bold)
             .foregroundStyle(textColor)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
@@ -40,6 +40,34 @@ struct LineBadge: View {
                 Capsule()
                     .stroke(Color.appNeutralBorder, lineWidth: needsBorder ? 1 : 0)
             )
+            // Le texte voisin se raccourcit avant le numéro de ligne.
+            .layoutPriority(1)
+    }
+}
+
+/// Police d'un numéro de ligne (`LineBadge`, `AlertLineBadgeView`) : elle suit la taille du texte
+/// choisie dans les réglages du téléphone, jusqu'au double, et le numéro tient toujours sur une ligne,
+/// entier. Le badge s'élargit pour « C20EX » ; si la place manque vraiment, le texte rapetisse au lieu
+/// d'être coupé (« C1 » pour « C13 » avec les plus grandes tailles de texte).
+private struct LineBadgeFont: ViewModifier {
+    /// Au-delà, le badge déborderait des cartes et des listes qui l'accueillent.
+    private static let maxScale: CGFloat = 2
+
+    let size: CGFloat
+    let weight: Font.Weight
+    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
+
+    func body(content: Content) -> some View {
+        content
+            .font(.system(size: size * min(scale, Self.maxScale), weight: weight))
+            .lineLimit(1)
+            .minimumScaleFactor(0.4)
+    }
+}
+
+extension View {
+    func lineBadgeFont(size: CGFloat, weight: Font.Weight) -> some View {
+        modifier(LineBadgeFont(size: size, weight: weight))
     }
 }
 

@@ -616,10 +616,11 @@ struct VehicleDetailSheet: View {
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(accentTextColor)
                         Text(vehicle.lineName)
-                            .font(.system(size: 13, weight: .bold))
+                            .lineBadgeFont(size: 13, weight: .bold)
                             .foregroundStyle(accentTextColor)
-                            .lineLimit(1)
+                            .padding(.horizontal, 4)
                     }
+                    .frame(width: 64, height: 64)
                 }
                 .shadow(color: accentColor.opacity(0.35), radius: 8, x: 0, y: 4)
 
@@ -1267,59 +1268,6 @@ private struct StopFocusBanner: View {
 
 // MARK: - Traffic Banner View
 
-
-// MARK: - Subscribed Line Pill
-
-private struct SubscribedLinePill: View {
-    @ObservedObject private var palette = LinePaletteObserver.shared
-    let line: TransportLine
-    let disruption: AlertViewModel.LineAlertSummary?
-
-    @State private var isPulsing = false
-
-    private var dotColor: Color? {
-        guard let d = disruption else { return nil }
-        return d.highestSeverity == .major ? Color.appError : Color.appWarning
-    }
-
-    private var lineName: String {
-        line.ligneCli.isEmpty ? line.ligneCom : line.ligneCli
-    }
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Text(lineName)
-                .font(.system(size: 12, weight: .black))
-                .foregroundStyle(LineColorHelper.textColor(for: lineName))
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(LineColorHelper.backgroundColor(for: lineName))
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule().strokeBorder(
-                        LineColorHelper.needsBorder(for: lineName) ? Color.appNeutralBorder : .clear,
-                        lineWidth: 0.5
-                    )
-                )
-
-            if let color = dotColor {
-                Circle()
-                    .fill(color)
-                    .frame(width: 9, height: 9)
-                    .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 1.5))
-                    .scaleEffect(isPulsing && color == .appError ? 1.3 : 1.0)
-                    .animation(
-                        color == .appError
-                            ? .easeInOut(duration: 0.7).repeatForever(autoreverses: true)
-                            : .default,
-                        value: isPulsing
-                    )
-                    .offset(x: 3, y: -3)
-            }
-        }
-        .onAppear { isPulsing = true }
-    }
-}
 
 // MARK: - Traffic State (kept for reference, no longer used)
 
