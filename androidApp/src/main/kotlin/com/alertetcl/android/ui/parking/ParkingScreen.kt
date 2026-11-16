@@ -196,8 +196,8 @@ fun ParkingScreen(type: ParkingType) {
             if (demo.startsWith("velov")) {
                 store.setVelovFilter(if (demo == "velov-electriques") VelovFilter.ELECTRIC else VelovFilter.ALL)
                 if (demo == "velov-station") {
-                    kotlinx.coroutines.delay(6_000)
-                    vm.selectVelovStation(DemoShowcase.velovStations().first())
+                    kotlinx.coroutines.delay(12_000)
+                    vm.selectVelovStation(vm.velovStations.value.firstOrNull { it.id == 2008 })
                 }
             }
         }
