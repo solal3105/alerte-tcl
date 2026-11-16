@@ -156,30 +156,47 @@ class VariablesTest(unittest.TestCase):
 
 
 class PredictTest(unittest.TestCase):
-    def bundle(self, deltas: dict[int, float]) -> dict:
-        forests = {f"velos_q{k}": {"objectif": "quantile", "arbres": [leaf(delta)]} for k, delta in deltas.items()}
+    def bundle(self, deltas: dict[int, float], electric: dict[int, float] | None = None) -> dict:
+        """Modèle à une feuille par arbre : `deltas` pour tous les vélos, `electric` pour les électriques, rien pour les mécaniques."""
+        by_kind = {"velos": deltas, "elec": electric or dict.fromkeys(deltas, 0.0), "meca": dict.fromkeys(deltas, 0.0)}
+        forests = {f"{kind}_q{k}": {"objectif": "quantile", "arbres": [leaf(delta)]} for kind, values in by_kind.items() for k, delta in values.items()}
         forests["velos_p1"] = {"objectif": "binary", "arbres": [leaf(0.0), leaf(math.log(3))]}
+        forests["elec_p1"] = {"objectif": "binary", "arbres": [leaf(math.log(4))]}
+        forests["meca_p1"] = {"objectif": "binary", "arbres": [leaf(0.0)]}
         forests["bornes_p1"] = {"objectif": "binary", "arbres": [leaf(-math.log(3))]}
-        forests["part_elec"] = {"objectif": "cross_entropy", "arbres": [leaf(0.0)]}
         return {"variables": ["velos0"], "deciles": list(deltas), "modeles": forests, "habitude": {}, "stations": [], "calendrier": {"feries": [], "vacances": []}}
 
-    def predict(self, deltas: dict[int, float], capacite: int = 20) -> dict:
+    def predict(self, deltas: dict[int, float], capacite: int = 20, bornes0: int = 10, **more) -> dict:
         rows = {"station": np.array([1]), "t0": np.array([epoch("2026-07-15T08:45")]), "xq": np.array([4]),
-                "elec0": np.array([2]), "meca0": np.array([3]), "bornes0": np.array([10]), "capacite": np.array([capacite])}
-        return reader.predict(self.bundle(deltas), rows)
+                "elec0": np.array([2]), "meca0": np.array([3]), "bornes0": np.array([bornes0]), "capacite": np.array([capacite])}
+        return reader.predict(self.bundle(deltas, **more), rows)
 
     def test_deciles_are_added_to_the_present_bikes_and_sorted(self):
-        self.assertEqual([[4.0, 5.5, 7.0]], self.predict({10: 0.5, 50: -1, 90: 2})["q"].tolist())
+        self.assertEqual([[4.0, 5.5, 7.0]], self.predict({10: 0.5, 50: -1, 90: 2})["q"]["velos"].tolist())
+
+    def test_each_kind_starts_from_its_own_present_count(self):
+        q = self.predict({10: -1, 50: 0, 90: 1}, electric={10: -0.5, 50: 0.5, 90: 4})["q"]
+        self.assertEqual([[1.5, 2.5, 6.0]], q["elec"].tolist())
+        self.assertEqual([[3.0, 3.0, 3.0]], q["meca"].tolist())
 
     def test_deciles_are_kept_within_the_capacity(self):
-        self.assertEqual([[0.0, 5.0, 6.0]], self.predict({10: -9, 50: 0, 90: 30}, capacite=6)["q"].tolist())
-        self.assertEqual([[1.0]], self.predict({50: 3}, capacite=0)["q"].tolist())
+        self.assertEqual([[0.0, 5.0, 6.0]], self.predict({10: -9, 50: 0, 90: 30}, capacite=6)["q"]["velos"].tolist())
+        self.assertEqual([[0.0, 2.0, 6.0]], self.predict({10: 0, 50: 0, 90: 0}, capacite=6, electric={10: -9, 50: 0, 90: 30})["q"]["elec"].tolist())
+        self.assertEqual([[1.0]], self.predict({50: 3}, capacite=0)["q"]["velos"].tolist())
+
+    def test_free_docks_are_what_is_not_a_bike(self):
+        # 5 vélos et 10 places : avec 4 à 7 vélos attendus, il restera 8 à 11 places, du décile bas au décile haut.
+        self.assertEqual([[8.0, 10.0, 11.0]], self.predict({10: -1, 50: 0, 90: 2})["q"]["bornes"].tolist())
+
+    def test_free_docks_stay_within_the_capacity(self):
+        # 5 vélos et 1 place sur 6 bornes en service : 8 vélos ne laissent aucune place, jamais un nombre négatif.
+        self.assertEqual([[0.0, 1.0, 6.0]], self.predict({10: -9, 50: 0, 90: 3}, capacite=6, bornes0=1)["q"]["bornes"].tolist())
 
     def test_probabilities_go_through_a_sigmoid_of_the_summed_leaves(self):
-        p = self.predict({50: 0})
-        self.assertAlmostEqual(0.75, p["p_velo"][0])
-        self.assertAlmostEqual(0.25, p["p_place"][0])
-        self.assertAlmostEqual(0.5, p["part_elec"][0])
+        p1 = self.predict({50: 0})["p1"]
+        self.assertEqual(["velos", "elec", "meca", "bornes"], list(p1))
+        for kind, expected in (("velos", 0.75), ("elec", 0.8), ("meca", 0.5), ("bornes", 0.25)):
+            self.assertAlmostEqual(expected, p1[kind][0])
 
 
 if __name__ == "__main__":

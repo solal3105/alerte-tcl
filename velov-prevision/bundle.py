@@ -11,7 +11,7 @@ import os
 FORMAT = 1
 MODEL_FILE = "modele.json"
 INDEX_FILE = "index.json"
-# Modèle tenu pour « en ligne » tant que le robot n'a rien publié (voir build_seed.py).
+# Modèle tenu pour « en ligne » tant que le robot n'a rien publié (voir README.md, « Amorce »).
 SEED_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "amorce", MODEL_FILE)
 
 

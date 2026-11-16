@@ -153,7 +153,7 @@ class RunTest(unittest.TestCase):
 
     def test_an_unreadable_published_model_is_replaced_by_a_good_candidate(self):
         self.publish("2026-10-12", NOW - 7 * DAY, content=b"{tronqu")
-        self.assertEqual([], self.run_robot(online=control.Verdict([], ["fichier illisible"]), candidate=GOOD))
+        self.assertEqual([], self.run_robot(online=control.Verdict({}, ["fichier illisible"]), candidate=GOOD))
         self.assertEqual("2026-10-19", self.written()[0]["version"])
 
     def test_a_relay_outage_changes_nothing_and_is_silent(self):
@@ -241,7 +241,9 @@ class PublishedFilesTest(unittest.TestCase):
             seed = json.load(source)
         self.assertEqual(bundle.FORMAT, seed["format"])
         self.assertEqual({"version", "genere", "variables", "deciles", "modeles", "habitude", "stations", "calendrier", "controle"}, set(seed) - {"format"})
-        self.assertEqual(12, len(seed["modeles"]))
+        self.assertEqual(19, len(seed["modeles"]))
+        # Le contrôle de l'amorce est le sien : l'application y lit la justesse annoncée de chaque sorte.
+        self.assertEqual(set(control.KINDS), set(seed["controle"]["sortes"]))
 
 
 if __name__ == "__main__":

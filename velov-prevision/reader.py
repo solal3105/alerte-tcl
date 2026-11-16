@@ -21,7 +21,16 @@ GEO = ("altitude", "dist_metro_km", "dist_tram_km", "dist_gare_km", "lat", "lon"
 HABIT = ("hab_velos", "hab1_velos", "hab1_bornes", "hab_part_elec")
 # Types de jour : 0 semaine, 1 samedi, 2 dimanche ou férié.
 DAY_TYPES = 3
-PROBABILITIES = ("binary", "cross_entropy")
+# Sortes de vélos prévues (tous, électriques, mécaniques) : chacune a ses modèles de déciles
+# `<sorte>_q<décile>` et sa probabilité d'en trouver au moins un `<sorte>_p1`. Les places n'ont que
+# leur probabilité `bornes_p1` : leurs déciles se déduisent de ceux des vélos.
+BIKES = ("velos", "elec", "meca")
+DOCKS = "bornes"
+
+
+def bike_counts(elec: np.ndarray, meca: np.ndarray) -> dict[str, np.ndarray]:
+    """Nombre de vélos de chaque sorte à partir des électriques et des mécaniques."""
+    return {"velos": elec + meca, "elec": elec, "meca": meca}
 
 
 def calendar_columns(t: np.ndarray, calendrier: dict) -> dict[str, np.ndarray]:
@@ -92,7 +101,7 @@ def geo_columns(stations: list[dict], station: np.ndarray) -> np.ndarray:
 def variables(rows: dict, stations: list[dict], calendrier: dict, habit: tuple[np.ndarray, np.ndarray] | None) -> dict[str, np.ndarray]:
     """Variables du modèle pour chaque ligne (station, t0, xq, elec0, meca0, bornes0, capacite).
     Sans `habit`, les colonnes d'habitude restent à remplir (entraînement, voir training.py)."""
-    velos0 = rows["elec0"] + rows["meca0"]
+    velos0 = bike_counts(rows["elec0"], rows["meca0"])["velos"]
     origine = calendar_columns(rows["t0"], calendrier)
     cible = calendar_columns(rows["t0"] + rows["xq"] * STEP, calendrier)
     with np.errstate(invalid="ignore", divide="ignore"):
@@ -161,18 +170,22 @@ def raw_scores(bundle: dict, cols: list[np.ndarray]) -> dict[str, np.ndarray]:
         return dict(zip(names, scores))
 
 
-def predict(bundle: dict, rows: dict) -> dict[str, np.ndarray]:
-    """Prévision de chaque ligne, comme l'application : déciles de vélos triés et bornés à la capacité
-    (`q`, une colonne par décile), probabilité d'au moins un vélo, d'au moins une place, part d'électriques."""
+def predict(bundle: dict, rows: dict) -> dict[str, dict[str, np.ndarray]]:
+    """Prévision de chaque ligne, comme l'application. `q` : déciles croissants de chaque sorte de vélos
+    (présents + écart prévu, triés, bornés à la capacité) et des places, déduites des vélos (ce qui n'est
+    pas vélo est place : la colonne du décile k des places vient du décile 100 − k des vélos). `p1` :
+    probabilité d'au moins un vélo de chaque sorte, d'au moins une place."""
     scores = raw_scores(bundle, columns(bundle, rows))
 
     def value(name: str) -> np.ndarray:
         raw = scores[name]
-        return 1 / (1 + np.exp(-raw)) if bundle["modeles"][name]["objectif"] in PROBABILITIES else raw
+        return 1 / (1 + np.exp(-raw)) if bundle["modeles"][name]["objectif"] == "binary" else raw
 
-    velos0 = rows["elec0"] + rows["meca0"]
-    q = np.sort(np.column_stack([value(f"velos_q{k}") + velos0 for k in bundle["deciles"]]), axis=1)
-    return {
-        "q": np.clip(q, 0, np.maximum(1, rows["capacite"])[:, None]),
-        "p_velo": value("velos_p1"), "p_place": value("bornes_p1"), "part_elec": value("part_elec"),
+    capacite = np.maximum(1, rows["capacite"])[:, None]
+    now = bike_counts(rows["elec0"], rows["meca0"])
+    q = {
+        kind: np.clip(np.sort(np.column_stack([value(f"{kind}_q{k}") + now[kind] for k in bundle["deciles"]]), axis=1), 0, capacite)
+        for kind in BIKES
     }
+    q[DOCKS] = np.clip((rows["bornes0"] + now["velos"])[:, None] - q["velos"][:, ::-1], 0, capacite)
+    return {"q": q, "p1": {kind: value(f"{kind}_p1") for kind in (*BIKES, DOCKS)}}

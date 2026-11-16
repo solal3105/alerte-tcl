@@ -1,11 +1,12 @@
 """
 Entraînement du modèle de prévision Vélo'v, selon la recette de l'étude d'origine (version légère,
-celle que les applications évaluent elles-mêmes) : douze modèles LightGBM qui ne lisent que l'état
+celle que les applications évaluent elles-mêmes) : dix-neuf modèles LightGBM qui ne lisent que l'état
 présent de la station, le calendrier de l'heure visée, l'habitude de la station et sa position.
 
-  velos_q10 … velos_q90   déciles de l'écart entre les vélos à l'heure visée et les vélos présents
-  velos_p1, bornes_p1     probabilité d'au moins un vélo, d'au moins une place libre
-  part_elec               part d'électriques parmi les vélos présents à l'heure visée
+Pour chaque sorte de vélos (`velos` tous, `elec` électriques, `meca` mécaniques) :
+  <sorte>_q10 … <sorte>_q90   déciles de l'écart entre le nombre à l'heure visée et le nombre présent
+  <sorte>_p1                  probabilité d'en trouver au moins un à l'heure visée
+et `bornes_p1`, probabilité d'au moins une place libre.
 """
 from __future__ import annotations
 
@@ -15,7 +16,8 @@ import numpy as np
 import reader
 from readings import Grid
 
-DECILES = (10, 20, 30, 40, 50, 60, 70, 80, 90)
+# Les cinq déciles qu'affichent les applications : fourchettes 10-90 et 30-70 autour de la médiane.
+DECILES = (10, 30, 50, 70, 90)
 # Horizons de 15 minutes à 24 heures, en quarts d'heure.
 MAX_HORIZON = 96
 # Horizons notés pendant la semaine de contrôle : 15 et 30 min, 1, 2, 3, 6, 12 et 24 h.
@@ -53,8 +55,8 @@ def pair_rows(grid: Grid, slot: np.ndarray, column: np.ndarray, xq: np.ndarray, 
     return {
         "station": grid.stations[column], "t0": grid.start + slot * reader.STEP, "xq": xq,
         "elec0": at(grid.elec, slot), "meca0": at(grid.meca, slot), "bornes0": at(grid.bornes, slot),
-        "capacite": at(grid.capacite, slot), "y_elec": at(grid.elec, target),
-        "y_velos": at(grid.elec, target) + at(grid.meca, target), "y_bornes": at(grid.bornes, target),
+        "capacite": at(grid.capacite, slot), "y_elec": at(grid.elec, target), "y_meca": at(grid.meca, target),
+        "y_bornes": at(grid.bornes, target),
     }
 
 
@@ -89,7 +91,7 @@ def habit_table(rows: dict, type_jour: np.ndarray, hour: np.ndarray) -> tuple[np
     ids, rank = np.unique(rows["station"], return_inverse=True)
     size = len(ids) * reader.DAY_TYPES * 24
     cell = (rank * reader.DAY_TYPES + type_jour.astype(np.int64)) * 24 + hour.astype(np.int64)
-    velos = rows["y_velos"]
+    velos = reader.bike_counts(rows["y_elec"], rows["y_meca"])["velos"]
     with_bikes = velos > 0
 
     def mean(values: np.ndarray, among: np.ndarray | None = None) -> np.ndarray:
@@ -156,7 +158,7 @@ def forest_json(booster: lgb.Booster) -> dict:
 
 
 def train(rows: dict, stations: list[dict], calendrier: dict, log) -> tuple[dict, dict, dict[str, lgb.Booster]]:
-    """Entraîne les douze modèles sur `rows` (lignes de `training_rows`). Rend les modèles et l'habitude au
+    """Entraîne les dix-neuf modèles sur `rows` (lignes de `training_rows`). Rend les modèles et l'habitude au
     format publié, ainsi que les modèles LightGBM eux-mêmes pour la contre-vérification du lecteur."""
     cols = reader.variables(rows, stations, calendrier, None)
     type_jour, hour = reader.habit_slot(cols)
@@ -173,9 +175,9 @@ def train(rows: dict, stations: list[dict], calendrier: dict, log) -> tuple[dict
     x = np.column_stack([cols[name] for name in VARIABLES])
     validation = target_time >= np.quantile(target_time, 1 - VALIDATION_SHARE)
 
-    def fit(name: str, target: np.ndarray, weight: np.ndarray | None = None, **params) -> lgb.Booster:
+    def fit(name: str, target: np.ndarray, **params) -> lgb.Booster:
         def dataset(keep: np.ndarray) -> lgb.Dataset:
-            return lgb.Dataset(x[keep], target[keep], weight=None if weight is None else weight[keep], feature_name=list(VARIABLES))
+            return lgb.Dataset(x[keep], target[keep], feature_name=list(VARIABLES))
 
         booster = lgb.train(
             {**PARAMS, **params}, dataset(~validation), MAX_TREES, valid_sets=[dataset(validation)],
@@ -184,13 +186,14 @@ def train(rows: dict, stations: list[dict], calendrier: dict, log) -> tuple[dict
         log(f"  {name} : {booster.best_iteration} arbres")
         return booster
 
-    velos, velos0 = rows["y_velos"], rows["elec0"] + rows["meca0"]
-    # Quantiles appris sur l'écart à l'état actuel : à court terme la fourchette reste serrée autour du stock présent.
-    boosters = {f"velos_q{k}": fit(f"velos_q{k}", (velos - velos0).astype(float), objective="quantile", alpha=k / 100) for k in DECILES}
-    boosters["velos_p1"] = fit("velos_p1", (velos >= 1).astype(float), objective="binary")
-    boosters["bornes_p1"] = fit("bornes_p1", (rows["y_bornes"] >= 1).astype(float), objective="binary")
-    # Part d'électriques : moyenne pondérée par le nombre de vélos présents à l'heure visée.
-    boosters["part_elec"] = fit("part_elec", rows["y_elec"] / np.maximum(velos, 1), velos.astype(float), objective="cross_entropy")
+    now, later = reader.bike_counts(rows["elec0"], rows["meca0"]), reader.bike_counts(rows["y_elec"], rows["y_meca"])
+    boosters = {}
+    for kind in reader.BIKES:
+        # Quantiles appris sur l'écart à l'état actuel : à court terme la fourchette reste serrée autour du stock présent.
+        delta = (later[kind] - now[kind]).astype(float)
+        boosters.update({f"{kind}_q{k}": fit(f"{kind}_q{k}", delta, objective="quantile", alpha=k / 100) for k in DECILES})
+        boosters[f"{kind}_p1"] = fit(f"{kind}_p1", (later[kind] >= 1).astype(float), objective="binary")
+    boosters[f"{reader.DOCKS}_p1"] = fit(f"{reader.DOCKS}_p1", (rows["y_bornes"] >= 1).astype(float), objective="binary")
     modeles = {"variables": list(VARIABLES), "deciles": list(DECILES), "modeles": {name: forest_json(b) for name, b in boosters.items()}}
     return modeles, habit_json(habit_table(rows, type_jour, hour)), boosters
 

@@ -73,14 +73,16 @@ def version_of(cut: int) -> str:
 
 
 def figures_table(title: str, verdict: control.Verdict) -> list[str]:
-    """Chiffres d'un contrôle, lisibles dans le journal comme dans le résumé GitHub (Markdown)."""
-    names = ("lignes", "err", "err_actuel", "couv80", "couv40", "couv80_places", "couv40_places", "brier", "brier_actuel",
-             "brier_place", "brier_place_actuel", "pinball", "err_part_elec")
+    """Chiffres d'un contrôle, sorte par sorte, lisibles dans le journal comme dans le résumé GitHub (Markdown)."""
+    names = ("lignes", "err", "err_actuel", "couv80", "couv40", "brier", "brier_actuel", "pinball", "pinball_actuel")
     lines = [f"**{title}** : " + ("bon" if verdict.good else "écarté (" + " ; ".join(verdict.defects) + ")"), ""]
-    if verdict.figures:
+    for kind, figures in verdict.figures.items():
+        lines += [f"{control.LABELS[kind].capitalize()} (fourchette 10-90 juste {figures['couv80']:.0%} du temps en moyenne)", ""]
         lines += ["| h | " + " | ".join(names) + " |", "|" + "---|" * (len(names) + 1)]
-        lines += [f"| {line['h']:g} | " + " | ".join(str(line[name]) for name in names) + " |" for line in verdict.figures]
-        lines += ["", f"Note (pinball moyen) : {verdict.score:.4f}", ""]
+        lines += [f"| {line['h']:g} | " + " | ".join(str(line[name]) for name in names) + " |" for line in figures["horizons"]]
+        lines.append("")
+    if verdict.figures:
+        lines += [f"Note (pinball des trois sortes de vélos rapporté à « comme maintenant ») : {verdict.score:.4f}", ""]
     return lines
 
 
@@ -117,7 +119,7 @@ def build_candidate(grid: readings.Grid, cut_slot: int, check: dict, calendrier:
     verdict = control.judge(candidate, check)
     candidate["controle"] = {
         "entrainement": [iso(grid.start + first_slot * STEP), iso(cut)], "semaine": [iso(cut), iso(grid.end)],
-        "lignes_entrainement": len(rows["xq"]), "horizons": verdict.figures,
+        "lignes_entrainement": len(rows["xq"]), "sortes": verdict.figures,
     }
     return candidate, verdict
 

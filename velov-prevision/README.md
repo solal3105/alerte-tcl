@@ -1,8 +1,8 @@
 # Prévision Vélo'v
 
 Ce dossier est le robot qui, chaque semaine et sans intervention, réentraîne le modèle de
-prévision des stations Vélo'v (vélos et places libres dans les 24 heures) et le publie pour les
-applications.
+prévision des stations Vélo'v (vélos, dont électriques et mécaniques, et places libres dans les
+24 heures) et le publie pour les applications.
 
 ## Chaîne de traitement
 
@@ -15,7 +15,7 @@ applications.
    - met les relevés sur une grille au quart d'heure et écarte les stations figées
      (`readings.py`, règles de l'étude d'origine) ;
    - entraîne un candidat sur les 8 semaines qui précèdent la dernière semaine (`training.py`,
-     recette « légère » de l'étude : 12 modèles LightGBM) ;
+     recette « légère » de l'étude : 19 modèles LightGBM) ;
    - note le candidat **et** le modèle en ligne sur la dernière semaine, jamais vue à
      l'entraînement (`control.py`), en relisant les fichiers publiés comme le fait l'application
      (`reader.py`) ;
@@ -47,7 +47,7 @@ Vélo'v », *Run workflow*.
 {
   "format": 1, "version": "2026-11-09", "genere": 1794795420,
   "variables": ["velos0", "elec0", "…"],
-  "deciles": [10, 20, 30, 40, 50, 60, 70, 80, 90],
+  "deciles": [10, 30, 50, 70, 90],
   "modeles": {"velos_q10": {"objectif": "quantile", "arbres": [{"f": [], "s": [], "d": [], "g": [], "r": [], "v": [], "racine": 0}]}},
   "habitude": {"1001": {"0_8": [6.2, 0.97, 0.91, 0.44]}},
   "stations": [{"id": 1001, "nom": "Terreaux", "commune": "Lyon 1er", "cap": 20, "altitude": 170.0,
@@ -55,28 +55,37 @@ Vélo'v », *Run workflow*.
   "calendrier": {"feries": ["2026-11-11"], "vacances": [[1792188000000, 1793574000000]]},
   "controle": {"entrainement": ["2026-09-14T00:00:00Z", "2026-11-09T00:00:00Z"],
                "semaine": ["2026-11-09T00:00:00Z", "2026-11-16T02:15:00Z"],
-               "lignes_entrainement": 1199314, "horizons": [{"h": 0.25, "lignes": 81895, "err": 1.29, "…": 0}]}
+               "lignes_entrainement": 1199314,
+               "sortes": {"velos": {"couv80": 0.82, "horizons": [{"h": 0.25, "lignes": 81895, "err": 1.31, "…": 0}]},
+                          "elec": {}, "meca": {}, "bornes": {}}}
 }
 ```
 
-- `modeles` : 9 modèles `velos_q<décile>` (écart entre les vélos à l'heure visée et les vélos
-  présents), `velos_p1` et `bornes_p1` (probabilité d'au moins un vélo, d'au moins une place),
-  `part_elec` (part d'électriques). Arbres aplatis : pour chaque nœud la variable `f`, le seuil
-  `s`, les drapeaux LightGBM `d` (bit 1 : manquant à gauche ; bits 2-3 : 0 aucun, 1 zéro, 2 NaN),
-  les enfants `g` et `r` ; un enfant négatif `~i` désigne la feuille `v[i]`.
+- `modeles` : pour chaque sorte de vélos (`velos` tous, `elec` électriques, `meca` mécaniques),
+  5 modèles `<sorte>_q<décile>` (écart entre le nombre à l'heure visée et le nombre présent) et
+  `<sorte>_p1` (probabilité d'en trouver au moins un) ; `bornes_p1` (probabilité d'au moins une
+  place). 19 modèles en tout. L'application ajoute l'écart au nombre présent, trie les cinq
+  valeurs et les borne entre 0 et la capacité ; les déciles de places se déduisent des vélos
+  (`places + vélos de maintenant − décile de vélos`, mêmes bornes). Arbres aplatis : pour chaque
+  nœud la variable `f`, le seuil `s`, les drapeaux LightGBM `d` (bit 1 : manquant à gauche ;
+  bits 2-3 : 0 aucun, 1 zéro, 2 NaN), les enfants `g` et `r` ; un enfant négatif `~i` désigne la
+  feuille `v[i]`.
 - `habitude` : par station puis `<type de jour>_<heure>` (0 semaine, 1 samedi, 2 dimanche ou
   férié ; heure de Lyon) : moyenne des vélos, fréquence d'au moins un vélo, d'au moins une place,
   part d'électriques (`null` si jamais de vélo). Créneau absent : aucun relevé.
 - `stations` : repères géographiques. Une clé absente veut dire « inconnu » (valeur manquante).
 - `calendrier` : jours fériés (date de Lyon) et vacances de la zone A, `[début, fin exclue]` en
   millisecondes epoch.
-- `controle` : chiffres du modèle sur sa semaine de contrôle, par horizon `h` (heures) :
-  `err` erreur moyenne de la médiane en vélos, `err_actuel` celle de « autant que maintenant » ;
-  `couv80` / `couv40` part des cas où les vélos tombent dans la fourchette 10-90 / 30-70 ;
-  `couv80_places` / `couv40_places` la même chose pour les places que l'application déduit
-  (`places + vélos de maintenant − décile de vélos`, bornées entre 0 et la capacité) ;
-  `brier`, `brier_place` scores de Brier des deux probabilités, et leurs `_actuel` ;
-  `pinball` perte moyenne des neuf déciles ; `err_part_elec` erreur sur la part d'électriques.
+- `controle` : chiffres du modèle sur sa semaine de contrôle. `sortes` a quatre clés fixes,
+  `velos`, `elec`, `meca` et `bornes` (places), chacune avec :
+  - `couv80` : part des cas où la réalité est tombée dans la fourchette 10-90, moyenne des huit
+    horizons. C'est le « N fois sur 10 » qu'annonce l'application pour la sorte affichée ;
+  - `horizons` : une ligne par horizon `h` (heures : 0,25, 0,5, 1, 2, 3, 6, 12, 24) avec `lignes`
+    (cas notés), `err` erreur moyenne de la médiane et `err_actuel` celle de « autant que
+    maintenant », `couv80` / `couv40` part des cas dans la fourchette 10-90 / 30-70, `brier`
+    score de Brier de la probabilité d'en trouver au moins un et `brier_actuel` celui de « comme
+    maintenant », `pinball` perte moyenne des cinq déciles et `pinball_actuel` celle de « comme
+    maintenant ».
 
 Le format `1` est un contrat avec les applications installées : toute évolution incompatible se
 publie sous un autre numéro.
@@ -130,12 +139,15 @@ applications) et ses scores comparés à ceux de LightGBM sur toute la semaine d
   prend sa position et son nom au relais (`/velov`), et l'altitude et les distances de la station
   connue la plus proche si elle est à moins de 500 m (erreur bornée à 500 m sur une distance) ;
   sinon ces clés sont omises et le modèle les traite comme manquantes.
-- **Amorce.** `amorce/modele.json` est le modèle du prototype (entraîné du 25 août au 20 octobre
-  2026), assemblé par `build_seed.py`. Tant que la branche n'existe pas, il tient lieu de modèle
-  en ligne : il est publié (avec le calendrier du jour) dès qu'il passe le contrôle sur 7 jours
-  de relevés, puis remplacé par le premier candidat, 4 semaines après le début de la collecte.
-  Appris en automne, il peut ne pas passer en hiver (au rejeu de janvier, sa médiane ne bat plus
-  « comme maintenant » à 2 h) : rien n'est alors publié jusqu'au premier candidat, sans alerte.
+- **Amorce.** `amorce/modele.json` est un modèle sorti du robot lui-même : entraîné du 25 août
+  au 20 octobre 2026 sur les relevés de l'étude d'origine, contrôlé du 20 au 27 octobre (son
+  `controle` est ce contrôle-là). Tant que la branche n'existe pas, il tient lieu de modèle en
+  ligne : il est publié (avec le calendrier du jour) dès qu'il passe le contrôle sur 7 jours de
+  relevés, puis remplacé par le premier candidat, 4 semaines après le début de la collecte. Il
+  donne aussi au robot les repères géographiques des stations. Appris en automne, il peut ne pas
+  passer en hiver : rien n'est alors publié jusqu'au premier candidat, sans alerte. Pour le
+  refaire : un passage du robot sur la période voulue (`--maintenant`, `--amorce` l'amorce
+  actuelle sous un autre numéro de version, `--out`), puis copier le `modele.json` écrit.
 - **Dépendances.** `requirements.txt` fixe les versions majeures ; le workflow rejoue les tests
   avant chaque entraînement et se réarme lui-même (`gh workflow enable`), GitHub désactivant les
   workflows planifiés d'un dépôt sans activité depuis 60 jours.

@@ -1,11 +1,14 @@
 package com.alertetcl.shared.services
 
-import com.alertetcl.shared.models.VelovForecast
+import com.alertetcl.shared.models.VelovFilter
 import com.alertetcl.shared.models.VelovForecastBundle
 import com.alertetcl.shared.models.VelovForecastFreshness
 import com.alertetcl.shared.models.VelovForecastIndex
+import com.alertetcl.shared.models.VelovForecastMarker
+import com.alertetcl.shared.models.VelovForecastMarkers
 import com.alertetcl.shared.models.VelovForecastModel
 import com.alertetcl.shared.models.VelovForecastReceipt
+import com.alertetcl.shared.models.VelovForecastSheet
 import com.alertetcl.shared.models.VelovStation
 import com.alertetcl.shared.network.ApiError
 import com.alertetcl.shared.network.HttpClientProvider
@@ -15,6 +18,7 @@ import com.alertetcl.shared.network.safeRequest
 import com.alertetcl.shared.platform.readLocalFile
 import com.alertetcl.shared.platform.writeLocalFile
 import com.alertetcl.shared.util.AppLogger
+import com.alertetcl.shared.util.LatestOnly
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
@@ -38,6 +42,9 @@ import kotlinx.datetime.Clock
  * qu'aucun modèle n'est arrivé, ou si le robot ne l'a plus confirmé depuis trop longtemps
  * ([VelovForecastFreshness]), il n'y a pas de prévision. Lecture, décodage et calcul se font hors du
  * fil principal.
+ *
+ * Partout, `originEpochMs` est l'heure où l'état des stations a été relevé : la fiche et la carte
+ * doivent donner la même pour parler des mêmes échéances.
  */
 class VelovForecastService {
     private val client = HttpClientProvider.client
@@ -53,20 +60,49 @@ class VelovForecastService {
     private val updateMutex = Mutex()
     private var attemptedAt = 0L
 
-    /** Le modèle en mémoire (null : aucun sur disque) et ce que l'on sait de sa fraîcheur. */
-    private class Held(val model: VelovForecastModel?, val receipt: VelovForecastReceipt)
+    /** Un seul calcul de marqueurs à la fois (leur mémoire n'est pas faite pour plusieurs fils), le dernier demandé d'abord. */
+    private val markersQueue = LatestOnly()
+
+    /** Le modèle en mémoire (null : aucun sur disque), ce que l'on sait de sa fraîcheur, et les marqueurs de carte déjà calculés avec lui. */
+    private class Held(val model: VelovForecastModel?, val receipt: VelovForecastReceipt) {
+        val markers: VelovForecastMarkers? = model?.let(::VelovForecastMarkers)
+
+        fun usableModel(originEpochMs: Long): VelovForecastModel? = model?.takeIf { receipt.canShow(originEpochMs / 1000) }
+    }
 
     /**
-     * Prévision de [station] à partir de son état relevé à [nowEpochMs], ou null s'il ne faut rien
-     * afficher : modèle pas encore téléchargé, plus confirmé par le robot, ou station qu'il ne connaît pas.
+     * Vrai s'il y a des prévisions à montrer : un modèle est arrivé et le robot le confirme encore.
+     * C'est la condition d'affichage du curseur d'heure de la carte.
      */
-    suspend fun forecast(station: VelovStation, nowEpochMs: Long): VelovForecast? = withContext(Dispatchers.Default) {
-        val held = held()
-        updateInBackground()
-        held.model
-            ?.takeIf { held.receipt.canShow(nowEpochMs / 1000) && it.knows(station.id) }
-            ?.forecast(station, nowEpochMs)
+    suspend fun isAvailable(originEpochMs: Long): Boolean = withContext(Dispatchers.Default) {
+        current().usableModel(originEpochMs) != null
     }
+
+    /**
+     * La prévision de [station] pour sa fiche, ou null s'il ne faut rien afficher : pas de prévision
+     * disponible, station fermée, ou que le modèle ne connaît pas. [stations] (toutes celles de la
+     * carte) sert à proposer des voisines plus sûres.
+     */
+    suspend fun sheet(station: VelovStation, stations: List<VelovStation>, originEpochMs: Long): VelovForecastSheet? = withContext(Dispatchers.Default) {
+        current().usableModel(originEpochMs)?.let { VelovForecastSheet.of(it, station, stations, originEpochMs) }
+    }
+
+    /**
+     * Les marqueurs de la carte à l'échéance [step] (1 à 96) pour [filter] : une liste vide sans
+     * prévision disponible, et pas de marqueur pour une station fermée ou inconnue du modèle. Une
+     * échéance déjà demandée pour les mêmes [stations], la même heure et le même filtre revient aussitôt.
+     *
+     * Null quand une autre échéance a été demandée entre-temps (le curseur a continué de glisser) :
+     * la carte garde alors ce qu'elle montre, la réponse à la dernière demande suit.
+     */
+    suspend fun markers(stations: List<VelovStation>, originEpochMs: Long, step: Int, filter: VelovFilter): List<VelovForecastMarker>? = withContext(Dispatchers.Default) {
+        val held = current()
+        val markers = held.markers?.takeIf { held.usableModel(originEpochMs) != null } ?: return@withContext emptyList()
+        markersQueue.run { markers.at(stations, originEpochMs, step, filter) }
+    }
+
+    /** Le modèle gardé, en demandant au passage sa mise à jour si c'est le moment. */
+    private suspend fun current(): Held = held().also { updateInBackground() }
 
     /**
      * Charge le modèle et demande sa mise à jour sans attendre : à appeler dès que les stations Vélo'v

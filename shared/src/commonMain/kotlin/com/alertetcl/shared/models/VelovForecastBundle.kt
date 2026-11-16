@@ -25,13 +25,14 @@ internal class VelovForecastBundle(
     val version: String,
     /** Noms des variables, dans l'ordre où les arbres les numérotent. */
     val variables: List<String>,
-    /** Niveaux des déciles appris (10, 20… 90), un modèle `velos_q<niveau>` chacun. */
+    /** Niveaux des déciles appris (10, 30, 50, 70, 90), un modèle `<sorte>_q<niveau>` par sorte de vélos (`velos`, `elec`, `meca`). */
     val deciles: List<Int>,
     @SerialName("modeles") val forests: Map<String, VelovForecastForest>,
     /** Par station puis par « type de jour_heure » : les quatre moyennes habituelles, absentes (null) faute de relevés. */
     @SerialName("habitude") val habits: Map<String, Map<String, List<Double?>>> = emptyMap(),
     val stations: List<VelovForecastSite> = emptyList(),
-    @SerialName("calendrier") val calendar: VelovForecastCalendar = VelovForecastCalendar()
+    @SerialName("calendrier") val calendar: VelovForecastCalendar = VelovForecastCalendar(),
+    @SerialName("controle") val control: VelovForecastControl = VelovForecastControl()
 ) {
     companion object {
         /** Seul format que cette version de l'application sait lire. */
@@ -83,4 +84,17 @@ internal class VelovForecastCalendar(
     @SerialName("feries") val holidays: List<String> = emptyList(),
     /** Vacances scolaires : paires [début, fin exclue] en millisecondes epoch. */
     @SerialName("vacances") val schoolHolidays: List<List<Long>> = emptyList()
+)
+
+/** Ce que le robot a mesuré du modèle sur sa semaine de contrôle ; l'application n'en lit que ce qu'elle affiche. */
+@Serializable
+internal class VelovForecastControl(
+    /** Par sorte comptée : `velos`, `elec`, `meca`, `bornes`. */
+    @SerialName("sortes") val kinds: Map<String, VelovForecastKindControl> = emptyMap()
+)
+
+@Serializable
+internal class VelovForecastKindControl(
+    /** Part des cas (0 à 1) où la réalité est tombée dans la fourchette 10-90, en moyenne sur les horizons contrôlés. */
+    @SerialName("couv80") val coverage: Double? = null
 )

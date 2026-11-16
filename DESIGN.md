@@ -18,6 +18,7 @@ l'objet `Tokens` (`ui/theme/Tokens.kt`) qui expose les mêmes noms à Compose.
 |---|---|---|---|
 | accent | `#1565C0` | `#0A84FF` | boutons principaux, liens, sélection, icônes actives |
 | success | `#2E7D32` | `#66BB6A` | service normal, position récente, parking libre, ouvert |
+| successSoft | `#9CC79F` | `#3E6B41` | vert atténué : palier « probable » sur la piste du curseur de prévision Vélo'v |
 | warning | `#EF6C00` | `#FFA726` | perturbation, position vieillissante, parking presque plein |
 | error | `#D32F2F` | `#EF5350` | perturbation majeure, position obsolète, parking complet, fermé |
 | favorite | `#F9A825` | `#FFD54F` | étoile des lignes favorites |
@@ -213,6 +214,81 @@ dans le sélecteur est le jeton `AppColors.velov`.
 Les barèmes métier sont au même endroit : importance et avancement d'un chantier, progression d'un
 chantier (du rouge au vert en onze paliers), disponibilité et type d'un parking, nature d'un chantier
 (`TravauxNatureChantier.colorHex`).
+
+## Prévision Vélo'v
+
+La fiche d'une station et la carte des stations montrent ce qui est prévu dans les 24 heures, par pas
+d'un quart d'heure. Tout ce qui s'écrit et se dessine vient du module partagé (`VelovForecastSheet`,
+`VelovForecastMapPanel`, `VelovForecastMarker`, obtenus par `VelovForecastService`) : aucune vue ne
+calcule un nombre, un mot ou une couleur. Sans prévision (modèle pas encore arrivé ou plus confirmé par
+le robot, station fermée ou inconnue du modèle), la fiche et la carte restent ce qu'elles étaient.
+
+Ce qui est prévu suit le filtre de la carte (`VelovFilter` : Tous, Classiques, Électriques, Places), avec
+les mêmes titres et le même ordre ; la fiche s'ouvre sur le filtre de la carte. Chaque filtre a sa
+propre courbe, sa fourchette, sa chance et ses voisines. Les mots (`VelovTexts`) : « vélos »,
+« classiques », « électriques », « places », au singulier jusqu'à 1 (« 0 vélo », « 1 place »).
+
+**Le temps.** Un seul curseur, le même sur la fiche et sur la carte : l'échéance 0 est « Maintenant »
+(l'état réel, rien n'y est prévu), les 96 suivantes tombent tous les quarts d'heure à partir de l'heure
+où les stations ont été relevées, que la carte passe à la fiche avec l'échéance en cours. Une heure
+s'écrit « 19 h 15 », « 9 h », arrondie à cinq minutes (une prévision n'est pas juste à la minute), à
+l'heure de Lyon ; « demain » commence à minuit. Les repères du curseur sont les heures rondes, toutes
+les 6 h sur la fiche et toutes les 3 h sur la carte.
+
+**La chance** d'en trouver au moins un (`VelovChance`) : un pourcentage entier, jamais 0 ni 100 (de 1
+à 99), et quatre paliers lus sur ce pourcentage affiché. Le mot ne s'accorde pas, il vaut pour un vélo
+comme pour une place.
+
+| Palier | À partir de | Texte | Piste du curseur | Marqueur de carte |
+|---|---|---|---|---|
+| quasi sûr | 90 % | success | success | vert |
+| probable | 70 % | success | successSoft | vert |
+| incertain | 40 % | warning | warning | orange |
+| peu probable | en dessous | error | error | rouge |
+
+**La fiche**, sous l'état réel de la station :
+
+- le sélecteur de filtre et, en face, l'heure de l'échéance : « Maintenant », « Dans 30 min · 19 h 15 »,
+  « Demain · 8 h 30 » (le lendemain à plus de deux heures ; avant, le délai reste plus parlant) ;
+- le chiffre principal : la fourchette « 7 à 17 vélos » (déciles 10 et 90 arrondis, « 12 vélos » s'ils
+  donnent le même nombre), ou le compte réel à l'échéance 0. Dessous, « 8 fois sur 10 » : la part des
+  cas où cette fourchette a dit vrai pendant la semaine de contrôle du robot, pour ce filtre, arrondie
+  au dixième et jamais « 10 fois sur 10 » ; rien si le robot ne l'a pas mesurée ;
+- à droite, la chance (« 29 % ») et son palier (« peu probable ») dans la couleur du palier ; rien à
+  l'échéance 0 ;
+- le graphique des 24 heures : la valeur la plus probable (trait), la fourchette 10-90 (bande claire) et
+  la fourchette 30-70 (bande soutenue), de l'état réel (premier point) à la dernière échéance, sur une
+  échelle de 0 à la capacité, seul nombre écrit sur l'axe. Les courbes sont lissées sur trois échéances
+  pour le dessin ; la fourchette écrite, elle, ne l'est pas. Un trait pointillé marque minuit, avec le
+  nom du jour qui commence ;
+- le curseur, sous le graphique et aligné sur lui, dont la piste prend la couleur du palier de chaque
+  échéance ;
+- la période à risque, s'il y en a une : la première suite d'échéances « peu probable », « Souvent vide
+  demain de 7 h à 9 h 45 » (« Souvent sans classique », « Souvent sans électrique », « Souvent
+  pleine » ; « vers 7 h » pour une seule échéance ; « à partir de 17 h » si elle court jusqu'à la
+  dernière échéance, rien ne disant qu'elle s'arrête là ; « demain » seulement si elle commence le lendemain),
+  précédée d'un point rouge. Sans période à risque, pas de phrase ;
+- « Plus sûr à côté », seulement quand la chance est « incertain » ou « peu probable » : les deux
+  stations ouvertes les plus proches, à moins de 600 m à vol d'oiseau, où la chance est au moins
+  « probable » à la même échéance et pour le même filtre. Chaque ligne : le nom, « 6 min à pied · 0 à
+  9 vélos » (vol d'oiseau × 1,3 à 80 m par minute, une minute au moins) et la chance dans sa couleur.
+
+**La carte.** Un panneau en bas porte le curseur : titre « Maintenant », « Aujourd'hui à 19 h 45 » ou
+« Demain à 8 h 30 » ; « Glissez pour voir la prévision » tant qu'il n'a pas bougé ; un bouton
+« Maintenant » dès qu'il a bougé ; pas de légende. À l'échéance 0 les marqueurs sont ceux de l'état
+réel, inchangés. Au-delà, chaque marqueur porte le nombre le plus probable de ce que compte le filtre
+et la couleur de la chance d'en trouver au moins un (tableau ci-dessus), pour les quatre filtres. Une
+station fermée ou inconnue du modèle n'a pas de marqueur tant que le curseur n'est pas revenu à
+« Maintenant » : l'application ne montre pas une estimation qu'elle n'a pas, et un marqueur gris sans
+nombre dirait « fermée », ce qu'elle ne sait pas davantage pour demain. Toucher une station ouvre sa
+fiche sur l'échéance du curseur.
+
+Pour que le curseur suive le doigt, un marqueur ne lit que deux modèles (le décile 50 et la
+probabilité), chaque échéance déjà vue est gardée tant que le relevé, l'heure et le filtre ne changent
+pas, et une demande dépassée par une plus récente n'est pas calculée (la carte garde alors ce qu'elle
+montre). Ce décile 50 n'est pas reclassé parmi les autres comme sur la fiche : sur le modèle de novembre
+2026, le nombre du marqueur s'écarte de la médiane de la fiche dans 0,6 % des cas (d'un vélo presque
+toujours) et ne sort jamais de la fourchette écrite.
 
 ## Widgets iOS
 

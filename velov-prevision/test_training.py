@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import math
 import unittest
 from unittest import mock
 
@@ -64,8 +63,8 @@ class RowsTest(unittest.TestCase):
         target = slot + rows["xq"][i]
         self.assertEqual((self.GRID.elec[slot, column], self.GRID.meca[slot, column], self.GRID.bornes[slot, column], 20),
                          (rows["elec0"][i], rows["meca0"][i], rows["bornes0"][i], rows["capacite"][i]))
-        self.assertEqual((self.GRID.elec[target, column], self.GRID.elec[target, column] + self.GRID.meca[target, column], self.GRID.bornes[target, column]),
-                         (rows["y_elec"][i], rows["y_velos"][i], rows["y_bornes"][i]))
+        self.assertEqual((self.GRID.elec[target, column], self.GRID.meca[target, column], self.GRID.bornes[target, column]),
+                         (rows["y_elec"][i], rows["y_meca"][i], rows["y_bornes"][i]))
 
     def test_control_starts_on_the_hour_at_the_eight_horizons(self):
         rows = training.control_rows(self.GRID, self.CUT)
@@ -88,7 +87,8 @@ class RowsTest(unittest.TestCase):
 
 
 class HabitTest(unittest.TestCase):
-    ROWS = {"station": np.array([7, 7, 7, 9]), "y_velos": np.array([4, 0, 3, 2]), "y_elec": np.array([1, 0, 2, 2]), "y_bornes": np.array([0, 5, 2, 1])}
+    # Vélos à l'heure visée : 4, 0 et 3 à la station 7, 2 à la station 9.
+    ROWS = {"station": np.array([7, 7, 7, 9]), "y_elec": np.array([1, 0, 2, 2]), "y_meca": np.array([3, 0, 1, 0]), "y_bornes": np.array([0, 5, 2, 1])}
 
     def habit(self) -> tuple[np.ndarray, np.ndarray]:
         return training.habit_table(self.ROWS, np.array([0, 0, 0, 2]), np.array([8, 8, 8, 23]))
@@ -105,7 +105,7 @@ class HabitTest(unittest.TestCase):
         self.assertEqual({"7": {"0_8": [2.3333, 0.6667, 0.6667, 0.4583]}, "9": {"2_23": [2.0, 1.0, 1.0, 1.0]}}, training.habit_json(self.habit()))
 
     def test_an_electric_share_without_bikes_is_published_as_null(self):
-        rows = {"station": np.array([7]), "y_velos": np.array([0]), "y_elec": np.array([0]), "y_bornes": np.array([3])}
+        rows = {"station": np.array([7]), "y_elec": np.array([0]), "y_meca": np.array([0]), "y_bornes": np.array([3])}
         self.assertEqual({"7": {"1_0": [0.0, 0.0, 1.0, None]}}, training.habit_json(training.habit_table(rows, np.array([1]), np.array([0]))))
 
     def test_the_published_habit_reads_back_identically(self):
@@ -147,11 +147,13 @@ class TrainingTest(unittest.TestCase):
         cls.bundle = json.loads(bundle.encode(bundle.assemble("2026-10-18", T0, modeles, habitude, described, CALENDAR, {})))
         cls.check = training.control_rows(grid, cut)
 
-    def test_the_twelve_models_are_published_with_their_variables(self):
+    def test_the_nineteen_models_are_published_with_their_variables(self):
         self.assertEqual(list(training.VARIABLES), self.bundle["variables"])
-        self.assertEqual([10, 20, 30, 40, 50, 60, 70, 80, 90], self.bundle["deciles"])
-        self.assertEqual({"quantile": 9, "binary": 2, "cross_entropy": 1},
-                         {objective: sum(m["objectif"] == objective for m in self.bundle["modeles"].values()) for objective in ("quantile", "binary", "cross_entropy")})
+        self.assertEqual([10, 30, 50, 70, 90], self.bundle["deciles"])
+        # Ce que l'application exige : cinq déciles et une probabilité par sorte de vélos, la probabilité d'une place.
+        expected = {f"{kind}_q{k}": "quantile" for kind in ("velos", "elec", "meca") for k in (10, 30, 50, 70, 90)}
+        expected.update(dict.fromkeys(("velos_p1", "elec_p1", "meca_p1", "bornes_p1"), "binary"))
+        self.assertEqual(expected, {name: m["objectif"] for name, m in self.bundle["modeles"].items()})
         self.assertTrue(all(1 <= len(m["arbres"]) <= 25 for m in self.bundle["modeles"].values()))
 
     def test_trees_are_laid_out_as_the_applications_require(self):
@@ -168,14 +170,17 @@ class TrainingTest(unittest.TestCase):
         flags = {d for m in self.bundle["modeles"].values() for tree in m["arbres"] for d in tree["d"]}
         self.assertTrue(flags & {8, 10}, "aucun nœud à valeur manquante NaN dans les arbres")
 
-    def test_forecasts_follow_the_daily_wave(self):
+    def test_forecasts_of_each_kind_follow_the_daily_wave(self):
         pred = reader.predict(self.bundle, self.check)
-        self.assertTrue((np.diff(pred["q"], axis=1) >= 0).all())
-        self.assertTrue(((pred["q"] >= 0) & (pred["q"] <= 20)).all())
         day_ahead = self.check["xq"] == 96
-        median_error = np.abs(pred["q"][day_ahead, 4] - self.check["y_velos"][day_ahead]).mean()
-        self.assertLess(median_error, 2.5)
-        self.assertTrue(all(math.isfinite(v) for v in pred["p_velo"][:50]))
+        actual = {**reader.bike_counts(self.check["y_elec"], self.check["y_meca"]), "bornes": self.check["y_bornes"]}
+        # Erreur de la médiane à 24 h : la vague fait 12 vélos d'amplitude (la moitié pour chaque sorte), le hasard 2.
+        for kind, limit in (("velos", 2.5), ("elec", 1.5), ("meca", 1.5), ("bornes", 2.5)):
+            q = pred["q"][kind]
+            self.assertTrue((np.diff(q, axis=1) >= 0).all(), kind)
+            self.assertTrue(((q >= 0) & (q <= 20)).all(), kind)
+            self.assertLess(np.abs(q[day_ahead, 2] - actual[kind][day_ahead]).mean(), limit, kind)
+            self.assertTrue(((pred["p1"][kind] > 0) & (pred["p1"][kind] < 1)).all(), kind)
 
 
 if __name__ == "__main__":

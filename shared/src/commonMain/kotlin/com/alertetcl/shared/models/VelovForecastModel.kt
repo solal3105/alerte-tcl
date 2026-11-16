@@ -10,9 +10,11 @@ import kotlin.math.exp
 /**
  * Prévision Vélo'v calculée sur l'appareil à partir du modèle publié par le robot hebdomadaire.
  *
- * C'est le portage exact du prototype `velov-prevision/prevision.js` : mêmes variables, même calendrier
+ * Le calcul reprend celui du prototype `velov-prevision/prevision.js` : mêmes variables, même calendrier
  * à l'heure de Lyon, même parcours des arbres que LightGBM (valeurs manquantes comprises), mêmes
  * opérations dans le même ordre, pour que les deux donnent les mêmes nombres (`VelovForecastTest`).
+ * Le prototype ne prévoyait que l'ensemble des vélos ; classiques et électriques ont depuis leurs
+ * propres modèles, calculés de la même façon.
  *
  * Le calcul est pur : il ne lit ni l'horloge ni le réseau. Le constructeur refuse un fichier que cette
  * version ne sait pas lire, plutôt que de laisser une prévision fausse ou un plantage arriver plus tard.
@@ -20,11 +22,20 @@ import kotlin.math.exp
 internal class VelovForecastModel @Throws(IllegalArgumentException::class) constructor(bundle: VelovForecastBundle) {
     val version: String = bundle.version
 
+    /**
+     * Part des cas (0 à 1) où la réalité est tombée dans la fourchette 10-90 pendant la semaine de
+     * contrôle du robot, pour ce que compte chaque filtre ; un filtre manque si le robot ne l'a pas mesurée.
+     */
+    val coverage: Map<VelovFilter, Double> = buildMap {
+        for (filter in VelovFilter.ordered) bundle.control.kinds[filter.kind]?.coverage?.let { put(filter, it) }
+    }
+
     private val deciles: List<Int> = bundle.deciles
-    private val decileForests: List<VelovForecastForest> = bundle.deciles.map { bundle.forest("velos_q$it") }
-    private val bikeForest = bundle.forest("velos_p1")
-    private val dockForest = bundle.forest("bornes_p1")
-    private val electricForest = bundle.forest("part_elec")
+    private val medianRank = bundle.deciles.indexOf(VelovForecastOutlook.MEDIAN)
+    private val bikes = Kind(bundle, VelovFilter.ALL)
+    private val mechanical = Kind(bundle, VelovFilter.MECHANICAL)
+    private val electric = Kind(bundle, VelovFilter.ELECTRIC)
+    private val dockForest = bundle.forest("${VelovFilter.STANDS.kind}_p1")
 
     /** Pour chaque variable attendue par les arbres, la case de [Feature] qui la fournit ([UNKNOWN_SLOT] si elle est inconnue). */
     private val featureSlots = IntArray(bundle.variables.size) { rank ->
@@ -37,6 +48,11 @@ internal class VelovForecastModel @Throws(IllegalArgumentException::class) const
 
     init {
         require(bundle.format == VelovForecastBundle.FORMAT) { "Format ${bundle.format} inconnu" }
+        // Les fourchettes affichées se lisent aux niveaux 10, 30, 50, 70 et 90, et les places prennent les niveaux
+        // des vélos à l'envers ([docksOutlook]) : il faut donc ces niveaux, croissants et symétriques autour de 50.
+        require(deciles.containsAll(VelovForecastOutlook.SHOWN_LEVELS) && deciles == deciles.sorted() && deciles == deciles.asReversed().map { 100 - it }) {
+            "Déciles $deciles inutilisables"
+        }
         require(bundle.forests.values.all { forest -> forest.trees.all { it.isWellFormed(featureSlots.size) } }) { "Arbre illisible" }
     }
 
@@ -51,29 +67,110 @@ internal class VelovForecastModel @Throws(IllegalArgumentException::class) const
      * le modèle ne connaît pas est calculée quand même, ses variables propres étant manquantes.
      */
     fun forecast(stationId: Int, state: VelovForecastState, nowEpochMs: Long): VelovForecast {
-        val bikes = state.bikes
-        val values = DoubleArray(UNKNOWN_SLOT + 1) { Double.NaN }
-        values[Feature.BIKES.ordinal] = bikes.toDouble()
-        values[Feature.ELECTRIC.ordinal] = state.electric.toDouble()
-        values[Feature.MECHANICAL.ordinal] = state.mechanical.toDouble()
-        values[Feature.DOCKS.ordinal] = state.docks.toDouble()
-        values[Feature.CAPACITY.ordinal] = state.capacity.toDouble()
-        if (bikes != 0) values[Feature.ELECTRIC_SHARE.ordinal] = state.electric.toDouble() / bikes
-        values[Feature.ORIGIN_HOUR.ordinal] = moment(nowEpochMs).decimalHour
-        sites[stationId]?.let { site ->
-            values[Feature.ALTITUDE.ordinal] = site.altitude
-            values[Feature.METRO_KM.ordinal] = site.metroKm
-            values[Feature.TRAM_KM.ordinal] = site.tramKm
-            values[Feature.RAIL_KM.ordinal] = site.railKm
-            values[Feature.LATITUDE.ordinal] = site.lat
-            values[Feature.LONGITUDE.ordinal] = site.lon
-        }
-        val habit = habits[stationId]
-        val inputs = DoubleArray(featureSlots.size)
-
+        val inputs = Inputs(stationId, state, moment(nowEpochMs))
         val steps = (1..VelovForecast.STEP_COUNT).map { step ->
-            val time = nowEpochMs + step * STEP_MS
-            val target = moment(time)
+            val x = inputs.aimedAt(step, moment(nowEpochMs + step * VelovForecast.STEP_MS))
+            val allBikes = bikes.outlook(x, state)
+            VelovForecastStep(allBikes, mechanical.outlook(x, state), electric.outlook(x, state), docksOutlook(allBikes, x, state))
+        }
+        return VelovForecast(state, steps)
+    }
+
+    /**
+     * Ce que [forecast] donnerait pour [filter] à la seule échéance [step] (1 à 96), pour chacune des
+     * [stations] et dans leur ordre, sans calculer les autres échéances ni ce que comptent les autres filtres.
+     */
+    fun outlooks(stations: List<VelovStation>, nowEpochMs: Long, step: Int, filter: VelovFilter): List<VelovForecastOutlook> =
+        atStep(stations, nowEpochMs, step) { x, state ->
+            val counted = kind(filter).outlook(x, state)
+            if (filter == VelovFilter.STANDS) docksOutlook(counted, x, state) else counted
+        }
+
+    /**
+     * Ce qu'un marqueur de carte montre de chacune des [stations] à l'échéance [step] : deux modèles par
+     * station seulement, celui du décile 50 et celui de la probabilité, pour que le curseur de la carte
+     * suive le doigt. Ce décile 50 n'est pas reclassé parmi les autres comme dans [outlooks] : quand les
+     * déciles se croisent, le nombre peut s'écarter un peu de la médiane de la fiche (mesure dans `DESIGN.md`).
+     */
+    fun glances(stations: List<VelovStation>, nowEpochMs: Long, step: Int, filter: VelovFilter): List<VelovForecastGlance> =
+        atStep(stations, nowEpochMs, step) { x, state ->
+            val median = kind(filter).median(x, state)
+            if (filter == VelovFilter.STANDS) VelovForecastGlance(state.docksLeftBy(median), dockForest.predict(x))
+            else VelovForecastGlance(median, kind(filter).probability(x))
+        }
+
+    /** Le calendrier, le même pour toutes les stations, n'est lu qu'une fois. */
+    private inline fun <T> atStep(stations: List<VelovStation>, nowEpochMs: Long, step: Int, compute: (DoubleArray, VelovForecastState) -> T): List<T> {
+        val origin = moment(nowEpochMs)
+        val target = moment(nowEpochMs + step * VelovForecast.STEP_MS)
+        return stations.map { station ->
+            val state = VelovForecastState(station)
+            compute(Inputs(station.id, state, origin).aimedAt(step, target), state)
+        }
+    }
+
+    /** Les modèles de la sorte de vélos que compte [filter] ; les places se déduisent de l'ensemble des vélos. */
+    private fun kind(filter: VelovFilter): Kind = when (filter) {
+        VelovFilter.ALL, VelovFilter.STANDS -> bikes
+        VelovFilter.MECHANICAL -> mechanical
+        VelovFilter.ELECTRIC -> electric
+    }
+
+    /**
+     * Places libres déduites des vélos. Beaucoup de vélos font peu de places : l'ordre des déciles est
+     * retourné pour rester croissant, et la valeur de rang `i` est au niveau `100 − deciles[dernier − i]`,
+     * c'est-à-dire aux mêmes niveaux puisqu'ils sont symétriques.
+     */
+    private fun docksOutlook(allBikes: VelovForecastOutlook, x: DoubleArray, state: VelovForecastState) =
+        VelovForecastOutlook(deciles, allBikes.deciles.asReversed().map(state::docksLeftBy), dockForest.predict(x))
+
+    /** Les modèles d'une sorte de vélos : un par décile (écart au nombre présent) et la probabilité d'en trouver au moins un. */
+    private inner class Kind(bundle: VelovForecastBundle, private val filter: VelovFilter) {
+        private val decileForests: List<VelovForecastForest> = bundle.deciles.map { bundle.forest("${filter.kind}_q$it") }
+        private val anyForest = bundle.forest("${filter.kind}_p1")
+
+        /**
+         * Chaque décile est appris à part, sur l'écart au nombre présent au départ : on les trie pour
+         * qu'ils ne se croisent pas, puis on les borne à la capacité.
+         */
+        fun outlook(x: DoubleArray, state: VelovForecastState): VelovForecastOutlook {
+            val present = state.count(filter)
+            return VelovForecastOutlook(deciles, decileForests.map { it.predict(x) + present }.sorted().map(state::bounded), probability(x))
+        }
+
+        fun median(x: DoubleArray, state: VelovForecastState): Double =
+            state.bounded(decileForests[medianRank].predict(x) + state.count(filter))
+
+        fun probability(x: DoubleArray): Double = anyForest.predict(x)
+    }
+
+    /** Les variables d'une station, remplies une fois pour ce qui ne dépend pas de l'échéance, puis visées sur chacune. */
+    private inner class Inputs(stationId: Int, state: VelovForecastState, origin: Moment) {
+        private val values = DoubleArray(UNKNOWN_SLOT + 1) { Double.NaN }
+        private val habit = habits[stationId]
+        private val inputs = DoubleArray(featureSlots.size)
+
+        init {
+            val bikes = state.bikes
+            values[Feature.BIKES.ordinal] = bikes.toDouble()
+            values[Feature.ELECTRIC.ordinal] = state.electric.toDouble()
+            values[Feature.MECHANICAL.ordinal] = state.mechanical.toDouble()
+            values[Feature.DOCKS.ordinal] = state.docks.toDouble()
+            values[Feature.CAPACITY.ordinal] = state.capacity.toDouble()
+            if (bikes != 0) values[Feature.ELECTRIC_SHARE.ordinal] = state.electric.toDouble() / bikes
+            values[Feature.ORIGIN_HOUR.ordinal] = origin.decimalHour
+            sites[stationId]?.let { site ->
+                values[Feature.ALTITUDE.ordinal] = site.altitude
+                values[Feature.METRO_KM.ordinal] = site.metroKm
+                values[Feature.TRAM_KM.ordinal] = site.tramKm
+                values[Feature.RAIL_KM.ordinal] = site.railKm
+                values[Feature.LATITUDE.ordinal] = site.lat
+                values[Feature.LONGITUDE.ordinal] = site.lon
+            }
+        }
+
+        /** Les variables dans l'ordre attendu par les arbres, pour l'échéance [step] qui tombe à [target]. Le tableau rendu est réutilisé d'une échéance à l'autre. */
+        fun aimedAt(step: Int, target: Moment): DoubleArray {
             values[Feature.HORIZON_HOURS.ordinal] = step * STEP_HOURS
             values[Feature.TARGET_HOUR.ordinal] = target.decimalHour
             values[Feature.WEEKDAY.ordinal] = target.weekday.toDouble()
@@ -86,18 +183,8 @@ internal class VelovForecastModel @Throws(IllegalArgumentException::class) const
                 habit.copyInto(values, Feature.HABIT_BIKES.ordinal, offset, offset + HABIT_SIZE)
             }
             for (rank in inputs.indices) inputs[rank] = values[featureSlots[rank]]
-
-            VelovForecastStep(
-                timeEpochMs = time,
-                // Chaque décile est appris à part, sur l'écart au stock de départ : on les trie pour qu'ils
-                // ne se croisent pas, puis on les borne à la capacité.
-                bikeDeciles = decileForests.map { it.predict(inputs) + bikes }.sorted().map(state::bounded),
-                bikeProbability = bikeForest.predict(inputs),
-                dockProbability = dockForest.predict(inputs),
-                electricShare = electricForest.predict(inputs)
-            )
+            return inputs
         }
-        return VelovForecast(state, deciles, steps)
     }
 
     /** Calendrier d'un instant à l'heure de Lyon, comme à l'entraînement. */
@@ -161,7 +248,6 @@ internal class VelovForecastModel @Throws(IllegalArgumentException::class) const
 
     private companion object {
         val LYON = TimeZone.of("Europe/Paris")
-        const val STEP_MS = VelovForecast.STEP_MINUTES * 60_000L
         const val STEP_HOURS = VelovForecast.STEP_MINUTES / 60.0
         const val HOURS_PER_DAY = 24
         const val DAY_TYPES = 3
@@ -178,6 +264,14 @@ internal class VelovForecastModel @Throws(IllegalArgumentException::class) const
         const val MISSING_ZERO = 1
         const val MISSING_NAN = 2
         const val ZERO_THRESHOLD = 1e-35
+
+        /** Nom que le robot donne à ce que compte un filtre, dans les modèles (`elec_q50`, `bornes_p1`) et dans son contrôle. */
+        val VelovFilter.kind: String get() = when (this) {
+            VelovFilter.ALL -> "velos"
+            VelovFilter.MECHANICAL -> "meca"
+            VelovFilter.ELECTRIC -> "elec"
+            VelovFilter.STANDS -> "bornes"
+        }
 
         fun VelovForecastBundle.forest(name: String): VelovForecastForest =
             requireNotNull(forests[name]) { "Modèle $name absent" }
