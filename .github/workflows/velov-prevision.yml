@@ -1,0 +1,96 @@
+# Réentraîne chaque semaine le modèle de prévision des stations Vélo'v sur les deux derniers mois de
+# relevés gardés par le relais Cloudflare, le contrôle sur la dernière semaine et publie le résultat sur
+# la branche orpheline `velov-prevision`, relayée aux applications (route /velov-prevision/...).
+# Aucun secret nécessaire : le relais et la branche sont publics. Détails : velov-prevision/README.md.
+name: Prévision Vélo'v
+
+on:
+  schedule:
+    # Lundi 02:17 UTC (03:17 ou 04:17 à Lyon) : la semaine de contrôle va d'un lundi au suivant.
+    - cron: "17 2 * * 1"
+    # Rattrapage du mercredi : ne fait rien si le passage du lundi a réussi (voir --planifie).
+    - cron: "17 2 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: velov-prevision
+  cancel-in-progress: false
+
+jobs:
+  construire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Récupérer le robot
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: velov-prevision
+          sparse-checkout-cone-mode: true
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: velov-prevision/requirements.txt
+
+      - name: Installer les dépendances
+        run: pip install -r velov-prevision/requirements.txt
+
+      - name: Tests du robot
+        # Rejoués à chaque passage : une dépendance mise à jour qui changerait un résultat
+        # arrête le workflow avant tout entraînement, la publication précédente reste en ligne.
+        run: python3 -m unittest discover -s velov-prevision
+
+      - name: Récupérer le modèle en ligne
+        run: |
+          depot="https://github.com/${GITHUB_REPOSITORY}.git"
+          code=0
+          git ls-remote --exit-code --heads "$depot" velov-prevision > /dev/null || code=$?
+          case "$code" in
+            0) git clone -q --depth 1 --branch velov-prevision "$depot" "${RUNNER_TEMP}/velov-en-ligne" ;;
+            2) echo "Branche velov-prevision absente : première publication, on part de l'amorce." ;;
+            *) exit "$code" ;;
+          esac
+
+      - name: Entraîner et contrôler
+        # Sort en erreur, après avoir écrit ce qui peut être publié, quand quelque chose demande un regard
+        # humain (aucun modèle bon, entraînement en échec, plus de contrôle possible depuis deux semaines).
+        run: >
+          python3 velov-prevision/build_forecast.py
+          --en-ligne "${RUNNER_TEMP}/velov-en-ligne"
+          --out "${RUNNER_TEMP}/velov-out"
+          ${{ github.event_name == 'schedule' && '--planifie' || '' }}
+
+      - name: Publier sur la branche velov-prevision
+        # Aussi après une erreur de l'étape précédente : le robot n'écrit index.json que pour un modèle
+        # qui vient de passer le contrôle. Sans ce fichier, rien n'est publié et la branche ne bouge pas.
+        if: ${{ !cancelled() }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ ! -f "${RUNNER_TEMP}/velov-out/index.json" ]; then
+            echo "Rien à publier."
+            exit 0
+          fi
+          cd "${RUNNER_TEMP}/velov-out"
+          git init -q -b velov-prevision
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Prévision Vélo'v contrôlée le $(date -u +%Y-%m-%d)"
+          # Un seul commit par publication : l'historique de la branche reste vide,
+          # le dépôt principal ne grossit pas avec les modèles.
+          git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" velov-prevision
+
+      - name: Garder la planification active
+        # GitHub désactive les workflows planifiés d'un dépôt public sans activité depuis
+        # 60 jours : on réarme celui-ci à chaque exécution, quelle qu'en soit l'issue.
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow enable velov-prevision.yml --repo "${GITHUB_REPOSITORY}"

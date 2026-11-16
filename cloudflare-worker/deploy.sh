@@ -94,10 +94,21 @@ else
 fi
 
 # ── 6. Vérification rapide ────────────────────────────────────────────────
+# Appel du relais comme le font les applications : relay <chemin> [options curl]
+relay() {
+  local path="$1"; shift
+  curl -s -H "User-Agent: AlerteTCL/1.0" "$@" "$WORKER_URL$path"
+}
+http_status() { relay "$1" -o /dev/null -w "%{http_code}"; }
+# En-tête d'une réponse : response_header <chemin> <nom en minuscules> [options curl]
+response_header() {
+  local path="$1" name="$2"; shift 2
+  relay "$path" -o /dev/null -D - "$@" \
+    | tr -d '\r' | awk -F': ' -v name="$name" 'tolower($1) == name { print $2 }'
+}
+
 info "Test de la route /alerts..."
-HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-  -H "User-Agent: AlerteTCL/1.0" \
-  "$WORKER_URL/alerts")
+HTTP_STATUS=$(http_status /alerts)
 
 if [[ "$HTTP_STATUS" == "200" ]]; then
   success "Route /alerts répond HTTP 200 ✓"
@@ -108,17 +119,51 @@ fi
 # Deux appels à /vehicles doivent renvoyer la même copie (même X-Cached-At) :
 # preuve que Grand Lyon n'est interrogé qu'une fois par période.
 info "Test du cache partagé sur /vehicles..."
-cached_at() {
-  curl -s -o /dev/null -D - -H "User-Agent: AlerteTCL/1.0" "$WORKER_URL/vehicles" \
-    | tr -d '\r' | awk -F': ' 'tolower($1) == "x-cached-at" { print $2 }'
-}
-FIRST=$(cached_at)
+FIRST=$(response_header /vehicles x-cached-at)
 sleep 2
-SECOND=$(cached_at)
+SECOND=$(response_header /vehicles x-cached-at)
 if [[ -n "$FIRST" && "$FIRST" == "$SECOND" ]]; then
   success "Cache partagé actif sur /vehicles ✓"
 else
   warn "Cache partagé non confirmé sur /vehicles (« $FIRST » puis « $SECOND ») — vérifie le déploiement"
+fi
+
+# Relevés Vélo'v : la route doit répondre tout de suite, mais la liste des jours est vide juste
+# après une première mise en ligne (le déclencheur planifié met jusqu'à 15 minutes à se propager,
+# puis relève toutes les 5 minutes). Dès qu'il y a des relevés, le dernier doit être récent.
+info "Test des relevés Vélo'v (/velov-releves)..."
+RELEVES_CHECK="curl -H 'User-Agent: AlerteTCL/1.0' $WORKER_URL/velov-releves"
+RELEVES_DAYS=$(relay /velov-releves)
+LAST_DAY=$(echo "$RELEVES_DAYS" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | tail -1 || true)
+if [[ "$RELEVES_DAYS" != '{"jours":['* ]]; then
+  warn "Route /velov-releves : réponse inattendue (« ${RELEVES_DAYS:0:80} ») — vérifie le déploiement"
+elif [[ -z "$LAST_DAY" ]]; then
+  warn "Route /velov-releves en place, aucun relevé pour l'instant — le premier arrive sous 20 minutes, à revérifier : $RELEVES_CHECK"
+else
+  LAST_READING=$(relay "/velov-releves?jour=$LAST_DAY" --compressed | grep -oE '"t":[0-9]+' | tail -1 | cut -d: -f2 || true)
+  READING_AGE=$(( $(date +%s) - ${LAST_READING:-0} ))
+  if [[ "$READING_AGE" -lt 1200 ]]; then
+    success "Relevés Vélo'v : dernier relevé il y a $((READING_AGE / 60)) min ✓"
+  else
+    warn "Relevés Vélo'v : dernier relevé il y a $((READING_AGE / 60)) min — la collecte semble arrêtée (wrangler tail, puis $RELEVES_CHECK)"
+  fi
+fi
+
+# Modèle de prévision Vélo'v : relayé depuis la branche GitHub velov-prevision, absente tant que
+# le premier entraînement n'a pas tourné. modele.json pèse ≈ 4,5 Mo : il doit arriver compressé.
+info "Test du relais du modèle de prévision Vélo'v..."
+MODEL_STATUS=$(http_status /velov-prevision/index.json)
+if [[ "$MODEL_STATUS" == "404" ]]; then
+  warn "Modèle de prévision pas encore publié (branche velov-prevision) — à revérifier après le premier entraînement"
+elif [[ "$MODEL_STATUS" != "200" || "$(http_status /velov-prevision/modele.json)" != "200" ]]; then
+  warn "Relais du modèle de prévision en échec (index.json : HTTP $MODEL_STATUS) — vérifie le déploiement"
+else
+  MODEL_ENCODING=$(response_header /velov-prevision/modele.json content-encoding -H "Accept-Encoding: gzip")
+  if [[ -n "$MODEL_ENCODING" ]]; then
+    success "Modèle de prévision relayé et compressé ($MODEL_ENCODING) ✓"
+  else
+    warn "Modèle de prévision relayé mais non compressé — 4,5 Mo par téléchargement, vérifie la réponse du relais"
+  fi
 fi
 
 # ── 7. Mise à jour automatique de l'adresse du relais côté Swift ──────────
@@ -145,6 +190,9 @@ echo -e "  /tram-lines      : tracés tramway"
 echo -e "  /bus-lines       : tracés bus C"
 echo -e "  /stops           : arrêts GeoServer"
 echo -e "  /horaires/...    : fiches horaires théoriques (branche GitHub horaires)"
+echo -e "  /velov           : stations Vélo'v"
+echo -e "  /velov-releves   : relevés Vélo'v (toutes les 5 min, 75 jours)"
+echo -e "  /velov-prevision/: modèle de prévision Vélo'v (branche GitHub velov-prevision)"
 echo ""
 echo -e "${YELLOW}Prochaines étapes :${RESET}"
 echo "  1. Lance Xcode → Product → Build (⌘B) pour vérifier la compilation"

@@ -2,13 +2,18 @@ name = "tcl-proxy"
 main = "worker.js"
 compatibility_date = "2024-01-01"
 
+# Tâches planifiées (heure UTC). Chaque expression est reliée à sa collecte par SCHEDULED_JOBS dans
+# worker.js : l'écrire ici exactement comme là-bas. L'offre gratuite permet 5 déclencheurs par compte.
+#   "*/5 * * * *" : relevé des stations Vélo'v, lu depuis la copie de /velov du cache partagé (aucune
+#                   requête de plus à Grand Lyon) et gardé 75 jours pour entraîner le modèle de prévision.
+[triggers]
+crons = ["*/5 * * * *"]
+
 # Collecte des positions des véhicules, une fois par minute, conservée pour apprendre les temps
 # de parcours réels (modèle de prédiction à venir). Les applications n'y accèdent pas.
 # À activer une fois R2 ouvert sur le compte Cloudflare (tableau de bord → R2 → activer, offre gratuite),
-# puis `wrangler r2 bucket create tcl-positions` et redéployer :
-# [triggers]
-# crons = ["* * * * *"]
-#
+# puis `wrangler r2 bucket create tcl-positions`, ajouter "* * * * *" aux crons ci-dessus, décommenter
+# le bloc suivant et redéployer :
 # [[r2_buckets]]
 # binding = "POSITIONS"
 # bucket_name = "tcl-positions"
@@ -19,6 +24,18 @@ compatibility_date = "2024-01-01"
 name = "LIVE_CACHE"
 class_name = "LiveCache"
 
+# Historique des relevés Vélo'v (classe VelovReadings de worker.js) : un seul objet durable SQLite,
+# une ligne par relevé. Ordre de grandeur : 288 relevés par jour × ≈ 9 Ko × 76 jours ≈ 200 Mo, pour
+# 5 Go permis par l'offre gratuite.
+[[durable_objects.bindings]]
+name = "VELOV_READINGS"
+class_name = "VelovReadings"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["LiveCache"]
+
+# Une nouvelle classe demande une nouvelle étiquette : ne jamais modifier une migration déjà déployée.
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["VelovReadings"]
