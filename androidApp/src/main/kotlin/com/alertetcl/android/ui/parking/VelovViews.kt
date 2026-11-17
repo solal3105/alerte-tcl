@@ -6,8 +6,6 @@ import android.graphics.Color as AndroidColor
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,14 +34,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -173,11 +166,10 @@ fun VelovStationSheet(
 /**
  * L'état réel de la station, en tête de fiche : vélos classiques, vélos électriques et places libres côte
  * à côte, chacun avec le pictogramme de son filtre, son nombre et son mot ; « Station fermée » si elle
- * l'est. [highlight] (intro) allume la case de ce filtre, sans rien déplacer : le fond déborde dans la
- * marge de la tuile.
+ * l'est.
  */
 @Composable
-internal fun VelovNowTile(station: VelovStation, highlight: VelovFilter? = null) {
+private fun VelovNowTile(station: VelovStation) {
     VelovCard {
         if (!station.open) {
             Text(
@@ -190,30 +182,11 @@ internal fun VelovNowTile(station: VelovStation, highlight: VelovFilter? = null)
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 VelovFilter.detailed.forEach { filter ->
                     val count = station.shownCount(filter)
-                    val lit by animateFloatAsState(if (filter == highlight) 1f else 0f, label = "case allumée")
-                    val tint by animateColorAsState(
-                        if (filter == highlight) Tokens.accent else MaterialTheme.colorScheme.onSurfaceVariant,
-                        label = "pictogramme allumé"
-                    )
-                    val glow = Tokens.accent
                     Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .drawBehind {
-                                if (lit > 0f) {
-                                    val bleed = 8.dp.toPx()
-                                    drawRoundRect(
-                                        glow.copy(alpha = 0.14f * lit),
-                                        topLeft = Offset(2.dp.toPx(), -bleed),
-                                        size = Size(size.width - 4.dp.toPx(), size.height + 2 * bleed),
-                                        cornerRadius = CornerRadius(14.dp.toPx())
-                                    )
-                                }
-                            }
-                            .semantics(mergeDescendants = true) { },
+                        modifier = Modifier.weight(1f).semantics(mergeDescendants = true) { },
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(velovFilterIcon(filter), null, tint = tint, modifier = Modifier.size(20.dp))
+                        Icon(velovFilterIcon(filter), null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                         Text(count.toString(), fontSize = 26.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         Text(
                             VelovTexts.unit(filter, count),
@@ -232,10 +205,10 @@ internal fun VelovNowTile(station: VelovStation, highlight: VelovFilter? = null)
  * Marqueur d'une station Vélo'v au zoom serré : carré arrondi à la couleur de disponibilité, le
  * pictogramme du filtre courant et [label], le nombre compté ou la fourchette prévue (parité iOS
  * `VelovMarker`). Le carré s'élargit pour une fourchette (« 12–25 ») en gardant autour du texte la
- * marge d'un nombre. [scale] l'agrandit d'un bloc, net à toute taille (le grand marqueur de l'intro).
+ * marge d'un nombre.
  */
-fun velovMarkerBitmap(label: String, colorHex: String, filter: VelovFilter, scale: Float = 1f): Bitmap {
-    val density = android.content.res.Resources.getSystem().displayMetrics.density * scale
+fun velovMarkerBitmap(label: String, colorHex: String, filter: VelovFilter): Bitmap {
+    val density = android.content.res.Resources.getSystem().displayMetrics.density
     val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE; textSize = 10f * density; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); textAlign = Paint.Align.CENTER }
     val height = (30 * density).toInt()
     val width = maxOf(height, (text.measureText(label) + 10 * density).toInt())

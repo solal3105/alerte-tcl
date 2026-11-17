@@ -71,8 +71,6 @@ struct VelovForecastChart: View {
     let panel: VelovForecastPanel
     /// L'échéance repérée ; nil pour les seules courbes (l'intro, avant que le curseur n'arrive).
     let step: Int32?
-    /// Hauteur du graphique : celle de la fiche, ou moins dans une illustration de l'intro.
-    var frameHeight: CGFloat = VelovForecastChart.height
 
     static let height: CGFloat = 190
 
@@ -82,7 +80,7 @@ struct VelovForecastChart: View {
             .overlay {
                 if let step { VelovForecastChartCursor(panel: panel, step: step) }
             }
-            .frame(height: frameHeight)
+            .frame(height: Self.height)
             // Les repères sont tenus par la géométrie : leur texte grandit avec les réglages, jusqu'à un plafond.
             .dynamicTypeSize(...DynamicTypeSize.xxLarge)
             .accessibilityElement(children: .ignore)
@@ -431,7 +429,7 @@ struct VelovForecastRiskLine: View {
 }
 
 /// Le sélecteur de filtre de la fiche, laissé tel quel quand seul le curseur bouge.
-struct VelovForecastFilterPicker: View, Equatable {
+private struct VelovForecastFilterPicker: View, Equatable {
     let filter: VelovFilter
     let onSelect: (VelovFilter) -> Void
 

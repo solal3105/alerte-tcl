@@ -3,9 +3,9 @@ import Shared
 
 // MARK: - Intro : les pages de la prévision Vélo'v
 //
-// Sept illustrations animées, une par page (`DESIGN.md`, « Pages de la prévision Vélo'v »). Elles
+// Trois illustrations animées, une par page (`DESIGN.md`, « Pages de la prévision Vélo'v »). Elles
 // dessinent la démonstration du module partagé (`VelovForecastDemo`) avec les vraies briques de la fiche
-// et de la carte : graphique, curseur, marqueurs, tuile de l'état, panneau du curseur, voisine plus sûre.
+// et de la carte : graphique, curseur, marqueurs, panneau du curseur.
 // Aucun texte n'est écrit ici, tout vient du module partagé. Chaque animation repart de zéro quand sa
 // page passe devant, tourne en boucle tant qu'elle y reste et ne bat plus ailleurs ; avec « Réduire les
 // animations », la page montre son image la plus parlante.
@@ -23,8 +23,6 @@ private enum IntroVelovDemo {
     static let lastStep = VelovForecast.companion.STEP_COUNT
     static let tour: [Int32] = demo.TOUR.map { $0.int32Value }
     static let pins = demo.pins
-    /// Le rang de la station de la fiche parmi les stations de la carte.
-    static let home = pins.firstIndex { $0.station.id == IntroVelovDemo.demo.station.id } ?? 0
 
     private static let steps = 0...Int(lastStep)
 
@@ -65,13 +63,6 @@ private enum IntroMotion {
     static func ease(_ share: Double) -> Double {
         let bounded = min(max(share, 0), 1)
         return bounded * bounded * (3 - 2 * bounded)
-    }
-
-    /// Arrivée qui dépasse un peu sa place avant de s'y poser, comme un ressort.
-    static func spring(_ share: Double) -> Double {
-        let left = min(max(share, 0), 1) - 1
-        let overshoot = 1.70158
-        return 1 + (overshoot + 1) * left * left * left + overshoot * left * left
     }
 }
 
@@ -233,24 +224,6 @@ private struct IntroMapLayout {
     /// Tout le plan, au-dessus du panneau du curseur.
     static let overview = IntroMapLayout(frame: CGRect(x: 26, y: 24, width: 268, height: 166))
 
-    /// Hauteur où se centre le gros plan, entre l'heure en haut et la carte qui monte du bas.
-    private static let closeUpCenterY: CGFloat = 122
-    private static let closeUpZoom: CGFloat = 1.6
-
-    /// Deux stations en gros plan, centrées dans le haut de la scène.
-    static func closeUp(on first: VelovForecastDemoPin, _ second: VelovForecastDemoPin) -> IntroMapLayout {
-        let width = overview.frame.width * closeUpZoom
-        let height = overview.frame.height * closeUpZoom
-        let middleX = CGFloat(first.x + second.x) / 2
-        let middleY = CGFloat(first.y + second.y) / 2
-        return IntroMapLayout(frame: CGRect(
-            x: IntroStageMetrics.size.width / 2 - middleX * width,
-            y: closeUpCenterY - middleY * height,
-            width: width,
-            height: height
-        ))
-    }
-
     /// Rapport à la vue d'ensemble : les rues et les fleuves s'élargissent d'autant.
     var zoom: CGFloat { frame.width / Self.overview.frame.width }
 
@@ -324,13 +297,12 @@ private struct IntroMapBackdrop: View {
 /// ressort, et s'élargit quand une fourchette remplace un nombre.
 private struct IntroVelovMarker: View {
     let marker: VelovMapMarker
-    var scale: CGFloat = 1
 
     private var look: String { "\(marker.label)-\(marker.availability.name)" }
 
     var body: some View {
         ZStack {
-            VelovMarker(marker: marker, compact: false, scale: scale)
+            VelovMarker(marker: marker, compact: false)
                 .id(look)
                 .transition(.asymmetric(insertion: .scale(scale: 0.6).combined(with: .opacity), removal: .opacity))
         }
@@ -350,127 +322,6 @@ private struct IntroVelovPins: View {
                     .position(layout.point(IntroVelovDemo.pins[rank]))
             }
         }
-    }
-}
-
-// MARK: - 1. Annonce
-
-/// Un grand marqueur au centre d'un cadran de 24 heures : l'arc avance d'un arrêt de la tournée au
-/// suivant, coloré des chances comme la piste du curseur, l'heure s'écrit en haut, et le marqueur passe
-/// du nombre relevé à la fourchette prévue.
-struct IntroVelovHero: View {
-    let isCurrent: Bool
-
-    private static let tour = IntroTour(stops: IntroVelovDemo.tour, hold: 0.9, travel: 0.7)
-
-    var body: some View {
-        IntroStage(.glass) {
-            // Image fixe : le premier arrêt après « Maintenant », la première fourchette.
-            IntroClock(isCurrent: isCurrent, period: Self.tour.duration, still: Self.tour.stillTime(at: 1)) { time in
-                let place = Self.tour.at(time)
-                IntroVelovHeroFrame(place: place, stop: Int(Self.tour.stops[place.stop]))
-            }
-        }
-    }
-}
-
-private struct IntroVelovHeroFrame: View {
-    let place: IntroTourPlace
-    /// L'échéance du dernier arrêt atteint : l'heure et le marqueur changent à l'arrivée.
-    let stop: Int
-
-    private static let markerScale: CGFloat = 2.4
-
-    var body: some View {
-        VStack(spacing: 10) {
-            Text(IntroVelovDemo.mapPanels[stop].title)
-                .font(.system(.title3, design: .rounded).weight(.bold))
-            ZStack {
-                IntroVelovDial(position: IntroVelovDemo.position(place.step))
-                VStack(spacing: 8) {
-                    IntroVelovMarker(marker: IntroVelovDemo.markers[stop][IntroVelovDemo.home], scale: Self.markerScale)
-                    VStack(spacing: 1) {
-                        Text(IntroVelovDemo.readouts[stop].count)
-                            .font(.system(.headline, design: .rounded))
-                        Text(IntroVelovDemo.demo.station.displayName)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .lineLimit(1)
-        .monospacedDigit()
-        .contentTransition(.numericText())
-        .animation(.snappy, value: stop)
-    }
-}
-
-/// Le cadran : les 24 heures en anneau, de « maintenant » en haut, dans le sens des aiguilles. L'arc
-/// parcouru prend la couleur des chances de chaque quart d'heure, le pouce du curseur en marque le
-/// bout, et les heures du curseur de la carte s'écrivent autour.
-private struct IntroVelovDial: View {
-    let position: Double
-
-    private static let ringWidth: CGFloat = 12
-    private static let labelGap: CGFloat = 20
-
-    var body: some View {
-        GeometryReader { geometry in
-            let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
-            let radius = min(geometry.size.width, geometry.size.height) / 2 - Self.labelGap - 10
-            ZStack {
-                Canvas { context, _ in
-                    draw(in: &context, center: center, radius: radius)
-                }
-                ForEach(IntroVelovDemo.mapPanels[0].ticks, id: \.position) { tick in
-                    Text(tick.label)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .fixedSize()
-                        .position(Self.point(at: tick.position, center: center, radius: radius + Self.labelGap))
-                }
-            }
-        }
-    }
-
-    private func draw(in context: inout GraphicsContext, center: CGPoint, radius: CGFloat) {
-        var track = Path()
-        track.addArc(center: center, radius: radius, startAngle: .zero, endAngle: .degrees(360), clockwise: false)
-        context.stroke(track, with: .color(.appNeutralFill), lineWidth: Self.ringWidth)
-
-        // Le segment de rang i va de l'échéance i à la suivante, un rien plus long pour ne pas laisser de jour.
-        let levels = IntroVelovDemo.panel.trackLevels
-        let count = Double(levels.count)
-        let reached = position * count
-        for (rank, level) in levels.enumerated() where Double(rank) < reached {
-            var arc = Path()
-            arc.addArc(
-                center: center,
-                radius: radius,
-                startAngle: Self.angle(Double(rank) / count),
-                endAngle: Self.angle(min(Double(rank + 1), reached) / count + 0.002),
-                clockwise: false
-            )
-            context.stroke(arc, with: .color(level.trackColor), lineWidth: Self.ringWidth)
-        }
-
-        let head = Self.point(at: position, center: center, radius: radius)
-        let side = Self.ringWidth + 12
-        let thumb = Path(ellipseIn: CGRect(x: head.x - side / 2, y: head.y - side / 2, width: side, height: side))
-        context.drawLayer { layer in
-            layer.addFilter(.shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1))
-            layer.fill(thumb, with: .color(.white))
-        }
-    }
-
-    /// L'angle d'une place sur l'axe des heures : 0 en haut, puis dans le sens des aiguilles.
-    private static func angle(_ position: Double) -> Angle { .degrees(-90 + 360 * position) }
-
-    private static func point(at position: Double, center: CGPoint, radius: CGFloat) -> CGPoint {
-        let radians = angle(position).radians
-        return CGPoint(x: center.x + radius * CGFloat(cos(radians)), y: center.y + radius * CGFloat(sin(radians)))
     }
 }
 
@@ -791,322 +642,5 @@ private struct IntroChanceGauge: View {
         .padding(Self.ringWidth / 2)
         .frame(width: Self.side, height: Self.side)
         .animation(.smooth(duration: 0.4), value: chance.percent)
-    }
-}
-
-// MARK: - 5. Types
-
-/// La tuile de l'état de la station, la barre de filtres de la fiche et son graphique : le choix
-/// défile entre électriques, classiques et places, la case du type choisi s'allume dans la tuile, et la
-/// courbe se transforme en celle du type suivant.
-struct IntroVelovKinds: View {
-    let isCurrent: Bool
-
-    private static let kinds = IntroVelovDemo.demo.KINDS_TOUR
-    private static let tour = IntroTour(stops: Array(0..<Int32(kinds.count)), hold: 1.6, travel: 0.7)
-    private static let panels = kinds.map { IntroVelovDemo.sheet.panel(filter: $0) }
-    private static let morphFrames = 24
-    /// Les courbes intermédiaires du passage de chaque type au suivant, calculées une fois.
-    private static let morphs: [[VelovForecastPanel]] = panels.indices.map { rank in
-        let panels = IntroVelovKinds.panels
-        let frames = IntroVelovKinds.morphFrames
-        let from = panels[rank]
-        let to = panels[(rank + 1) % panels.count]
-        return (0..<frames).map { frame in IntroVelovKinds.blend(from, to, share: Double(frame) / Double(frames - 1)) }
-    }
-
-    var body: some View {
-        IntroStage(.glass) {
-            IntroClock(isCurrent: isCurrent, period: Self.tour.duration, still: Self.tour.stillTime(at: 0)) { time in
-                let place = Self.tour.at(time)
-                let morphing = place.travel > 0
-                IntroVelovKindsFrame(
-                    filter: Self.kinds[morphing ? (place.stop + 1) % Self.kinds.count : place.stop],
-                    panel: morphing
-                        ? Self.morphs[place.stop][Int((place.travel * Double(Self.morphFrames - 1)).rounded())]
-                        : Self.panels[place.stop]
-                )
-            }
-        }
-    }
-
-    /// Le graphique à mi-chemin de deux panneaux de la même station : chaque courbe glisse de l'une à l'autre.
-    private static func blend(_ from: VelovForecastPanel, _ to: VelovForecastPanel, share: Double) -> VelovForecastPanel {
-        func mix(_ start: Double, _ end: Double) -> Double { start + (end - start) * share }
-        let points = zip(from.points, to.points).map { start, end in
-            VelovForecastChartPoint(
-                position: end.position,
-                median: mix(start.median, end.median),
-                low: mix(start.low, end.low),
-                high: mix(start.high, end.high),
-                midLow: mix(start.midLow, end.midLow),
-                midHigh: mix(start.midHigh, end.midHigh)
-            )
-        }
-        return VelovForecastPanel(
-            points: points,
-            scaleMax: max(from.scaleMax, to.scaleMax),
-            midnight: to.midnight,
-            ticks: to.ticks,
-            trackLevels: to.trackLevels,
-            risk: to.risk
-        )
-    }
-}
-
-private struct IntroVelovKindsFrame: View {
-    let filter: VelovFilter
-    let panel: VelovForecastPanel
-
-    private static let chartHeight: CGFloat = 140
-
-    var body: some View {
-        VStack(spacing: 12) {
-            VelovNowTile(station: IntroVelovDemo.demo.station, highlighted: filter)
-            VelovForecastFilterPicker(filter: filter, onSelect: { _ in })
-            VelovForecastChart(panel: panel, step: nil, frameHeight: Self.chartHeight)
-        }
-        .frame(maxHeight: .infinity)
-        .animation(.spring(response: 0.45, dampingFraction: 0.78), value: filter)
-    }
-}
-
-// MARK: - 6. Plan B
-
-/// Ce que raconte la page « plan B » : la station de la fiche et la voisine que la fiche propose quand
-/// elle risque d'être vide, en gros plan sur le plan, et le moment de chaque geste.
-private enum IntroNearbyScene {
-    /// Le premier arrêt de la tournée où la fiche propose une voisine plus sûre.
-    static let step: Int = IntroVelovDemo.tour.map { Int($0) }.first(where: { !IntroVelovDemo.readouts[$0].saferNearby.isEmpty }) ?? 0
-    static let neighbours = IntroVelovDemo.readouts[step].saferNearby
-    static let neighbourRank: Int = neighbours.first.flatMap { neighbour in
-        IntroVelovDemo.pins.firstIndex { $0.station.id == neighbour.station.id }
-    } ?? IntroVelovDemo.home
-    static let layout = IntroMapLayout.closeUp(on: IntroVelovDemo.pins[IntroVelovDemo.home], IntroVelovDemo.pins[neighbourRank])
-    static let homePoint = layout.point(IntroVelovDemo.pins[IntroVelovDemo.home])
-    static let neighbourPoint = layout.point(IntroVelovDemo.pins[neighbourRank])
-    /// Le point qui arrondit le chemin à pied : le milieu, écarté de côté.
-    static let bend: CGPoint = {
-        let start = IntroNearbyScene.homePoint
-        let end = IntroNearbyScene.neighbourPoint
-        let dx = end.x - start.x
-        let dy = end.y - start.y
-        let length = max(1, (dx * dx + dy * dy).squareRoot())
-        let offset: CGFloat = 36
-        return CGPoint(x: (start.x + end.x) / 2 - dy / length * offset, y: (start.y + end.y) / 2 + dx / length * offset)
-    }()
-
-    static let redAt = 1.0
-    static let walkFrom = 1.6
-    static let walkTo = 2.8
-    static let cardFrom = 2.9
-    static let cardTo = 3.5
-    static let pulseFrom = 3.5
-    static let pulsePeriod = 1.4
-    static let fadeFrom = 8.4
-    static let period = 9.0
-}
-
-/// Deux marqueurs sur un bout de plan : la station de la fiche passe au rouge à l'heure où elle se vide,
-/// un chemin en pointillés se trace vers la voisine, puis la carte « Plus sûr à côté » monte du bas avec
-/// son temps à pied et sa chance.
-struct IntroVelovNearby: View {
-    let isCurrent: Bool
-
-    var body: some View {
-        IntroStage(.map(IntroNearbyScene.layout)) {
-            // Image fixe : tout est posé, la carte montée.
-            IntroClock(isCurrent: isCurrent, period: IntroNearbyScene.period, still: IntroNearbyScene.fadeFrom - 2) { time in
-                IntroVelovNearbyFrame(time: time)
-            }
-        }
-    }
-}
-
-private struct IntroVelovNearbyFrame: View {
-    let time: Double
-
-    private static let cardTravel: CGFloat = 170
-
-    var body: some View {
-        let scene = IntroNearbyScene.self
-        let step = time < scene.redAt ? 0 : scene.step
-        let markers = IntroVelovDemo.markers[step]
-        let card = IntroMotion.spring(IntroMotion.progress(time, from: scene.cardFrom, to: scene.cardTo))
-        ZStack {
-            IntroWalk(
-                progress: IntroMotion.ease(IntroMotion.progress(time, from: scene.walkFrom, to: scene.walkTo)),
-                from: scene.homePoint,
-                bend: scene.bend,
-                to: scene.neighbourPoint
-            )
-            if time >= scene.pulseFrom {
-                IntroPulse(phase: ((time - scene.pulseFrom) / scene.pulsePeriod).truncatingRemainder(dividingBy: 1))
-                    .position(scene.neighbourPoint)
-            }
-            IntroVelovMarker(marker: markers[IntroVelovDemo.home])
-                .position(scene.homePoint)
-            IntroVelovMarker(marker: markers[scene.neighbourRank])
-                .position(scene.neighbourPoint)
-            VStack {
-                Text(IntroVelovDemo.mapPanels[step].title)
-                    .font(.subheadline.weight(.semibold))
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .contentTransition(.numericText())
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .glassSurface(Capsule())
-                    .animation(.snappy, value: step)
-                Spacer(minLength: 0)
-                VelovSaferNearbyCard(neighbours: scene.neighbours) { _, row in row }
-                    .offset(y: CGFloat(1 - card) * Self.cardTravel)
-                    .opacity(min(1, card * 3))
-            }
-            .padding(12)
-        }
-        .opacity(1 - IntroMotion.progress(time, from: scene.fadeFrom, to: scene.period))
-    }
-}
-
-/// Le chemin à pied d'une station à l'autre, en pointillés, qui se trace derrière un marcheur.
-private struct IntroWalk: View {
-    /// Part du chemin parcourue, de 0 à 1.
-    let progress: Double
-    let from: CGPoint
-    let bend: CGPoint
-    let to: CGPoint
-
-    private static let walkerSide: CGFloat = 26
-
-    var body: some View {
-        // Le chemin parcouru est le début exact de la courbe complète : le marcheur reste au bout du trait.
-        let share = CGFloat(progress)
-        let partialBend = Self.mix(from, bend, share)
-        let head = Self.mix(partialBend, Self.mix(bend, to, share), share)
-        ZStack {
-            Canvas { context, _ in
-                guard share > 0 else { return }
-                var path = Path()
-                path.move(to: from)
-                path.addQuadCurve(to: head, control: partialBend)
-                context.stroke(path, with: .color(.appAccent), style: StrokeStyle(lineWidth: 4, lineCap: .round, dash: [0.5, 8]))
-            }
-            Image(systemName: "figure.walk")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: Self.walkerSide, height: Self.walkerSide)
-                .background(Color.appAccent, in: Circle())
-                .shadow(color: .black.opacity(0.2), radius: 3, x: 0, y: 1)
-                .position(head)
-                .opacity(min(1, progress * 6, (1 - progress) * 6))
-        }
-    }
-
-    private static func mix(_ start: CGPoint, _ end: CGPoint, _ share: CGFloat) -> CGPoint {
-        CGPoint(x: start.x + (end.x - start.x) * share, y: start.y + (end.y - start.y) * share)
-    }
-}
-
-/// L'onde qui s'élargit autour de la voisine plus sûre.
-private struct IntroPulse: View {
-    /// Avancement de l'onde, de 0 à 1.
-    let phase: Double
-
-    private static let side: CGFloat = 40
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .stroke(Color.appSuccess, lineWidth: 2)
-            .frame(width: Self.side, height: Self.side)
-            .scaleEffect(CGFloat(1 + phase * 0.9))
-            .opacity(1 - phase)
-    }
-}
-
-// MARK: - 7. Apprentissage
-
-/// Huit colonnes de sept jours se remplissent l'une après l'autre, les relevés des semaines passées ;
-/// puis le sceau du contrôle du lundi se pose avec un ressort.
-struct IntroVelovFresh: View {
-    let isCurrent: Bool
-
-    private static let period = 9.0
-    private static let tail = 0.6
-
-    var body: some View {
-        IntroStage(.glass) {
-            // Image fixe : les semaines pleines, le sceau posé.
-            IntroClock(isCurrent: isCurrent, period: Self.period, still: Self.period - 2) { time in
-                IntroVelovFreshFrame(time: time)
-                    .opacity(1 - IntroMotion.progress(time, from: Self.period - Self.tail, to: Self.period))
-            }
-        }
-    }
-}
-
-private struct IntroVelovFreshFrame: View {
-    let time: Double
-
-    private static let weeks = Int(VelovForecastDemo.shared.LEARNING_WEEKS)
-    private static let days = 7
-    private static let cellSide: CGFloat = 20
-    private static let gap: CGFloat = 6
-    private static let start = 0.3
-    private static let perWeek = 0.42
-    private static let perDay = 0.045
-    private static let grow = 0.35
-    /// Fin du remplissage de la dernière case.
-    private static var filled: Double { start + Double(weeks) * perWeek + Double(days) * perDay }
-
-    var body: some View {
-        let label = IntroMotion.ease(IntroMotion.progress(time, from: Self.filled, to: Self.filled + 0.4))
-        let sealed = IntroMotion.spring(IntroMotion.progress(time, from: Self.filled + 0.6, to: Self.filled + 1.2))
-        VStack(spacing: 20) {
-            HStack(spacing: Self.gap) {
-                ForEach(0..<Self.weeks, id: \.self) { week in
-                    VStack(spacing: Self.gap) {
-                        ForEach(0..<Self.days, id: \.self) { day in
-                            cell(week: week, day: day)
-                        }
-                    }
-                }
-            }
-            Text(VelovForecastDemo.shared.LEARNING_LABEL)
-                .font(.headline)
-                .opacity(label)
-            HStack(spacing: 10) {
-                Image(systemName: "checkmark.seal.fill")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(Color.appSuccess)
-                    .rotationEffect(.degrees((1 - sealed) * -40))
-                Text(VelovForecastDemo.shared.CHECK_LABEL)
-                    .font(.system(.title3, design: .rounded).weight(.bold))
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 10)
-            .background(Color.appSuccess.opacity(0.14), in: Capsule())
-            .scaleEffect(CGFloat(max(0.01, sealed)))
-            .opacity(min(1, sealed * 2))
-        }
-        .lineLimit(1)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    /// Une journée de relevés, qui arrive en ressort à son tour.
-    private func cell(week: Int, day: Int) -> some View {
-        let begin = Self.start + Double(week) * Self.perWeek + Double(day) * Self.perDay
-        let grown = IntroMotion.spring(IntroMotion.progress(time, from: begin, to: begin + Self.grow))
-        return RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(Color.appAccent.opacity(Self.shade(week: week, day: day)))
-            .frame(width: Self.cellSide, height: Self.cellSide)
-            .scaleEffect(CGFloat(max(0.01, grown)))
-            .opacity(min(1, grown * 2))
-    }
-
-    /// Les jours de semaine, plus chargés en trajets, plus soutenus que le week-end, avec un peu de
-    /// variété d'une semaine à l'autre.
-    private static func shade(week: Int, day: Int) -> Double {
-        (day < 5 ? 0.78 : 0.42) + Double((week * 3 + day) % 4) * 0.06
     }
 }

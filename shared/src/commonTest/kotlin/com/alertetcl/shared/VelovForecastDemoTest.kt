@@ -52,8 +52,7 @@ class VelovForecastDemoTest {
 
     @Test
     fun everyKindHasItsOwnCurve() {
-        val medians = VelovForecastDemo.KINDS_TOUR.map { kind -> sheet.panel(kind).points.map { it.median } }
+        val medians = listOf(VelovFilter.ELECTRIC, VelovFilter.MECHANICAL, VelovFilter.STANDS).map { kind -> sheet.panel(kind).points.map { it.median } }
         assertEquals(medians.size, medians.toSet().size)
-        assertTrue(VelovFilter.STANDS in VelovForecastDemo.KINDS_TOUR)
     }
 }

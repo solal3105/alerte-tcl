@@ -97,7 +97,7 @@ import kotlin.math.roundToInt
  * une échéance tombe à la même abscisse sur les trois, et le pouce, plus étroit que la marge, ne dépasse
  * pas du graphique à la première ni à la dernière échéance. C'est aussi la marge du texte de la fiche.
  */
-internal val AxisInset = 16.dp
+private val AxisInset = 16.dp
 private val ChartHeight = 190.dp
 private val ThumbRadius = 13.dp
 private val TrackThickness = 8.dp
@@ -266,7 +266,7 @@ internal fun VelovForecastPanel.pointAt(step: Float): VelovForecastChartPoint {
 }
 
 /** Le point situé à [fraction] du chemin de celui-ci à [other], sur chaque courbe. */
-internal fun VelovForecastChartPoint.towards(other: VelovForecastChartPoint, fraction: Float): VelovForecastChartPoint {
+private fun VelovForecastChartPoint.towards(other: VelovForecastChartPoint, fraction: Float): VelovForecastChartPoint {
     fun mix(from: Double, to: Double) = from + (to - from) * fraction
     return VelovForecastChartPoint(
         position = mix(position, other.position),
@@ -480,7 +480,7 @@ internal fun <T> List<T>.runs(): List<IntRange> {
 }
 
 /** Pouce du curseur d'heure : blanc sur les deux thèmes, détaché de ce qu'il couvre par une ombre portée. */
-internal fun DrawScope.drawTimeThumb(center: Offset) {
+private fun DrawScope.drawTimeThumb(center: Offset) {
     val radius = ThumbRadius.toPx()
     drawCircle(Color.Black.copy(alpha = 0.2f), radius = radius + 1.dp.toPx(), center = center + Offset(0f, 1.dp.toPx()))
     drawCircle(Color.White, radius = radius, center = center)
@@ -511,7 +511,7 @@ internal fun VelovTickRow(ticks: List<VelovForecastTick>) {
  * ouvre sa fiche. Ne se recompose que quand la liste change, pas à chaque cran du curseur.
  */
 @Composable
-internal fun VelovSaferNearby(readout: State<VelovForecastReadout>, onOpenStation: (VelovStation) -> Unit) {
+private fun VelovSaferNearby(readout: State<VelovForecastReadout>, onOpenStation: (VelovStation) -> Unit) {
     val neighbours by remember(readout) { derivedStateOf(structuralEqualityPolicy()) { readout.value.saferNearby } }
     if (neighbours.isEmpty()) return
     VelovCard {

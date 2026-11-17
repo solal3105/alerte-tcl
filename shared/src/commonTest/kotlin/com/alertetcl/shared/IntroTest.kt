@@ -41,14 +41,14 @@ class IntroTest {
         val all = visuals(includeWidgets = false, seenRevision = Intro.NEVER_SEEN)
         val velov = all.indexOf(IntroVisual.VELOV)
         assertEquals(FORECAST_PAGES, all.subList(velov + 1, velov + 1 + FORECAST_PAGES.size))
-        assertEquals(IntroVisual.entries.size - 2, all.size, "toutes les pages sauf les widgets et la page d'annonce")
+        assertEquals(IntroVisual.entries.size - 1, all.size, "toutes les pages sauf les widgets")
     }
 
     @Test
     fun aUserOfTheFirstRevisionSeesOnlyWhatIsNew() {
         for (includeWidgets in listOf(true, false)) {
             assertEquals(
-                listOf(IntroVisual.VELOV_FORECAST_HERO) + FORECAST_PAGES,
+                FORECAST_PAGES,
                 visuals(includeWidgets, seenRevision = 1)
             )
         }
@@ -90,8 +90,7 @@ class IntroTest {
     private companion object {
         /** Les pages de la prévision Vélo'v, dans l'ordre où elles la racontent. */
         val FORECAST_PAGES = listOf(
-            IntroVisual.VELOV_FORECAST_MAP, IntroVisual.VELOV_FORECAST_RANGE, IntroVisual.VELOV_FORECAST_CHANCE,
-            IntroVisual.VELOV_FORECAST_KINDS, IntroVisual.VELOV_FORECAST_NEARBY, IntroVisual.VELOV_FORECAST_FRESH
+            IntroVisual.VELOV_FORECAST_MAP, IntroVisual.VELOV_FORECAST_RANGE, IntroVisual.VELOV_FORECAST_CHANCE
         )
     }
 }

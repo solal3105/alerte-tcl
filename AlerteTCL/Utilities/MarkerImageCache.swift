@@ -152,11 +152,10 @@ enum MarkerImageCache {
 
     /// Marqueur d'une station Vélo'v : carré arrondi à la couleur de disponibilité, le pictogramme du
     /// filtre courant et le texte du marqueur (un nombre, ou une fourchette « 12–25 » qui l'élargit).
-    /// `scale` l'agrandit en le dessinant plus grand, donc net : 1 sur la carte, davantage dans l'intro.
-    static func velovMarker(label: String, availability: AvailabilityColor, symbol: String, scale: CGFloat = 1) -> UIImage {
-        let key = "velov-\(label)-\(availability.name)-\(symbol)-\(scale)" as NSString
+    static func velovMarker(label: String, availability: AvailabilityColor, symbol: String) -> UIImage {
+        let key = "velov-\(label)-\(availability.name)-\(symbol)" as NSString
         if let cached = velovCache.object(forKey: key) { return cached }
-        let image = renderVelovMarker(label: label, color: velovColor(availability), symbol: symbol, scale: scale)
+        let image = renderVelovMarker(label: label, color: velovColor(availability), symbol: symbol)
         velovCache.setObject(image, forKey: key)
         return image
     }
@@ -272,7 +271,7 @@ enum MarkerImageCache {
         uiColor(Color(token: AppColors.shared.parkingAvailability(color: availability)))
     }
 
-    private static func renderVelovMarker(label: String, color: UIColor, symbol: String, scale: CGFloat) -> UIImage {
+    private static func renderVelovMarker(label: String, color: UIColor, symbol: String) -> UIImage {
         let text = label as NSString
         let attributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 10, weight: .heavy),
@@ -281,13 +280,11 @@ enum MarkerImageCache {
         let textSize = text.size(withAttributes: attributes)
         // Carré de 30 pt pour un nombre, élargi pour qu'une fourchette garde 5 pt de marge de chaque côté.
         let size = CGSize(width: max(30, ceil(textSize.width) + 13), height: 30)
-        return imageRenderer(size: CGSize(width: size.width * scale, height: size.height * scale)).image { ctx in
+        return imageRenderer(size: size).image { ctx in
             let cg = ctx.cgContext
-            // Tout se dessine à la taille de la carte, agrandi ; l'ombre, qui ne suit pas l'agrandissement, est mise à l'échelle.
-            cg.scaleBy(x: scale, y: scale)
             let rect = CGRect(origin: .zero, size: size).insetBy(dx: 1.5, dy: 1.5)
             let path = UIBezierPath(roundedRect: rect, cornerRadius: 9)
-            cg.setShadow(offset: CGSize(width: 0, height: scale), blur: 2 * scale, color: UIColor.black.withAlphaComponent(0.25).cgColor)
+            cg.setShadow(offset: CGSize(width: 0, height: 1), blur: 2, color: UIColor.black.withAlphaComponent(0.25).cgColor)
             color.setFill()
             path.fill()
             cg.setShadow(offset: .zero, blur: 0, color: nil)

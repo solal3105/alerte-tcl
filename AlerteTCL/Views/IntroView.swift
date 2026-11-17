@@ -179,13 +179,9 @@ private struct IntroVisualView: View {
         case .app: appIcon
         case .widgets: widgets
         case .fixes: fixes
-        case .velovForecastHero: IntroVelovHero(isCurrent: isCurrent)
         case .velovForecastMap: IntroVelovMap(isCurrent: isCurrent)
         case .velovForecastRange: IntroVelovRange(isCurrent: isCurrent)
         case .velovForecastChance: IntroVelovChance(isCurrent: isCurrent)
-        case .velovForecastKinds: IntroVelovKinds(isCurrent: isCurrent)
-        case .velovForecastNearby: IntroVelovNearby(isCurrent: isCurrent)
-        case .velovForecastFresh: IntroVelovFresh(isCurrent: isCurrent)
         default: screenshot
         }
     }
@@ -304,11 +300,10 @@ private struct IntroBackground: View {
 // MARK: - Pages de la prévision Vélo'v
 
 private extension IntroVisual {
-    /// Les sept pages de la prévision Vélo'v, illustrées par une animation (`DESIGN.md`).
+    /// Les trois pages de la prévision Vélo'v, illustrées par une animation (`DESIGN.md`).
     var isVelovForecast: Bool {
         switch self {
-        case .velovForecastHero, .velovForecastMap, .velovForecastRange, .velovForecastChance,
-             .velovForecastKinds, .velovForecastNearby, .velovForecastFresh:
+        case .velovForecastMap, .velovForecastRange, .velovForecastChance:
             return true
         default:
             return false

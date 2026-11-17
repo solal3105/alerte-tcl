@@ -32,13 +32,6 @@ object VelovForecastDemo {
     /** Ce que le graphique de la page « fourchette » montre : tous les vélos. */
     val SHEET_FILTER = VelovFilter.ALL
 
-    /** Les filtres que la page « électriques, classiques, places » fait défiler. */
-    val KINDS_TOUR: List<VelovFilter> = listOf(VelovFilter.ELECTRIC, VelovFilter.MECHANICAL, VelovFilter.STANDS)
-
-    /** La page « elle apprend chaque semaine » : les semaines de relevés qui se remplissent, puis le contrôle. */
-    const val LEARNING_WEEKS = 8
-    const val LEARNING_LABEL = "8 semaines de relevés"
-    const val CHECK_LABEL = "Contrôlée lundi"
 
     /** La station du quartier, celle de la fiche. */
     val station: VelovStation by lazy { site(HOME).station }
