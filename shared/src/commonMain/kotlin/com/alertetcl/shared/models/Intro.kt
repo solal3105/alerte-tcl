@@ -2,7 +2,9 @@ package com.alertetcl.shared.models
 
 /**
  * Ce que montre une page d'intro : l'icône de l'application, une capture de l'écran concerné, les
- * vrais widgets ou la liste des corrections. Chaque plateforme sait dessiner chacun de ces cas.
+ * vrais widgets, la liste des corrections, ou une illustration animée de la prévision Vélo'v (les
+ * `VELOV_FORECAST_*`, dessinées avec les données de [VelovForecastDemo]). Chaque plateforme sait
+ * dessiner chacun de ces cas.
  */
 enum class IntroVisual {
     APP,
@@ -11,8 +13,20 @@ enum class IntroVisual {
     MAP,
     CITY,
     VELOV,
+    /** Un marqueur de station dont le chiffre devient fourchette, autour d'un cadran qui avance. */
+    VELOV_FORECAST_HERO,
+    /** La carte de démonstration, son curseur qui avance seul et les fourchettes des stations. */
     VELOV_FORECAST_MAP,
-    VELOV_FORECAST_SHEET,
+    /** Le graphique des 24 heures qui se dessine, le curseur qui le parcourt et la fourchette écrite. */
+    VELOV_FORECAST_RANGE,
+    /** La piste de couleur des chances, la chance qui change avec l'heure et la période à risque. */
+    VELOV_FORECAST_CHANCE,
+    /** Le choix électriques, classiques, places qui défile, et le graphique qui suit. */
+    VELOV_FORECAST_KINDS,
+    /** La station qui passe au rouge, puis la voisine plus sûre qui s'ajoute dessous. */
+    VELOV_FORECAST_NEARBY,
+    /** Huit semaines de relevés qui se remplissent, puis le contrôle du lundi. */
+    VELOV_FORECAST_FRESH,
     ALERTS,
     WIDGETS,
     FIXES
@@ -82,9 +96,9 @@ object Intro {
 
     /** Première page après une mise à jour : elle annonce ce qu'apporte la dernière révision. */
     private val UPDATE = IntroPage(
-        visual = IntroVisual.APP,
-        title = "Du nouveau pour les Vélo'v",
-        body = "Lyon Pocket prévoit maintenant les vélos et les places de chaque station sur les 24 prochaines heures."
+        visual = IntroVisual.VELOV_FORECAST_HERO,
+        title = "Les Vélo'v, 24 heures à l'avance",
+        body = "Avant de partir, sachez s'il restera un vélo ou une place à votre station."
     )
 
     /** Les pages qui suivent la première, dans l'ordre de l'intro complète. */
@@ -139,19 +153,48 @@ object Intro {
             2,
             IntroPage(
                 visual = IntroVisual.VELOV_FORECAST_MAP,
-                title = "Les Vélo'v à l'heure de votre choix",
-                body = "Faites glisser le curseur en bas de la carte des stations : chacune affiche les vélos à " +
-                    "prévoir à l'heure choisie, par exemple « 3–8 », jusqu'à 24 heures à l'avance."
+                title = "Avancez l'heure sur la carte",
+                body = "Faites glisser le curseur : chaque station affiche les vélos à prévoir à l'heure choisie."
             )
         ),
         Section(
             2,
             IntroPage(
-                visual = IntroVisual.VELOV_FORECAST_SHEET,
-                title = "Les 24 heures d'une station",
-                body = "Touchez une station : vous voyez les vélos à prévoir heure par heure, combien de fois sur " +
-                    "10 c'est juste, et vos chances de trouver un vélo ou une place. Les électriques ont leur " +
-                    "propre prévision."
+                visual = IntroVisual.VELOV_FORECAST_RANGE,
+                title = "Une fourchette, pas un pari",
+                body = "« 3 à 8 vélos » : 8 fois sur 10, la réalité tombe dedans. Plus l'heure est lointaine, plus elle s'élargit."
+            )
+        ),
+        Section(
+            2,
+            IntroPage(
+                visual = IntroVisual.VELOV_FORECAST_CHANCE,
+                title = "Vos chances, d'un coup d'œil",
+                body = "Vert, orange ou rouge : la fiche dit si vous trouverez un vélo, et quand la station risque d'être vide."
+            )
+        ),
+        Section(
+            2,
+            IntroPage(
+                visual = IntroVisual.VELOV_FORECAST_KINDS,
+                title = "Électriques, classiques et places",
+                body = "Chacun a sa propre prévision, y compris les places pour rendre votre vélo."
+            )
+        ),
+        Section(
+            2,
+            IntroPage(
+                visual = IntroVisual.VELOV_FORECAST_NEARBY,
+                title = "Un plan B à deux pas",
+                body = "Quand votre station risque d'être vide, la fiche propose une voisine plus sûre, avec le temps à pied."
+            )
+        ),
+        Section(
+            2,
+            IntroPage(
+                visual = IntroVisual.VELOV_FORECAST_FRESH,
+                title = "Elle apprend chaque semaine",
+                body = "Chaque lundi, elle réapprend sur les huit dernières semaines. Si elle n'est plus vérifiée, elle disparaît : mieux vaut rien que du faux."
             )
         ),
         Section(

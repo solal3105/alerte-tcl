@@ -204,7 +204,10 @@ Les nouveautés sont présentées au premier lancement et une fois après chaque
 bouton selon l'endroit d'où l'intro a été ouverte, règle d'affichage, testés). `IntroView.swift` sur iOS,
 `IntroScreen.kt` sur Android ; la page des widgets n'existe que sur iOS, où elle rend trois widgets
 réels avec les vues de l'extension. Les captures qui illustrent les pages sont celles du site
-(`website/assets/v13-*.jpg`), copiées dans les assets des deux applications. La révision vue est
+(`website/assets/v13-*.jpg`), copiées dans les assets des deux applications, sauf les sept pages de la
+prévision Vélo'v (révision 2) : des animations dessinées par chaque plateforme avec les vraies briques de
+la fiche et de la carte, nourries par la démonstration `VelovForecastDemo` (module partagé, testée ;
+`IntroVelovForecastViews.swift`, `IntroVelovForecastViews.kt`), règles dans `DESIGN.md`. La révision vue est
 gardée par chaque plateforme : après une mise à jour, `Intro.pages(includeWidgets, seenRevision)` ne
 rend qu'une page d'annonce et les pages ajoutées depuis (chaque page porte sa révision) ; l'écran reste
 consultable en entier depuis l'onglet Info (`NEVER_SEEN`). Changer les textes

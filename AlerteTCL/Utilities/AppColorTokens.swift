@@ -30,6 +30,9 @@ extension Color {
     static let appNeutralBorder = Color(token: AppColors.shared.neutralBorder)
     /// Fond des barres posées sur une carte : le dégradé du haut et le dépoli du verre.
     static let appMapChrome = Color(token: AppColors.shared.mapChrome)
+    static let appIntroMapLand = Color(token: AppColors.shared.introMapLand)
+    static let appIntroMapStreet = Color(token: AppColors.shared.introMapStreet)
+    static let appIntroMapWater = Color(token: AppColors.shared.introMapWater)
     static let stopMarker = Color(hex: AppColors.shared.stopMarker)
 }
 

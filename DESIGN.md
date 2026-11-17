@@ -23,6 +23,9 @@ l'objet `Tokens` (`ui/theme/Tokens.kt`) qui expose les mêmes noms à Compose.
 | error | `#D32F2F` | `#EF5350` | perturbation majeure, position obsolète, parking complet, fermé |
 | favorite | `#F9A825` | `#FFD54F` | étoile des lignes favorites |
 | mapChrome | `#F2F2F7` | `#1C1C1E` | haut des cartes « Autour de moi », sous le titre et les filtres : la carte en sort par un dégradé de transparence posé par les vues |
+| introMapLand | `#EEF0F3` | `#22252B` | sol du plan dessiné des illustrations Vélo'v de l'intro |
+| introMapStreet | `#FFFFFF` | `#33373F` | rues de ce plan |
+| introMapWater | `#BBD7F2` | `#1E3A5A` | Rhône et Saône de ce plan |
 
 L'accent est fixe sur les deux plateformes : Android n'emprunte pas la couleur du fond d'écran
 (couleur dynamique Material désactivée) pour que l'interface soit la même que sur iOS.
@@ -184,12 +187,52 @@ notifications, et reste consultable en entier depuis l'onglet Info par « Revoir
 plateforme retient la révision vue (`intro.seenRevision` dans les préférences iOS,
 `intro_seen_revision` dans le stockage Android).
 
-Après une mise à jour, l'intro ne montre que ce qui est arrivé depuis la révision vue : une première
-page à l'icône de l'application qui annonce la mise à jour, puis les pages nouvelles
-(`Intro.pages(includeWidgets, seenRevision)`). À la révision 2 (prévision Vélo'v) : « Du nouveau pour
-les Vélo'v », puis le curseur d'heure de la carte (`IntroVisual.VELOV_FORECAST_MAP`) et la fiche d'une
-station (`VELOV_FORECAST_SHEET`), chacune illustrée par une vraie capture. Une première utilisation
-voit toutes les pages, ces deux-là juste après celle des stations Vélo'v.
+Après une mise à jour, l'intro ne montre que ce qui est arrivé depuis la révision vue : une page
+d'annonce, puis les pages nouvelles (`Intro.pages(includeWidgets, seenRevision)`). Une première
+utilisation voit toutes les pages, celles de la prévision juste après celle des stations Vélo'v.
+
+### Pages de la prévision Vélo'v (révision 2)
+
+Sept pages qui racontent une matinée de semaine, toutes illustrées par une animation dessinée dans
+l'application, jamais par une capture : la démonstration `VelovForecastDemo` (module partagé, testée)
+donne une vraie `VelovForecastSheet` et les marqueurs de huit stations, et les illustrations les
+dessinent avec les briques de la fiche et de la carte (graphique, piste des chances, marqueurs, barre
+de filtres, tuile de l'état). Ce que l'on voit dans l'intro est donc trait pour trait ce que l'on trouve
+ensuite. Aucun texte dans les vues : tout vient du module partagé.
+
+Mise en scène commune :
+- l'illustration occupe la scène du haut, posée sur une carte de verre arrondie (rayon 30) avec une
+  ombre douce. Derrière, les halos prennent la couleur Vélo'v (`AppColors.velov`) au lieu de l'accent ;
+- titre en 30 gras arrondi, texte en 16 secondaire, deux ou trois lignes au plus, qui arrivent en
+  cascade après l'illustration ;
+- chaque animation repart de zéro quand sa page passe devant, et tourne en boucle (de 6 à 10 s) tant
+  qu'elle reste devant ;
+- les changements de chiffre défilent (texte numérique), et les marqueurs s'élargissent en ressort
+  quand une fourchette remplace un nombre ;
+- avec « Réduire les animations », chaque page montre son image la plus parlante, sans boucle.
+
+Les pages :
+1. **Annonce** (`VELOV_FORECAST_HERO`). Un grand marqueur de station au centre d'un cadran de 24 heures.
+   L'arc du cadran avance d'une étape de `TOUR` à l'autre, l'heure s'écrit en haut, et le marqueur
+   passe de « 12 » à « 3–6 », puis à « 0–2 » en rouge, et ainsi de suite.
+2. **Carte** (`VELOV_FORECAST_MAP`). Un plan dessiné : sol `introMapLand`, rues `introMapStreet`, Saône
+   et Rhône `introMapWater`. On y voit les huit `pins` avec leurs vrais marqueurs et, en bas, le panneau
+   du curseur de la carte (`VelovForecastMapPanel`). Le pouce du curseur glisse seul d'étape en étape,
+   avec un rond de doigt dessus. Les marqueurs changent de chiffre et de couleur sur son passage.
+3. **Fourchette** (`VELOV_FORECAST_RANGE`). Le graphique de la fiche se dessine de gauche à droite.
+   Ensuite, le curseur le parcourt et une accolade verticale marque la fourchette sous le curseur.
+   Au-dessus, la lecture de la fiche : la fourchette en grand, avec « 8 fois sur 10 ».
+4. **Chances** (`VELOV_FORECAST_CHANCE`). Une jauge circulaire avec le pourcentage et le palier, à la
+   couleur `velovChance`. Dessous, la piste de couleur du curseur de la fiche, dont le pouce avance. La
+   période à risque (`panel.risk`) apparaît quand le pouce entre dans le rouge.
+5. **Types** (`VELOV_FORECAST_KINDS`). La tuile de l'état (classiques, électriques, places), puis la
+   barre de filtres, dont le choix défile selon `KINDS_TOUR`. Le graphique se transforme d'une courbe
+   à l'autre, et la case du type choisi s'allume dans la tuile.
+6. **Plan B** (`VELOV_FORECAST_NEARBY`). Deux marqueurs sur un bout de plan. Celui de la station passe
+   au rouge à 9 h 15, puis un chemin en pointillés se trace vers la voisine. Enfin, la carte
+   « Plus sûr à côté » monte du bas, avec son temps à pied et sa chance.
+7. **Apprentissage** (`VELOV_FORECAST_FRESH`). `LEARNING_WEEKS` colonnes de sept jours se remplissent
+   l'une après l'autre (`LEARNING_LABEL`), puis un sceau coché `CHECK_LABEL` se pose avec un ressort.
 
 ## Onglet Info
 

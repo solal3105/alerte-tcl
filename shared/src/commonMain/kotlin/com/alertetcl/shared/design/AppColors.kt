@@ -63,6 +63,11 @@ object AppColors {
      */
     val mapChrome = ThemedColor("#F2F2F7", "#1C1C1E")
 
+    /** Le plan dessiné des illustrations de l'intro (prévision Vélo'v) : le sol, les rues, les deux fleuves. */
+    val introMapLand = ThemedColor("#EEF0F3", "#22252B")
+    val introMapStreet = ThemedColor("#FFFFFF", "#33373F")
+    val introMapWater = ThemedColor("#BBD7F2", "#1E3A5A")
+
     /** Marqueur d'un arrêt sur la carte (hors couleur de ligne). */
     val stopMarker = "#1976D2"
     /** Noyau des arrêts de bus, et des bus C, sur la carte ; métro et tram prennent la couleur de leur ligne. */
