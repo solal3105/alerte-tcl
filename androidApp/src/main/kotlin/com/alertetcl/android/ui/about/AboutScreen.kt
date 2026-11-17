@@ -67,7 +67,7 @@ import com.alertetcl.shared.models.Intro
  * d'interface (l'accent), le vert réservé à l'étiquette d'élu écologiste.
  */
 @Composable
-fun AboutScreen() {
+fun AboutScreen(velovForecastAvailable: Boolean) {
     val context = LocalContext.current
     val versionName = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "1.0"
 
@@ -78,7 +78,7 @@ fun AboutScreen() {
     ) {
         item { Hero() }
         item { Promises() }
-        item { NewInThisVersion() }
+        item { NewInThisVersion(velovForecastAvailable) }
         item { Author() }
         item { Projects() }
         item { DataSources() }
@@ -130,7 +130,7 @@ private fun Promise(icon: ImageVector, title: String, modifier: Modifier) {
 
 /** Rouvrir l'intro depuis l'onglet Info, une fois qu'elle a été vue au lancement. */
 @Composable
-private fun NewInThisVersion() {
+private fun NewInThisVersion(velovForecastAvailable: Boolean) {
     var showIntro by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         SectionTitle("Ce qui est nouveau")
@@ -144,7 +144,12 @@ private fun NewInThisVersion() {
             )
         }
     }
-    if (showIntro) IntroDialog(atLaunch = false, seenRevision = Intro.NEVER_SEEN, onFinish = { showIntro = false })
+    if (showIntro) IntroDialog(
+        atLaunch = false,
+        seenRevision = Intro.NEVER_SEEN,
+        forecastAvailable = velovForecastAvailable,
+        onFinish = { showIntro = false }
+    )
 }
 
 @Composable

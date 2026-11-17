@@ -5,8 +5,11 @@ package com.alertetcl.shared.models
  * vrais widgets, la liste des corrections, ou une illustration animée de la prévision Vélo'v (les
  * `VELOV_FORECAST_*`, dessinées avec les données de [VelovForecastDemo]). Chaque plateforme sait
  * dessiner chacun de ces cas.
+ *
+ * [isVelovForecast] marque les pages de la prévision : elles n'apparaissent qu'une fois une prévision
+ * disponible sur le téléphone, et les plateformes leur donnent des halos à la couleur Vélo'v.
  */
-enum class IntroVisual {
+enum class IntroVisual(val isVelovForecast: Boolean = false) {
     APP,
     STOP,
     TIMETABLE,
@@ -14,11 +17,11 @@ enum class IntroVisual {
     CITY,
     VELOV,
     /** La carte de démonstration, son curseur qui avance seul et les fourchettes des stations. */
-    VELOV_FORECAST_MAP,
+    VELOV_FORECAST_MAP(isVelovForecast = true),
     /** Le graphique des 24 heures qui se dessine, le curseur qui le parcourt et la fourchette écrite. */
-    VELOV_FORECAST_RANGE,
+    VELOV_FORECAST_RANGE(isVelovForecast = true),
     /** La piste de couleur des chances, la chance qui change avec l'heure et la période à risque. */
-    VELOV_FORECAST_CHANCE,
+    VELOV_FORECAST_CHANCE(isVelovForecast = true),
     ALERTS,
     WIDGETS,
     FIXES
@@ -39,6 +42,11 @@ data class IntroPage(
  * plateforme retient la révision déjà vue (iOS `UserDefaults`, Android `FavoritesStore`) et la
  * compare par [shouldShow]. Après une mise à jour, il ne montre que ce qui est arrivé depuis la
  * révision vue ([pages]). Il reste consultable en entier depuis l'onglet Info.
+ *
+ * Les pages de la prévision Vélo'v attendent qu'une prévision soit disponible sur le téléphone
+ * (`forecastAvailable`, lu au lancement) : tant qu'il n'y en a pas, l'intro fait comme si elles
+ * n'existaient pas, et elles paraissent d'elles-mêmes au premier lancement qui suit l'arrivée du
+ * modèle. Chaque plateforme enregistre en refermant l'intro la révision atteinte ([reachedRevision]).
  */
 object Intro {
     /** Révision du contenu : l'augmenter fait reparaître l'intro une fois après la mise à jour. */
@@ -48,7 +56,14 @@ object Intro {
     const val NEVER_SEEN = 0
 
     /** True si l'intro doit s'ouvrir au lancement, d'après la révision déjà vue. */
-    fun shouldShow(seenRevision: Int): Boolean = seenRevision < REVISION
+    fun shouldShow(seenRevision: Int, forecastAvailable: Boolean): Boolean =
+        seenRevision < reachedRevision(forecastAvailable)
+
+    /**
+     * La révision à enregistrer une fois l'intro vue : [REVISION] avec une prévision Vélo'v, sinon la
+     * dernière révision dont l'intro a pu tout montrer, pour que les pages de la prévision restent à voir.
+     */
+    fun reachedRevision(forecastAvailable: Boolean): Int = available(forecastAvailable).maxOf { it.revision }
 
     /**
      * Les pages dans l'ordre d'affichage. [includeWidgets] n'est vrai que sur iOS : Android n'a pas
@@ -57,10 +72,11 @@ object Intro {
      * [seenRevision] est la révision déjà vue. Jamais vue ([NEVER_SEEN], et toujours depuis l'onglet
      * Info) : toutes les pages, la page d'ouverture d'abord. Vue avant la dernière mise à jour :
      * seulement ce qui est arrivé depuis, dont la première page tient lieu d'annonce. Déjà à jour :
-     * toutes les pages, comme depuis l'onglet Info.
+     * toutes les pages, comme depuis l'onglet Info. Sans prévision Vélo'v ([forecastAvailable] faux),
+     * ses pages sont laissées de côté.
      */
-    fun pages(includeWidgets: Boolean, seenRevision: Int): List<IntroPage> {
-        val shown = SECTIONS.filter { includeWidgets || it.page.visual != IntroVisual.WIDGETS }
+    fun pages(includeWidgets: Boolean, seenRevision: Int, forecastAvailable: Boolean): List<IntroPage> {
+        val shown = available(forecastAvailable).filter { includeWidgets || it.page.visual != IntroVisual.WIDGETS }
         val news = shown.filter { it.revision > seenRevision }
         return if (seenRevision == NEVER_SEEN || news.isEmpty()) listOf(OPENING) + shown.map { it.page }
         else news.map { it.page }
@@ -78,6 +94,10 @@ object Intro {
 
     /** Une page et la révision qui l'a ajoutée. */
     private class Section(val revision: Int, val page: IntroPage)
+
+    /** Les pages qui peuvent paraître : celles de la prévision Vélo'v attendent qu'il y en ait une. */
+    private fun available(forecastAvailable: Boolean): List<Section> =
+        SECTIONS.filter { forecastAvailable || !it.page.visual.isVelovForecast }
 
     /** Première page de l'intro complète. */
     private val OPENING = IntroPage(

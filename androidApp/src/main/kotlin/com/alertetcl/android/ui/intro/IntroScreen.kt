@@ -68,11 +68,14 @@ import kotlinx.coroutines.launch
  * Écran d'intro : une page par nouveauté, illustrée par l'écran correspondant de l'application, avec
  * les textes du module partagé ([Intro]). Il s'ouvre à la première utilisation et après une mise à
  * jour qui change la révision du contenu, et reste consultable depuis l'onglet Info. Les pages
- * dépendent de la révision déjà vue ([seenRevision], [Intro.NEVER_SEEN] depuis l'onglet Info).
+ * dépendent de la révision déjà vue ([seenRevision], [Intro.NEVER_SEEN] depuis l'onglet Info) et de la
+ * prévision Vélo'v ([forecastAvailable] : sans elle, ses pages sont laissées de côté).
  */
 @Composable
-fun IntroScreen(atLaunch: Boolean, seenRevision: Int, onFinish: () -> Unit) {
-    val pages = remember(seenRevision) { Intro.pages(includeWidgets = false, seenRevision = seenRevision) }
+fun IntroScreen(atLaunch: Boolean, seenRevision: Int, forecastAvailable: Boolean, onFinish: () -> Unit) {
+    val pages = remember(seenRevision, forecastAvailable) {
+        Intro.pages(includeWidgets = false, seenRevision = seenRevision, forecastAvailable = forecastAvailable)
+    }
     val pager = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()
     val isLast = pager.currentPage >= pages.size - 1
@@ -333,11 +336,11 @@ private fun Halo(size: Int, alpha: Float, color: Color, x: Float, y: Float) {
 
 /** L'intro en plein écran, par-dessus l'écran courant. */
 @Composable
-fun IntroDialog(atLaunch: Boolean, seenRevision: Int, onFinish: () -> Unit) {
+fun IntroDialog(atLaunch: Boolean, seenRevision: Int, forecastAvailable: Boolean, onFinish: () -> Unit) {
     Dialog(
         onDismissRequest = onFinish,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
-        IntroScreen(atLaunch = atLaunch, seenRevision = seenRevision, onFinish = onFinish)
+        IntroScreen(atLaunch = atLaunch, seenRevision = seenRevision, forecastAvailable = forecastAvailable, onFinish = onFinish)
     }
 }

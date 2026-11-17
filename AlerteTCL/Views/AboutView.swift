@@ -35,7 +35,11 @@ struct AboutView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showWidgets) { WidgetGalleryView() }
             .fullScreenCover(isPresented: $showIntro) {
-                IntroView(atLaunch: false, seenRevision: Intro.shared.NEVER_SEEN) { showIntro = false }
+                IntroView(
+                    atLaunch: false,
+                    seenRevision: Intro.shared.NEVER_SEEN,
+                    forecastAvailable: NewBadgesViewModel.shared.velovForecastAvailable
+                ) { showIntro = false }
             }
         }
     }

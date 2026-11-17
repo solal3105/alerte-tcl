@@ -105,15 +105,6 @@ import kotlin.math.roundToInt
 // téléphones) : rien n'y est coupé, et la taille du texte du téléphone ne la déforme pas (l'illustration
 // est muette pour les lecteurs d'écran ; le titre et le texte de la page, eux, suivent le réglage).
 
-/** Vrai pour les trois pages de la prévision Vélo'v : illustrées ici, avec des halos à la couleur Vélo'v. */
-internal val IntroVisual.isVelovForecast: Boolean
-    get() = when (this) {
-        IntroVisual.VELOV_FORECAST_MAP,
-        IntroVisual.VELOV_FORECAST_RANGE,
-        IntroVisual.VELOV_FORECAST_CHANCE -> true
-        else -> false
-    }
-
 /**
  * L'illustration d'une page de la prévision Vélo'v, posée sur sa carte de verre. Elle repart de zéro
  * quand sa page passe devant ([isCurrent]) et tourne en boucle tant qu'elle y reste ; hors de la page,

@@ -4,7 +4,8 @@ import Shared
 /// Les pastilles « Nouveau » (`NewBadges`, module partagé) : sur la tuile « Stations Vélo'v » de l'accueil
 /// « Autour de moi » et sur l'onglet « Autour de moi », tant que la règle partagée le veut (prévision
 /// Vélo'v disponible, carte des stations pas encore vue avec son curseur d'heure). Réévaluées au
-/// lancement, à chaque retour au premier plan et à l'ouverture de l'onglet.
+/// lancement, à chaque retour au premier plan et à l'ouverture de l'onglet. La disponibilité de la
+/// prévision lue ici sert aussi à l'intro, dont les pages Vélo'v attendent un modèle (`Intro`).
 @MainActor
 final class NewBadgesViewModel: ObservableObject {
     static let shared = NewBadgesViewModel()
@@ -14,8 +15,9 @@ final class NewBadgesViewModel: ObservableObject {
 
     /// Vrai une fois la prévision vue sur la carte des stations : gardé d'un lancement à l'autre.
     private static let velovForecastOpenedKey = "badge.velovForecastOpened"
-    /// Dernière réponse de la prévision : la règle est relue sans attendre quand la carte a été vue.
-    private var velovForecastAvailable = false
+    /// Dernière réponse de la prévision : la règle est relue sans attendre quand la carte a été vue, et
+    /// l'intro choisit ses pages d'après elle.
+    private(set) var velovForecastAvailable = false
 
     private init() {}
 

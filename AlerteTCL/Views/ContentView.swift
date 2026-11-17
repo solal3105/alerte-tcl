@@ -49,7 +49,6 @@ struct ContentView: View {
             route(deepLink)
         }
         .onChange(of: deepLink) { _, link in route(link) }
-        .task { await newBadges.start() }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:

@@ -18,11 +18,14 @@ struct IntroView: View {
     @State private var pages: [IntroPage]
 
     /// `seenRevision` : la révision déjà vue, au lancement (le module partagé choisit les pages d'après
-    /// elle), ou `Intro.NEVER_SEEN` quand l'intro est rouverte depuis l'onglet Info.
-    init(atLaunch: Bool, seenRevision: Int32, onFinish: @escaping () -> Void) {
+    /// elle), ou `Intro.NEVER_SEEN` quand l'intro est rouverte depuis l'onglet Info. Sans prévision
+    /// Vélo'v (`forecastAvailable` faux), ses pages sont laissées de côté.
+    init(atLaunch: Bool, seenRevision: Int32, forecastAvailable: Bool, onFinish: @escaping () -> Void) {
         self.atLaunch = atLaunch
         self.onFinish = onFinish
-        _pages = State(initialValue: Intro.shared.pages(includeWidgets: true, seenRevision: seenRevision))
+        _pages = State(initialValue: Intro.shared.pages(
+            includeWidgets: true, seenRevision: seenRevision, forecastAvailable: forecastAvailable
+        ))
     }
 
     private var index: Int { position ?? 0 }
@@ -294,19 +297,5 @@ private struct IntroBackground: View {
             .fill(tint.opacity(opacity))
             .frame(width: size, height: size)
             .blur(radius: 80)
-    }
-}
-
-// MARK: - Pages de la prévision Vélo'v
-
-private extension IntroVisual {
-    /// Les trois pages de la prévision Vélo'v, illustrées par une animation (`DESIGN.md`).
-    var isVelovForecast: Bool {
-        switch self {
-        case .velovForecastMap, .velovForecastRange, .velovForecastChance:
-            return true
-        default:
-            return false
-        }
     }
 }

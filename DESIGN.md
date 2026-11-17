@@ -188,9 +188,16 @@ plateforme retient la révision vue (`intro.seenRevision` dans les préférences
 `intro_seen_revision` dans le stockage Android).
 
 Après une mise à jour, l'intro ne montre que les pages arrivées depuis la révision vue
-(`Intro.pages(includeWidgets, seenRevision)`) ; la première d'entre elles tient lieu d'annonce, son titre
-doit donc se comprendre seul. Une première
+(`Intro.pages(includeWidgets, seenRevision, forecastAvailable)`) ; la première d'entre elles tient lieu
+d'annonce, son titre doit donc se comprendre seul. Une première
 utilisation voit toutes les pages, celles de la prévision juste après celle des stations Vélo'v.
+
+Les pages de la prévision (`IntroVisual.isVelovForecast`) attendent qu'une prévision soit disponible sur
+le téléphone : l'intro ne présente pas une fonction qu'on ne trouverait pas dans l'application. Chaque
+plateforme lit la prévision au lancement avant de décider d'ouvrir l'intro ; sans modèle, l'intro fait
+comme si ces pages n'existaient pas et enregistre la révision atteinte (`Intro.reachedRevision`), si
+bien qu'elles paraissent seules au premier lancement qui suit l'arrivée du modèle. Depuis l'onglet Info,
+même règle.
 
 ### Pages de la prévision Vélo'v (révision 2)
 

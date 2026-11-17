@@ -76,12 +76,6 @@ fun AlerteTCLApp(initialRoute: String? = null) {
     val seenRevision = introSeenRevision ?: return
     if (onboardingDone == null) return
 
-    // L'intro passe avant les autorisations : elle dit à quoi servent la position et les alertes.
-    val introFirst = Intro.shouldShow(seenRevision)
-    var showIntro by remember { mutableStateOf(introFirst) }
-    var showLocationSheet by remember { mutableStateOf(!introFirst && onboardingDone == false) }
-    var showNotifSheet by remember { mutableStateOf(false) }
-
     // Pastille « Nouveau » de la prévision Vélo'v, sur l'onglet et sur la tuile : le modèle se charge dès
     // le lancement, et sa disponibilité est relue à chaque retour au premier plan.
     val velovForecastOpened by store.velovForecastBadgeOpened.collectAsState(initial = true)
@@ -97,6 +91,20 @@ fun AlerteTCLApp(initialRoute: String? = null) {
         onPauseOrDispose { check.cancel() }
     }
     val velovForecastNew = NewBadges.showsVelovForecast(velovForecastOpened, velovForecastAvailable, velovForecastCheckedAtMs)
+
+    // L'intro passe avant les autorisations : elle dit à quoi servent la position et les alertes. Elle
+    // attend la première lecture de la prévision Vélo'v, dont les pages ne paraissent qu'avec un modèle.
+    var showIntro by remember { mutableStateOf(false) }
+    var introForecast by remember { mutableStateOf(false) }
+    var showLocationSheet by remember { mutableStateOf(false) }
+    var showNotifSheet by remember { mutableStateOf(false) }
+    val forecastChecked = velovForecastCheckedAtMs > 0
+    LaunchedEffect(forecastChecked) {
+        if (!forecastChecked) return@LaunchedEffect
+        introForecast = velovForecastAvailable
+        if (Intro.shouldShow(seenRevision, introForecast)) showIntro = true
+        else if (onboardingDone == false) showLocationSheet = true
+    }
 
     val nav = rememberNavController()
     val backStackEntry = nav.currentBackStackEntryAsState().value
@@ -166,13 +174,13 @@ fun AlerteTCLApp(initialRoute: String? = null) {
         ) {
             composable("live")    { LiveMapScreen() }
             composable("ville") { CityScreen(velovForecastNew) }
-            composable("about")   { AboutScreen() }
+            composable("about")   { AboutScreen(velovForecastAvailable) }
         }
     }
 
     if (showIntro) {
-        IntroDialog(atLaunch = true, seenRevision = seenRevision, onFinish = {
-            scope.launch { store.setIntroSeen(Intro.REVISION) }
+        IntroDialog(atLaunch = true, seenRevision = seenRevision, forecastAvailable = introForecast, onFinish = {
+            scope.launch { store.setIntroSeen(maxOf(seenRevision, Intro.reachedRevision(introForecast))) }
             showIntro = false
             if (onboardingDone == false) showLocationSheet = true
         })

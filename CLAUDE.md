@@ -209,7 +209,10 @@ prévision Vélo'v (révision 2) : des animations dessinées par chaque platefor
 la fiche et de la carte, nourries par la démonstration `VelovForecastDemo` (module partagé, testée ;
 `IntroVelovForecastViews.swift`, `IntroVelovForecastViews.kt`), règles dans `DESIGN.md`. La révision vue est
 gardée par chaque plateforme : après une mise à jour, `Intro.pages(includeWidgets, seenRevision)` ne
-rend que les pages ajoutées depuis (chaque page porte sa révision), la première tenant lieu d'annonce ; l'écran reste
+rend que les pages ajoutées depuis (chaque page porte sa révision), la première tenant lieu d'annonce ;
+les pages de la prévision attendent qu'un modèle soit sur le téléphone (`forecastAvailable`, lu au
+lancement, révision enregistrée `Intro.reachedRevision`), pour qu'une version publiée avant le premier
+modèle ne présente pas une fonction absente ; l'écran reste
 consultable en entier depuis l'onglet Info (`NEVER_SEEN`). Changer les textes
 d'une version se fait dans le module partagé, jamais dans les vues, et augmenter la révision suffit
 à faire reparaître l'intro.
