@@ -7,6 +7,7 @@ import com.alertetcl.shared.models.TransportMode
 import com.alertetcl.shared.models.TravauxAvancement
 import com.alertetcl.shared.models.TravauxImportance
 import com.alertetcl.shared.models.VehicleType
+import com.alertetcl.shared.models.VelovChanceLevel
 
 /** Une couleur en deux variantes selon le thème du téléphone, au format `#RRGGBB`. */
 data class ThemedColor(val light: String, val dark: String) {
@@ -32,6 +33,8 @@ object AppColors {
 
     // ── États ───────────────────────────────────────────────────────────────
     val success = ThemedColor("#2E7D32", "#66BB6A")
+    /** Vert atténué : le palier juste sous [success] quand un barème en compte deux de verts. */
+    val successSoft = ThemedColor("#9CC79F", "#3E6B41")
     val warning = ThemedColor("#EF6C00", "#FFA726")
     val error = ThemedColor("#D32F2F", "#EF5350")
     val info: ThemedColor get() = accent
@@ -53,6 +56,17 @@ object AppColors {
     val neutralBorder = ThemedColor("#C7C7CC", "#48484A")
     /** Texte sur fond clair. */
     val onLight = "#1B1B1F"
+
+    /**
+     * Haut des cartes de l'onglet « Autour de moi », sous le titre et la barre de filtres : la carte part
+     * de cette couleur et s'en dégage vers le bas. Le dégradé de transparence est posé par les vues.
+     */
+    val mapChrome = ThemedColor("#F2F2F7", "#1C1C1E")
+
+    /** Le plan dessiné des illustrations de l'intro (prévision Vélo'v) : le sol, les rues, les deux fleuves. */
+    val introMapLand = ThemedColor("#EEF0F3", "#22252B")
+    val introMapStreet = ThemedColor("#FFFFFF", "#33373F")
+    val introMapWater = ThemedColor("#BBD7F2", "#1E3A5A")
 
     /** Marqueur d'un arrêt sur la carte (hors couleur de ligne). */
     val stopMarker = "#1976D2"
@@ -108,6 +122,18 @@ object AppColors {
         ParkingType.MOTORIZED_2W -> warning
         ParkingType.VELOV -> velov
     }
+
+    // ── Prévision Vélo'v ────────────────────────────────────────────────────
+    /** Chance de trouver un vélo ou une place, en texte : les deux paliers hauts ont le même vert, seul lisible. */
+    fun velovChance(level: VelovChanceLevel): ThemedColor = when (level) {
+        VelovChanceLevel.NEAR_CERTAIN, VelovChanceLevel.LIKELY -> success
+        VelovChanceLevel.UNCERTAIN -> warning
+        VelovChanceLevel.UNLIKELY -> error
+    }
+
+    /** La même chance sur la piste du curseur, où « probable » se distingue de « quasi sûr » par un vert atténué. */
+    fun velovChanceTrack(level: VelovChanceLevel): ThemedColor =
+        if (level == VelovChanceLevel.LIKELY) successSoft else velovChance(level)
 
     // ── Travaux ─────────────────────────────────────────────────────────────
     /** Importance d'un chantier ; `null` quand elle n'est pas renseignée (couleur neutre de la plateforme). */

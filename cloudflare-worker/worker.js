@@ -17,6 +17,11 @@
  *   GET /velov                       → jcd_jcdecaux.jcdvelov/all.json allégé (stations Vélo'v et disponibilité)
  *   GET /horaires/<fichier>          → fiches horaires théoriques (branche `horaires` du dépôt GitHub,
  *                                      construites chaque nuit par .github/workflows/horaires.yml)
+ *   GET /velov-prevision/<fichier>   → modèle de prévision Vélo'v (index.json et modele.json de la branche
+ *                                      `velov-prevision`, réentraîné chaque semaine par GitHub Actions)
+ *   GET /velov-releves               → {"jours":[…]} : jours UTC pour lesquels des relevés Vélo'v existent
+ *   GET /velov-releves?jour=AAAA-MM-JJ → relevés des stations Vélo'v de ce jour UTC (un toutes les 5 minutes,
+ *                                      lus par le robot d'entraînement ; voir « Relevés Vélo'v »)
  *
  * Les credentials Grand Lyon sont stockés en secrets Cloudflare chiffrés.
  * Aucune credential n'est dans le code ni dans le binaire iOS.
@@ -29,9 +34,14 @@
  *   par un objet durable (LiveCache), seul cache effectif sur une adresse *.workers.dev.
  *   Autres routes : caches.default.
  *   TTL par route : passages 15 s, vehicles/parc-relais-tr 30 s,
- *                   alerts 60 s, velov 60 s, parc-relais statique 1 h, horaires 1 h, GeoServer 24 h.
+ *                   alerts 60 s, velov 60 s, parc-relais statique 1 h, horaires 1 h,
+ *                   velov-prevision 1 h, GeoServer 24 h.
  *   /vehicles suit les vagues de publication de Grand Lyon (vehiclesFreshness) et
  *   annonce la prochaine dans l'en-tête X-Refresh-In, que les applications suivent.
+ *   /velov-releves ne passe par aucun cache : il lit l'historique de l'objet durable VelovReadings.
+ *
+ * Tâches planifiées (crons de wrangler.toml, voir SCHEDULED_JOBS) : relevé des stations Vélo'v
+ * toutes les 5 minutes ; collecte des positions chaque minute une fois R2 activé.
  *
  * Déploiement : bash cloudflare-worker/deploy.sh
  */
@@ -48,10 +58,15 @@ const VEHICLES_URL  = `${DATA_BASE}/siri-lite/2.0/vehicle-monitoring.json?Maximu
 // Stations Vélo'v (données ouvertes publiques, ~460 stations) : le relais ne garde que les champs utiles.
 const VELOV_URL     = `${DOWNLOAD_BASE}/jcd_jcdecaux.jcdvelov/all.json?maxfeatures=1000`;
 
-// Fiches horaires théoriques : fichiers JSON publiés par GitHub Actions sur la branche `horaires`.
-const HORAIRES_BASE = "https://raw.githubusercontent.com/solal3105/alerte-tcl/horaires";
-// Seuls index.json et lignes/<CLÉ>/<A|R>.json sont relayés — le worker n'est pas un proxy ouvert.
-const HORAIRES_PATH = /^\/horaires\/(index\.json|lignes\/[A-Z0-9]{1,16}\/[AR]\.json)$/;
+// Fichiers JSON publiés par GitHub Actions sur des branches du dépôt et relayés sous
+// /<branche>/<fichier> : fiches horaires théoriques (`horaires`), modèle de prévision Vélo'v
+// (`velov-prevision`).
+const GITHUB_RAW = "https://raw.githubusercontent.com/solal3105/alerte-tcl";
+// Seuls les fichiers listés ici sont relayés — le worker n'est pas un proxy ouvert.
+const PUBLISHED_FILES = new Map([
+  ["horaires",        /^(index\.json|lignes\/[A-Z0-9]{1,16}\/[AR]\.json)$/],
+  ["velov-prevision", /^(index|modele)\.json$/],
+]);
 
 const GEO_COLLECTIONS = {
   "metro-funi-lines": "sytral:tcl_sytral.tcllignemf_2_0_0",
@@ -73,6 +88,7 @@ const ROUTE_TTL = {
   "/velov":          60,   // disponibilité des stations Vélo'v
   "/parc-relais":    3600, // données P+R statiques
   "/horaires":       3600, // fiches horaires, régénérées chaque nuit
+  "/velov-prevision": 3600, // modèle de prévision Vélo'v, réentraîné chaque semaine
 };
 const GEO_TTL = 86400; // lignes, arrêts — données quasi-statiques
 // Attente maximale d'un rafraîchissement bloquant (cache très périmé) avant de servir l'ancienne réponse.
@@ -540,6 +556,141 @@ export class LiveCache {
   }
 }
 
+// ── Relevés Vélo'v ─────────────────────────────────────────────────────────
+// Toutes les 5 minutes (déclencheur planifié), l'état de chaque station est relevé et gardé
+// READINGS_KEPT_DAYS jours : le robot hebdomadaire de GitHub Actions les lit par /velov-releves
+// pour réentraîner le modèle de prévision. Le relevé part de la copie de /velov tenue par le cache
+// partagé, comme une application : Grand Lyon ne reçoit rien de plus que la requête par TTL déjà
+// permise (copie fraîche → réutilisée ; périmée → c'est cet appel qui la fait rafraîchir).
+// L'historique vit dans un objet durable à part (VelovReadings, SQLite) : LiveCache reste un cache
+// en mémoire sur le chemin des applications, que la lecture d'une journée entière (≈ 2,6 Mo) ne
+// doit pas ralentir. Une ligne par relevé (≈ 9 Ko de JSON pour ≈ 460 stations), pas une par
+// station : 288 écritures par jour au lieu de 130 000, l'offre gratuite en permet 100 000.
+const READINGS_FIELDS = ["id", "elec", "meca", "places", "capacite", "ouvert"];
+const READINGS_KEPT_DAYS = 75;
+// Âge maximal de la copie de /velov pour être relevée : plus vieille, c'est que l'amont ne répond
+// plus (dernière copie connue resservie). Une journée UTC est donc figée ce délai après minuit.
+const READINGS_MAX_AGE_SECONDS = 600;
+const DAY_SECONDS = 86400;
+
+/** Début (secondes epoch) du jour UTC « AAAA-MM-JJ », null si ce n'est pas une date réelle. */
+function parseDay(raw) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  const time = Date.parse(`${raw}T00:00:00Z`);
+  return !Number.isNaN(time) && isoDay(time / 1000) === raw ? time / 1000 : null;
+}
+
+/** Jour UTC « AAAA-MM-JJ » d'un instant en secondes epoch. */
+function isoDay(seconds) {
+  return new Date(seconds * 1000).toISOString().slice(0, 10);
+}
+
+/** L'unique objet durable qui garde les relevés. */
+function velovReadings(env) {
+  return env.VELOV_READINGS.get(env.VELOV_READINGS.idFromName("velov"));
+}
+
+/** Relève les stations depuis la copie partagée de /velov ; rien n'est enregistré si l'amont a échoué. */
+async function collectVelovReadings(env) {
+  const copy = await serveLive(liveRoute(new URL("https://relais/velov")), env);
+  if (!copy.ok) return;
+  const { stations } = await copy.json();
+  if (!stations.length) return;
+  await velovReadings(env).fetch("https://velov-readings/", {
+    method: "POST",
+    body: JSON.stringify({
+      t: Math.floor(parseInt(copy.headers.get("X-Cached-At"), 10) / 1000),
+      updated: stations.reduce((newest, s) => Math.max(newest, s.updated ?? 0), 0),
+      // Triées par identifiant : deux copies aux mêmes valeurs donnent le même texte.
+      stations: stations
+        .map(s => [s.id, s.ebikes, s.mbikes, s.stands, s.capacity, s.open ? 1 : 0])
+        .sort((a, b) => a[0] - b[0]),
+    }),
+  });
+}
+
+/**
+ * Objet durable : historique des relevés Vélo'v, une ligne par relevé.
+ *   t        heure (secondes epoch) à laquelle le relais a lu les stations chez Grand Lyon
+ *   updated  mise à jour de station la plus récente annoncée par Grand Lyon (0 si aucune)
+ *   stations JSON [[id, elec, meca, places, capacite, ouvert], …] trié par identifiant
+ * POST enregistre un relevé (tâche planifiée seulement, le worker ne relaie que des GET) ;
+ * GET liste les jours, GET ?jour= rend les relevés d'un jour (paramètre validé par le worker).
+ */
+export class VelovReadings {
+  constructor(state) {
+    this.sql = state.storage.sql;
+    this.sql.exec(
+      "CREATE TABLE IF NOT EXISTS readings (t INTEGER PRIMARY KEY, updated INTEGER NOT NULL, stations TEXT NOT NULL)"
+    );
+  }
+
+  async fetch(request) {
+    if (request.method === "POST") return this.store(await request.json());
+    const day = new URL(request.url).searchParams.get("jour");
+    return day === null ? this.days() : this.day(day);
+  }
+
+  /**
+   * Enregistre un relevé, sauf s'il n'apprend rien :
+   *  - copie trop vieille (amont en panne) ou pas plus récente que le dernier relevé (même copie
+   *    du cache resservie) ;
+   *  - flux figé chez Grand Lyon : même dernière mise à jour ET mêmes valeurs que le dernier
+   *    relevé. Les deux conditions ensemble, pour qu'une station à l'horloge déréglée, qui
+   *    bloquerait la dernière mise à jour, n'arrête pas la collecte pour toujours.
+   * Un trou dans les heures des relevés veut donc dire « pas de donnée nouvelle », jamais « rien n'a bougé ».
+   * Chaque enregistrement purge les jours au-delà de READINGS_KEPT_DAYS (jours entiers : à part
+   * aujourd'hui, un jour listé n'est jamais amputé de son début).
+   */
+  store({ t, updated, stations }) {
+    const payload = JSON.stringify(stations);
+    const [last] = this.sql.exec("SELECT t, updated, stations FROM readings ORDER BY t DESC LIMIT 1").toArray();
+    const tooOld = Date.now() / 1000 - t > READINGS_MAX_AGE_SECONDS;
+    const known = last && (t <= last.t || (updated === last.updated && payload === last.stations));
+    if (!tooOld && !known) {
+      this.sql.exec("INSERT INTO readings (t, updated, stations) VALUES (?, ?, ?)", t, updated, payload);
+      this.sql.exec("DELETE FROM readings WHERE t < ?", t - t % DAY_SECONDS - READINGS_KEPT_DAYS * DAY_SECONDS);
+    }
+    return new Response(null, { status: 204 });
+  }
+
+  /** {"jours":["AAAA-MM-JJ",…]} : une lecture d'index par jour gardé, pas un parcours de la table. */
+  days() {
+    const firstFrom = (from) => this.sql.exec("SELECT MIN(t) AS t FROM readings WHERE t >= ?", from).one().t;
+    const jours = [];
+    for (let t = firstFrom(0); t !== null; t = firstFrom(t - t % DAY_SECONDS + DAY_SECONDS)) {
+      jours.push(isoDay(t));
+    }
+    return new Response(JSON.stringify({ jours }), {
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    });
+  }
+
+  /**
+   * Relevés d'un jour UTC, dans l'ordre. Le JSON est assemblé à partir des textes enregistrés,
+   * sans les relire : une journée pèse ≈ 2,6 Mo. Un jour passé ne changera plus, il peut être
+   * gardé longtemps par celui qui le lit ; le jour en cours, jamais.
+   */
+  day(jour) {
+    const start = parseDay(jour);
+    const end = start + DAY_SECONDS;
+    const releves = this.sql
+      .exec("SELECT t, stations FROM readings WHERE t >= ? AND t < ? ORDER BY t", start, end)
+      .toArray()
+      .map(row => `{"t":${row.t},"stations":${row.stations}}`);
+    const closed = Date.now() / 1000 >= end + READINGS_MAX_AGE_SECONDS;
+    return new Response(
+      `{"jour":"${jour}","champs":${JSON.stringify(READINGS_FIELDS)},"releves":[${releves.join(",")}]}`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": closed ? "public, max-age=31536000, immutable" : "no-store",
+        },
+      }
+    );
+  }
+}
+
 // ── Collecte des positions ─────────────────────────────────────────────────
 // Une photo compacte du flux véhicules par minute, compressée, rangée par jour et par minute
 // (positions/AAAA-MM-JJ/HH-MM.json.gz, heure UTC). Elle servira à apprendre les temps de
@@ -604,10 +755,19 @@ async function collectPositions(env) {
   });
 }
 
+// Tâches planifiées : expression cron (telle qu'écrite dans wrangler.toml) → collecte. Chaque
+// expression déclenche son propre appel ; une expression absente de wrangler.toml ne tourne pas
+// (les positions attendent R2).
+const SCHEDULED_JOBS = {
+  "*/5 * * * *": collectVelovReadings,
+  "* * * * *":   collectPositions,
+};
+
 export default {
-  // Déclencheur planifié (wrangler.toml, chaque minute) : collecte des positions.
+  // Un échec est consigné (wrangler tail) sans faire échouer l'appel : la collecte suivante repart de zéro.
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(collectPositions(env));
+    const job = SCHEDULED_JOBS[event.cron];
+    if (job) ctx.waitUntil(job(env).catch(error => console.error(`Tâche planifiée « ${event.cron} » : ${error}`)));
   },
 
   async fetch(request, env, ctx) {
@@ -636,6 +796,16 @@ export default {
     const live = liveRoute(parsedURL);
     if (live) return live.error ?? serveLive(live, env);
 
+    // ── /velov-releves[?jour=AAAA-MM-JJ] ─────────────────────────────────────
+    // Historique des stations Vélo'v pour le robot d'entraînement (voir VelovReadings).
+    if (pathname === "/velov-releves") {
+      const day = searchParams.get("jour");
+      if (day !== null && parseDay(day) === null) {
+        return new Response("Bad Request: invalid jour", { status: 400 });
+      }
+      return velovReadings(env).fetch(`https://velov-readings/${day === null ? "" : `?jour=${day}`}`);
+    }
+
     // La clé de cache = URL complète du worker (sans credentials, qui restent
     // dans authHeaders et ne sont jamais dans l'URL).
     const cacheKeyURL = request.url;
@@ -654,16 +824,17 @@ export default {
       return cachedDerived(request, ctx, GEO_TTL, (cacheKey, cache) => doRefreshLineMapping(cacheKey, authHeaders, cache));
     }
 
-    // ── /horaires/index.json | /horaires/lignes/<CLÉ>/<A|R>.json ────────────
-    // Relais des fiches horaires publiées sur GitHub. Aucune credential Grand Lyon
+    // ── /horaires/<fichier> | /velov-prevision/<fichier> ─────────────────────
+    // Relais des fichiers publiés sur GitHub (PUBLISHED_FILES). Aucune credential Grand Lyon
     // n'est envoyée à GitHub : on passe des en-têtes publics.
-    if (pathname.startsWith("/horaires/")) {
-      if (!HORAIRES_PATH.test(pathname)) {
+    const [, branch, file] = pathname.match(/^\/([^/]+)\/(.+)$/) ?? [];
+    const publishedFiles = PUBLISHED_FILES.get(branch);
+    if (publishedFiles) {
+      if (!publishedFiles.test(file)) {
         return new Response("Not Found", { status: 404 });
       }
       const publicHeaders = { Accept: "application/json", "User-Agent": "AlerteTCL-Proxy/1.0" };
-      const upstreamURL = HORAIRES_BASE + pathname.slice("/horaires".length);
-      return cachedProxyFetch(cacheKeyURL, upstreamURL, publicHeaders, ctx, ROUTE_TTL["/horaires"]);
+      return cachedProxyFetch(cacheKeyURL, `${GITHUB_RAW}/${branch}/${file}`, publicHeaders, ctx, ROUTE_TTL[`/${branch}`]);
     }
 
     // ── /metro-funi-lines | /tram-lines | /bus-lines | /stops ───────────────

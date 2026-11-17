@@ -6,12 +6,9 @@ import android.graphics.Color as AndroidColor
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PointF
-import android.graphics.RectF
 import android.graphics.Typeface
-import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,7 +21,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
@@ -55,10 +51,8 @@ import androidx.compose.ui.graphics.vector.VectorGroup
 import androidx.compose.ui.graphics.vector.VectorPath
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -85,7 +79,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.alertetcl.shared.models.Travaux
-import com.alertetcl.shared.models.TravauxAvancement
+import com.alertetcl.android.ui.components.MapTopBar
 import com.alertetcl.android.ui.map.MapCircleFab
 import com.alertetcl.android.ui.map.enableLocationComponent
 import com.alertetcl.android.ui.map.mapStyleBuilder
@@ -95,11 +89,9 @@ import com.alertetcl.android.ui.theme.Tokens
 import com.alertetcl.shared.design.AppColors
 import com.alertetcl.shared.models.TravauxImportance
 import com.alertetcl.shared.models.TravauxNatureChantier
-import com.alertetcl.shared.models.TravauxType
 import com.alertetcl.shared.viewmodels.TravauxViewModel
 import com.google.gson.JsonObject
 import org.maplibre.android.camera.CameraPosition
-import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
@@ -122,9 +114,10 @@ private const val POLY_LAYER   = "travaux-poly-layer"
 private const val OUTLINE_LAYER = "travaux-outline-layer"
 private const val MARKERS_LAYER = "travaux-markers-layer"
 
+/** Carte des chantiers, ouverte depuis l'accueil de l'onglet « Autour de moi », sous [header] (la capsule de retour). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TravauxScreen() {
+fun TravauxScreen(header: @Composable () -> Unit) {
     val vm = remember { TravauxViewModel() }
     val context = LocalContext.current
     DisposableEffect(Unit) { onDispose { vm.dispose() } }
@@ -209,6 +202,8 @@ fun TravauxScreen() {
                 enableLocationComponent(context, map, style)
             }
         }
+
+        MapTopBar(modifier = Modifier.align(Alignment.TopCenter)) { header() }
 
         // Center loading overlay (only when empty)
         if (isLoading && travaux.isEmpty()) {

@@ -7,7 +7,6 @@ import android.graphics.Paint
 import android.graphics.PointF
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,12 +20,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -53,7 +52,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -70,9 +68,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -96,6 +94,7 @@ import com.alertetcl.shared.models.VelovFilter
 import com.alertetcl.shared.models.VelovStation
 import com.alertetcl.shared.viewmodels.ParkingViewModel
 import com.alertetcl.android.data.FavoritesStore
+import com.alertetcl.android.ui.components.MapTopBar
 import com.alertetcl.android.ui.map.MapCircleFab
 import com.alertetcl.android.ui.map.enableLocationComponent
 import com.alertetcl.android.ui.map.mapStyleBuilder
@@ -106,7 +105,11 @@ import com.alertetcl.android.ui.theme.Tokens
 import com.alertetcl.shared.design.AppColors
 import com.alertetcl.shared.design.MapStyle
 import com.alertetcl.shared.util.DemoShowcase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.google.gson.JsonObject
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -130,10 +133,13 @@ private const val VELOV_SRC       = "velov-src"
 private const val VELOV_DOT_LAYER = "velov-dot-layer"
 private const val VELOV_LAYER     = "velov-layer"
 
-@OptIn(ExperimentalMaterial3Api::class, kotlinx.coroutines.FlowPreview::class)
+/**
+ * Carte d'un jeu de stationnement ([type]), ouverte depuis l'accueil de l'onglet « Autour de moi », sous
+ * [header] (la capsule de retour) et, pour les Vélo'v, la barre de filtres.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-/** Carte d'un jeu de stationnement (`type`), ouverte depuis l'accueil de l'onglet Ville. */
-fun ParkingScreen(type: ParkingType) {
+fun ParkingScreen(type: ParkingType, header: @Composable () -> Unit) {
     val vm = remember { ParkingViewModel().apply { setType(type) } }
     val context = LocalContext.current
     val store = remember { FavoritesStore(context) }
@@ -153,11 +159,12 @@ fun ParkingScreen(type: ParkingType) {
     val showRealtimeParkings by vm.showRealtimeParkings.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
     val errorMessage by vm.errorMessage.collectAsState()
-    val velovStations by vm.velovStations.collectAsState()
     val velovFilter by store.velovFilter.collectAsState(initial = VelovFilter.ALL)
-    val velovRef = remember { mutableStateOf<List<VelovStation>>(emptyList()) }
-    velovRef.value = velovStations
-    var selectedVelov by remember { mutableStateOf<VelovStation?>(null) }
+    val selectVelovFilter: (VelovFilter) -> Unit = { filter -> scope.launch { store.setVelovFilter(filter) } }
+    // Prévision Vélo'v : la fiche ouverte est tenue par la vue modèle, comme le curseur d'heure et les
+    // marqueurs, lus plus bas là où ils servent : l'écran entier ne se recompose pas à chaque cran.
+    val velovSelection by vm.velovSelection.collectAsState()
+    LaunchedEffect(velovFilter) { vm.setVelovFilter(velovFilter) }
 
     var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
     var mapStyle by remember { mutableStateOf<Style?>(null) }
@@ -189,7 +196,7 @@ fun ParkingScreen(type: ParkingType) {
                 store.setVelovFilter(if (demo == "velov-electriques") VelovFilter.ELECTRIC else VelovFilter.ALL)
                 if (demo == "velov-station") {
                     kotlinx.coroutines.delay(6_000)
-                    selectedVelov = DemoShowcase.velovStations().first()
+                    vm.selectVelovStation(DemoShowcase.velovStations().first())
                 }
             }
         }
@@ -265,7 +272,7 @@ fun ParkingScreen(type: ParkingType) {
                             val velovHits = map.queryRenderedFeatures(pt, VELOV_LAYER, VELOV_DOT_LAYER)
                             if (velovHits.isNotEmpty()) {
                                 val id = velovHits[0].getNumberProperty("id")?.toInt()
-                                selectedVelov = velovRef.value.find { it.id == id }
+                                vm.selectVelovStation(vm.velovStations.value.find { it.id == id })
                                 return@addOnMapClickListener true
                             }
                             false
@@ -293,39 +300,48 @@ fun ParkingScreen(type: ParkingType) {
             currentRegion.value?.let { vm.loadInRegion(it) }
         }
 
-        // Indicateur de chargement au bord haut ; la capsule de retour est posée par l'onglet Ville.
-        if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
-
-        // Vélo'v : le choix de ce que les stations affichent, sous la capsule de retour.
-        if (isVelovSelected) {
-            VelovFilterBar(
-                selected = velovFilter,
-                onSelect = { scope.launch { store.setVelovFilter(it) } },
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(start = 16.dp, end = 16.dp, top = 64.dp)
-                    .fillMaxWidth()
-            )
+        // En haut, la capsule de retour et, pour les Vélo'v, le choix de ce que les stations affichent.
+        MapTopBar(modifier = Modifier.align(Alignment.TopCenter)) {
+            header()
+            if (isVelovSelected) VelovFilterBar(selected = velovFilter, onSelect = selectVelovFilter, modifier = Modifier.fillMaxWidth())
         }
 
-        // Bottom-right FABs (parité iOS) : satellite, filtres (voitures), position
+        // Indicateur de chargement au bord haut.
+        if (isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter))
+
+        // Bas de la carte, au-dessus de la barre d'onglets et de la barre système : les boutons ronds à
+        // droite (parité iOS : satellite, filtres des voitures, position) puis, sur la carte Vélo'v quand
+        // il y a des prévisions, le curseur d'heure. Les boutons montent avec le panneau, sans le chevaucher.
         Column(
             modifier = Modifier
-                .align(Alignment.BottomEnd)
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(bottom = 96.dp, end = 16.dp),
-            horizontalAlignment = Alignment.End,
+                .padding(bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            MapCircleFab(icon = Icons.Filled.Public, contentDesc = "Vue satellite", active = isSatellite, onClick = { isSatellite = !isSatellite })
-            if (isCarSelected) {
-                val hasActiveFilters = !showParcRelais || !showRealtimeParkings
-                MapCircleFab(icon = Icons.Filled.FilterList, contentDesc = "Filtres", active = hasActiveFilters, onClick = { showFilterSheet = true })
+            Column(
+                modifier = Modifier.align(Alignment.End).padding(end = 16.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                MapCircleFab(icon = Icons.Filled.Public, contentDesc = "Vue satellite", active = isSatellite, onClick = { isSatellite = !isSatellite })
+                if (isCarSelected) {
+                    val hasActiveFilters = !showParcRelais || !showRealtimeParkings
+                    MapCircleFab(icon = Icons.Filled.FilterList, contentDesc = "Filtres", active = hasActiveFilters, onClick = { showFilterSheet = true })
+                }
+                MapCircleFab(
+                    icon = Icons.Filled.MyLocation, contentDesc = "Ma position",
+                    onClick = locateUser
+                )
             }
-            MapCircleFab(
-                icon = Icons.Filled.MyLocation, contentDesc = "Ma position",
-                onClick = locateUser
+            VelovTimeControl(
+                vm = vm,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(horizontal = 12.dp)
+                    .widthIn(max = 520.dp)
+                    .fillMaxWidth()
             )
         }
 
@@ -401,12 +417,25 @@ fun ParkingScreen(type: ParkingType) {
         ) { ParkingDetailSheet(p) }
     }
 
-    selectedVelov?.let { station ->
+    velovSelection?.let { selection ->
+        // Ouverte en entier, sans palier à mi-hauteur : le graphique de la prévision se voit dès l'ouverture.
+        // Seule la barre du bas est réservée : la fiche n'atteint jamais la barre d'état, dont la hauteur
+        // laisserait sinon une bande vide au-dessus de la poignée.
         ModalBottomSheet(
-            onDismissRequest = { selectedVelov = null },
-            sheetState = rememberModalBottomSheetState(),
-            contentWindowInsets = { WindowInsets.systemBars }
-        ) { VelovStationSheet(station) }
+            onDismissRequest = { vm.selectVelovStation(null) },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            contentWindowInsets = { WindowInsets.navigationBars }
+        ) {
+            VelovStationSheet(
+                selection = selection,
+                filter = velovFilter,
+                onFilter = selectVelovFilter,
+                initialStep = vm.velovForecastStep.value,
+                onOpenNeighbour = vm::openVelovNeighbour,
+                onBack = vm::backToPreviousVelovStation,
+                onClose = { vm.selectVelovStation(null) }
+            )
+        }
     }
 
     // Update parking markers
@@ -443,53 +472,91 @@ fun ParkingScreen(type: ParkingType) {
         }
     }
 
-    // Stations Vélo'v : point coloré de loin (CircleLayer), carré avec le nombre de vélos dès le zoom des arrêts.
-    val lastVelovKeys = remember { mutableStateOf(emptySet<String>()) }
-    LaunchedEffect(mapStyle, velovStations, velovFilter, isDark) {
+    // Stations Vélo'v : point coloré de loin (CircleLayer), carré avec le nombre compté dès le zoom des arrêts.
+    // À « Maintenant », l'état réel de chaque station ; quand le curseur d'heure a bougé, la fourchette
+    // prévue, dans le même dessin, et seulement pour les stations qui ont une prévision. Seules les données
+    // de la source changent d'une échéance à l'autre : les couches restent en place, la carte suit le
+    // curseur. Les flux sont lus ici plutôt que par l'écran, qui ne se recompose pas à chaque cran ; images
+    // et entités se préparent hors du fil principal, une liste plus récente remplace celle en préparation.
+    LaunchedEffect(mapStyle, isDark) {
         val style = mapStyle ?: return@LaunchedEffect
-        if (!style.isFullyLoaded) return@LaunchedEffect
-        val entries = velovStations.map { s ->
-            val count = s.shownCount(velovFilter)
-            val hex = AppColors.parkingAvailability(s.availabilityFor(velovFilter)).hex(isDark)
-            Triple(s, "velov_${velovFilter.name}_${count}_${hex.removePrefix("#")}", hex)
-        }
-        val keys = entries.map { it.second }.toSet()
-        (lastVelovKeys.value - keys).forEach { style.removeImage(it) }
-        lastVelovKeys.value = keys
-        entries.distinctBy { it.second }.filter { style.getImage(it.second) == null }.forEach { (s, key, hex) ->
-            style.addImage(key, velovMarkerBitmap(s.shownCount(velovFilter), hex, velovFilter))
-        }
-        val features = FeatureCollection.fromFeatures(entries.map { (s, key, hex) ->
-            Feature.fromGeometry(Point.fromLngLat(s.lng, s.lat), JsonObject().apply {
-                addProperty("id", s.id)
-                addProperty("icon", key)
-                addProperty("color", hex)
-            })
-        })
-        if (style.getSource(VELOV_SRC) == null) {
-            style.addSource(GeoJsonSource(VELOV_SRC, features))
-            val dots = CircleLayer(VELOV_DOT_LAYER, VELOV_SRC).withProperties(
-                PropertyFactory.circleColor(Expression.get("color")),
-                PropertyFactory.circleRadius(6f),
-                PropertyFactory.circleStrokeColor(AndroidColor.WHITE),
-                PropertyFactory.circleStrokeWidth(1.5f)
-            )
-            dots.setMaxZoom(MapStyle.ZOOM_STOPS.toFloat())
-            style.addLayer(dots)
-            val squares = SymbolLayer(VELOV_LAYER, VELOV_SRC).withProperties(
-                PropertyFactory.iconImage(Expression.get("icon")),
-                PropertyFactory.iconAllowOverlap(true),
-                PropertyFactory.iconIgnorePlacement(true),
-                PropertyFactory.iconSize(1f)
-            )
-            squares.setMinZoom(MapStyle.ZOOM_STOPS.toFloat())
-            style.addLayer(squares)
-        } else {
-            style.getSourceAs<GeoJsonSource>(VELOV_SRC)?.setGeoJson(features)
+        // Les images posées dans ce style. Celles du filtre courant restent : les mêmes libellés reviennent
+        // sans cesse quand le curseur glisse, et il n'y en a qu'une par libellé et couleur.
+        val images = mutableSetOf<String>()
+        combine(vm.velovStations, vm.velovForecastMarkers, snapshotFlow { velovFilter }) { stations, markers, filter ->
+            val pins = markers?.map { VelovPin(it.station, it.label, it.availability) }
+                ?: stations.map { VelovPin(it, it.shownCount(filter).toString(), it.availabilityFor(filter)) }
+            pins to filter
+        }.collectLatest { (pins, filter) ->
+            val prefix = "velov_${filter.name}_"
+            val entries = pins.map { pin ->
+                val hex = AppColors.parkingAvailability(pin.availability).hex(isDark)
+                VelovPinImage(pin, "$prefix${pin.label}_${hex.removePrefix("#")}", hex)
+            }
+            val missing = entries.filter { it.key !in images }.distinctBy { it.key }
+            val (bitmaps, features) = withContext(Dispatchers.Default) {
+                missing.associate { it.key to velovMarkerBitmap(it.pin.label, it.hex, filter) } to
+                    FeatureCollection.fromFeatures(entries.map { (pin, key, hex) ->
+                        Feature.fromGeometry(Point.fromLngLat(pin.station.lng, pin.station.lat), JsonObject().apply {
+                            addProperty("id", pin.station.id)
+                            addProperty("icon", key)
+                            addProperty("color", hex)
+                        })
+                    })
+            }
+            // Le style a pu être remplacé (satellite, thème) pendant la préparation.
+            if (!style.isFullyLoaded) return@collectLatest
+            bitmaps.forEach { (key, bitmap) -> style.addImage(key, bitmap) }
+            images += bitmaps.keys
+            val source = style.getSourceAs<GeoJsonSource>(VELOV_SRC)
+            if (source != null) source.setGeoJson(features) else addVelovLayers(style, features)
+            // Les images d'un autre filtre ne servent plus, une fois la source passée au filtre courant.
+            images.filterNot { it.startsWith(prefix) }.forEach { style.removeImage(it) }
+            images.retainAll { it.startsWith(prefix) }
         }
     }
 }
 
+/**
+ * Le curseur d'heure de la carte des Vélo'v, absent sans prévision à montrer. Panneau et échéance sont lus
+ * ici : à chaque cran, seul ce panneau se recompose.
+ */
+@Composable
+private fun VelovTimeControl(vm: ParkingViewModel, modifier: Modifier) {
+    val panel by vm.velovForecastPanel.collectAsState()
+    val step by vm.velovForecastStep.collectAsState()
+    panel?.let { VelovTimePanel(panel = it, step = { step.toFloat() }, onStepChange = vm::setVelovForecastStep, modifier = modifier) }
+}
+
+/**
+ * Ajoute la source des stations Vélo'v et ses deux couches : le point à la couleur de disponibilité, à
+ * tous les zooms, et par-dessus, dès le zoom des arrêts, le carré qui le recouvre. Le point reste dessous
+ * pour qu'une station se voie même quand son carré manque (image encore en préparation, ou rendu des
+ * symboles en défaut).
+ */
+private fun addVelovLayers(style: Style, features: FeatureCollection) {
+    style.addSource(GeoJsonSource(VELOV_SRC, features))
+    style.addLayer(CircleLayer(VELOV_DOT_LAYER, VELOV_SRC).withProperties(
+        PropertyFactory.circleColor(Expression.get("color")),
+        PropertyFactory.circleRadius(6f),
+        PropertyFactory.circleStrokeColor(AndroidColor.WHITE),
+        PropertyFactory.circleStrokeWidth(1.5f)
+    ))
+    val squares = SymbolLayer(VELOV_LAYER, VELOV_SRC).withProperties(
+        PropertyFactory.iconImage(Expression.get("icon")),
+        PropertyFactory.iconAllowOverlap(true),
+        PropertyFactory.iconIgnorePlacement(true),
+        PropertyFactory.iconSize(1f)
+    )
+    squares.setMinZoom(MapStyle.ZOOM_STOPS.toFloat())
+    style.addLayer(squares)
+}
+
+/** Ce qu'une station Vélo'v montre sur la carte : son compte ou sa fourchette, et sa couleur, relevés ou prévus. */
+private class VelovPin(val station: VelovStation, val label: String, val availability: AvailabilityColor)
+
+/** Un marqueur Vélo'v, le nom de son image dans le style et sa couleur. */
+private data class VelovPinImage(val pin: VelovPin, val key: String, val hex: String)
 
 @Composable
 private fun ParkingDetailSheet(p: Parking) {

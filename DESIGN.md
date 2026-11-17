@@ -18,9 +18,14 @@ l'objet `Tokens` (`ui/theme/Tokens.kt`) qui expose les mêmes noms à Compose.
 |---|---|---|---|
 | accent | `#1565C0` | `#0A84FF` | boutons principaux, liens, sélection, icônes actives |
 | success | `#2E7D32` | `#66BB6A` | service normal, position récente, parking libre, ouvert |
+| successSoft | `#9CC79F` | `#3E6B41` | vert atténué : palier « probable » sur la piste du curseur de prévision Vélo'v |
 | warning | `#EF6C00` | `#FFA726` | perturbation, position vieillissante, parking presque plein |
 | error | `#D32F2F` | `#EF5350` | perturbation majeure, position obsolète, parking complet, fermé |
 | favorite | `#F9A825` | `#FFD54F` | étoile des lignes favorites |
+| mapChrome | `#F2F2F7` | `#1C1C1E` | haut des cartes « Autour de moi », sous le titre et les filtres : la carte en sort par un dégradé de transparence posé par les vues |
+| introMapLand | `#EEF0F3` | `#22252B` | sol du plan dessiné des illustrations Vélo'v de l'intro |
+| introMapStreet | `#FFFFFF` | `#33373F` | rues de ce plan |
+| introMapWater | `#BBD7F2` | `#1E3A5A` | Rhône et Saône de ce plan |
 
 L'accent est fixe sur les deux plateformes : Android n'emprunte pas la couleur du fond d'écran
 (couleur dynamique Material désactivée) pour que l'interface soit la même que sur iOS.
@@ -138,16 +143,28 @@ chargé par `CityOverviewService`, chaque source indépendante).
 Une tuile ouvre la carte correspondante (parkings ou chantiers). Sur iOS elle est poussée dans une
 `NavigationStack` : bouton de retour système, geste de balayage, titre de la tuile en ligne, barre
 transparente. Sur Android, une capsule de verre en haut rappelle la tuile et ramène à l'accueil, et le
-geste retour du système fait de même.
+geste retour du système fait de même ; elle est posée, avec la barre de filtres des Vélo'v, sur le
+dégradé de `mapChrome` vers le transparent (`MapTopBar`, `ui/components/MapTopBar.kt`, le même pour
+toutes les cartes de l'onglet).
 
-Tout l'onglet est en verre : tuiles et capsule de retour Android reposent sur `glassSurface` (iOS,
-Liquid Glass dès iOS 26 et matériau translucide avec liseré clair avant) ou `Modifier.glass` (Android,
-fond translucide et liseré en dégradé). Les boutons ronds des cartes sont, sur iOS 26, les styles de
-bouton en verre du système (`.glass` au repos, `.glassProminent` actif), qui répondent au toucher sans
-délai ; jamais un effet de verre posé par-dessus un bouton. Jamais de verre dans du verre : l'icône
+Tout l'onglet est en verre : tuiles et capsule de retour Android reposent sur `glassSurface` (iOS :
+un voile de `appMapChrome` et un liseré `neutralBorder` sur Liquid Glass dès iOS 26, sur un matériau
+translucide avant ; le verre seul d'iOS 27 laissait trop passer la carte) ou `Modifier.glass` (Android,
+fond translucide et liseré en dégradé). Les boutons ronds des cartes sont, sur iOS 26, le style de
+bouton en verre plein du système (`.glassProminent`, teinté `appMapChrome` au repos, de l'accent
+actif), qui répond au toucher sans délai ; jamais un effet de verre posé par-dessus un bouton. Sur iOS,
+le haut de chaque carte (`MapTopBar` : retour, titre, barre de filtres Vélo'v) est posé sur un dégradé
+de `appMapChrome` vers le transparent, qui ne capte aucun toucher. Jamais de verre dans du verre : l'icône
 d'une tuile est sur un disque uni. L'accent de l'application est la teinte de toute l'interface
 (interrupteurs compris), pas la couleur « primaire » du système. La fiche d'un parking ne montre que ce
 que la donnée contient (plus de « type d'usagers » ni de « type d'ouvrage » inventés).
+
+Une nouveauté se signale par une pastille « Nouveau » (`NewBadges.LABEL`). Celle de la prévision Vélo'v
+est posée à la fois sur la tuile « Stations Vélo'v » et sur l'onglet « Autour de moi », d'après la même
+réponse (`NewBadges.showsVelovForecast`) : tant que la carte des Vélo'v n'a pas été ouverte (chaque
+plateforme le retient et le note à l'ouverture de cette carte), qu'une prévision peut s'y montrer, et
+jusqu'au 1er mars 2027 à minuit, heure de Lyon. Le haut des cartes de l'onglet, sous le titre et la
+barre de filtres, part du jeton `mapChrome` et s'en dégage vers le bas par un dégradé de transparence.
 
 ## Écran d'intro
 
@@ -166,9 +183,52 @@ des capsules d'avancement et le bouton principal plein à l'accent, dont le libe
 partagé et dit où l'on arrive : « Suivant », puis « Voir la carte » sur la dernière page au
 lancement, « Fermer » quand l'intro a été rouverte depuis l'onglet Info. « Passer l'intro » reste offert en
 haut à droite jusqu'à l'avant-dernière page. L'intro passe avant les demandes de position et de
-notifications, et reste consultable depuis l'onglet Info par « Revoir la présentation ». Chaque
+notifications, et reste consultable en entier depuis l'onglet Info par « Revoir la présentation ». Chaque
 plateforme retient la révision vue (`intro.seenRevision` dans les préférences iOS,
 `intro_seen_revision` dans le stockage Android).
+
+Après une mise à jour, l'intro ne montre que les pages arrivées depuis la révision vue
+(`Intro.pages(includeWidgets, seenRevision, forecastAvailable)`) ; la première d'entre elles tient lieu
+d'annonce, son titre doit donc se comprendre seul. Une première
+utilisation voit toutes les pages, celles de la prévision juste après celle des stations Vélo'v.
+
+Les pages de la prévision (`IntroVisual.isVelovForecast`) attendent qu'une prévision soit disponible sur
+le téléphone : l'intro ne présente pas une fonction qu'on ne trouverait pas dans l'application. Chaque
+plateforme lit la prévision au lancement avant de décider d'ouvrir l'intro ; sans modèle, l'intro fait
+comme si ces pages n'existaient pas et enregistre la révision atteinte (`Intro.reachedRevision`), si
+bien qu'elles paraissent seules au premier lancement qui suit l'arrivée du modèle. Depuis l'onglet Info,
+même règle.
+
+### Pages de la prévision Vélo'v (révision 2)
+
+Trois pages, pas davantage (demande de Solal du 17 novembre 2026 : sept étaient trop), écrites en vraies
+phrases, jamais en slogans. Elles racontent une matinée de semaine et sont toutes illustrées par une
+animation dessinée dans l'application, jamais par une capture : la démonstration `VelovForecastDemo`
+(module partagé, testée) donne une vraie `VelovForecastSheet` et les marqueurs de huit stations, et les
+illustrations les dessinent avec les briques de la fiche et de la carte (graphique, piste des chances,
+marqueurs, panneau du curseur). Ce que l'on voit dans l'intro est donc trait pour trait ce que l'on
+trouve ensuite. Aucun texte dans les vues : tout vient du module partagé.
+
+Mise en scène commune :
+- l'illustration occupe la scène du haut, posée sur une carte de verre arrondie (rayon 30) avec une
+  ombre douce ; derrière, les halos prennent la couleur Vélo'v au lieu de l'accent ;
+- titre en 30 gras arrondi, texte en 16 secondaire, qui arrivent en cascade après l'illustration ;
+- chaque animation repart de zéro quand sa page passe devant, et tourne en boucle tant qu'elle reste
+  devant ; les chiffres qui changent défilent, et les marqueurs s'élargissent en ressort quand une
+  fourchette remplace un nombre ;
+- avec « Réduire les animations », chaque page montre son image la plus parlante, sans boucle.
+
+Les pages :
+1. **Carte** (`VELOV_FORECAST_MAP`) : un plan dessiné (sol `introMapLand`, rues `introMapStreet`, Saône
+   et Rhône `introMapWater`) avec les huit `pins` et leurs vrais marqueurs, et en bas le panneau du
+   curseur de la carte (`VelovForecastMapPanel`), dont un doigt fait glisser le pouce d'étape en étape de
+   `TOUR` ; les marqueurs changent de chiffre et de couleur sur son passage.
+2. **Fourchette** (`VELOV_FORECAST_RANGE`) : le graphique de la fiche se dessine de gauche à droite, puis
+   le curseur le parcourt, une accolade marque la fourchette sous le curseur, et la lecture de la fiche
+   au-dessus écrit la fourchette et « 8 fois sur 10 ».
+3. **Chances** (`VELOV_FORECAST_CHANCE`) : une jauge circulaire (pourcentage et palier, couleur
+   `velovChance`) au-dessus de la piste de couleur du curseur de la fiche, dont le pouce avance ; la
+   période à risque (`panel.risk`) apparaît quand il entre dans le rouge.
 
 ## Onglet Info
 
@@ -206,13 +266,106 @@ gris fermé, barème de `VelovStation.availabilityFor` sur les jetons des parkin
 (`MapStyle.ZOOM_STOPS`), un carré arrondi avec un vélo et le nombre de vélos disponibles. Le filtre
 « Seulement les vélos électriques », dans les filtres de l'onglet, ne compte que ceux-là, avec un éclair
 à la place du vélo. La capsule « LIVE » et son compte à rebours valent pour ce type comme pour les
-voitures. La fiche donne le nom lisible de la station, l'adresse, les vélos (électriques et mécaniques)
-et les places libres, l'heure de la dernière mise à jour et un itinéraire à pied. Le rouge du type
-dans le sélecteur est le jeton `AppColors.velov`.
+voitures. La fiche donne le nom lisible de la station, son état du moment dans une case compacte à trois
+comptes (classiques, électriques, places : chacun son nombre et son mot, dans l'ordre de
+`VelovFilter.detailed`, lus par `shownCount` et `VelovTexts.unit` ; « Station fermée » sinon), ce qui y
+est prévu (« Prévision Vélo'v ») et un itinéraire à pied ; ni adresse ni heure de mise à jour. Le rouge du type dans le sélecteur est le jeton
+`AppColors.velov`.
 
 Les barèmes métier sont au même endroit : importance et avancement d'un chantier, progression d'un
 chantier (du rouge au vert en onze paliers), disponibilité et type d'un parking, nature d'un chantier
 (`TravauxNatureChantier.colorHex`).
+
+## Prévision Vélo'v
+
+La fiche d'une station et la carte des stations montrent ce qui est prévu dans les 24 heures, par pas
+d'un quart d'heure. Tout ce qui s'écrit et se dessine vient du module partagé (`VelovForecastSheet`,
+`VelovForecastMapPanel`, `VelovForecastMarker`, obtenus par `VelovForecastService`) : aucune vue ne
+calcule un nombre, un mot ou une couleur. Sans prévision (modèle pas encore arrivé ou plus confirmé par
+le robot, station fermée ou inconnue du modèle), la fiche et la carte restent ce qu'elles étaient.
+
+Ce qui est prévu suit le filtre de la carte (`VelovFilter` : Tous, Classiques, Électriques, Places), avec
+les mêmes titres et le même ordre ; la fiche s'ouvre sur le filtre de la carte. Chaque filtre a sa
+propre courbe, sa fourchette, sa chance et ses voisines. Les mots (`VelovTexts`) : « vélos »,
+« classiques », « électriques », « places », au singulier jusqu'à 1 (« 0 vélo », « 1 place »).
+
+**Le temps.** Un seul curseur, le même sur la fiche et sur la carte : l'échéance 0 est « Maintenant »
+(l'état réel, rien n'y est prévu), les 96 suivantes tombent tous les quarts d'heure à partir de l'heure
+où les stations ont été relevées, que la carte passe à la fiche avec l'échéance en cours. Une heure
+s'écrit « 19 h 15 », « 9 h », arrondie à cinq minutes (une prévision n'est pas juste à la minute), à
+l'heure de Lyon ; « demain » commence à minuit. Les repères du curseur sont les heures rondes, toutes
+les 6 h sur la fiche et toutes les 3 h sur la carte.
+
+**La chance** d'en trouver au moins un (`VelovChance`) : un pourcentage entier, jamais 0 ni 100 (de 1
+à 99), et quatre paliers lus sur ce pourcentage affiché. Le mot ne s'accorde pas, il vaut pour un vélo
+comme pour une place.
+
+| Palier | À partir de | Texte | Piste du curseur | Marqueur de carte |
+|---|---|---|---|---|
+| quasi sûr | 90 % | success | success | vert |
+| probable | 70 % | success | successSoft | vert |
+| incertain | 40 % | warning | warning | orange |
+| peu probable | en dessous | error | error | rouge |
+
+**La fiche**, sous l'état réel de la station :
+
+- le sélecteur de filtre, le même que celui de la carte (le changer dans la fiche le change sur la
+  carte), puis l'heure de l'échéance : « Maintenant », « Dans 30 min · 19 h 15 », « Demain · 8 h 30 »
+  (le lendemain à plus de deux heures ; avant, le délai reste plus parlant) ;
+- le chiffre principal : la fourchette « 7 à 17 vélos » (déciles 10 et 90 arrondis, « 12 vélos » s'ils
+  donnent le même nombre), ou le compte réel à l'échéance 0. Dessous, « 8 fois sur 10 » : la part des
+  cas où cette fourchette a dit vrai pendant la semaine de contrôle du robot, pour ce filtre, arrondie
+  au dixième et jamais « 10 fois sur 10 » ; rien si le robot ne l'a pas mesurée ;
+- à droite, la chance (« 29 % ») et son palier (« peu probable ») dans la couleur du palier ; rien à
+  l'échéance 0 ;
+- le graphique des 24 heures : la valeur la plus probable (trait), la fourchette 10-90 (bande claire) et
+  la fourchette 30-70 (bande soutenue), de l'état réel (premier point) à la dernière échéance, sur une
+  échelle de 0 à la capacité, seul nombre écrit sur l'axe. Les courbes sont lissées sur trois échéances
+  pour le dessin ; la fourchette écrite, elle, ne l'est pas. Un trait pointillé marque minuit, avec le
+  nom du jour qui commence ;
+- le curseur, sous le graphique et aligné sur lui, dont la piste prend la couleur du palier de chaque
+  échéance ;
+- la période à risque, s'il y en a une : la première suite d'échéances « peu probable », « Souvent vide
+  demain de 7 h à 9 h 45 » (« Souvent sans classique », « Souvent sans électrique », « Souvent
+  pleine » ; « vers 7 h » pour une seule échéance ; « à partir de 17 h » si elle court jusqu'à la
+  dernière échéance, rien ne disant qu'elle s'arrête là ; « demain » seulement si elle commence le lendemain),
+  précédée d'un point rouge. Sans période à risque, pas de phrase ;
+- « Plus sûr à côté », seulement quand la chance est « incertain » ou « peu probable » : les deux
+  stations ouvertes les plus proches, à moins de 600 m à vol d'oiseau, où la chance est au moins
+  « probable » à la même échéance et pour le même filtre. Chaque ligne : le nom, « 6 min à pied · 0 à
+  9 vélos » (vol d'oiseau × 1,3 à 80 m par minute, une minute au moins) et la chance dans sa couleur.
+  Toucher une voisine montre sa fiche à la même échéance, avec un retour vers la station d'où l'on vient.
+
+Avec une prévision, la fiche s'ouvre à sa pleine hauteur : à mi-hauteur le graphique serait coupé et le
+curseur caché. Rien ne bouge sous le doigt pendant que le curseur glisse : les lignes du chiffre gardent
+leur place même vides. Le curseur de la fiche part de l'échéance de la carte mais ne déplace pas celui
+de la carte. Quand les stations sont relevées de nouveau (chaque minute), l'échéance choisie est gardée
+et la prévision repart du nouveau relevé.
+
+**La carte.** Un panneau en bas porte le curseur : titre « Maintenant », « Aujourd'hui à 19 h 45 » ou
+« Demain à 8 h 30 » ; « Glissez pour voir la prévision » à l'échéance 0 seulement ; ni bouton pour
+revenir à « Maintenant » (on y revient en glissant), ni légende. À l'échéance 0 les marqueurs sont ceux
+de l'état réel, inchangés. Au-delà, chaque marqueur porte la fourchette de ce que compte le filtre, la
+même que le chiffre de la fiche (déciles 10 et 90 arrondis, places déduites des vélos de la même
+façon) écrite court : « 3–8 » (tiret demi-cadratin, sans espace ni unité), « 5 » quand les deux bornes
+sont égales ; et la couleur de la chance d'en trouver au moins un (tableau ci-dessus), pour les quatre
+filtres. Une
+station fermée ou inconnue du modèle n'a pas de marqueur tant que le curseur n'est pas revenu à
+« Maintenant » : l'application ne montre pas une estimation qu'elle n'a pas, et un marqueur gris sans
+nombre dirait « fermée », ce qu'elle ne sait pas davantage pour demain. Toucher une station ouvre sa
+fiche sur l'échéance du curseur.
+
+Pour que le curseur suive le doigt sans attendre, les marqueurs des 96 échéances sont calculés d'avance,
+en arrière-plan (`VelovForecastService.prepareMarkers`, appelé quand le panneau apparaît, après chaque
+relevé des stations et à chaque changement de filtre), en partant de celles qui entourent la dernière
+position du curseur. Une échéance prête s'affiche aussitôt ; une autre passe avant les autres, et une
+demande dépassée par une plus récente répond null (la carte garde alors ce qu'elle montre). Tout est
+recalculé quand le relevé, l'heure ou le filtre change. Un marqueur lit les mêmes six modèles que la
+fiche (les cinq déciles, reclassés, et la probabilité) : avec seulement les déciles 10 et 90, la
+fourchette de la carte s'écarterait de celle de la fiche quand les déciles se croisent. Sur le modèle
+de novembre 2026 et 458 stations, mesuré sur la JVM d'un ordinateur : une échéance en 30 à 47 ms, les
+96 en 3 à 4,7 s selon le filtre, une échéance prête en moins de 0,1 ms, une échéance demandée pendant
+le calcul d'avance en 40 à 70 ms.
 
 ## Widgets iOS
 
@@ -261,7 +414,8 @@ Toute feuille commence par le même en-tête : un titre, un sous-titre facultati
 badge ou une icône à gauche, et un bouton « Fermer » à droite. Android : `SheetHeader`
 (`ui/components/SheetHeader.kt`) ; iOS : barre de navigation avec le titre et un bouton « Fermer »
 ou « Annuler ». Les feuilles à choix (options de notification, filtres) s'ouvrent à leur pleine
-hauteur ; les fiches (véhicule, arrêt, parking, chantier) s'ouvrent à mi-hauteur et se déploient.
+hauteur ; les fiches (véhicule, arrêt, parking, chantier) s'ouvrent à mi-hauteur et se déploient,
+sauf la fiche d'une station Vélo'v qui a une prévision (« Prévision Vélo'v »).
 Aucune feuille ne porte de bandeau décoratif (dégradé, halo) : la couleur d'un mode ne sert qu'à
 l'icône ou au libellé du mode, jamais de fond.
 

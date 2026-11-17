@@ -14,6 +14,7 @@ import com.alertetcl.shared.models.ParkingType
 import com.alertetcl.shared.models.TransportMode
 import com.alertetcl.shared.models.TravauxImportance
 import com.alertetcl.shared.models.VehicleType
+import com.alertetcl.shared.models.VelovChanceLevel
 
 /** Variante de la couleur adaptée au thème courant. */
 @Composable
@@ -30,6 +31,11 @@ object Tokens {
     val warning: Color @Composable @ReadOnlyComposable get() = AppColors.warning.compose()
     val error: Color @Composable @ReadOnlyComposable get() = AppColors.error.compose()
     val favorite: Color @Composable @ReadOnlyComposable get() = AppColors.favorite.compose()
+    /** Haut des cartes « Autour de moi », d'où part le dégradé sous le titre et les filtres. */
+    val mapChrome: Color @Composable @ReadOnlyComposable get() = AppColors.mapChrome.compose()
+    val introMapLand: Color @Composable @ReadOnlyComposable get() = AppColors.introMapLand.compose()
+    val introMapStreet: Color @Composable @ReadOnlyComposable get() = AppColors.introMapStreet.compose()
+    val introMapWater: Color @Composable @ReadOnlyComposable get() = AppColors.introMapWater.compose()
     /** Texte sur fond clair (badge de sévérité ou de mode à fond vif). */
     val onLight: Color get() = colorFromHex(AppColors.onLight)
 
@@ -46,6 +52,14 @@ object Tokens {
 
     @Composable @ReadOnlyComposable
     fun parkingType(type: ParkingType): Color = AppColors.parkingType(type).compose()
+
+    /** Chance de trouver un vélo ou une place à une station Vélo'v, en texte. */
+    @Composable @ReadOnlyComposable
+    fun velovChance(level: VelovChanceLevel): Color = AppColors.velovChance(level).compose()
+
+    /** La même chance sur la piste du curseur de prévision, où « probable » prend le vert atténué. */
+    @Composable @ReadOnlyComposable
+    fun velovChanceTrack(level: VelovChanceLevel): Color = AppColors.velovChanceTrack(level).compose()
 
     @Composable @ReadOnlyComposable
     fun travauxImportance(importance: TravauxImportance): Color =

@@ -34,6 +34,8 @@ struct AlerteTCLApp: App {
     @State private var showNotificationPrompt = false
     @State private var showLocationPrompt = false
     @State private var showIntro = false
+    /// La prévision Vélo'v était-elle disponible quand l'intro a été ouverte : ses pages en dépendent.
+    @State private var introForecast = false
     /// Lien profond reçu (widgets) ; ContentView le route vers le bon onglet.
     @State private var deepLink: WidgetLink?
     @Environment(\.scenePhase) private var scenePhase
@@ -86,9 +88,13 @@ struct AlerteTCLApp: App {
                     #endif
                 }
                 .environmentObject(viewModel)
-                .onAppear {
+                .task {
                     // L'intro passe avant les autorisations : elle dit à quoi servent la position et les alertes.
-                    if Intro.shared.shouldShow(seenRevision: Int32(introSeenRevision)) {
+                    // Elle attend la lecture de la prévision Vélo'v, dont les pages ne paraissent qu'avec un modèle.
+                    let badges = NewBadgesViewModel.shared
+                    await badges.start()
+                    introForecast = badges.velovForecastAvailable
+                    if Intro.shared.shouldShow(seenRevision: Int32(introSeenRevision), forecastAvailable: introForecast) {
                         showIntro = true
                     } else {
                         askForPermissions()
@@ -103,8 +109,9 @@ struct AlerteTCLApp: App {
                     if phase == .background { WidgetBridge.shared.reloadTimeSensitive() }
                 }
                 .fullScreenCover(isPresented: $showIntro, onDismiss: askForPermissions) {
-                    IntroView(atLaunch: true) {
-                        introSeenRevision = Int(Intro.shared.REVISION)
+                    IntroView(atLaunch: true, seenRevision: Int32(introSeenRevision), forecastAvailable: introForecast) {
+                        let reached = Int(Intro.shared.reachedRevision(forecastAvailable: introForecast))
+                        introSeenRevision = max(introSeenRevision, reached)
                         showIntro = false
                     }
                 }

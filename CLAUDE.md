@@ -160,6 +160,28 @@ minutes, point coloré de loin et carré avec le nombre de vélos dès `MapStyle
 « seulement les vélos électriques » persisté (`FavoritesStore.velovElectricOnly`, `UserDefaults`
 `parking.velovElectricOnly`).
 
+### Prévision Vélo'v
+
+La prévision d'une station (tous les vélos, classiques, électriques et places dans les 24 h, par pas de
+15 min, avec déciles et chance d'en trouver au moins un) se calcule sur l'appareil :
+`VelovForecastService` (module partagé) garde sur le téléphone le modèle publié et `VelovForecastModel`
+le parcourt (forêts LightGBM aplaties ; test de référence contre le prototype `prevision.js`,
+`VelovForecastTest`). Ce qui s'affiche vient aussi du module partagé, par filtre de la carte
+(`VelovFilter`) : `VelovForecastSheet` pour la fiche (graphique des 24 h, curseur d'heure, fourchette,
+chance, période à risque, « Plus sûr à côté »), `VelovForecastMapPanel` et `VelovForecastMarker` pour le
+curseur d'heure de la carte (fourchette « 3–8 », la même que la fiche ; les 96 échéances sont calculées
+d'avance en arrière-plan par `prepareMarkers`, que les vues appellent à l'apparition du curseur, après
+chaque relevé et à chaque changement de filtre) ; les vues (`VelovForecastViews.swift`, `VelovForecastViews.kt`) ne font que
+dessiner, règles dans `DESIGN.md` (« Prévision Vélo'v »). Aucune prévision n'est montrée si le dernier contrôle du modèle
+(`verifie`) a plus de 21 jours (`VelovForecastFreshness`) : mieux vaut rien que du faux. Tout tourne sans
+intervention : le relais relève l'état des stations toutes les 5 minutes à partir de sa copie de `/velov`
+(objet durable `VelovReadings`, 75 jours gardés, route `/velov-releves`), sans requête de plus chez Grand
+Lyon tant que l'application est utilisée ; chaque lundi, `.github/workflows/velov-prevision.yml` lance
+`velov-prevision/build_forecast.py`, qui réapprend sur les huit semaines précédentes, contrôle sur la
+dernière semaine et ne publie (branche orpheline `velov-prevision`, relayée sous `/velov-prevision/`) qu'un
+modèle qui passe les garde-fous et n'est pas moins bon que celui en ligne. Formats, seuils et amorce :
+`velov-prevision/README.md`. Ne jamais publier de relevés station par station dans le dépôt.
+
 ### Onglet « Autour de moi »
 
 Trois onglets : Transport, Autour de moi, Info (route Android `ville`, `CityView` / `CityScreen`).
@@ -171,6 +193,9 @@ pousse dans une `NavigationStack` (retour système), Android pose une capsule de
 `BackHandler`. Style verre partagé : `glassSurface` + `MapGlassButton` (iOS, `GlassStyle.swift`),
 `Modifier.glass` (Android, `ui/components/Glass.kt`) ; jamais de verre dans du verre. La fiche d'un
 parking n'affiche que des données réelles (pas de « type d'usagers » ni de « type d'ouvrage »).
+Pastille « Nouveau » de la prévision Vélo'v sur la tuile Vélo'v et sur l'onglet : `NewBadges` (module
+partagé, testé ; jusqu'au 1er mars 2027, tant que la carte Vélo'v n'a pas été ouverte et qu'une prévision
+existe), « ouverte » retenue par chaque plateforme.
 
 ### Écran d'intro
 
@@ -179,8 +204,16 @@ Les nouveautés sont présentées au premier lancement et une fois après chaque
 bouton selon l'endroit d'où l'intro a été ouverte, règle d'affichage, testés). `IntroView.swift` sur iOS,
 `IntroScreen.kt` sur Android ; la page des widgets n'existe que sur iOS, où elle rend trois widgets
 réels avec les vues de l'extension. Les captures qui illustrent les pages sont celles du site
-(`website/assets/v13-*.jpg`), copiées dans les assets des deux applications. La révision vue est
-gardée par chaque plateforme et l'écran reste consultable depuis l'onglet Info. Changer les textes
+(`website/assets/v13-*.jpg`), copiées dans les assets des deux applications, sauf les trois pages de la
+prévision Vélo'v (révision 2) : des animations dessinées par chaque plateforme avec les vraies briques de
+la fiche et de la carte, nourries par la démonstration `VelovForecastDemo` (module partagé, testée ;
+`IntroVelovForecastViews.swift`, `IntroVelovForecastViews.kt`), règles dans `DESIGN.md`. La révision vue est
+gardée par chaque plateforme : après une mise à jour, `Intro.pages(includeWidgets, seenRevision)` ne
+rend que les pages ajoutées depuis (chaque page porte sa révision), la première tenant lieu d'annonce ;
+les pages de la prévision attendent qu'un modèle soit sur le téléphone (`forecastAvailable`, lu au
+lancement, révision enregistrée `Intro.reachedRevision`), pour qu'une version publiée avant le premier
+modèle ne présente pas une fonction absente ; l'écran reste
+consultable en entier depuis l'onglet Info (`NEVER_SEEN`). Changer les textes
 d'une version se fait dans le module partagé, jamais dans les vues, et augmenter la révision suffit
 à faire reparaître l'intro.
 

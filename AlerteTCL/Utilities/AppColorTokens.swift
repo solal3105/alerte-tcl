@@ -28,6 +28,11 @@ extension Color {
     static let appNeutral = Color(token: AppColors.shared.neutral)
     static let appNeutralFill = Color(token: AppColors.shared.neutralFill)
     static let appNeutralBorder = Color(token: AppColors.shared.neutralBorder)
+    /// Fond des barres posées sur une carte : le dégradé du haut et le dépoli du verre.
+    static let appMapChrome = Color(token: AppColors.shared.mapChrome)
+    static let appIntroMapLand = Color(token: AppColors.shared.introMapLand)
+    static let appIntroMapStreet = Color(token: AppColors.shared.introMapStreet)
+    static let appIntroMapWater = Color(token: AppColors.shared.introMapWater)
     static let stopMarker = Color(hex: AppColors.shared.stopMarker)
 }
 
@@ -179,6 +184,14 @@ extension ParkingType {
         guard let match = ParkingType.allCases.first(where: { $0.shared == shared }) else { return nil }
         self = match
     }
+}
+
+extension VelovChanceLevel {
+    /// Couleur du palier en texte : le pourcentage et son mot.
+    var color: Color { Color(token: AppColors.shared.velovChance(level: self)) }
+
+    /// Couleur du palier sur la piste du curseur d'heure, où « probable » prend le vert atténué.
+    var trackColor: Color { Color(token: AppColors.shared.velovChanceTrack(level: self)) }
 }
 
 extension CityTile {

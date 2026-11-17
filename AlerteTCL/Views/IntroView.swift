@@ -2,24 +2,38 @@ import SwiftUI
 import WidgetKit
 import Shared
 
-/// Écran d'intro : une page par nouveauté, illustrée par l'écran correspondant de l'application, avec
-/// les textes du module partagé (`Intro`). Il s'ouvre à la première utilisation et après une mise à
+/// Écran d'intro : une page par nouveauté, illustrée par l'écran correspondant de l'application ou, pour
+/// la prévision Vélo'v, par une animation dessinée avec ses vraies briques, avec les textes du module
+/// partagé (`Intro`). Il s'ouvre à la première utilisation et après une mise à
 /// jour qui change la révision du contenu, et reste consultable depuis l'onglet Info.
 struct IntroView: View {
     /// Vrai quand l'intro s'ouvre au lancement : le dernier bouton mène alors à la carte.
-    var atLaunch = true
+    let atLaunch: Bool
     /// Appelé quand l'intro est terminée ou passée : l'appelant enregistre la révision vue.
     let onFinish: () -> Void
 
     @State private var position: Int?
-    private let pages: [IntroPage] = Intro.shared.pages(includeWidgets: true)
+    /// Les pages, choisies une fois pour toutes à l'ouverture : enregistrer la révision vue en
+    /// refermant l'intro ne doit pas les changer pendant qu'elle disparaît.
+    @State private var pages: [IntroPage]
+
+    /// `seenRevision` : la révision déjà vue, au lancement (le module partagé choisit les pages d'après
+    /// elle), ou `Intro.NEVER_SEEN` quand l'intro est rouverte depuis l'onglet Info. Sans prévision
+    /// Vélo'v (`forecastAvailable` faux), ses pages sont laissées de côté.
+    init(atLaunch: Bool, seenRevision: Int32, forecastAvailable: Bool, onFinish: @escaping () -> Void) {
+        self.atLaunch = atLaunch
+        self.onFinish = onFinish
+        _pages = State(initialValue: Intro.shared.pages(
+            includeWidgets: true, seenRevision: seenRevision, forecastAvailable: forecastAvailable
+        ))
+    }
 
     private var index: Int { position ?? 0 }
     private var isLast: Bool { index >= pages.count - 1 }
 
     var body: some View {
         ZStack {
-            IntroBackground(page: index)
+            IntroBackground(page: index, tint: pages[index].visual.isVelovForecast ? ParkingType.velov.color : .appAccent)
             VStack(spacing: 0) {
                 skipButton
                 pager
@@ -107,28 +121,36 @@ struct IntroView: View {
 // MARK: - Une page
 
 /// L'illustration en haut, le titre et le texte en dessous. L'illustration glisse moins vite que la
-/// page pendant le balayage, et tout le contenu arrive en cascade quand la page passe devant.
+/// page pendant le balayage, et tout le contenu arrive en cascade quand la page passe devant ; sur les
+/// pages de la prévision Vélo'v, le titre est plus grand et le texte attend que l'illustration soit là.
 private struct IntroPageView: View {
     let page: IntroPage
     let isCurrent: Bool
 
+    private var isVelovForecast: Bool { page.visual.isVelovForecast }
+
     var body: some View {
         VStack(spacing: 26) {
-            IntroVisualView(page: page)
+            IntroVisualView(page: page, isCurrent: isCurrent)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .visualEffect { content, proxy in
                     content.offset(x: proxy.frame(in: .scrollView(axis: .horizontal)).minX * 0.35)
                 }
-                .opacity(isCurrent ? 1 : 0.35)
-                .animation(.easeOut(duration: 0.35), value: isCurrent)
+                // Seuls l'effacement et la taille de l'illustration suivent ce ressort, pas ce qu'elle anime.
+                .animation(.spring(response: 0.55, dampingFraction: 0.82)) { visual in
+                    visual
+                        .opacity(isCurrent ? 1 : 0.35)
+                        .scaleEffect(isCurrent || !isVelovForecast ? 1 : 0.94)
+                }
 
             VStack(spacing: 12) {
                 Text(page.title)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(.system(size: isVelovForecast ? 30 : 28, weight: .bold, design: .rounded))
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .offset(y: isCurrent ? 0 : 16)
                     .opacity(isCurrent ? 1 : 0)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(0.05), value: isCurrent)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.85).delay(isVelovForecast ? 0.18 : 0.05), value: isCurrent)
                 Text(page.body)
                     .font(.system(size: 16))
                     .foregroundStyle(.secondary)
@@ -137,7 +159,7 @@ private struct IntroPageView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .offset(y: isCurrent ? 0 : 20)
                     .opacity(isCurrent ? 1 : 0)
-                    .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(0.1), value: isCurrent)
+                    .animation(.spring(response: 0.55, dampingFraction: 0.85).delay(isVelovForecast ? 0.28 : 0.1), value: isCurrent)
             }
             .frame(maxWidth: 380)
         }
@@ -148,16 +170,21 @@ private struct IntroPageView: View {
 
 // MARK: - Les illustrations
 
-/// Selon la page : l'icône de l'application, une capture de l'écran concerné, les vrais widgets ou la
-/// liste des corrections.
+/// Selon la page : l'icône de l'application, une capture de l'écran concerné, une animation de la
+/// prévision Vélo'v (`IntroVelovForecastViews.swift`), les vrais widgets ou la liste des corrections.
 private struct IntroVisualView: View {
     let page: IntroPage
+    /// Vrai quand la page est devant : les animations ne tournent qu'à ce moment-là.
+    let isCurrent: Bool
 
     var body: some View {
         switch page.visual {
         case .app: appIcon
         case .widgets: widgets
         case .fixes: fixes
+        case .velovForecastMap: IntroVelovMap(isCurrent: isCurrent)
+        case .velovForecastRange: IntroVelovRange(isCurrent: isCurrent)
+        case .velovForecastChance: IntroVelovChance(isCurrent: isCurrent)
         default: screenshot
         }
     }
@@ -240,9 +267,11 @@ private struct IntroVisualView: View {
 
 // MARK: - Fond
 
-/// Deux halos à l'accent qui dérivent lentement et se replacent à chaque page.
+/// Deux halos qui dérivent lentement et se replacent à chaque page, à l'accent ou, sur les pages de la
+/// prévision Vélo'v, à la couleur Vélo'v.
 private struct IntroBackground: View {
     let page: Int
+    let tint: Color
     @State private var drift = false
 
     var body: some View {
@@ -265,7 +294,7 @@ private struct IntroBackground: View {
 
     private func halo(size: CGFloat, opacity: Double) -> some View {
         Circle()
-            .fill(Color.appAccent.opacity(opacity))
+            .fill(tint.opacity(opacity))
             .frame(width: size, height: size)
             .blur(radius: 80)
     }

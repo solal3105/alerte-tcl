@@ -1,4 +1,5 @@
 import SwiftUI
+import Shared
 
 struct ContentView: View {
     @EnvironmentObject var viewModel: AlertViewModel
@@ -9,6 +10,7 @@ struct ContentView: View {
     @State private var trafficLink = false
     @State private var cityLink: WidgetLink?
     @State private var showWidgets = false
+    @ObservedObject private var newBadges = NewBadgesViewModel.shared
     @Environment(\.scenePhase) private var scenePhase
     
     var body: some View {
@@ -24,6 +26,8 @@ struct ContentView: View {
                 .tabItem {
                     Label("Autour de moi", systemImage: "mappin.and.ellipse")
                 }
+                // Le mot en entier : la barre d'onglets l'écrit dans une pastille qui s'élargit.
+                .badge(newBadges.showsVelovForecast ? Text(NewBadges.shared.LABEL) : nil)
                 .tag(1)
 
             AboutView(showWidgets: $showWidgets)
@@ -53,6 +57,7 @@ struct ContentView: View {
                 // Retour au premier plan : recharger les alertes immédiatement
                 // (les véhicules sont relancés par LiveMapView, les parkings par leur ViewModel).
                 Task { await viewModel.loadAlerts() }
+                Task { await newBadges.refresh() }
             case .background:
                 // Le GPS tourne en continu dès l'autorisation accordée : le couper
                 // en arrière-plan évite de vider la batterie pour rien.

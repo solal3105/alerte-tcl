@@ -13,10 +13,11 @@ import androidx.compose.ui.unit.dp
 
 /**
  * Verre dépoli des surfaces flottantes (tuiles, capsules, boutons de carte) : fond translucide,
- * liseré clair qui accroche la lumière en haut à gauche.
+ * liseré clair qui accroche la lumière en haut à gauche. Assez couvrant par défaut pour qu'un texte
+ * posé dessus se lise sur une carte chargée, en clair comme en sombre.
  */
 @Composable
-fun Modifier.glass(shape: Shape, alpha: Float = 0.62f): Modifier = this
+fun Modifier.glass(shape: Shape, alpha: Float = 0.74f): Modifier = this
     .clip(shape)
     .background(MaterialTheme.colorScheme.surface.copy(alpha = alpha))
     .border(

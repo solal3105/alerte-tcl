@@ -1,5 +1,6 @@
 package com.alertetcl.android.ui.intro
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -60,26 +61,37 @@ import com.alertetcl.android.ui.theme.Tokens
 import com.alertetcl.shared.models.Intro
 import com.alertetcl.shared.models.IntroPage
 import com.alertetcl.shared.models.IntroVisual
+import com.alertetcl.shared.models.ParkingType
 import kotlinx.coroutines.launch
 
 /**
  * Écran d'intro : une page par nouveauté, illustrée par l'écran correspondant de l'application, avec
  * les textes du module partagé ([Intro]). Il s'ouvre à la première utilisation et après une mise à
- * jour qui change la révision du contenu, et reste consultable depuis l'onglet Info.
+ * jour qui change la révision du contenu, et reste consultable depuis l'onglet Info. Les pages
+ * dépendent de la révision déjà vue ([seenRevision], [Intro.NEVER_SEEN] depuis l'onglet Info) et de la
+ * prévision Vélo'v ([forecastAvailable] : sans elle, ses pages sont laissées de côté).
  */
 @Composable
-fun IntroScreen(atLaunch: Boolean, onFinish: () -> Unit) {
-    val pages = remember { Intro.pages(includeWidgets = false) }
+fun IntroScreen(atLaunch: Boolean, seenRevision: Int, forecastAvailable: Boolean, onFinish: () -> Unit) {
+    val pages = remember(seenRevision, forecastAvailable) {
+        Intro.pages(includeWidgets = false, seenRevision = seenRevision, forecastAvailable = forecastAvailable)
+    }
     val pager = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()
     val isLast = pager.currentPage >= pages.size - 1
+    // Sur les pages de la prévision Vélo'v, les halos prennent la couleur Vélo'v.
+    val haloColor by animateColorAsState(
+        if (pages[pager.currentPage].visual.isVelovForecast) Tokens.parkingType(ParkingType.VELOV) else Tokens.accent,
+        tween(600),
+        label = "halos"
+    )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        IntroHalos(page = pager.currentPage)
+        IntroHalos(page = pager.currentPage, color = haloColor)
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -152,14 +164,16 @@ fun IntroScreen(atLaunch: Boolean, onFinish: () -> Unit) {
     }
 }
 
-/** L'illustration en haut, le titre et le texte en dessous, qui arrivent en cascade. */
+/**
+ * L'illustration en haut, le titre et le texte en dessous, qui arrivent en cascade après elle. Les pages
+ * de la prévision Vélo'v ont un titre et un texte plus grands, sous leur illustration animée.
+ */
 @Composable
 private fun IntroPageContent(page: IntroPage, isCurrent: Boolean, parallax: Float) {
-    val appear by animateFloatAsState(
-        targetValue = if (isCurrent) 1f else 0f,
-        animationSpec = tween(durationMillis = 420),
-        label = "apparition"
-    )
+    val visualIn by animateFloatAsState(if (isCurrent) 1f else 0f, tween(durationMillis = 480), label = "illustration")
+    val titleIn by appearance(isCurrent, delayMillis = 140, label = "titre")
+    val bodyIn by appearance(isCurrent, delayMillis = 260, label = "texte")
+    val forecast = page.visual.isVelovForecast
 
     Column(
         modifier = Modifier
@@ -172,10 +186,15 @@ private fun IntroPageContent(page: IntroPage, isCurrent: Boolean, parallax: Floa
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .graphicsLayer { translationX = -parallax * size.width * 0.35f },
+                .graphicsLayer {
+                    translationX = -parallax * size.width * 0.35f
+                    alpha = 0.55f + 0.45f * visualIn
+                    scaleX = 0.94f + 0.06f * visualIn
+                    scaleY = scaleX
+                },
             contentAlignment = Alignment.Center
         ) {
-            IntroVisualView(page = page)
+            IntroVisualView(page = page, isCurrent = isCurrent)
         }
 
         Column(
@@ -185,34 +204,49 @@ private fun IntroPageContent(page: IntroPage, isCurrent: Boolean, parallax: Floa
         ) {
             Text(
                 text = page.title,
-                fontSize = 26.sp,
-                lineHeight = 31.sp,
+                fontSize = if (forecast) 30.sp else 26.sp,
+                lineHeight = if (forecast) 35.sp else 31.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.graphicsLayer {
-                    alpha = appear
-                    translationY = (1f - appear) * 24f
+                    alpha = titleIn
+                    translationY = (1f - titleIn) * 24f
                 }
             )
             Text(
                 text = page.body,
-                fontSize = 15.sp,
-                lineHeight = 22.sp,
+                fontSize = if (forecast) 16.sp else 15.sp,
+                lineHeight = if (forecast) 23.sp else 22.sp,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.graphicsLayer {
-                    alpha = appear
-                    translationY = (1f - appear) * 32f
+                    alpha = bodyIn
+                    translationY = (1f - bodyIn) * 32f
                 }
             )
         }
     }
 }
 
-/** Selon la page : l'icône de l'application, une capture de l'écran concerné ou les corrections. */
+/** Arrivée d'un texte de la page, [delayMillis] après l'illustration ; il s'efface sans attendre. */
 @Composable
-private fun IntroVisualView(page: IntroPage) {
+private fun appearance(isCurrent: Boolean, delayMillis: Int, label: String) = animateFloatAsState(
+    targetValue = if (isCurrent) 1f else 0f,
+    animationSpec = tween(durationMillis = 420, delayMillis = if (isCurrent) delayMillis else 0),
+    label = label
+)
+
+/**
+ * Selon la page : l'icône de l'application, une capture de l'écran concerné, les corrections, ou
+ * l'illustration animée d'une page de la prévision Vélo'v.
+ */
+@Composable
+private fun IntroVisualView(page: IntroPage, isCurrent: Boolean) {
+    if (page.visual.isVelovForecast) {
+        IntroVelovForecastVisual(page.visual, isCurrent)
+        return
+    }
     when (page.visual) {
         IntroVisual.APP -> Image(
             painter = painterResource(id = R.mipmap.ic_launcher),
@@ -269,9 +303,9 @@ private fun screenshot(visual: IntroVisual): Int = when (visual) {
     else -> R.drawable.intro_alertes
 }
 
-/** Deux halos à l'accent qui dérivent lentement et se replacent à chaque page. */
+/** Deux halos de [color] (l'accent, ou le Vélo'v) qui dérivent lentement et se replacent à chaque page. */
 @Composable
-private fun IntroHalos(page: Int) {
+private fun IntroHalos(page: Int, color: Color) {
     val transition = rememberInfiniteTransition(label = "halos")
     val drift by transition.animateFloat(
         initialValue = 0f,
@@ -280,22 +314,21 @@ private fun IntroHalos(page: Int) {
         label = "dérive"
     )
     val shift by animateFloatAsState(if (page % 2 == 0) -30f else 40f, tween(800), label = "page")
-    val accent = Tokens.accent
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Halo(size = 360, alpha = 0.32f, accent = accent, x = -90f + 170f * drift + shift, y = -120f - 70f * drift)
-        Halo(size = 300, alpha = 0.20f, accent = accent, x = 130f - 230f * drift - shift, y = 430f + 60f * drift)
+        Halo(size = 360, alpha = 0.32f, color = color, x = -90f + 170f * drift + shift, y = -120f - 70f * drift)
+        Halo(size = 300, alpha = 0.20f, color = color, x = 130f - 230f * drift - shift, y = 430f + 60f * drift)
     }
 }
 
 @Composable
-private fun Halo(size: Int, alpha: Float, accent: Color, x: Float, y: Float) {
+private fun Halo(size: Int, alpha: Float, color: Color, x: Float, y: Float) {
     Box(
         modifier = Modifier
             .offset(x = x.dp, y = y.dp)
             .size(size.dp)
             .background(
-                Brush.radialGradient(listOf(accent.copy(alpha = alpha), Color.Transparent)),
+                Brush.radialGradient(listOf(color.copy(alpha = alpha), Color.Transparent)),
                 CircleShape
             )
     )
@@ -303,11 +336,11 @@ private fun Halo(size: Int, alpha: Float, accent: Color, x: Float, y: Float) {
 
 /** L'intro en plein écran, par-dessus l'écran courant. */
 @Composable
-fun IntroDialog(atLaunch: Boolean, onFinish: () -> Unit) {
+fun IntroDialog(atLaunch: Boolean, seenRevision: Int, forecastAvailable: Boolean, onFinish: () -> Unit) {
     Dialog(
         onDismissRequest = onFinish,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
-        IntroScreen(atLaunch = atLaunch, onFinish = onFinish)
+        IntroScreen(atLaunch = atLaunch, seenRevision = seenRevision, forecastAvailable = forecastAvailable, onFinish = onFinish)
     }
 }

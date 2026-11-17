@@ -1,0 +1,4 @@
+# Dépendances du robot de prévision Vélo'v. Versions majeures fixées : une mise à jour mineure passe
+# seule (et les tests du workflow la vérifient avant tout entraînement), une rupture attend qu'on la décide.
+lightgbm>=4.6,<5
+numpy>=2.1,<3

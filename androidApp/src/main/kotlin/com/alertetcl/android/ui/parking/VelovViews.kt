@@ -7,22 +7,22 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.ElectricBike
@@ -30,40 +30,45 @@ import androidx.compose.material.icons.filled.LocalParking
 import androidx.compose.material.icons.filled.PedalBike
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alertetcl.android.ui.components.SheetHeader
 import com.alertetcl.android.ui.components.glass
 import com.alertetcl.android.ui.theme.Tokens
-import com.alertetcl.android.ui.theme.compose
-import com.alertetcl.shared.design.AppColors
 import com.alertetcl.shared.models.VelovFilter
 import com.alertetcl.shared.models.VelovStation
+import com.alertetcl.shared.models.VelovTexts
+import com.alertetcl.shared.viewmodels.VelovStationSelection
 
 /**
- * Barre posée en haut de la carte Vélo'v : elle choisit ce que chaque station affiche, tous ses vélos,
- * ses vélos classiques, ses vélos électriques ou ses places libres.
+ * Choix de ce que chaque station Vélo'v compte : tous ses vélos, ses vélos classiques, ses vélos
+ * électriques ou ses places libres. Le même choix, gardé d'une ouverture à l'autre, sert à la carte et à
+ * la fiche d'une station : en haut de la carte ([onMap]), la barre est en verre et porte les
+ * pictogrammes ; dans la fiche, déjà posée sur une surface, elle est pleine et réduite aux titres.
  */
 @Composable
-fun VelovFilterBar(selected: VelovFilter, onSelect: (VelovFilter) -> Unit, modifier: Modifier = Modifier) {
+fun VelovFilterBar(selected: VelovFilter, onSelect: (VelovFilter) -> Unit, modifier: Modifier = Modifier, onMap: Boolean = true) {
+    val container = if (onMap) Modifier.glass(RoundedCornerShape(26.dp))
+    else Modifier
+        .clip(RoundedCornerShape(16.dp))
+        .background(MaterialTheme.colorScheme.surface)
+        .semantics { contentDescription = VelovTexts.FILTER_LABEL }
     Row(
-        modifier = modifier.glass(RoundedCornerShape(26.dp)).padding(4.dp),
+        modifier = modifier.then(container).padding(4.dp).selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         VelovFilter.ordered.forEach { filter ->
@@ -71,18 +76,18 @@ fun VelovFilterBar(selected: VelovFilter, onSelect: (VelovFilter) -> Unit, modif
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(if (onMap) 22.dp else 12.dp))
                     .background(if (active) Tokens.accent else Color.Transparent)
-                    .clickable { onSelect(filter) }
-                    .padding(vertical = 7.dp),
+                    .selectable(selected = active, role = Role.RadioButton, onClick = { onSelect(filter) })
+                    .padding(vertical = if (onMap) 7.dp else 9.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 val tint = if (active) Color.White else MaterialTheme.colorScheme.onSurface
-                Icon(velovFilterIcon(filter), filter.caption, tint = tint, modifier = Modifier.size(20.dp))
+                if (onMap) Icon(velovFilterIcon(filter), filter.caption, tint = tint, modifier = Modifier.size(20.dp))
                 Text(
                     filter.title,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = if (onMap) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
                     fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                     color = tint,
                     maxLines = 1
@@ -99,80 +104,123 @@ private fun velovFilterIcon(filter: VelovFilter): ImageVector = when (filter) {
     VelovFilter.STANDS -> Icons.Filled.LocalParking
 }
 
-/** Fiche d'une station Vélo'v : vélos et places disponibles, dernière mise à jour, itinéraire à pied. */
+/**
+ * Fiche d'une station Vélo'v : son nom, une tuile de son état réel ([VelovNowTile]), une tuile de ce qui
+ * y est prévu dans les 24 heures ([VelovForecastSection] : graphique et curseur, dès l'ouverture),
+ * l'itinéraire à pied. Sans prévision à montrer (modèle absent ou plus confirmé, station fermée ou
+ * inconnue du modèle), il ne reste que l'état réel et l'itinéraire, sans mention de la prévision.
+ *
+ * Le filtre est celui de la carte : le changer ici le change aussi sur la carte. [initialStep] est
+ * l'échéance du curseur de la carte à l'ouverture ; elle n'appartient ensuite qu'à la fiche. Toucher une
+ * station voisine ([onOpenNeighbour]) la montre à la même échéance, avec une flèche pour revenir ([onBack]).
+ */
 @Composable
-fun VelovStationSheet(station: VelovStation) {
+fun VelovStationSheet(
+    selection: VelovStationSelection,
+    filter: VelovFilter,
+    onFilter: (VelovFilter) -> Unit,
+    initialStep: Int,
+    onOpenNeighbour: (VelovStation) -> Unit,
+    onBack: () -> Unit,
+    onClose: () -> Unit
+) {
     val context = LocalContext.current
-    val color = AppColors.parkingAvailability(station.availability).compose()
-    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(30_000); nowMs = System.currentTimeMillis() } }
-    Column(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(modifier = Modifier.size(60.dp).clip(CircleShape).background(color.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.DirectionsBike, null, tint = color, modifier = Modifier.size(30.dp))
-            }
-            Text(station.displayName, fontWeight = FontWeight.Bold, fontSize = 19.sp, textAlign = TextAlign.Center)
-            if (station.address.isNotEmpty()) {
-                Text(station.address, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            VelovStat(value = station.mechanicalBikes, caption = "classiques", color = color, modifier = Modifier.weight(1f))
-            VelovStat(value = station.ebikes, caption = "électriques", color = color, modifier = Modifier.weight(1f))
-            VelovStat(value = station.stands, caption = if (station.stands > 1) "places libres" else "place libre", color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-        }
-        Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(station.bikesText, fontSize = 14.sp)
-                if (station.standsText.isNotEmpty()) Text(station.standsText, fontSize = 14.sp)
-                val updated = station.updatedText(nowMs)
-                if (updated.isNotEmpty()) Text(updated, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        Button(
-            onClick = {
-                val uri = android.net.Uri.parse("geo:${station.lat},${station.lng}?q=${station.lat},${station.lng}(Vélo'v ${android.net.Uri.encode(station.displayName)})")
-                runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri)) }
-            },
-            modifier = Modifier.fillMaxWidth()
+    val station = selection.station
+    val showsForecast = selection.forecast != null || selection.forecastPending
+    // Avec une prévision, la hauteur est fixe : la feuille tient par le bas, et sans cela le graphique
+    // remonterait sous le doigt chaque fois que « Plus sûr à côté » apparaît pendant que le curseur glisse.
+    val height = if (showsForecast) Modifier.fillMaxHeight(0.92f) else Modifier
+    Column(modifier = height.verticalScroll(rememberScrollState())) {
+        SheetHeader(
+            title = station.displayName,
+            onClose = onClose,
+            leading = if (selection.hasPrevious) {
+                {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Revenir à la station précédente")
+                    }
+                }
+            } else null
+        )
+        Column(
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Icon(Icons.Filled.DirectionsWalk, null, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("Itinéraire dans une app de cartes")
+            VelovNowTile(station)
+            if (showsForecast) VelovForecastSection(selection.forecast, filter, onFilter, initialStep, onOpenNeighbour)
+            Button(
+                onClick = {
+                    val uri = android.net.Uri.parse("geo:${station.lat},${station.lng}?q=${station.lat},${station.lng}(Vélo'v ${android.net.Uri.encode(station.displayName)})")
+                    runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri)) }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Filled.DirectionsWalk, null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Itinéraire à pied")
+            }
         }
-        Spacer(Modifier.height(8.dp))
     }
 }
 
+/**
+ * L'état réel de la station, en tête de fiche : vélos classiques, vélos électriques et places libres côte
+ * à côte, chacun avec le pictogramme de son filtre, son nombre et son mot ; « Station fermée » si elle
+ * l'est.
+ */
 @Composable
-private fun VelovStat(value: Int, caption: String, color: Color, modifier: Modifier) {
-    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = modifier) {
-        Column(modifier = Modifier.padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("$value", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = color)
-            Text(caption, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun VelovNowTile(station: VelovStation) {
+    VelovCard {
+        if (!station.open) {
+            Text(
+                station.stateText,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        } else {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                VelovFilter.detailed.forEach { filter ->
+                    val count = station.shownCount(filter)
+                    Column(
+                        modifier = Modifier.weight(1f).semantics(mergeDescendants = true) { },
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(velovFilterIcon(filter), null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                        Text(count.toString(), fontSize = 26.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(
+                            VelovTexts.unit(filter, count),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 /**
  * Marqueur d'une station Vélo'v au zoom serré : carré arrondi à la couleur de disponibilité, le
- * pictogramme du filtre courant et le nombre compté (parité iOS `VelovMarker`).
+ * pictogramme du filtre courant et [label], le nombre compté ou la fourchette prévue (parité iOS
+ * `VelovMarker`). Le carré s'élargit pour une fourchette (« 12–25 ») en gardant autour du texte la
+ * marge d'un nombre.
  */
-fun velovMarkerBitmap(count: Int, colorHex: String, filter: VelovFilter): Bitmap {
+fun velovMarkerBitmap(label: String, colorHex: String, filter: VelovFilter): Bitmap {
     val density = android.content.res.Resources.getSystem().displayMetrics.density
-    val size = (30 * density).toInt()
-    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE; textSize = 10f * density; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); textAlign = Paint.Align.CENTER }
+    val height = (30 * density).toInt()
+    val width = maxOf(height, (text.measureText(label) + 10 * density).toInt())
+    val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     val inset = 1.5f * density
-    val rect = RectF(inset, inset, size - inset, size - inset)
+    val rect = RectF(inset, inset, width - inset, height - inset)
     val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.parseColor(colorHex); style = Paint.Style.FILL; setShadowLayer(2f * density, 0f, density, AndroidColor.argb(64, 0, 0, 0)) }
     canvas.drawRoundRect(rect, 9 * density, 9 * density, fill)
     val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.argb(230, 255, 255, 255); style = Paint.Style.STROKE; strokeWidth = 1.5f * density }
     canvas.drawRoundRect(rect, 9 * density, 9 * density, stroke)
-    val cx = size / 2f
+    val cx = width / 2f
     if (filter == VelovFilter.STANDS) {
         // Un « P » de place libre, comme le pictogramme des parkings.
         val letter = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -205,7 +253,6 @@ fun velovMarkerBitmap(count: Int, colorHex: String, filter: VelovFilter): Bitmap
         canvas.drawLine(cx - 1f * density, 7f * density, cx + 2.5f * density, 6f * density, glyph)
         canvas.drawLine(cx - 5.5f * density, wheelY, cx + 1.5f * density, wheelY, glyph)
     }
-    val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE; textSize = 10f * density; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); textAlign = Paint.Align.CENTER }
-    canvas.drawText(count.toString(), cx, size - 4.5f * density, text)
+    canvas.drawText(label, cx, height - 4.5f * density, text)
     return bmp
 }

@@ -82,6 +82,14 @@ class FavoritesStore(private val context: Context) {
         context.favStore.edit { p -> p[KEY_VELOV_FILTER] = filter.name }
     }
 
+    /** Vrai une fois la carte des Vélo'v ouverte : la pastille « Nouveau » de la prévision s'éteint (`NewBadges`). */
+    val velovForecastBadgeOpened: Flow<Boolean> =
+        context.favStore.data.map { p -> p[KEY_VELOV_FORECAST_BADGE_OPENED] == "1" }
+
+    suspend fun setVelovForecastBadgeOpened() {
+        context.favStore.edit { p -> p[KEY_VELOV_FORECAST_BADGE_OPENED] = "1" }
+    }
+
     suspend fun setShowBusTraces(show: Boolean) {
         context.favStore.edit { p -> p[KEY_SHOW_BUS_TRACES] = if (show) "1" else "0" }
     }
@@ -165,6 +173,7 @@ class FavoritesStore(private val context: Context) {
         private val KEY_SHOW_TRAM_TRACES    = stringPreferencesKey("show_tram_traces")
         private val KEY_SHOW_METRO_TRACES   = stringPreferencesKey("show_metro_traces")
         private val KEY_VELOV_FILTER        = stringPreferencesKey("velov_filter")
+        private val KEY_VELOV_FORECAST_BADGE_OPENED = stringPreferencesKey("velov_forecast_badge_opened")
         private val KEY_LINE_PALETTE        = stringPreferencesKey("line_palette")
     }
 }

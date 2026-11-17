@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Tram
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -24,14 +25,17 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -43,8 +47,12 @@ import com.alertetcl.android.ui.live.LiveMapScreen
 import com.alertetcl.android.ui.onboarding.LocationPermissionView
 import com.alertetcl.android.ui.onboarding.NotificationPermissionView
 import com.alertetcl.android.ui.city.CityScreen
+import com.alertetcl.android.ui.components.NewBadge
 import com.alertetcl.android.ui.intro.IntroDialog
 import com.alertetcl.shared.models.Intro
+import com.alertetcl.shared.models.NewBadges
+import com.alertetcl.shared.services.VelovForecastService
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 private data class TabItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
@@ -68,18 +76,42 @@ fun AlerteTCLApp(initialRoute: String? = null) {
     val seenRevision = introSeenRevision ?: return
     if (onboardingDone == null) return
 
-    // L'intro passe avant les autorisations : elle dit à quoi servent la position et les alertes.
-    val introFirst = Intro.shouldShow(seenRevision)
-    var showIntro by remember { mutableStateOf(introFirst) }
-    var showLocationSheet by remember { mutableStateOf(!introFirst && onboardingDone == false) }
+    // Pastille « Nouveau » de la prévision Vélo'v, sur l'onglet et sur la tuile : le modèle se charge dès
+    // le lancement, et sa disponibilité est relue à chaque retour au premier plan.
+    val velovForecastOpened by store.velovForecastBadgeOpened.collectAsState(initial = true)
+    var velovForecastAvailable by remember { mutableStateOf(false) }
+    var velovForecastCheckedAtMs by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(Unit) { VelovForecastService.shared.warmUp() }
+    LifecycleResumeEffect(Unit) {
+        val check = scope.launch {
+            val now = System.currentTimeMillis()
+            velovForecastAvailable = isVelovForecastAvailable(now)
+            velovForecastCheckedAtMs = now
+        }
+        onPauseOrDispose { check.cancel() }
+    }
+    val velovForecastNew = NewBadges.showsVelovForecast(velovForecastOpened, velovForecastAvailable, velovForecastCheckedAtMs)
+
+    // L'intro passe avant les autorisations : elle dit à quoi servent la position et les alertes. Elle
+    // attend la première lecture de la prévision Vélo'v, dont les pages ne paraissent qu'avec un modèle.
+    var showIntro by remember { mutableStateOf(false) }
+    var introForecast by remember { mutableStateOf(false) }
+    var showLocationSheet by remember { mutableStateOf(false) }
     var showNotifSheet by remember { mutableStateOf(false) }
+    val forecastChecked = velovForecastCheckedAtMs > 0
+    LaunchedEffect(forecastChecked) {
+        if (!forecastChecked) return@LaunchedEffect
+        introForecast = velovForecastAvailable
+        if (Intro.shouldShow(seenRevision, introForecast)) showIntro = true
+        else if (onboardingDone == false) showLocationSheet = true
+    }
 
     val nav = rememberNavController()
     val backStackEntry = nav.currentBackStackEntryAsState().value
     val currentRoute = backStackEntry?.destination?.route
 
     // Deep-link: switch tab on incoming route. En démo « velov… » ou « ville », l'onglet « Autour de moi » s'ouvre de lui-même.
-    androidx.compose.runtime.LaunchedEffect(initialRoute) {
+    LaunchedEffect(initialRoute) {
         val target = initialRoute
             ?: com.alertetcl.shared.util.DemoShowcase.current?.let { demo ->
                 when {
@@ -123,7 +155,11 @@ fun AlerteTCLApp(initialRoute: String? = null) {
                                     popUpTo(nav.graph.startDestinationId) { saveState = true }
                                 }
                             },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
+                            icon = {
+                                BadgedBox(badge = { if (tab.route == "ville" && velovForecastNew) NewBadge() }) {
+                                    Icon(tab.icon, contentDescription = tab.label)
+                                }
+                            },
                             label = { Text(tab.label) }
                         )
                     }
@@ -137,14 +173,14 @@ fun AlerteTCLApp(initialRoute: String? = null) {
             modifier = Modifier.fillMaxSize()
         ) {
             composable("live")    { LiveMapScreen() }
-            composable("ville") { CityScreen() }
-            composable("about")   { AboutScreen() }
+            composable("ville") { CityScreen(velovForecastNew) }
+            composable("about")   { AboutScreen(velovForecastAvailable) }
         }
     }
 
     if (showIntro) {
-        IntroDialog(atLaunch = true, onFinish = {
-            scope.launch { store.setIntroSeen(Intro.REVISION) }
+        IntroDialog(atLaunch = true, seenRevision = seenRevision, forecastAvailable = introForecast, onFinish = {
+            scope.launch { store.setIntroSeen(maxOf(seenRevision, Intro.reachedRevision(introForecast))) }
             showIntro = false
             if (onboardingDone == false) showLocationSheet = true
         })
@@ -177,4 +213,13 @@ fun AlerteTCLApp(initialRoute: String? = null) {
             NotificationPermissionView(onDismiss = { showNotifSheet = false })
         }
     }
+}
+
+/** Vrai s'il y a une prévision Vélo'v à montrer à [nowMs] ; faux si le modèle enregistré ne peut pas être lu. */
+private suspend fun isVelovForecastAvailable(nowMs: Long): Boolean = try {
+    VelovForecastService.shared.isAvailable(nowMs)
+} catch (e: CancellationException) {
+    throw e
+} catch (e: Exception) {
+    false
 }

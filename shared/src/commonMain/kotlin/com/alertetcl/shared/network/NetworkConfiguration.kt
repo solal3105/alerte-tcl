@@ -16,5 +16,8 @@ object NetworkConfiguration {
     /** Timeout long — arrêts (gros volumes). */
     const val HEAVY_TIMEOUT_SECONDS = 18L
 
+    /** Timeout d'un fichier de plusieurs Mo téléchargé en arrière-plan (modèle de prévision Vélo'v). */
+    const val DOWNLOAD_TIMEOUT_SECONDS = 60L
+
     const val USER_AGENT = "AlerteTCL/1.0"
 }

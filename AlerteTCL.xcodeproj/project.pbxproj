@@ -24,6 +24,7 @@
 		4F9DFFA02F1457EE00E01BFB /* FavoriteLinesService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF9E2F1457EE00E01BFB /* FavoriteLinesService.swift */; };
 		4F9DFFA12F1457EE00E01BFB /* ParkingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFF9F2F1457EE00E01BFB /* ParkingService.swift */; };
 		4F9DFFA32F1457F900E01BFB /* ParkingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */; };
+		B7E0A1C12FC0000100A1B2C3 /* NewBadgesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E0A1C02FC0000100A1B2C3 /* NewBadgesViewModel.swift */; };
 		4F9DFFB92F146B6F00E01BFB /* tcl_stops.json in Resources */ = {isa = PBXBuildFile; fileRef = 4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */; };
 		4F9DFFC72F146EFE00E01BFB /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */; };
 		4F9DFFC92F146EFE00E01BFB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F9DFFC82F146EFE00E01BFB /* SwiftUI.framework */; };
@@ -63,6 +64,8 @@
 		AAA20005 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20013 /* AppGroup.swift */; };
 		AAA20006 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20013 /* AppGroup.swift */; };
 		AB100015 /* VelovViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB100004 /* VelovViews.swift */; };
+		AB1000B2 /* VelovForecastViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1000B1 /* VelovForecastViews.swift */; };
+		C1A0F00E2FC1000100A1B2C3 /* IntroVelovForecastViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A0F00D2FC1000100A1B2C3 /* IntroVelovForecastViews.swift */; };
 		AAA20003 /* ColorHex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20012 /* ColorHex.swift */; };
 		A1000044 /* TransitStopViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000045 /* TransitStopViewModel.swift */; };
 		AAA00001 /* AlerteTCLApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00011 /* AlerteTCLApp.swift */; };
@@ -144,6 +147,7 @@
 		4F9DFF9E2F1457EE00E01BFB /* FavoriteLinesService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteLinesService.swift; sourceTree = "<group>"; };
 		4F9DFF9F2F1457EE00E01BFB /* ParkingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingService.swift; sourceTree = "<group>"; };
 		4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParkingViewModel.swift; sourceTree = "<group>"; };
+		B7E0A1C02FC0000100A1B2C3 /* NewBadgesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewBadgesViewModel.swift; sourceTree = "<group>"; };
 		4F9DFFB82F146B6F00E01BFB /* tcl_stops.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = tcl_stops.json; path = Resources/tcl_stops.json; sourceTree = "<group>"; };
 		4F9DFFC42F146EFE00E01BFB /* AlerteTCLWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AlerteTCLWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F9DFFC62F146EFE00E01BFB /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -183,6 +187,8 @@
 		AAA20012 /* ColorHex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorHex.swift; sourceTree = "<group>"; };
 		AAA20013 /* AppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroup.swift; sourceTree = "<group>"; };
 		AB100004 /* VelovViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VelovViews.swift; sourceTree = "<group>"; };
+		AB1000B1 /* VelovForecastViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VelovForecastViews.swift; sourceTree = "<group>"; };
+		C1A0F00D2FC1000100A1B2C3 /* IntroVelovForecastViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroVelovForecastViews.swift; sourceTree = "<group>"; };
 		A1000045 /* TransitStopViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopViewModel.swift; sourceTree = "<group>"; };
 		AAA00010 /* AlerteTCL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AlerteTCL.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAA00011 /* AlerteTCLApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlerteTCLApp.swift; sourceTree = "<group>"; };
@@ -332,6 +338,7 @@
 			children = (
 				4F38BD2D2F15B0E200E05786 /* TravauxViewModel.swift */,
 				4F9DFFA22F1457F900E01BFB /* ParkingViewModel.swift */,
+				B7E0A1C02FC0000100A1B2C3 /* NewBadgesViewModel.swift */,
 				AAA00019 /* AlertViewModel.swift */,
 				AAA00029 /* LiveVehiclesViewModel.swift */,
 				A1000045 /* TransitStopViewModel.swift */,
@@ -344,8 +351,10 @@
 			children = (
 				A200000C /* TimetableViews.swift */,
 				AB100004 /* VelovViews.swift */,
+				AB1000B1 /* VelovForecastViews.swift */,
 				AB100006 /* CityView.swift */,
 				AB1000A1 /* IntroView.swift */,
+				C1A0F00D2FC1000100A1B2C3 /* IntroVelovForecastViews.swift */,
 				4FD3050C2F1E68CB00EAFA92 /* WidgetViews.swift */,
 				4FD305042F1E60C600EAFA92 /* DataSourceErrorsSheet.swift */,
 				4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */,
@@ -552,10 +561,12 @@
 			buildActionMask = 2147483647;
 			files = (
 				AB100015 /* VelovViews.swift in Sources */,
+				AB1000B2 /* VelovForecastViews.swift in Sources */,
 				AB100016 /* GlassStyle.swift in Sources */,
 				AB1000A4 /* AppIconView.swift in Sources */,
 				AB100017 /* CityView.swift in Sources */,
 				AB1000A2 /* IntroView.swift in Sources */,
+				C1A0F00E2FC1000100A1B2C3 /* IntroVelovForecastViews.swift in Sources */,
 				4FD3050B2F1E686900EAFA92 /* WidgetBridge.swift in Sources */,
 				AAA00001 /* AlerteTCLApp.swift in Sources */,
 				AAA00002 /* ContentView.swift in Sources */,
@@ -620,6 +631,7 @@
 				4F38BD222F1591C900E05786 /* BusLineService.swift in Sources */,
 				4FLC0DE12F0000000000001A /* LineCodeMappingService.swift in Sources */,
 				4F9DFFA32F1457F900E01BFB /* ParkingViewModel.swift in Sources */,
+				B7E0A1C12FC0000100A1B2C3 /* NewBadgesViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -651,7 +663,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = AlerteTCLWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AlerteTCLWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Lyon Pocket";
@@ -662,7 +674,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.1;
+				MARKETING_VERSION = 2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solal.AlerteTCL.AlerteTCLWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -682,7 +694,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = AlerteTCLWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AlerteTCLWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Lyon Pocket";
@@ -693,7 +705,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.1;
+				MARKETING_VERSION = 2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solal.AlerteTCL.AlerteTCLWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -838,7 +850,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = AlerteTCL/AlerteTCL.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AlerteTCL/Info.plist;
@@ -853,7 +865,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.1;
+				MARKETING_VERSION = 2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solal.AlerteTCL;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -882,7 +894,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = AlerteTCL/AlerteTCL.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AlerteTCL/Info.plist;
@@ -897,7 +909,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.1;
+				MARKETING_VERSION = 2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.solal.AlerteTCL;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = (

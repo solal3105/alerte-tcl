@@ -63,6 +63,7 @@ private struct CityChooserView: View {
     let onChoose: (CityTile) -> Void
 
     @ObservedObject private var locationService = LocationService.shared
+    @ObservedObject private var newBadges = NewBadgesViewModel.shared
 
     private let tiles: [CityTile] = CityTile.companion.all
     private var parkingTiles: [CityTile] { tiles.filter { $0.parkingType != nil } }
@@ -92,10 +93,11 @@ private struct CityChooserView: View {
                 .padding(20)
             }
         }
+        .task { await newBadges.refresh() }
     }
 
     private func tileCard(_ tile: CityTile, wide: Bool) -> some View {
-        CityTileCard(tile: tile, wide: wide) { onChoose(tile) }
+        CityTileCard(tile: tile, wide: wide, isNew: tile == .velov && newBadges.showsVelovForecast) { onChoose(tile) }
     }
 }
 
@@ -130,6 +132,8 @@ private struct MapBackdrop: View {
 private struct CityTileCard: View {
     let tile: CityTile
     let wide: Bool
+    /// Pastille « Nouveau » dans le coin de la tuile.
+    let isNew: Bool
     let onTap: () -> Void
 
     var body: some View {
@@ -151,6 +155,9 @@ private struct CityTileCard: View {
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .topTrailing) {
+                if isNew { NewCapsule().padding(14) }
+            }
             .contentShape(RoundedRectangle(cornerRadius: 28))
         }
         .buttonStyle(.plain)
@@ -168,6 +175,18 @@ private struct CityTileCard: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.leading)
         }
+    }
+}
+
+/// « Nouveau » en blanc sur une capsule d'accent.
+private struct NewCapsule: View {
+    var body: some View {
+        Text(NewBadges.shared.LABEL)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color.appAccent, in: Capsule())
     }
 }
 
