@@ -65,6 +65,7 @@
 		AAA20006 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20013 /* AppGroup.swift */; };
 		AB100015 /* VelovViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB100004 /* VelovViews.swift */; };
 		AB1000B2 /* VelovForecastViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1000B1 /* VelovForecastViews.swift */; };
+		C1A0F00E2FC1000100A1B2C3 /* IntroVelovForecastViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A0F00D2FC1000100A1B2C3 /* IntroVelovForecastViews.swift */; };
 		AAA20003 /* ColorHex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20012 /* ColorHex.swift */; };
 		A1000044 /* TransitStopViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000045 /* TransitStopViewModel.swift */; };
 		AAA00001 /* AlerteTCLApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA00011 /* AlerteTCLApp.swift */; };
@@ -187,6 +188,7 @@
 		AAA20013 /* AppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroup.swift; sourceTree = "<group>"; };
 		AB100004 /* VelovViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VelovViews.swift; sourceTree = "<group>"; };
 		AB1000B1 /* VelovForecastViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VelovForecastViews.swift; sourceTree = "<group>"; };
+		C1A0F00D2FC1000100A1B2C3 /* IntroVelovForecastViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroVelovForecastViews.swift; sourceTree = "<group>"; };
 		A1000045 /* TransitStopViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopViewModel.swift; sourceTree = "<group>"; };
 		AAA00010 /* AlerteTCL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AlerteTCL.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAA00011 /* AlerteTCLApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlerteTCLApp.swift; sourceTree = "<group>"; };
@@ -352,6 +354,7 @@
 				AB1000B1 /* VelovForecastViews.swift */,
 				AB100006 /* CityView.swift */,
 				AB1000A1 /* IntroView.swift */,
+				C1A0F00D2FC1000100A1B2C3 /* IntroVelovForecastViews.swift */,
 				4FD3050C2F1E68CB00EAFA92 /* WidgetViews.swift */,
 				4FD305042F1E60C600EAFA92 /* DataSourceErrorsSheet.swift */,
 				4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */,
@@ -563,6 +566,7 @@
 				AB1000A4 /* AppIconView.swift in Sources */,
 				AB100017 /* CityView.swift in Sources */,
 				AB1000A2 /* IntroView.swift in Sources */,
+				C1A0F00E2FC1000100A1B2C3 /* IntroVelovForecastViews.swift in Sources */,
 				4FD3050B2F1E686900EAFA92 /* WidgetBridge.swift in Sources */,
 				AAA00001 /* AlerteTCLApp.swift in Sources */,
 				AAA00002 /* ContentView.swift in Sources */,

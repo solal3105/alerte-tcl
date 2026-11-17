@@ -85,9 +85,11 @@ struct VelovMapMarker: Identifiable {
 struct VelovMarker: View, Equatable {
     let marker: VelovMapMarker
     let compact: Bool
+    /// Agrandissement du carré, net à toute taille : 1 sur la carte, davantage dans l'intro.
+    var scale: CGFloat = 1
 
     static func == (lhs: VelovMarker, rhs: VelovMarker) -> Bool {
-        lhs.compact == rhs.compact && lhs.marker.id == rhs.marker.id && lhs.marker.label == rhs.marker.label
+        lhs.compact == rhs.compact && lhs.scale == rhs.scale && lhs.marker.id == rhs.marker.id && lhs.marker.label == rhs.marker.label
             && lhs.marker.availability == rhs.marker.availability && lhs.marker.filter == rhs.marker.filter
     }
 
@@ -98,7 +100,8 @@ struct VelovMarker: View, Equatable {
             : MarkerImageCache.velovMarker(
                 label: marker.label,
                 availability: marker.availability,
-                symbol: velovFilterSymbol(marker.filter == .all ? .mechanical : marker.filter)
+                symbol: velovFilterSymbol(marker.filter == .all ? .mechanical : marker.filter),
+                scale: scale
             )
         )
     }
@@ -192,8 +195,12 @@ private struct VelovStationPage: View {
 
 /// L'état réel de la station, en tête de fiche : vélos classiques, vélos électriques et places libres
 /// côte à côte, chacun en nombre et en mot sous le pictogramme de son filtre, ou « Station fermée ».
-private struct VelovNowTile: View {
+struct VelovNowTile: View {
     let station: VelovStation
+    /// Le compte mis en avant (l'intro, page des types) : sa case s'allume à l'accent, et l'éclairage
+    /// glisse d'une case à l'autre. Aucun sur la fiche.
+    var highlighted: VelovFilter? = nil
+    @Namespace private var highlight
 
     var body: some View {
         Group {
@@ -201,10 +208,11 @@ private struct VelovNowTile: View {
                 HStack(spacing: 8) {
                     ForEach(VelovFilter.companion.detailed) { filter in
                         let count = station.shownCount(filter: filter)
+                        let lit = filter == highlighted
                         VStack(spacing: 2) {
                             Image(systemName: velovFilterSymbol(filter))
                                 .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(lit ? AnyShapeStyle(Color.appAccent) : AnyShapeStyle(HierarchicalShapeStyle.secondary))
                             Text(verbatim: "\(count)")
                                 .font(.title2.bold())
                                 .monospacedDigit()
@@ -215,6 +223,14 @@ private struct VelovNowTile: View {
                                 .minimumScaleFactor(0.8)
                         }
                         .frame(maxWidth: .infinity)
+                        .background {
+                            if lit {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(Color.appAccent.opacity(0.14))
+                                    .padding(-6)
+                                    .matchedGeometryEffect(id: 0, in: highlight)
+                            }
+                        }
                         .accessibilityElement(children: .combine)
                     }
                 }
@@ -263,36 +279,63 @@ private struct VelovForecastSection: View {
 
     /// « Plus sûr à côté » : les voisines où la chance est meilleure à la même échéance.
     private func saferNearby(_ neighbours: [VelovForecastNeighbour]) -> some View {
+        VelovSaferNearbyCard(neighbours: neighbours) { neighbour, row in
+            NavigationLink {
+                VelovStationPage(station: neighbour.station, viewModel: viewModel, step: step, close: close)
+            } label: {
+                row
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+/// La carte « Plus sûr à côté » : son titre, puis une rangée par voisine, que l'appelant enveloppe
+/// (un lien vers la voisine sur la fiche, rien dans l'intro).
+struct VelovSaferNearbyCard<Entry: View>: View {
+    let neighbours: [VelovForecastNeighbour]
+    private let entry: (VelovForecastNeighbour, VelovNeighbourRow) -> Entry
+
+    init(neighbours: [VelovForecastNeighbour], @ViewBuilder entry: @escaping (VelovForecastNeighbour, VelovNeighbourRow) -> Entry) {
+        self.neighbours = neighbours
+        self.entry = entry
+    }
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(VelovForecastSheet.companion.SAFER_NEARBY_TITLE)
                 .font(.headline)
             ForEach(Array(neighbours.enumerated()), id: \.element.station.id) { rank, neighbour in
                 if rank > 0 { Divider() }
-                NavigationLink {
-                    VelovStationPage(station: neighbour.station, viewModel: viewModel, step: step, close: close)
-                } label: {
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(neighbour.station.displayName)
-                                .font(.subheadline.weight(.semibold))
-                            Text(neighbour.detail)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 8)
-                        Text(neighbour.chance.text)
-                            .font(.title3.bold())
-                            .monospacedDigit()
-                            .foregroundStyle(neighbour.chance.level.color)
-                        Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                entry(neighbour, VelovNeighbourRow(neighbour: neighbour))
             }
         }
         .velovForecastCard()
+    }
+}
+
+/// Une voisine plus sûre : son nom, le temps à pied et ce qui y est prévu, sa chance à droite.
+struct VelovNeighbourRow: View {
+    let neighbour: VelovForecastNeighbour
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(neighbour.station.displayName)
+                    .font(.subheadline.weight(.semibold))
+                Text(neighbour.detail)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            Text(neighbour.chance.text)
+                .font(.title3.bold())
+                .monospacedDigit()
+                .foregroundStyle(neighbour.chance.level.color)
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .contentShape(Rectangle())
     }
 }

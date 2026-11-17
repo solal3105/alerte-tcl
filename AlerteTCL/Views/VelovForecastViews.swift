@@ -36,8 +36,9 @@ extension View {
 // MARK: - Graphique
 
 /// Les échelles du graphique d'un panneau dans un cadre de taille donnée : l'axe des heures et la
-/// hauteur d'un compte, de 0 au haut de l'échelle. Les deux couches du graphique les partagent.
-private struct VelovForecastChartScale {
+/// hauteur d'un compte, de 0 au haut de l'échelle. Les deux couches du graphique les partagent, comme
+/// l'accolade que l'intro pose sur la fourchette.
+struct VelovForecastChartScale {
     static let topInset: CGFloat = 10
     private static let bottomInset: CGFloat = 6
 
@@ -68,15 +69,20 @@ private struct VelovForecastChartScale {
 /// et ne sont pas redessinées quand le curseur glisse : seul le repère, en surimpression, suit.
 struct VelovForecastChart: View {
     let panel: VelovForecastPanel
-    let step: Int32
+    /// L'échéance repérée ; nil pour les seules courbes (l'intro, avant que le curseur n'arrive).
+    let step: Int32?
+    /// Hauteur du graphique : celle de la fiche, ou moins dans une illustration de l'intro.
+    var frameHeight: CGFloat = VelovForecastChart.height
 
     static let height: CGFloat = 190
 
     var body: some View {
         VelovForecastChartCurves(panel: panel)
             .equatable()
-            .overlay { VelovForecastChartCursor(panel: panel, step: step) }
-            .frame(height: Self.height)
+            .overlay {
+                if let step { VelovForecastChartCursor(panel: panel, step: step) }
+            }
+            .frame(height: frameHeight)
             // Les repères sont tenus par la géométrie : leur texte grandit avec les réglages, jusqu'à un plafond.
             .dynamicTypeSize(...DynamicTypeSize.xxLarge)
             .accessibilityElement(children: .ignore)
@@ -194,8 +200,6 @@ struct VelovForecastSlider: View {
     let onSelect: (Int32) -> Void
 
     fileprivate static let thumbSize: CGFloat = 2 * VelovForecastAxis.inset
-    /// Place laissée à l'ombre du pouce, au-dessus et au-dessous.
-    private static let shadowMargin: CGFloat = 3
 
     fileprivate static var lastStep: Int32 { VelovForecast.companion.STEP_COUNT }
 
@@ -203,15 +207,7 @@ struct VelovForecastSlider: View {
     private var position: Double { Double(step) / Double(Self.lastStep) }
 
     var body: some View {
-        VStack(spacing: 2) {
-            VelovForecastSliderTrack(levels: trackLevels, filledTo: trackLevels == nil ? position : nil)
-                .equatable()
-                .overlay { VelovForecastSliderThumb(position: position) }
-                .frame(height: Self.thumbSize + 2 * Self.shadowMargin)
-            VelovForecastSliderTicks(ticks: ticks)
-                .equatable()
-        }
-        .dynamicTypeSize(...DynamicTypeSize.xxLarge)
+        VelovForecastSliderFace(position: position, trackLevels: trackLevels, ticks: ticks)
         // Le doigt se pose sur toute la hauteur, heures comprises, et le pouce le suit.
         .overlay {
             GeometryReader { geometry in
@@ -237,6 +233,34 @@ struct VelovForecastSlider: View {
     private func select(_ candidate: Int32) {
         let bounded = min(max(candidate, 0), Self.lastStep)
         if bounded != step { onSelect(bounded) }
+    }
+}
+
+/// Ce que l'on voit du curseur : la piste, le pouce posé à `position` (de 0 à 1 sur l'axe) et les heures.
+/// Le curseur de la fiche et de la carte le pose sur une échéance ; l'intro le fait glisser seul, entre
+/// deux échéances.
+struct VelovForecastSliderFace: View {
+    let position: Double
+    /// Palier de chaque échéance (fiche) ; nil pour la piste neutre remplie jusqu'au pouce (carte).
+    let trackLevels: [VelovChanceLevel]?
+    let ticks: [VelovForecastTick]
+
+    /// Place laissée à l'ombre du pouce, au-dessus et au-dessous.
+    private static let shadowMargin: CGFloat = 3
+
+    /// Hauteur de la piste et de son pouce, au-dessus des heures.
+    static var trackHeight: CGFloat { VelovForecastSlider.thumbSize + 2 * shadowMargin }
+
+    var body: some View {
+        VStack(spacing: 2) {
+            VelovForecastSliderTrack(levels: trackLevels, filledTo: trackLevels == nil ? position : nil)
+                .equatable()
+                .overlay { VelovForecastSliderThumb(position: position) }
+                .frame(height: Self.trackHeight)
+            VelovForecastSliderTicks(ticks: ticks)
+                .equatable()
+        }
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)
     }
 }
 
@@ -344,13 +368,7 @@ struct VelovForecastCard: View {
                 }
                 if let risk = panel.risk {
                     Divider()
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(Color.appError)
-                            .frame(width: 8, height: 8)
-                        Text(risk)
-                            .font(.subheadline)
-                    }
+                    VelovForecastRiskLine(text: risk)
                 }
             } else {
                 VStack(spacing: 0) {
@@ -397,8 +415,23 @@ struct VelovForecastCard: View {
     }
 }
 
+/// La période à risque d'une fiche : un point rouge et sa phrase (« Souvent vide de 9 h à 10 h 15 »).
+struct VelovForecastRiskLine: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(Color.appError)
+                .frame(width: 8, height: 8)
+            Text(text)
+                .font(.subheadline)
+        }
+    }
+}
+
 /// Le sélecteur de filtre de la fiche, laissé tel quel quand seul le curseur bouge.
-private struct VelovForecastFilterPicker: View, Equatable {
+struct VelovForecastFilterPicker: View, Equatable {
     let filter: VelovFilter
     let onSelect: (VelovFilter) -> Void
 
@@ -432,6 +465,29 @@ struct VelovForecastTimePanel: View {
 
     var body: some View {
         let panel = VelovForecastMapPanel.companion.at(originEpochMs: originEpochMs, step: step)
+        VelovForecastTimeCard(panel: panel) {
+            VelovForecastSlider(step: step, trackLevels: nil, ticks: panel.ticks, valueText: panel.title) { selected in
+                step = selected
+                onSelect(selected)
+            }
+        }
+        // Le curseur montré, la prévision est vue : la pastille « Nouveau » n'a plus lieu d'être.
+        .onAppear { NewBadgesViewModel.shared.markVelovForecastSeen() }
+    }
+}
+
+/// L'habit du panneau de la carte : l'heure que montrent les marqueurs, la consigne, et dessous le
+/// curseur donné (celui de la carte, sous le doigt, ou celui de l'intro, qui glisse seul).
+struct VelovForecastTimeCard<Slider: View>: View {
+    let panel: VelovForecastMapPanel
+    private let slider: Slider
+
+    init(panel: VelovForecastMapPanel, @ViewBuilder slider: () -> Slider) {
+        self.panel = panel
+        self.slider = slider()
+    }
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(panel.title)
@@ -444,16 +500,11 @@ struct VelovForecastTimePanel: View {
             }
             .lineLimit(1)
 
-            VelovForecastSlider(step: step, trackLevels: nil, ticks: panel.ticks, valueText: panel.title) { selected in
-                step = selected
-                onSelect(selected)
-            }
+            slider
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
         .glassSurface(RoundedRectangle(cornerRadius: 26))
-        // Le curseur montré, la prévision est vue : la pastille « Nouveau » n'a plus lieu d'être.
-        .onAppear { NewBadgesViewModel.shared.markVelovForecastSeen() }
     }
 }
