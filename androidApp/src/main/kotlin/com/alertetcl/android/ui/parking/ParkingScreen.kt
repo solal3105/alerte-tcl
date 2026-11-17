@@ -525,7 +525,7 @@ fun ParkingScreen(type: ParkingType, header: @Composable () -> Unit) {
 private fun VelovTimeControl(vm: ParkingViewModel, modifier: Modifier) {
     val panel by vm.velovForecastPanel.collectAsState()
     val step by vm.velovForecastStep.collectAsState()
-    panel?.let { VelovTimePanel(panel = it, step = step, onStepChange = vm::setVelovForecastStep, modifier = modifier) }
+    panel?.let { VelovTimePanel(panel = it, step = { step.toFloat() }, onStepChange = vm::setVelovForecastStep, modifier = modifier) }
 }
 
 /**
