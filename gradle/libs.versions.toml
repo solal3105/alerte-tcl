@@ -13,7 +13,7 @@ playServicesMaps = "19.0.0"
 playServicesLocation = "21.3.0"
 androidxDatastore = "1.1.4"
 androidxWorkManager = "2.9.1"
-billingClient = "7.1.1"
+billingClient = "8.0.0"
 coil = "3.2.0"
 maplibre = "11.8.1"
 

@@ -6,13 +6,13 @@ plugins {
 
 android {
     namespace = "com.alertetcl.android"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.alertetcl.android"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 7
+        targetSdk = 36
+        versionCode = 8
         versionName = "2.2"
     }
 
