@@ -46,6 +46,12 @@ final class TransitStopViewModel: ObservableObject {
 
     // MARK: - Loading
 
+    /// Recharge les arrêts s'ils manquent encore (premier chargement échoué), au retour au premier plan.
+    func reloadIfMissing() async {
+        guard mergedStops.isEmpty else { return }
+        await loadTransitStops()
+    }
+
     func loadTransitStops() async {
         guard !isLoadingStops else { return }
 
@@ -58,6 +64,21 @@ final class TransitStopViewModel: ObservableObject {
             }
         }
 
+        // Nouveaux essais espacés (module partagé) : sans eux, un premier chargement raté laissait
+        // la carte sans arrêts jusqu'au prochain lancement.
+        let delays = [0] + Shared.TransitStopService.companion.RETRY_DELAYS_SECONDS.map { $0.uint64Value }
+        for (attempt, delay) in delays.enumerated() {
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: delay * 1_000_000_000)
+            }
+            if Task.isCancelled { return }
+            if await fetchAndMergeStops() { return }
+            AppLogger.debug("🔁 Arrêts : essai \(attempt + 1) échoué")
+        }
+    }
+
+    /// Un essai de chargement des arrêts ; vrai s'il a réussi.
+    private func fetchAndMergeStops() async -> Bool {
         do {
             let stops = try await Task.withTimeout(seconds: NetworkConfiguration.heavyTimeout) {
                 try await TransitStopService.shared.fetchStops()
@@ -75,11 +96,13 @@ final class TransitStopViewModel: ObservableObject {
                 mergedStops = merged
                 applyVisibleFilter()
             }
+            return true
         } catch is TaskTimeoutError {
             AppLogger.debug("⏱️ Timeout arrêts (\(NetworkConfiguration.heavyTimeout)s)")
         } catch {
             AppLogger.debug("⚠️ Erreur arrêts (non-bloquante): \(error.localizedDescription)")
         }
+        return false
     }
 
     func loadAllPassagesForStop(stopId: Int) async {
