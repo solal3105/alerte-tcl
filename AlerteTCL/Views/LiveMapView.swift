@@ -160,6 +160,7 @@ struct LiveMapView: View {
                 break
             case .active:
                 viewModel.resumeFromForeground()
+                Task { await stopsViewModel.reloadIfMissing() }
             @unknown default:
                 break
             }

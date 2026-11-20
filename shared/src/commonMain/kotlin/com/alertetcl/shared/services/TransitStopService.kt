@@ -17,6 +17,8 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
@@ -71,6 +73,25 @@ class TransitStopService {
         return list
     }
 
+    /**
+     * [fetchStops] avec de nouveaux essais espacés de [RETRY_DELAYS_SECONDS] : sans eux, un premier
+     * chargement raté (réseau faible) laissait la carte sans arrêts jusqu'au prochain lancement.
+     * Liste vide si tous les essais échouent.
+     */
+    suspend fun fetchStopsRetrying(): List<TransitStop> {
+        for (wait in listOf(0L) + RETRY_DELAYS_SECONDS) {
+            if (wait > 0) delay(wait * 1000)
+            try {
+                return fetchStops()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLogger.debug("TransitStopService: arrêts indisponibles (${e.message})")
+            }
+        }
+        return emptyList()
+    }
+
     @Throws(Exception::class)
     suspend fun fetchPassagesForStop(stopId: Int): List<Passage> {
         // Mode démo (arret) : passages simulés estimés + théoriques.
@@ -106,5 +127,10 @@ class TransitStopService {
         return passages
     }
 
-    companion object { val shared = TransitStopService() }
+    companion object {
+        val shared = TransitStopService()
+
+        /** Attentes (secondes) avant chaque nouvel essai de chargement des arrêts, lues aussi par iOS. */
+        val RETRY_DELAYS_SECONDS = listOf(5L, 15L, 30L)
+    }
 }
