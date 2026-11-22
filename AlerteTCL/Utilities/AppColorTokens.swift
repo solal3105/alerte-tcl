@@ -34,6 +34,9 @@ extension Color {
     static let appIntroMapStreet = Color(token: AppColors.shared.introMapStreet)
     static let appIntroMapWater = Color(token: AppColors.shared.introMapWater)
     static let stopMarker = Color(hex: AppColors.shared.stopMarker)
+    /// Coupures du réseau : pointillé d'un tronçon coupé, fond qui efface la couleur de la ligne dessous.
+    static let appCutTrace = Color(token: AppColors.shared.cutTrace)
+    static let appCutCasing = Color(token: AppColors.shared.cutCasing)
 }
 
 // MARK: - Passerelles vers les énumérations Kotlin

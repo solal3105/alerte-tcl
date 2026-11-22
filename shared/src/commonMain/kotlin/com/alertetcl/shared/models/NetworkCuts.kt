@@ -151,6 +151,7 @@ object NetworkCuts {
     /** Une ligne coupée à un arrêt. [direction] : « A » ou « R » quand un seul sens est touché, null pour les deux. */
     data class StopCut(val cut: NetworkCut, val line: String, val direction: String?, val timing: Timing) {
         fun appliesTo(directionCode: String?): Boolean = direction == null || directionCode == null || direction == directionCode
+        fun isFor(line: String, directionCode: String?): Boolean = this.line.equals(line, ignoreCase = true) && appliesTo(directionCode)
     }
 
     /**
@@ -186,8 +187,11 @@ object NetworkCuts {
 
     /** Fenêtres où la ligne [line] ne passe pas à l'arrêt dans le sens [directionCode] : les horaires prévus y sont retirés. */
     fun windowsAt(cuts: List<StopCut>, line: String, directionCode: String?): List<CutWindow> =
-        cuts.filter { it.line.equals(line, ignoreCase = true) && it.appliesTo(directionCode) && !it.cut.partialTimes }
-            .map { it.timing.window }
+        cuts.filter { it.isFor(line, directionCode) && !it.cut.partialTimes }.map { it.timing.window }
+
+    /** La coupure à dire sur la carte de passages de la ligne [line] dans le sens [directionCode]. */
+    fun noticeFor(cuts: List<StopCut>, line: String, directionCode: String?): StopCut? =
+        cuts.filter { it.isFor(line, directionCode) }.minByOrNull { it.timing.window.start }
 
     /** Phrase de la fiche d'arrêt pour une ligne coupée ici, dans le sens d'une carte de passages. */
     fun stopNotice(stopCut: StopCut, nowEpoch: Long): String {
@@ -243,8 +247,7 @@ object NetworkCuts {
             detail = if (cut.partialTimes) "À certaines heures que TCL ne précise pas, ${untilText(window.end, nowEpoch)}."
                 else "${capitalize(untilText(window.end, nowEpoch))}."
         } else {
-            val windows = remainingWindows(cut, nowEpoch)
-            headline = "${capitalize(whenText(windows, timing, nowEpoch))}, ${subject.replaceFirstChar { it.lowercase() }} ${shape.future}."
+            headline = "${whenTitle(cut, timing, nowEpoch)}, ${subject.replaceFirstChar { it.lowercase() }} ${shape.future}."
             detail = if (runningNow) "En ce moment, il circule sur toute la ligne." else null
         }
         return LineBlock(
@@ -257,6 +260,15 @@ object NetworkCuts {
             status = if (timing.phase == Phase.NOW && !cut.partialTimes) (if (cut.wholeLine) "Ne circule pas" else "En partie coupé") else null
         )
     }
+
+    /** Bandeau de l'aperçu d'une coupure annoncée sur la carte : « Lundi 23 et mardi 24 novembre, dès 21 h 20 ». */
+    fun previewTitle(cut: NetworkCut, nowEpoch: Long): String? {
+        val timing = timing(cut, nowEpoch) ?: return null
+        return whenTitle(cut, timing, nowEpoch)
+    }
+
+    private fun whenTitle(cut: NetworkCut, timing: Timing, nowEpoch: Long): String =
+        capitalize(whenText(remainingWindows(cut, nowEpoch), timing, nowEpoch))
 
     // ── Feuille Trafic : coupures annoncées ──────────────────────────────────
 

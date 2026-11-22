@@ -69,6 +69,7 @@ class NetworkCutsTest {
 
         val d = NetworkCuts.lineBlocks(file, "D", sunday).single()
         assertEquals("Lundi 23 et mardi 24 novembre, dès 21 h 20, le métro D ne circulera pas de Saxe - Gambetta à Gare de Vénissieux.", d.headline)
+        assertEquals("Lundi 23 et mardi 24 novembre, dès 21 h 20", NetworkCuts.previewTitle(d.cut, sunday))
         assertEquals("En ce moment, il circule sur toute la ligne.", d.detail)
         assertNull(d.status)
         assertEquals(listOf("Gare de Vaise-GCollomb", "Saxe - Gambetta", "Garibaldi", "Gare de Vénissieux"), d.diagram.map { it.name })

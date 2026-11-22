@@ -124,6 +124,16 @@ enum MarkerImageCache {
         return image
     }
 
+    /// Marque d'un arrêt où des lignes ne passent plus (coupures du réseau) : disque gris barré quand
+    /// aucune ne passe ([allLines]), sinon petit sens interdit rouge posé sur le disque de l'arrêt.
+    static func stopCutMark(allLines: Bool) -> UIImage {
+        let key = "cut-\(allLines ? 1 : 0)" as NSString
+        if let cached = sharedDotCache.object(forKey: key) { return cached }
+        let image = allLines ? renderCrossedStop() : renderNoEntry()
+        sharedDotCache.setObject(image, forKey: key)
+        return image
+    }
+
     /// Petit disque plat (dezoom) : cercle de couleur sans icône ni flèche.
     /// Taille fixe 14×14 pt. Clé = nom de ligne (la couleur dépend uniquement de la ligne).
     static func vehicleDot(lineName: String) -> UIImage {
@@ -316,6 +326,40 @@ enum MarkerImageCache {
             cg.setStrokeColor(UIColor.white.cgColor)
             cg.setLineWidth(2)
             cg.strokeEllipse(in: disc)
+        }
+    }
+
+    private static func renderCrossedStop() -> UIImage {
+        let side: CGFloat = 16
+        let grey = uiColor(.appCutTrace)
+        return imageRenderer(size: CGSize(width: side, height: side)).image { ctx in
+            let cg = ctx.cgContext
+            let disc = CGRect(x: 1, y: 1, width: side - 2, height: side - 2)
+            UIColor.white.setFill()
+            cg.fillEllipse(in: disc)
+            cg.setStrokeColor(grey.cgColor)
+            cg.setLineWidth(1.6)
+            cg.strokeEllipse(in: disc)
+            cg.setLineCap(.round)
+            let inset: CGFloat = 5
+            cg.move(to: CGPoint(x: inset, y: inset)); cg.addLine(to: CGPoint(x: side - inset, y: side - inset))
+            cg.move(to: CGPoint(x: side - inset, y: inset)); cg.addLine(to: CGPoint(x: inset, y: side - inset))
+            cg.strokePath()
+        }
+    }
+
+    private static func renderNoEntry() -> UIImage {
+        let side: CGFloat = 12
+        return imageRenderer(size: CGSize(width: side, height: side)).image { ctx in
+            let cg = ctx.cgContext
+            let disc = CGRect(x: 0.5, y: 0.5, width: side - 1, height: side - 1)
+            uiColor(.appError).setFill()
+            cg.fillEllipse(in: disc)
+            cg.setStrokeColor(UIColor.white.cgColor)
+            cg.setLineWidth(1)
+            cg.strokeEllipse(in: disc)
+            UIColor.white.setFill()
+            cg.fill(CGRect(x: 3, y: side / 2 - 1, width: side - 6, height: 2))
         }
     }
 

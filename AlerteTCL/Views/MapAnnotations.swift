@@ -259,6 +259,13 @@ final class MergedStopAnnotationView: MKAnnotationView {
         return l
     }()
     private var badgeLayers: [CALayer] = []
+    /// Ligne coupée à cet arrêt : petit sens interdit rouge sur le disque, ou disque gris barré si plus rien ne passe.
+    private let markLayer: CALayer = {
+        let l = CALayer()
+        l.contentsGravity = .resizeAspect
+        l.isHidden = true
+        return l
+    }()
     private var currentTier: StopTier = .bus
     private var currentPrimaryLine: String? = nil
 
@@ -267,6 +274,7 @@ final class MergedStopAnnotationView: MKAnnotationView {
         backgroundColor = .clear
         displayPriority = .defaultLow
         layer.addSublayer(dotLayer)
+        layer.addSublayer(markLayer)
         setCompact(tier: .bus, primaryLine: nil)
     }
 
@@ -274,7 +282,7 @@ final class MergedStopAnnotationView: MKAnnotationView {
 
     // MARK: - API
 
-    func apply(stop: MergedStop, showBadges: Bool) {
+    func apply(stop: MergedStop, showBadges: Bool, mark: NetworkCuts.StopMark) {
         let visibleLines = stop.allLines.filter { !$0.hasPrefix("JD") }
         let tier        = StopTier.from(lines: visibleLines)
         let primaryLine = StopTier.primaryLine(from: visibleLines)
@@ -294,11 +302,30 @@ final class MergedStopAnnotationView: MKAnnotationView {
         } else {
             setCompact(tier: tier, primaryLine: primaryLine)
         }
+        applyMark(mark)
     }
 
     override func prepareForReuse() {
         super.prepareForReuse()
         setCompact(tier: .bus, primaryLine: nil)
+        markLayer.isHidden = true
+    }
+
+    /// Plus aucune ligne : le disque devient un cercle gris barré. Une partie des lignes : sens interdit en haut à droite.
+    private func applyMark(_ mark: NetworkCuts.StopMark) {
+        let dot = dotLayer.frame
+        switch mark {
+        case .allLines:
+            dotLayer.contents = MarkerImageCache.stopCutMark(allLines: true).cgImage
+            markLayer.isHidden = true
+        case .someLines:
+            let side = max(9, dot.width * 0.6)
+            markLayer.contents = MarkerImageCache.stopCutMark(allLines: false).cgImage
+            markLayer.frame = CGRect(x: dot.maxX - side * 0.6, y: dot.minY - side * 0.4, width: side, height: side)
+            markLayer.isHidden = false
+        default:
+            markLayer.isHidden = true
+        }
     }
 
     // MARK: - Layouts
