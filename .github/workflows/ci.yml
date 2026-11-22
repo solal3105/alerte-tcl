@@ -38,6 +38,8 @@ jobs:
           python3 -m venv "${RUNNER_TEMP}/venv-velov"
           "${RUNNER_TEMP}/venv-velov/bin/pip" install -q -r velov-prevision/requirements.txt
           "${RUNNER_TEMP}/venv-velov/bin/python" -m unittest discover -s velov-prevision
+      - name: Tests de la lecture des coupures
+        run: node --test coupures/test/*.test.mjs
       - name: Tests du module partagé
         run: ./gradlew :shared:testDebugUnitTest --no-configuration-cache
       - name: Compiler l'application Android

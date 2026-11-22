@@ -1,0 +1,158 @@
+{
+ "values": [
+  {
+   "n": 1,
+   "ligne_com": "C",
+   "ligne_cli": "C",
+   "titre": "Travaux sur les voies",
+   "message": "La ligne C ne circule pas. Des travaux de réparation nécessitent un arrêt d'exploitation de longue durée. Pour vos déplacements, vous pouvez emprunter le bus C13*. * Des perturbations inopinées peuvent impacter la ligne C13. Nous vous invitons à consulter régulièrement l'information trafic en temps réel sur le site et l'appli TCL.",
+   "debut": "2026-11-05 16:35:00",
+   "fin": "2027-03-31 01:30:00",
+   "typeseverite": "SIGNIFICANT_DELAYS",
+   "mode": "Métro"
+  },
+  {
+   "n": 2,
+   "ligne_com": "T3",
+   "ligne_cli": "T3",
+   "titre": "Station Vaulx-en-Velin La Soie non desservie",
+   "message": "Du 16 au 25 novembre, La station Vaulx-en-Velin La Soie n'est pas desservie en direction de Meyzieu les Panettes en semaine et Meyzieu ZI les week-ends. Des travaux sur les voies ont lieu à l'occasion de la création de la future ligne T9. Plus d'informations ICI",
+   "debut": "2026-11-16 04:30:00",
+   "fin": "2026-11-26 01:30:00",
+   "typeseverite": "SIGNIFICANT_DELAYS",
+   "mode": "Tramway"
+  },
+  {
+   "n": 3,
+   "ligne_com": "C8",
+   "ligne_cli": "C8",
+   "titre": "Terminus Vaulx Lakanal -",
+   "message": "L'arrêt Vaulx - Résistance n'est plus desservi. Nous invitons les voyageurs à se reporter à l'arrêt Jean Moulin de la ligne 37 (dir. Vaulx O'hara) situé Avenue du 8 mai 1945). Des travaux sont en cours rue de la Résistance à Vaulx-En-Velin.",
+   "debut": "2026-10-26 08:02:00",
+   "fin": "2027-01-01 01:30:00",
+   "typeseverite": "SIGNIFICANT_DELAYS",
+   "mode": "Bus"
+  },
+  {
+   "n": 4,
+   "ligne_com": "C8",
+   "ligne_cli": "C8",
+   "titre": "Déviée deux sens -  26/05 au 31/12",
+   "message": "En direction de Vaulx - Résistance, les arrêts de Paviot - Genets à Kruger - Voillot ne sont plus desservis. En direction de Grange Blanche, les arrêts de Séverine à Bron Genêts ne sont plus desservis. Les arrêts de Severine à Monge sont reportés à l'arrêt Séverine de la ligne C17. Des travaux de voirie sont en cours Route de Genas à Villeurbanne.",
+   "debut": "2026-05-26 04:30:00",
+   "fin": "2027-01-01 01:30:00",
+   "typeseverite": "SIGNIFICANT_DELAYS",
+   "mode": "Bus"
+  },
+  {
+   "n": 5,
+   "ligne_com": "C8",
+   "ligne_cli": "C8",
+   "titre": "Arrêt Carmagnole reporté - direction V. Résistance",
+   "message": "L'arrêt Carmagnole est reporté à l'arrêt Vaulx en Velin La Soie. Des travaux sont en cours rue de la Poudrette à Villeurbanne.",
+   "debut": "2026-10-12 04:30:00",
+   "fin": "2026-11-30 01:30:00",
+   "typeseverite": "SIGNIFICANT_DELAYS",
+   "mode": "Bus"
+  },
+  {
+   "n": 6,
+   "ligne_com": "C8",
+   "ligne_cli": "C8",
+   "titre": "Déviée dir. Grange Blanche -",
+   "message": "Les arrêts de Constant à Ambroise Paré ne sont plus desservis en direction de Grange Blanche uniquement. Nous invitons les voyageurs à se reporter sur le potelet mobile au 215 avenue Lacassagne. Des travaux sont en cours rue Trarieux à Lyon 3ème.",
+   "debut": "2026-11-16 04:30:00",
+   "fin": "2026-12-19 02:30:00",
+   "typeseverite": "SIGNIFICANT_DELAYS",
+   "mode": "Bus"
+  },
+  {
+   "n": 7,
+   "ligne_com": "C8",
+   "ligne_cli": "C8",
+   "titre": "Déviée deux sens -  27/05 au 01/01",
+   "message": "En direction de Vaulx - Résistance, les arrêts de Paviot - Genets à Kruger - Voillot ne sont plus desservis. En direction de Grange Blanche, les arrêts de Séverine à Bron Genêts ne sont plus desservis. En direction de Grange Blanche, nous invitons les voyageurs à rejoindre l'arrêt Bron Genêts déplacé au 33 avenue Doyen Jean Lépine, au croisement de la rue des Genêts. Nous invitons également les voyageurs à rejoindre l'arrêt Séverine déplacé au 10 rue Sévérine. Des travaux sont en cours secteurs Bron et Sept Chemins. Plus d'informations ici.",
+   "debut": "2026-05-27 04:30:00",
+   "fin": "2027-01-02 02:30:00",
+   "typeseverite": "SIGNIFICANT_DELAYS",
+   "mode": "Bus"
+  },
+  {
+   "n": 26,
+   "ligne_com": "38",
+   "ligne_cli": "38",
+   "titre": "Terminus Cuire -  23/08 au 27/11",
+   "message": "Les arrêts de Dépôt de Cuire à Caluire - Pl. Bascule ne sont plus desservis. Nous invitons les voyageurs à rejoindre les arrêts du même nom de la ligne 33Des travaux sont en cours Avenue Louis Dufour à Caluire-et-Cuire.",
+   "debut": "2026-08-24 04:30:00",
+   "fin": "2026-11-28 02:30:00",
+   "typeseverite": "SIGNIFICANT_DELAYS",
+   "mode": "Bus"
+  },
+  {
+   "n": 82,
+   "ligne_com": "36",
+   "ligne_cli": "36",
+   "titre": "Arrêt Musée des Confluences reporté -",
+   "message": "L'arrêt Musée des Confluences sera reporté à Pont de la Mulatière. Des travaux auront lieu secteur Musée des Confluences à Lyon 2ème.",
+   "debut": "2026-11-23 04:30:00",
+   "fin": "2026-11-28 02:30:00",
+   "typeseverite": "SIGNIFICANT_DELAYS",
+   "mode": "Bus"
+  },
+  {
+   "n": 83,
+   "ligne_com": "36",
+   "ligne_cli": "36",
+   "titre": "Déviée deux sens -",
+   "message": "En direction de St-Genis-Laval Hôp. Sud, l'arrêt Jean Macé ne sera plus desservi. En direction de Jean Macé, les arrêts de Lortet à Jean Macé ne seront plus desservis. Des travaux auront lieu avenue Jean Jaurès à Lyon 7ème.",
+   "debut": "2026-11-23 04:30:00",
+   "fin": "2026-12-14 01:30:00",
+   "typeseverite": "SIGNIFICANT_DELAYS",
+   "mode": "Bus"
+  },
+  {
+   "n": 99,
+   "ligne_com": "T3",
+   "ligne_cli": "T3",
+   "titre": "Le 9, 10, 25 et 27 novembre 2026",
+   "message": "La ligne T3 ne circule pas, en soirée à partir de 20h30. Nous mettons à votre disposition des bus relais qui desservent les stations de Part-Dieu Villette à Meyzieu Z.I, toutes les 20 minutes. Des travaux sur les voies sont en cours à l'occasion de la création de la future ligne T9. Plus d'informations ICI",
+   "debut": "2026-11-23 20:30:00",
+   "fin": "2026-11-24 01:30:00",
+   "typeseverite": "SIGNIFICANT_DELAYS",
+   "mode": "Tramway"
+  },
+  {
+   "n": 100,
+   "ligne_com": "T4",
+   "ligne_cli": "T4",
+   "titre": "Travaux T10 - 25/10 au 24/11 certains soirs",
+   "message": "Les 25, 26, 27 octobre et les 1, 2, 3, 11, 12, 17, 18, 19, 20, 23, 24 novembre à partir de 20h30, la ligne T4 circule uniquement de IUT Feyssine* / La Doua à Lycée Lumière. Les stations de Etats-Unis Tony Garnier à Hôp. Feyzin Vénissieux ne seront plus desservies. Nous mettons à votre disposition des bus relais qui desservent les stations de Lycée Lumière à Hôpital Feyzin Vénissieux, toutes les 15 minutes. Des travaux auront lieu dans le cadre de la création de la future ligne de tramway T10. *Terminus IUT Feyssine uniquement en semaine, hors vacances scolaires. Retrouvez + d'informations sur le site TCL en cliquant ICI",
+   "debut": "2026-10-25 20:30:00",
+   "fin": "2026-11-25 01:30:00",
+   "typeseverite": "SIGNIFICANT_DELAYS",
+   "mode": "Tramway"
+  },
+  {
+   "n": 102,
+   "ligne_com": "D",
+   "ligne_cli": "D",
+   "titre": "Travaux modernisation ligne D - Du 05/10 au 24/11",
+   "message": "En raison de travaux de modernisation, du 5 octobre au 24 novembre, les lundis et mardis à partir de 21h20 environ, la ligne D circule uniquement de Gare de Vaise à Saxe-Gambetta. Les stations de Garibaldi à Gare de Vénissieux ne sont plus desservies. Des bus relais sont mis à disposition desservant tous les arrêts de Saxe-Gambetta à Gare de Vénissieux, toutes les 10 minutes. Derniers départs complets de la ligne : De Gare de Vénissieux vers Gare de Vaise : 21h20De Gare de Vaise vers Gare de Vénissieux : 21h23 Une autre phase de travaux complémentaires est également prévue du 30 novembre au 22 décembre (sauf 7 et 8 décembre), les lundis et mardis soirs la ligne D circulera uniquement de Gare de Vaise à Vieux Lyon Cathédral Saint-Jean. Plus d'informations en cliquant ici.",
+   "debut": "2026-10-05 21:20:00",
+   "fin": "2026-11-25 01:30:00",
+   "typeseverite": "SIGNIFICANT_DELAYS",
+   "mode": "Métro"
+  },
+  {
+   "n": 110,
+   "ligne_com": "B",
+   "ligne_cli": "B",
+   "titre": "Ne circule pas - le 22/11 jusqu'à 12h environ",
+   "message": "Dans le cadre d'essais d'augmentation de la capacité et du confort, le métro B est interrompu sur toute la ligne, le dimanche 22 novembre, jusqu'à 12h environ. Bus relais de Part-Dieu Vivier Merle à Hôpital Lyon Sud : - De Part-Dieu Vivier Merle un départ toutes les 12 à 15 minutes de 4h28 à 12h05. - De Hôpital Lyon Sud un départ toutes les 12 à 15 minutes de 4h25 à 11h50. Plus d'informations sur tcl.fr",
+   "debut": "2026-11-22 04:30:00",
+   "fin": "2026-11-22 13:00:00",
+   "typeseverite": "NO_SERVICE",
+   "mode": "Métro"
+  }
+ ]
+}

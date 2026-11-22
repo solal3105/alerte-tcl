@@ -1,0 +1,97 @@
+# Lit les alertes trafic TCL toutes les 5 minutes pour savoir ce qui est coupé sur le réseau (ligne
+# qui ne circule pas, tronçon fermé, arrêt non desservi, et à quels moments) et publie le résultat
+# sur la branche orpheline `coupures`, relayée aux applications (route /coupures). La lecture des
+# textes de TCL vit ici et non dans les applications : on la corrige sans nouvelle version.
+# Aucun secret nécessaire : les alertes sont lues sur le relais public, le réseau sur le GeoServer
+# public du Grand Lyon (une fois par nuit). Détails : coupures/README.md.
+name: Coupures TCL
+
+on:
+  schedule:
+    # GitHub lance les tâches planifiées avec quelques minutes de retard, parfois davantage.
+    - cron: "*/5 * * * *"
+  push:
+    # Une correction de la lecture est publiée dès qu'elle arrive sur main.
+    branches: [main, claude/project-thread-7f3wfa]
+    paths:
+      - "coupures/**"
+      - ".github/workflows/coupures.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: coupures
+  cancel-in-progress: false
+
+jobs:
+  lire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Récupérer la lecture
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: coupures
+          sparse-checkout-cone-mode: true
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Tests de la lecture
+        # Une lecture qui ne passe plus ses tests ne publie rien : la publication précédente reste.
+        run: node --test coupures/test/*.test.mjs
+
+      - name: Retrouver la publication précédente
+        run: |
+          OUT="${RUNNER_TEMP}/coupures-out"
+          if git clone -q --depth 1 --branch coupures "https://github.com/${GITHUB_REPOSITORY}.git" "$OUT"; then
+            git -C "$OUT" rev-parse 'HEAD^{tree}' > "${RUNNER_TEMP}/arbre-precedent"
+            rm -rf "$OUT/.git"
+          else
+            mkdir -p "$OUT"
+          fi
+
+      - name: Préparer le réseau
+        # Une fois par nuit, ou quand la lecture change : les tracés et les arrêts bougent peu. Si le
+        # GeoServer ne répond pas, le réseau de la veille sert encore.
+        run: |
+          RESEAU="${RUNNER_TEMP}/coupures-out/reseau.json"
+          AGE=$(( $(date +%s) - $(date -d "$(node -p "require('$RESEAU').genere" 2>/dev/null || echo 1970-01-01)" +%s) ))
+          if [[ ! -f "$RESEAU" || "$AGE" -gt 72000 || "${GITHUB_EVENT_NAME}" != "schedule" ]]; then
+            node coupures/construire-reseau.mjs "${RUNNER_TEMP}/reseau-neuf.json" \
+              && mv "${RUNNER_TEMP}/reseau-neuf.json" "$RESEAU" \
+              || { [[ -f "$RESEAU" ]] && echo "::warning::Réseau non reconstruit, celui de la veille sert encore"; }
+          fi
+          test -f "$RESEAU"
+
+      - name: Lire les alertes
+        run: node coupures/construire.mjs "${RUNNER_TEMP}/coupures-out/reseau.json" "${RUNNER_TEMP}/coupures-out/coupures.json"
+
+      - name: Publier sur la branche coupures
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd "${RUNNER_TEMP}/coupures-out"
+          git init -q -b coupures
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Coupures du $(date -u +%Y-%m-%dT%H:%MZ)"
+          # Rien de neuf (contenu identique, battement de l'heure pas encore dû) : on ne pousse pas.
+          if [[ "$(git rev-parse 'HEAD^{tree}')" == "$(cat "${RUNNER_TEMP}/arbre-precedent" 2>/dev/null)" ]]; then
+            echo "Publication inchangée"
+            exit 0
+          fi
+          # Un seul commit par publication : l'historique de la branche reste vide.
+          git push -q --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" coupures
+
+      - name: Garder la planification active
+        # GitHub désactive les workflows planifiés d'un dépôt public sans activité depuis 60 jours.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow enable coupures.yml --repo "${GITHUB_REPOSITORY}"
