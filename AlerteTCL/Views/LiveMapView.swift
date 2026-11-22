@@ -28,6 +28,13 @@ struct LiveMapView: View {
         span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
     )
     @State private var isSatellite = false
+    /// Instant de lecture des coupures du réseau (secondes), avancé chaque minute : un pointillé du soir
+    /// devient coupé à l'heure dite sans attendre une nouvelle lecture.
+    @State private var cutsNow = Int64(Date().timeIntervalSince1970)
+    /// Coupure annoncée montrée sur la carte « comme elle sera », jusqu'à « Revenir au direct ».
+    @State private var cutPreview: NetworkCut?
+    /// Fiche de la ligne d'une pastille touchée.
+    @State private var cutLine: TransportLine?
     
     /// En mode démo la fiche arrêt s'ouvre en pleine hauteur pour montrer les passages.
     private var stopSheetDetents: Set<PresentationDetent> {
@@ -54,7 +61,11 @@ struct LiveMapView: View {
                 region: $mapRegion,
                 onVehicleTap: { vehicle in withAnimation { focusOnVehicle(vehicle) } },
                 selectedMergedStop: $selectedMergedStop,
-                isSatellite: $isSatellite
+                isSatellite: $isSatellite,
+                networkCuts: alertViewModel.networkCuts,
+                cutsNow: cutsNow,
+                cutPreview: cutPreview,
+                onCutTap: { cut in cutLine = TransportLine(shared: LineRegistry.shared.line(name: cut.ligne)) }
             )
             .ignoresSafeArea()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -69,7 +80,8 @@ struct LiveMapView: View {
         .sheet(item: $selectedMergedStop) { mergedStop in
             MergedStopDetailSheet(
                 mergedStop: mergedStop, stopsVM: stopsViewModel, liveVM: viewModel, onFocus: focusOnStop,
-                onLocateVehicle: { vehicle in focusOnApproach(vehicle: vehicle, stop: mergedStop) }
+                onLocateVehicle: { vehicle in focusOnApproach(vehicle: vehicle, stop: mergedStop) },
+                networkCuts: alertViewModel.networkCuts
             )
             .environment(\.liveVehicles, viewModel.vehicles)
             .presentationDetents(stopSheetDetents)
@@ -83,9 +95,28 @@ struct LiveMapView: View {
         .sheet(isPresented: $showNetwork) {
             NetworkSheet(tab: $networkTab)
                 .environmentObject(alertViewModel)
+                .environment(\.showNetworkCut, showCutPreview)
                 .environment(\.liveVehicles, viewModel.vehicles)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $cutLine) { line in
+            LineDetailSheet(line: line, viewModel: alertViewModel)
+                .environment(\.showNetworkCut, showCutPreview)
+                .presentationDragIndicator(.visible)
+        }
+        .task {
+            // Coupures du réseau : relues toutes les 5 minutes tant que la carte est à l'écran, et
+            // l'heure de lecture avance chaque minute.
+            var lastFetch = Date.distantPast
+            while !Task.isCancelled {
+                if Date().timeIntervalSince(lastFetch) * 1000 >= Double(NetworkCutsService.companion.REFRESH_INTERVAL_MS) {
+                    await alertViewModel.loadNetworkCuts()
+                    lastFetch = Date()
+                }
+                cutsNow = Int64(Date().timeIntervalSince1970)
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+            }
         }
         .sheet(isPresented: $showDataSourceErrors) {
             DataSourceErrorsSheet(
@@ -223,6 +254,25 @@ struct LiveMapView: View {
         withAnimation(.easeInOut(duration: 0.8)) { mapRegion = region }
     }
 
+    // MARK: - Aperçu d'une coupure annoncée
+
+    /// « Voir sur la carte » d'une coupure annoncée : les feuilles se ferment, la carte cadre le tronçon,
+    /// sans les véhicules, jusqu'à « Revenir au direct ».
+    private func showCutPreview(_ cut: NetworkCut) {
+        showNetwork = false
+        cutLine = nil
+        selectedMergedStop = nil
+        withAnimation { cutPreview = cut }
+        let points = cut.traces.flatMap(\.points)
+        guard let minLat = points.map(\.latitude).min(), let maxLat = points.map(\.latitude).max(),
+              let minLon = points.map(\.longitude).min(), let maxLon = points.map(\.longitude).max() else { return }
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2),
+            span: MKCoordinateSpan(latitudeDelta: max((maxLat - minLat) * 1.5, 0.01), longitudeDelta: max((maxLon - minLon) * 1.5, 0.01))
+        )
+        withAnimation(.easeInOut(duration: 0.8)) { mapRegion = region }
+    }
+
     // MARK: - Background Data Loading
 
     /// Charge les données en arrière-plan après l'affichage de la carte (une seule fois),
@@ -304,8 +354,17 @@ struct LiveMapView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            // Une fiche d'arrêt ouverte dit déjà où est chaque bus : le bandeau se retire pendant ce temps.
-            if selectedMergedStop == nil, let focus = viewModel.stopFocus, let vehicleId = focus.vehicleId {
+            // Aperçu d'une coupure annoncée : la carte ne montre pas maintenant, le bandeau le dit.
+            if let preview = cutPreview {
+                CutPreviewBanner(
+                    cut: preview,
+                    title: NetworkCuts.shared.previewTitle(cut: preview, nowEpoch: cutsNow) ?? NetworkCuts.shared.subject(cut: preview),
+                    onClose: { withAnimation { cutPreview = nil } }
+                )
+                .padding(.top, 8)
+                .padding(.horizontal, 16)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            } else if selectedMergedStop == nil, let focus = viewModel.stopFocus, let vehicleId = focus.vehicleId {
                 VehicleFocusCard(
                     focus: focus,
                     vehicle: viewModel.vehicles.first { $0.id == vehicleId },
@@ -1218,15 +1277,7 @@ private struct FiltersHideAllBanner: View {
                 .buttonBorderShape(.capsule)
                 .controlSize(.small)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.appWarning.opacity(0.35), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
+        .mapBanner(edge: Color.appWarning.opacity(0.35))
     }
 }
 
@@ -1254,15 +1305,52 @@ private struct StopFocusBanner: View {
                 .buttonBorderShape(.capsule)
                 .controlSize(.small)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.appAccent.opacity(0.25), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
+        .mapBanner()
+    }
+}
+
+/// Bandeau de l'aperçu d'une coupure annoncée : quand elle aura lieu, et le retour à la carte en direct.
+private struct CutPreviewBanner: View {
+    let cut: NetworkCut
+    let title: String
+    let onClose: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            LineBadge(line: cut.ligne, size: 12)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(2)
+                Text("Coupure annoncée par TCL, sans les véhicules")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            Button("Revenir au direct", action: onClose)
+                .font(.system(size: 12, weight: .semibold))
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+        }
+        .mapBanner()
+    }
+}
+
+private extension View {
+    /// Habillage des bandeaux posés en haut de la carte.
+    func mapBanner(edge: Color = Color.appAccent.opacity(0.25)) -> some View {
+        self
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(edge, lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
     }
 }
 

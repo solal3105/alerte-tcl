@@ -34,4 +34,14 @@ object MapStyle {
     /** Liseré clair sous le tracé, pour le détacher du fond de carte. */
     val routeCasingExtraWidth: Double = 2.0
     val routeCasingOpacity: Double = 0.6
+
+    // ── Coupures du réseau (règles dans DESIGN.md, « Coupures du réseau ») ──
+    /** Fond posé sur la ligne coupée : sa couleur disparaît sous le pointillé. */
+    const val CUT_CASING_WIDTH = 7.0
+    /** Coupé : points gris (trait d'épaisseur [CUT_DOT_WIDTH], bouts ronds, quasi nul puis un vide). */
+    const val CUT_DOT_WIDTH = 3.5
+    val CUT_DOT_PATTERN: List<Double> = listOf(0.1, 7.0)
+    /** Coupé plus tard aujourd'hui : tirets à la couleur de la ligne. */
+    const val SOON_DASH_WIDTH = 4.0
+    val SOON_DASH_PATTERN: List<Double> = listOf(7.0, 6.0)
 }

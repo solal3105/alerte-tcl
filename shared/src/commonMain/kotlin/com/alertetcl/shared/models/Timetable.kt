@@ -308,6 +308,17 @@ data class LineTimetable(
         }
     }
 
+    /**
+     * Heure de départ, à son premier arrêt, de la course qui fait le passage [departure] (même journée de
+     * service). Une coupure annoncée « dès 21 h 20 » vaut pour les départs des terminus : une course partie
+     * avant roule jusqu'au bout.
+     */
+    fun tripStartMinutes(departure: TimetableDeparture): Int {
+        val trip = trips[departure.tripIndex]
+        val pos = positionInPattern[trip.p][departure.stopIndex] ?: return departure.minutes
+        return departure.minutes - (trip.t[pos] - trip.t[0])
+    }
+
     /** Tous les arrêts d'une course avec leurs heures, dans l'ordre de passage. */
     fun calls(tripIndex: Int): List<TimetableCall> = calls(tripIndex, 0)
 

@@ -449,6 +449,40 @@ et à la liste des fiches horaires, un abonnement déclenche des notifications, 
 d'alertes dans la feuille « Options de notification ». Les dates des alertes s'écrivent par
 `AlertDates` (« Il y a 12 min », « 14:30 », « 15 sept. », « Jusqu'au 16 sept. à 06:00 »).
 
+## Coupures du réseau
+
+La carte Transport montre ce qui ne circule pas : une ligne arrêtée, un tronçon fermé, un arrêt non
+desservi, et à quels moments. TCL ne l'écrit que dans le texte de ses alertes : la lecture tourne sur
+GitHub toutes les 5 minutes (`coupures/README.md`) et l'application ne fait que lire le résultat
+(`NetworkCutsService`), puis tout ce qu'elle montre vient de `NetworkCuts` (module partagé, testé). Un
+fichier lu il y a plus de 6 heures ne montre rien : mieux vaut rien qu'une coupure peut-être levée.
+
+La carte n'a que quatre signes, aucun ne repose sur la couleur seule. Coupé en ce moment : la ligne perd
+sa couleur sous un pointillé gris. Coupé plus tard le jour même (dès minuit) : tirets à la couleur de la
+ligne. Une pastille par coupure, au milieu du plus long tronçon : badge de la ligne et sens interdit
+(coupé) ou horloge (plus tard), avec la fin ou le début écrit dessous (« Jusqu'à 13 h », « Dès
+21 h 20 », « À certaines heures » quand TCL ne précise pas lesquelles) ; la toucher ouvre la fiche de la
+ligne. De près, un arrêt porte un petit sens interdit rouge si une de ses lignes n'y passe plus, et
+devient un cercle gris barré si plus aucune n'y passe. Métro, tram et trambus se voient de loin ; un bus
+seulement de près, ou quand ses tracés sont affichés ou sa ligne choisie dans les filtres. Les arrêts
+seuls fermés n'ont pas de pastille, seulement leur marque. Les déviations ne sont jamais dessinées
+(décision de Solal du 20 novembre 2026).
+
+La fiche de ligne existante porte un bloc en haut : ce qui ne circule pas, jusqu'à quand, un petit schéma
+de la ligne (arrêts barrés et pointillé gris maintenant, tirets à sa couleur pour plus tard), et l'écart
+signalé quand le titre de TCL cite d'autres jours que ses dates officielles, qui font foi. Une coupure à
+venir y a « Voir sur la carte » : la carte la montre comme elle sera, sans les véhicules, sous un bandeau
+« Coupure annoncée par TCL » et « Revenir au direct ». Pendant une coupure, la pastille d'état de la
+fiche dit « Ne circule pas » ou « En partie coupé », plutôt que la gravité de TCL qui ne le dit presque
+jamais.
+
+À un arrêt, les horaires prévus pendant une coupure sont retirés : une course partie de son terminus
+avant le début de la coupure reste, ce qui fait du dernier horaire affiché le dernier vrai passage. La
+carte du sens touché le dit en une phrase. La feuille Trafic liste avant « Mes lignes » les « Coupures
+annoncées » pour les jours suivants, regroupées par jours ; ce qui est coupé maintenant n'y est pas,
+c'est sur la carte. Une alerte « ne circule pas » que la lecture n'a pas su placer garde une pastille
+sur sa ligne, sans rien griser.
+
 ## Parcours de référence
 
 Les captures des parcours servent de référence de parité : `captures-tests/fiches-horaires/{ios,android}`

@@ -166,6 +166,18 @@ else
   fi
 fi
 
+# Coupures du réseau : relayées depuis la branche GitHub coupures, republiée au plus toutes les
+# 5 minutes (au moins une fois par heure) par .github/workflows/coupures.yml.
+info "Test du relais des coupures..."
+COUPURES_STATUS=$(http_status /coupures)
+if [[ "$COUPURES_STATUS" == "200" ]]; then
+  success "Coupures relayées ✓"
+elif [[ "$COUPURES_STATUS" == "404" ]]; then
+  warn "Coupures pas encore publiées (branche coupures) — à revérifier après le premier passage du workflow"
+else
+  warn "Relais des coupures en échec (HTTP $COUPURES_STATUS) — vérifie le déploiement"
+fi
+
 # ── 7. Mise à jour automatique de l'adresse du relais côté Swift ──────────
 # Une seule adresse, partagée par l'application et l'extension widget.
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"

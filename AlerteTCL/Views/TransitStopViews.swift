@@ -79,6 +79,8 @@ extension View {
 struct LineBoardCard: View {
     let board: LineBoard
     let nowMs: Int64
+    /// La ligne ne passe pas ici dans ce sens, maintenant ou plus tard aujourd'hui.
+    var cut: NetworkCuts.StopCut? = nil
     /// Fiche horaire connue : sans passage, on sait alors que rien n'est prévu.
     let timetableKnown: Bool
     /// Cadre la carte sur le véhicule du passage et l'arrêt.
@@ -140,6 +142,11 @@ struct LineBoardCard: View {
                 Text(PassageTexts.shared.noPassage(timetableKnown: timetableKnown))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+            }
+            if let cut {
+                Divider()
+                CutNoticeRow(stopCut: cut, nowEpoch: nowMs / 1000)
+                    .padding(.trailing, 8)
             }
         }
         .padding(.leading, 16)
@@ -292,6 +299,8 @@ struct MergedStopDetailSheet: View {
     var onFocus: ((StopLineFocus) -> Void)? = nil
     /// Appelé quand l'utilisateur touche le véhicule d'un passage (le parent le cadre avec l'arrêt).
     var onLocateVehicle: ((Vehicle) -> Void)? = nil
+    /// Coupures du réseau : les horaires prévus pendant une coupure sont retirés et la carte du sens le dit.
+    var networkCuts: NetworkCutsFile? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var allPassages: [Passage] = []
     @State private var isLoading = false
@@ -530,14 +539,18 @@ struct MergedStopDetailSheet: View {
     private var boards: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let nowMs = Int64(context.date.timeIntervalSince1970 * 1000)
+            let stopCuts = mergedStop.networkCuts(in: networkCuts, nowEpoch: nowMs / 1000)
             VStack(spacing: 10) {
                 ForEach(passageGroups, id: \.key) { group in
                     LineBoardCard(
                         board: StopBoard.shared.board(
                             group: group, approaching: approaches[group.key] ?? [], timetable: timetables[group.key],
-                            stopIndexes: stopIndexes[group.key] ?? [], nowEpochMs: nowMs, timeZoneId: StopApproach.shared.TIME_ZONE
+                            stopIndexes: stopIndexes[group.key] ?? [], nowEpochMs: nowMs,
+                            cutWindows: NetworkCuts.shared.windowsAt(cuts: stopCuts, line: group.line, directionCode: group.directionCode),
+                            timeZoneId: StopApproach.shared.TIME_ZONE
                         ),
                         nowMs: nowMs,
+                        cut: NetworkCuts.shared.noticeFor(cuts: stopCuts, line: group.line, directionCode: group.directionCode),
                         timetableKnown: timetables[group.key] != nil,
                         onLocate: locate,
                         onShowOnMap: onFocus == nil ? nil : { onFocus?(stopLineFocus(for: group)) },

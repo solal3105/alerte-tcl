@@ -19,6 +19,8 @@
  *                                      construites chaque nuit par .github/workflows/horaires.yml)
  *   GET /velov-prevision/<fichier>   → modèle de prévision Vélo'v (index.json et modele.json de la branche
  *                                      `velov-prevision`, réentraîné chaque semaine par GitHub Actions)
+ *   GET /coupures                    → coupures du réseau lues dans les alertes (coupures.json de la branche
+ *                                      `coupures`, relue toutes les 5 minutes par .github/workflows/coupures.yml)
  *   GET /velov-releves               → {"jours":[…]} : jours UTC pour lesquels des relevés Vélo'v existent
  *   GET /velov-releves?jour=AAAA-MM-JJ → relevés des stations Vélo'v de ce jour UTC (un toutes les 5 minutes,
  *                                      lus par le robot d'entraînement ; voir « Relevés Vélo'v »)
@@ -30,11 +32,11 @@
  *   Grand Lyon reçoit 1 requête toutes les N secondes quel que soit le nombre
  *   d'utilisateurs. Quand le cache est périmé, on sert l'ancienne réponse
  *   immédiatement et on rafraîchit en arrière-plan.
- *   Routes temps réel (vehicles, passages, alerts, parc-relais-tr, velov) : cache partagé
+ *   Routes temps réel (vehicles, passages, alerts, parc-relais-tr, velov, coupures) : cache partagé
  *   par un objet durable (LiveCache), seul cache effectif sur une adresse *.workers.dev.
  *   Autres routes : caches.default.
  *   TTL par route : passages 15 s, vehicles/parc-relais-tr 30 s,
- *                   alerts 60 s, velov 60 s, parc-relais statique 1 h, horaires 1 h,
+ *                   alerts 60 s, velov 60 s, coupures 60 s, parc-relais statique 1 h, horaires 1 h,
  *                   velov-prevision 1 h, GeoServer 24 h.
  *   /vehicles suit les vagues de publication de Grand Lyon (vehiclesFreshness) et
  *   annonce la prochaine dans l'en-tête X-Refresh-In, que les applications suivent.
@@ -86,6 +88,7 @@ const ROUTE_TTL = {
   "/parc-relais-tr": 30,   // occupation P+R temps réel
   "/alerts":         60,   // alertes trafic
   "/velov":          60,   // disponibilité des stations Vélo'v
+  "/coupures":       60,   // coupures du réseau, republiées au plus toutes les 5 minutes
   "/parc-relais":    3600, // données P+R statiques
   "/horaires":       3600, // fiches horaires, régénérées chaque nuit
   "/velov-prevision": 3600, // modèle de prévision Vélo'v, réentraîné chaque semaine
@@ -387,6 +390,17 @@ function liveRoute(url) {
       };
     case "/velov":
       return { key: pathname, ttl: ROUTE_TTL[pathname], load: loadVelov };
+    case "/coupures":
+      // Lues par GitHub Actions, demandées par chaque application à l'ouverture de la carte puis
+      // toutes les quelques minutes : sans ce cache, chaque appel partirait chez GitHub. Aucune
+      // credential Grand Lyon ne part vers GitHub.
+      return {
+        key: pathname, ttl: ROUTE_TTL[pathname],
+        load: () => fetch(`${GITHUB_RAW}/coupures/coupures.json`, {
+          headers: { Accept: "application/json", "User-Agent": "AlerteTCL-Proxy/1.0" },
+          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+        }),
+      };
     case "/passages": {
       // Chaque arrêt (et chaque tri) a sa propre clé.
       const stopId = parsePositiveInt(searchParams.get("id"));
@@ -791,7 +805,7 @@ export default {
     // encode les caractères valides comme '/' en '%2F'.
     const rawSearch = parsedURL.search;
 
-    // ── /vehicles | /passages | /alerts | /parc-relais-tr | /velov ──────────
+    // ── /vehicles | /passages | /alerts | /parc-relais-tr | /velov | /coupures ─
     // Routes temps réel : cache partagé (voir liveRoute et LiveCache).
     const live = liveRoute(parsedURL);
     if (live) return live.error ?? serveLive(live, env);

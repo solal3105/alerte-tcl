@@ -76,6 +76,13 @@ object AppColors {
     /** Tracé d'une ligne dont la couleur officielle n'est pas encore connue. */
     val routeUnknown = "#999999"
 
+    /**
+     * Coupures du réseau sur la carte : le pointillé d'un tronçon coupé, et le fond posé dessous qui
+     * efface la couleur de la ligne (proche du sol des plans iOS et Android).
+     */
+    val cutTrace = ThemedColor("#8E8E93", "#AEAEB2")
+    val cutCasing = ThemedColor("#F7F6F2", "#2C2C2E")
+
     /** Sévérité d'une alerte trafic. */
     fun alertSeverity(severity: AlertSeverity): ThemedColor = when (severity) {
         AlertSeverity.MAJOR -> error

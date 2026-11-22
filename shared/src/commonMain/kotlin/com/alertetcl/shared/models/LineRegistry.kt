@@ -26,6 +26,11 @@ object LineRegistry {
         _lines.value = next
     }
 
+    /** La ligne de ce nom (celui d'une alerte TCL), connue de l'index ou reconstruite d'après son nom. */
+    fun line(name: String): TransportLine =
+        _lines.value.firstOrNull { it.ligneCom.equals(name, ignoreCase = true) || it.ligneCli.equals(name, ignoreCase = true) }
+            ?: TransportLine.create(name, name, TransportMode.detectFromLine(name))
+
     /** Mode d'une ligne connue de l'index, null sinon. */
     fun modeOf(line: String): TransportMode? = modesByName[line.uppercase()]
 

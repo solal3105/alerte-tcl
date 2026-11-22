@@ -36,6 +36,8 @@ object Tokens {
     val introMapLand: Color @Composable @ReadOnlyComposable get() = AppColors.introMapLand.compose()
     val introMapStreet: Color @Composable @ReadOnlyComposable get() = AppColors.introMapStreet.compose()
     val introMapWater: Color @Composable @ReadOnlyComposable get() = AppColors.introMapWater.compose()
+    /** Coupures du réseau : pointillé d'un tronçon coupé. */
+    val cutTrace: Color @Composable @ReadOnlyComposable get() = AppColors.cutTrace.compose()
     /** Texte sur fond clair (badge de sévérité ou de mode à fond vif). */
     val onLight: Color get() = colorFromHex(AppColors.onLight)
 

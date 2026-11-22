@@ -103,12 +103,20 @@ import com.alertetcl.shared.viewmodels.AlertsViewModel
 import kotlinx.coroutines.launch
 import com.alertetcl.shared.services.TimetableService
 import com.alertetcl.shared.models.LineRegistry
+import com.alertetcl.shared.models.NetworkCut
+import com.alertetcl.shared.models.NetworkCuts
+import com.alertetcl.android.ui.cuts.CutLineBlock
+import com.alertetcl.android.ui.cuts.UpcomingCutsSection
 
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlertsScreen(viewModel: AlertsViewModel? = null) {
+fun AlertsScreen(
+    viewModel: AlertsViewModel? = null,
+    /** « Voir sur la carte » d'une coupure annoncée ; null hors de la carte Transport. */
+    onShowCut: ((NetworkCut) -> Unit)? = null
+) {
     // Si un ViewModel est passé (depuis LiveMapScreen), on le réutilise sans le
     // disposer à la fermeture de la sheet — miroir iOS @EnvironmentObject.
     val vm = viewModel ?: remember { AlertsViewModel() }
@@ -120,6 +128,7 @@ fun AlertsScreen(viewModel: AlertsViewModel? = null) {
     val isLoading by vm.isLoading.collectAsState()
     val error by vm.errorMessage.collectAsState()
     val lastUpdate by vm.lastUpdate.collectAsState()
+    val networkCuts by vm.networkCuts.collectAsState()
 
     val context = LocalContext.current
     val store = remember { FavoritesStore(context) }
@@ -142,9 +151,6 @@ fun AlertsScreen(viewModel: AlertsViewModel? = null) {
     val alertsByLine: Map<String, List<TCLAlert>> = remember(alerts) {
         val now = System.currentTimeMillis() / 1000L
         alertsToLineMap(alerts.filter { it.severity != AlertSeverity.INFO && it.isOngoing(now) })
-    }
-    val allAlertsByLine: Map<String, List<TCLAlert>> = remember(alerts) {
-        alertsToLineMap(alerts.filter { it.severity != AlertSeverity.INFO })
     }
 
     var selectedModeFilter by remember { mutableStateOf<TransportMode?>(null) }
@@ -201,6 +207,16 @@ fun AlertsScreen(viewModel: AlertsViewModel? = null) {
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
                                     .padding(top = 16.dp)
+                            )
+                        }
+                    }
+                    val upcomingCuts = NetworkCuts.upcoming(networkCuts, System.currentTimeMillis() / 1000)
+                    if (upcomingCuts.isNotEmpty()) {
+                        item {
+                            UpcomingCutsSection(
+                                groups = upcomingCuts,
+                                onSelect = { cut -> selectedLine = LineRegistry.line(cut.ligne) },
+                                modifier = Modifier.padding(top = 24.dp)
                             )
                         }
                     }
@@ -264,38 +280,78 @@ fun AlertsScreen(viewModel: AlertsViewModel? = null) {
     }
 
     selectedLine?.let { line ->
-        ModalBottomSheet(
-            onDismissRequest = { selectedLine = null },
-            sheetState = rememberModalBottomSheetState(),
-            contentWindowInsets = { WindowInsets.systemBars }
-        ) {
-            LineDetailSheet(
-                line = line,
-                alerts = allAlertsByLine[line.ligneCom].orEmpty(),
-                isSubscribed = LineSubscriptions.isSubscribed(subscriptions, line),
-                onOptions = { optionsLine = line },
-                onUnsubscribe = { updateSubscriptions { LineSubscriptions.unsubscribe(it, line) } },
-                onClose = { selectedLine = null }
-            )
-        }
+        LineSheet(line = line, viewModel = vm, onShowCut = onShowCut, onDismiss = { selectedLine = null })
     }
 
     optionsLine?.let { line ->
-        ModalBottomSheet(
-            onDismissRequest = { optionsLine = null },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            contentWindowInsets = { WindowInsets.systemBars }
-        ) {
-            SubscriptionOptionsSheet(
-                line = line,
-                initialTypes = LineSubscriptions.preferences(subscriptions, line),
-                onSave = { types ->
-                    updateSubscriptions { LineSubscriptions.subscribe(it, line, types) }
-                    optionsLine = null
-                },
-                onCancel = { optionsLine = null }
-            )
-        }
+        OptionsSheet(line = line, subscriptions = subscriptions, onSave = { types ->
+            updateSubscriptions { LineSubscriptions.subscribe(it, line, types) }
+        }, onDismiss = { optionsLine = null })
+    }
+}
+
+/**
+ * Fiche d'une ligne dans sa feuille, avec ses options d'abonnement : ouverte depuis la feuille Trafic
+ * ou depuis la pastille d'une coupure sur la carte.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun LineSheet(line: TransportLine, viewModel: AlertsViewModel, onShowCut: ((NetworkCut) -> Unit)?, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val store = remember { FavoritesStore(context) }
+    val scope = rememberCoroutineScope()
+    val storedSubscriptions by store.lineSubscriptions.collectAsState(initial = emptyMap())
+    val subscriptions = if (DemoShowcase.isAlertsCase) DemoShowcase.subscriptions() else storedSubscriptions
+    val alerts by viewModel.alerts.collectAsState()
+    val networkCuts by viewModel.networkCuts.collectAsState()
+    var optionsOpen by remember { mutableStateOf(false) }
+    val nowEpoch = System.currentTimeMillis() / 1000
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(),
+        contentWindowInsets = { WindowInsets.systemBars }
+    ) {
+        LineDetailSheet(
+            line = line,
+            alerts = alertsToLineMap(alerts.filter { it.severity != AlertSeverity.INFO })[line.ligneCom].orEmpty(),
+            cutBlocks = NetworkCuts.lineBlocks(networkCuts, line.displayName, nowEpoch),
+            onShowCut = onShowCut?.let { show ->
+                { block: NetworkCuts.LineBlock ->
+                    if (block.phase != NetworkCuts.Phase.NOW && NetworkCuts.previewCut(block.cut, nowEpoch) != null) ({ show(block.cut) }) else null
+                }
+            },
+            isSubscribed = LineSubscriptions.isSubscribed(subscriptions, line),
+            onOptions = { optionsOpen = true },
+            onUnsubscribe = { scope.launch { store.updateLineSubscriptions { LineSubscriptions.unsubscribe(it, line) } } },
+            onClose = onDismiss
+        )
+    }
+    if (optionsOpen) {
+        OptionsSheet(line = line, subscriptions = subscriptions, onSave = { types ->
+            scope.launch { store.updateLineSubscriptions { LineSubscriptions.subscribe(it, line, types) } }
+        }, onDismiss = { optionsOpen = false })
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OptionsSheet(
+    line: TransportLine,
+    subscriptions: Map<String, LineSubscription>,
+    onSave: (Set<AlertSeverity>) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        contentWindowInsets = { WindowInsets.systemBars }
+    ) {
+        SubscriptionOptionsSheet(
+            line = line,
+            initialTypes = LineSubscriptions.preferences(subscriptions, line),
+            onSave = { types -> onSave(types); onDismiss() },
+            onCancel = onDismiss
+        )
     }
 }
 
@@ -817,6 +873,10 @@ private fun SubscribeLineSheet(
 private fun LineDetailSheet(
     line: TransportLine,
     alerts: List<TCLAlert>,
+    /** Ce qui ne circule pas sur la ligne : ses coupures en cours, puis la prochaine annoncée. */
+    cutBlocks: List<NetworkCuts.LineBlock>,
+    /** « Voir sur la carte » d'un bloc, quand il en a un (coupure à venir avec un tracé). */
+    onShowCut: ((NetworkCuts.LineBlock) -> (() -> Unit)?)?,
     isSubscribed: Boolean,
     onOptions: () -> Unit,
     onUnsubscribe: () -> Unit,
@@ -839,6 +899,10 @@ private fun LineDetailSheet(
             leading = { LineBadge(line.displayName, size = 48.dp) }
         )
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+        cutBlocks.forEach { block ->
+            CutLineBlock(block, onShowOnMap = onShowCut?.invoke(block))
+            Spacer(Modifier.height(16.dp))
+        }
         // Abonnement : même disposition que sur iOS (abonné + options + désabonnement, ou bouton principal)
         if (isSubscribed) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

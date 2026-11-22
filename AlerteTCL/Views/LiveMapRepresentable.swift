@@ -29,6 +29,13 @@ struct LiveMapRepresentable: UIViewRepresentable {
     let onVehicleTap: (Vehicle) -> Void
     @Binding var selectedMergedStop: MergedStop?
     @Binding var isSatellite: Bool
+    /// Coupures du réseau, relues à l'instant [cutsNow] (secondes, avancé chaque minute par la vue).
+    let networkCuts: NetworkCutsFile?
+    let cutsNow: Int64
+    /// Aperçu d'une coupure annoncée : seule elle est dessinée, coupée, et les véhicules s'effacent.
+    let cutPreview: NetworkCut?
+    /// Toucher une pastille ouvre la fiche de la ligne.
+    let onCutTap: (NetworkCut) -> Void
 
     // MARK: - Lifecycle
 
@@ -47,6 +54,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
 
         mapView.register(VehicleAnnotationView.self,   forAnnotationViewWithReuseIdentifier: VehicleAnnotationView.identifier)
         mapView.register(MergedStopAnnotationView.self, forAnnotationViewWithReuseIdentifier: MergedStopAnnotationView.identifier)
+        mapView.register(CutAnnotationView.self, forAnnotationViewWithReuseIdentifier: CutAnnotationView.identifier)
 
         applyMapStyle(to: mapView, satellite: isSatellite)
 
@@ -98,7 +106,8 @@ struct LiveMapRepresentable: UIViewRepresentable {
         }
 
         // Diff des annotations et overlays
-        coord.syncVehicleAnnotations(viewModel.displayVehicles, animated: viewModel.animatedVehicles)
+        coord.syncVehicleAnnotations(cutPreview == nil ? viewModel.displayVehicles : [], animated: viewModel.animatedVehicles)
+        coord.updateCuts(file: networkCuts, now: cutsNow, preview: cutPreview)
         coord.syncMergedStopAnnotations(stopsViewModel.visibleMergedStops)
         // Filtre actif : seul le tracé de la ligne filtrée reste visible, quels que soient les réglages.
         if let focus = viewModel.stopFocus {
@@ -116,6 +125,8 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 transitLines: visibleTransitLines
             )
         }
+
+        coord.syncCutOverlays()
 
         // Les tooltips de ponctualité sont gérés dans `regionDidChangeAnimated`
         // (quand le zoom change vraiment), pas ici — évite de réintroduire une
@@ -162,6 +173,13 @@ struct LiveMapRepresentable: UIViewRepresentable {
         private var busOverlaysById:      [String: MKPolyline]           = [:]
         private var transitOverlaysById:  [String: MKPolyline]           = [:]
         private var overlayColors:        [ObjectIdentifier: (UIColor, CGFloat)] = [:]
+
+        // Coupures du réseau
+        private let cutsLayer = NetworkCutsMapLayer()
+        private var mapCuts: [NetworkCuts.MapCut] = []
+        private var cutsState: (file: NetworkCutsFile?, now: Int64, preview: NetworkCut?)?
+        /// Marque de chaque arrêt (ligne qui ne passe plus), calculée à la demande pour les arrêts affichés.
+        private var stopMarks: [String: NetworkCuts.StopMark] = [:]
 
         // Animation (horloge partagée avec le ViewModel)
         private let clock = AnimationClock()
@@ -251,7 +269,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
             }
             let showBadges = currentZoomLevel >= MapStyle.shared.ZOOM_STOP_BADGES
             for annotation in stopAnnotations.values {
-                (mapView.view(for: annotation) as? MergedStopAnnotationView)?.apply(stop: annotation.stop, showBadges: showBadges)
+                (mapView.view(for: annotation) as? MergedStopAnnotationView)?.apply(stop: annotation.stop, showBadges: showBadges, mark: stopMark(annotation.stop))
             }
             let overlays = Array(busOverlaysById.values) + Array(transitOverlaysById.values)
             busOverlaysById.removeAll()
@@ -327,6 +345,45 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 }
             }
             if !toAdd.isEmpty { mapView.addAnnotations(toAdd) }
+        }
+
+        // MARK: Coupures du réseau
+
+        /// Nouvelle lecture des coupures, nouvelle minute ou aperçu : recalcule le dessin et les marques d'arrêts.
+        func updateCuts(file: NetworkCutsFile?, now: Int64, preview: NetworkCut?) {
+            if let state = cutsState, state.file === file, state.now == now, state.preview === preview { return }
+            cutsState = (file, now, preview)
+            mapCuts = preview.map { [NetworkCuts.shared.previewCut(cut: $0, nowEpoch: now)].compactMap { $0 } }
+                ?? NetworkCuts.shared.mapCuts(file: file, nowEpoch: now)
+            stopMarks.removeAll()
+            guard let mapView else { return }
+            let showBadges = currentZoomLevel >= MapStyle.shared.ZOOM_STOP_BADGES
+            for annotation in stopAnnotations.values {
+                (mapView.view(for: annotation) as? MergedStopAnnotationView)?.apply(stop: annotation.stop, showBadges: showBadges, mark: stopMark(annotation.stop))
+            }
+        }
+
+        /// Pose les coupures visibles à ce zoom (les bus de loin seulement si on les a demandés).
+        func syncCutOverlays() {
+            guard let mapView else { return }
+            let vm = owner.viewModel
+            let filtered = vm.selectedLines.union([vm.selectedLine].compactMap { $0 })
+            let shown = cutsState?.preview != nil ? mapCuts : mapCuts.filter {
+                NetworkCuts.shared.isShown(cut: $0, zoom: currentZoomLevel, busTracesShown: vm.showBusTraces, filteredLines: filtered)
+            }
+            cutsLayer.sync(shown, lineTraces: { line in
+                (vm.transitLines.filter { $0.name.caseInsensitiveCompare(line) == .orderedSame }.map(\.clLocationCoordinates)
+                    + vm.busLines.filter { $0.name.caseInsensitiveCompare(line) == .orderedSame }.map(\.clLocationCoordinates))
+            }, on: mapView)
+        }
+
+        /// Marque d'un arrêt : aucune pendant un aperçu, qui montre un autre moment que maintenant.
+        private func stopMark(_ stop: MergedStop) -> NetworkCuts.StopMark {
+            guard let state = cutsState, state.preview == nil, let file = state.file else { return .none }
+            if let mark = stopMarks[stop.id] { return mark }
+            let mark = NetworkCuts.shared.stopMark(cuts: stop.networkCuts(in: file, nowEpoch: state.now), lines: stop.allLines)
+            stopMarks[stop.id] = mark
+            return mark
         }
 
         // MARK: Diff overlays (polylignes)
@@ -411,13 +468,15 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 }
             }
 
+            syncCutOverlays()
+
             // Badges de ligne sur les arrêts.
             let prevBadges = prevZoom >= MapStyle.shared.ZOOM_STOP_BADGES
             let nextBadges = zoom     >= MapStyle.shared.ZOOM_STOP_BADGES
             if prevBadges != nextBadges {
                 for annotation in stopAnnotations.values {
                     if let view = mapView.view(for: annotation) as? MergedStopAnnotationView {
-                        view.apply(stop: annotation.stop, showBadges: nextBadges)
+                        view.apply(stop: annotation.stop, showBadges: nextBadges, mark: stopMark(annotation.stop))
                     }
                 }
             }
@@ -455,7 +514,16 @@ struct LiveMapRepresentable: UIViewRepresentable {
                     for: stop
                 ) as? MergedStopAnnotationView ?? MergedStopAnnotationView(annotation: stop, reuseIdentifier: MergedStopAnnotationView.identifier)
                 view.annotation = stop
-                view.apply(stop: stop.stop, showBadges: currentZoomLevel >= MapStyle.shared.ZOOM_STOP_BADGES)
+                view.apply(stop: stop.stop, showBadges: currentZoomLevel >= MapStyle.shared.ZOOM_STOP_BADGES, mark: stopMark(stop.stop))
+                return view
+
+            case let cut as CutAnnotation:
+                let view = mapView.dequeueReusableAnnotationView(
+                    withIdentifier: CutAnnotationView.identifier,
+                    for: cut
+                ) as? CutAnnotationView ?? CutAnnotationView(annotation: cut, reuseIdentifier: CutAnnotationView.identifier)
+                view.annotation = cut
+                view.apply(cut.mapCut)
                 return view
 
             default:
@@ -464,6 +532,7 @@ struct LiveMapRepresentable: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let cut = overlay as? CutPolyline { return cutsLayer.renderer(for: cut) }
             guard let poly = overlay as? MKPolyline else { return MKOverlayRenderer(overlay: overlay) }
             let renderer = MKPolylineRenderer(polyline: poly)
             if let (color, width) = overlayColors[ObjectIdentifier(poly)] {
@@ -485,6 +554,8 @@ struct LiveMapRepresentable: UIViewRepresentable {
                 owner.onVehicleTap(v.vehicle)
             case let s as MergedStopAnnotation:
                 owner.selectedMergedStop = s.stop
+            case let c as CutAnnotation:
+                owner.onCutTap(c.mapCut.cut)
             default:
                 break
             }

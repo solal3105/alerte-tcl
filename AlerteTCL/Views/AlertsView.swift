@@ -4,6 +4,7 @@ import Shared
 // MARK: - NewAlertsView (Main View)
 struct NewAlertsView: View {
     @EnvironmentObject var viewModel: AlertViewModel
+    @Environment(\.showNetworkCut) private var showNetworkCut
     @State private var selectedLine: TransportLine?
     @State private var showSubscribeSheet = false
     @State private var selectedModeFilter: TransportMode? = nil
@@ -17,6 +18,12 @@ struct NewAlertsView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
                         .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                let upcomingCuts = NetworkCuts.shared.upcoming(file: viewModel.networkCuts, nowEpoch: Int64(Date().timeIntervalSince1970))
+                if !upcomingCuts.isEmpty {
+                    UpcomingCutsSection(groups: upcomingCuts) { cut in selectedLine = TransportLine(shared: LineRegistry.shared.line(name: cut.ligne)) }
+                        .padding(.top, 24)
                 }
 
                 myLinesSection
@@ -62,6 +69,7 @@ struct NewAlertsView: View {
         }
         .sheet(item: $selectedLine) { line in
             LineDetailSheet(line: line, viewModel: viewModel)
+                .environment(\.showNetworkCut, showNetworkCut)
         }
         .sheet(isPresented: $showSubscribeSheet) {
             SubscribeLineSheet(viewModel: viewModel)
@@ -529,7 +537,13 @@ struct LineDetailSheet: View {
     let line: TransportLine
     @ObservedObject var viewModel: AlertViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.showNetworkCut) private var showNetworkCut
     @State private var showSubscriptionOptions = false
+
+    /// Ce qui ne circule pas sur la ligne : ses coupures en cours, puis la prochaine annoncée.
+    private var cutBlocks: [NetworkCuts.LineBlock] {
+        NetworkCuts.shared.lineBlocks(file: viewModel.networkCuts, line: line.displayName, nowEpoch: Int64(Date().timeIntervalSince1970))
+    }
     
     private var lineAlerts: [TCLAlert] {
         viewModel.ongoingAlerts(for: line).sorted { $0.severity.sortOrder < $1.severity.sortOrder }
@@ -552,6 +566,11 @@ struct LineDetailSheet: View {
                     header
 
                     VStack(spacing: 20) {
+                        ForEach(Array(cutBlocks.enumerated()), id: \.offset) { _, block in
+                            CutLineBlockView(block: block, onShowOnMap: showOnMapAction(block))
+                                .padding(.horizontal, 16)
+                        }
+
                         subscribeSection
                             .padding(.horizontal, 16)
 
@@ -614,6 +633,13 @@ struct LineDetailSheet: View {
         .padding(.top, 4)
     }
 
+    /// « Voir sur la carte » d'une coupure à venir qui a un tracé ; celle en cours est déjà sur la carte.
+    private func showOnMapAction(_ block: NetworkCuts.LineBlock) -> (() -> Void)? {
+        guard let showNetworkCut, block.phase != .now,
+              NetworkCuts.shared.previewCut(cut: block.cut, nowEpoch: Int64(Date().timeIntervalSince1970)) != nil else { return nil }
+        return { showNetworkCut(block.cut) }
+    }
+
     private var highestOngoingColor: Color {
         lineAlerts
             .map { $0.severity }
@@ -623,11 +649,14 @@ struct LineDetailSheet: View {
 
     private var statusPill: some View {
         let isClear = lineAlerts.isEmpty
-        let color: Color = isClear ? .appSuccess : highestOngoingColor
+        // Une coupure en cours dit l'état mieux que le nombre d'alertes, dont la gravité TCL ne le dit pas.
+        let cutStatus = cutBlocks.lazy.compactMap(\.status).first
+        let color: Color = cutStatus != nil ? .appError : isClear ? .appSuccess : highestOngoingColor
+        let icon = cutStatus != nil ? "xmark.circle.fill" : isClear ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
         return HStack(spacing: 5) {
-            Image(systemName: isClear ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+            Image(systemName: icon)
                 .font(.caption)
-            Text(isClear ? "Service normal" : "\(lineAlerts.count) perturbation\(lineAlerts.count > 1 ? "s" : "")")
+            Text(cutStatus ?? (isClear ? "Service normal" : "\(lineAlerts.count) perturbation\(lineAlerts.count > 1 ? "s" : "")"))
                 .font(.caption)
                 .fontWeight(.semibold)
         }

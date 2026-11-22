@@ -1,6 +1,8 @@
 package com.alertetcl.shared.viewmodels
 
+import com.alertetcl.shared.models.NetworkCutsFile
 import com.alertetcl.shared.models.TCLAlert
+import com.alertetcl.shared.services.NetworkCutsService
 import com.alertetcl.shared.services.TclApiService
 import com.alertetcl.shared.util.AppLogger
 import kotlinx.coroutines.CoroutineScope
@@ -34,6 +36,11 @@ class AlertsViewModel(
     private val _lastUpdate = MutableStateFlow<Long?>(null)
     val lastUpdate: StateFlow<Long?> = _lastUpdate.asStateFlow()
 
+    /** Coupures du réseau lues dans les alertes (relais `/coupures`) ; la dernière lecture réussie reste. */
+    private val _networkCuts = MutableStateFlow(NetworkCutsService.shared.current)
+    val networkCuts: StateFlow<NetworkCutsFile?> = _networkCuts.asStateFlow()
+    private var cutsFetchedAtMs = 0L
+
     private var pollingJob: Job? = null
 
     fun startPolling() {
@@ -63,6 +70,21 @@ class AlertsViewModel(
                 _errorMessage.value = e.message ?: "Erreur"
             } finally {
                 _isLoading.value = false
+            }
+        }
+        refreshNetworkCuts()
+    }
+
+    /** Relit les coupures au rythme conseillé ; un échec garde la lecture précédente, que `NetworkCuts` retire après 6 heures. */
+    private fun refreshNetworkCuts() {
+        val nowMs = Clock.System.now().toEpochMilliseconds()
+        if (nowMs - cutsFetchedAtMs < NetworkCutsService.REFRESH_INTERVAL_MS) return
+        cutsFetchedAtMs = nowMs
+        scope.launch {
+            try {
+                _networkCuts.value = NetworkCutsService.shared.fetch()
+            } catch (e: Throwable) {
+                AppLogger.error("Coupures non relues", e)
             }
         }
     }

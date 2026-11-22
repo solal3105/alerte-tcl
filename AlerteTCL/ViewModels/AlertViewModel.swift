@@ -11,6 +11,8 @@ final class AlertViewModel: ObservableObject {
     @Published var lastUpdate: Date?
     @Published var selectedMode: TransportMode?
     @Published var searchText = ""
+    /// Coupures du réseau lues dans les alertes (relais `/coupures`) ; la dernière lecture réussie reste.
+    @Published private(set) var networkCuts: NetworkCutsFile?
 
     struct LineAlertSummary: Identifiable, Hashable {
         let id: String
@@ -187,6 +189,17 @@ final class AlertViewModel: ObservableObject {
         }
     }
     
+    /// Relit les coupures (au plus une requête par minute, cache du module partagé). Un échec garde
+    /// la lecture précédente : sa fraîcheur est jugée par `NetworkCuts`, qui la retire après 6 heures.
+    func loadNetworkCuts() async {
+        do {
+            let file = try await NetworkCutsService.companion.shared.fetch()
+            if file != networkCuts { networkCuts = file }
+        } catch {
+            AppLogger.debug("⚠️ Coupures non relues : \(error.localizedDescription)")
+        }
+    }
+
     private func extractLinesFromAlerts(_ alerts: [TCLAlert]) {
         // Travailler sur une copie locale : toutes les mutations se font hors du
         // @Published, puis on assigne une seule fois → un seul objectWillChange

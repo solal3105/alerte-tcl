@@ -37,6 +37,8 @@
 		4FCD05DF2F1704F700390BE1 /* TransitStopService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */; };
 		4FCD05E12F17051200390BE1 /* TransitStop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05E02F17051200390BE1 /* TransitStop.swift */; };
 		4FCD05E32F17056D00390BE1 /* TransitStopViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */; };
+		C07C0000000000000000A004 /* NetworkCutsMapLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C07C0000000000000000A003 /* NetworkCutsMapLayer.swift */; };
+		C07C0000000000000000A002 /* NetworkCutViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C07C0000000000000000A001 /* NetworkCutViews.swift */; };
 		4FD305012F1E5FC300EAFA92 /* TaskTimeout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD305002F1E5FC300EAFA92 /* TaskTimeout.swift */; };
 		AAA20001 /* InitialRetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20011 /* InitialRetry.swift */; };
 		4FD305052F1E60C600EAFA92 /* DataSourceErrorsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD305042F1E60C600EAFA92 /* DataSourceErrorsSheet.swift */; };
@@ -162,6 +164,8 @@
 		4FCD05DE2F1704F700390BE1 /* TransitStopService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopService.swift; sourceTree = "<group>"; };
 		4FCD05E02F17051200390BE1 /* TransitStop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStop.swift; sourceTree = "<group>"; };
 		4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStopViews.swift; sourceTree = "<group>"; };
+		C07C0000000000000000A003 /* NetworkCutsMapLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCutsMapLayer.swift; sourceTree = "<group>"; };
+		C07C0000000000000000A001 /* NetworkCutViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCutViews.swift; sourceTree = "<group>"; };
 		4FD305002F1E5FC300EAFA92 /* TaskTimeout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskTimeout.swift; sourceTree = "<group>"; };
 		AAA20011 /* InitialRetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InitialRetry.swift; sourceTree = "<group>"; };
 		4FD305042F1E60C600EAFA92 /* DataSourceErrorsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataSourceErrorsSheet.swift; sourceTree = "<group>"; };
@@ -358,6 +362,8 @@
 				4FD3050C2F1E68CB00EAFA92 /* WidgetViews.swift */,
 				4FD305042F1E60C600EAFA92 /* DataSourceErrorsSheet.swift */,
 				4FCD05E22F17056D00390BE1 /* TransitStopViews.swift */,
+				C07C0000000000000000A003 /* NetworkCutsMapLayer.swift */,
+				C07C0000000000000000A001 /* NetworkCutViews.swift */,
 				4F38BD2F2F15B17000E05786 /* TravauxMapView.swift */,
 				4FAB0E1F2F500000000AB001 /* AboutView.swift */,
 				4F9DFF992F14577200E01BFB /* ParkingMapView.swift */,
@@ -615,6 +621,8 @@
 				AAA0000F /* NotificationPermissionView.swift in Sources */,
 				4F38BD2A2F15B0BB00E05786 /* TravauxService.swift in Sources */,
 				4FCD05E32F17056D00390BE1 /* TransitStopViews.swift in Sources */,
+				C07C0000000000000000A004 /* NetworkCutsMapLayer.swift in Sources */,
+				C07C0000000000000000A002 /* NetworkCutViews.swift in Sources */,
 				4F38BD242F159CBE00E05786 /* TransitLineService.swift in Sources */,
 				4FD3050D2F1E68CB00EAFA92 /* WidgetViews.swift in Sources */,
 				AAA00024 /* Vehicle.swift in Sources */,
