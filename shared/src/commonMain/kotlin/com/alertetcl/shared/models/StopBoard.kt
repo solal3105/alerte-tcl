@@ -58,7 +58,8 @@ object StopBoard {
 
     /**
      * Le sens [group] tel qu'il s'affiche : le passage mis en avant, les suivants, le dernier de la
-     * journée. [stopIndexes] : l'arrêt dans [timetable] (ignoré sans fiche).
+     * journée. [stopIndexes] : l'arrêt dans [timetable] (ignoré sans fiche). [cutWindows] : moments où
+     * la ligne ne passe pas ici ([NetworkCuts.windowsAt]), dont les horaires prévus sont retirés.
      */
     fun board(
         group: PassageGroup,
@@ -66,10 +67,11 @@ object StopBoard {
         timetable: LineTimetable?,
         stopIndexes: List<Int>,
         nowEpochMs: Long,
+        cutWindows: List<CutWindow> = emptyList(),
         timeZoneId: String = StopApproach.TIME_ZONE
     ): LineBoard {
         val terminus = timetable?.terminusFrom(stopIndexes) ?: group.terminus
-        val upcoming = upcoming(group.passages, approaching, timetable, stopIndexes, nowEpochMs, timeZoneId, limit = 4) {
+        val upcoming = upcoming(group.passages, approaching, timetable, stopIndexes, nowEpochMs, cutWindows, timeZoneId, limit = 4) {
             group.shortDestination(it, terminus)
         }.map { status ->
             val destination = status.shortDestination
@@ -77,7 +79,7 @@ object StopBoard {
         }
         val first = upcoming.firstOrNull()
         val today = TimetableTime.serviceDateIso(nowEpochMs, timeZoneId)
-        val last = timetable?.departures(stopIndexes, today)?.lastOrNull { !it.isTerminus }
+        val last = timetable?.let { scheduled(it, stopIndexes, today, cutWindows, timeZoneId) }?.lastOrNull()
         val lastEpoch = last?.let { TimetableTime.epochSeconds(today, it.minutes, timeZoneId) }
         val isLast = { status: PassageStatus -> last != null && !status.isTomorrow && status.scheduledMinutes == last.minutes }
         val firstIsLast = first != null && isLast(first)
@@ -107,13 +109,15 @@ object StopBoard {
         timetable: LineTimetable?,
         stopIndexes: List<Int>,
         nowEpochMs: Long,
+        cutWindows: List<CutWindow> = emptyList(),
         timeZoneId: String = StopApproach.TIME_ZONE,
         limit: Int = 3,
         shortDestination: (Passage) -> String? = { null }
     ): List<PassageStatus> {
         val nowSec = nowEpochMs / 1000
         val today = TimetableTime.serviceDateIso(nowEpochMs, timeZoneId)
-        val todays = timetable?.departures(stopIndexes, today)?.filter { !it.isTerminus }.orEmpty()
+        val todays = timetable?.let { scheduled(it, stopIndexes, today, cutWindows, timeZoneId) }.orEmpty()
+        val cut = { epoch: Long -> cutWindows.any { it.contains(epoch) } }
         val claimed = HashSet<Int>()
 
         // Chaque véhicule en approche, du plus proche au plus lointain, prend l'annonce TCL qui lui
@@ -144,6 +148,8 @@ object StopBoard {
             val phase = phase(approach, live = approach != null || passage.isRealTime, arrival, nowSec) ?: return@forEachIndexed
             val scheduled = approach?.scheduledMinutes?.also { claim(todays, claimed, it) }
                 ?: scheduledFor(todays, claimed, epoch, timeZoneId)
+            // Une annonce théorique de TCL pendant une coupure, sans course de la fiche qui roule encore : elle n'aura pas lieu.
+            if (approach == null && !passage.isRealTime && scheduled == null && cut(epoch)) return@forEachIndexed
             result.add(PassageStatus(phase, arrival, scheduled, approach, shortDestination(passage)))
         }
         // Un véhicule que TCL n'annonce plus mais dont l'arrêt de l'usager est le prochain : « À l'approche »,
@@ -166,7 +172,7 @@ object StopBoard {
             }
             if (result.size < limit) {
                 val tomorrow = TimetableTime.addDays(today, 1)
-                timetable.departures(stopIndexes, tomorrow).filter { !it.isTerminus }.take(limit - result.size).forEach { d ->
+                scheduled(timetable, stopIndexes, tomorrow, cutWindows, timeZoneId).take(limit - result.size).forEach { d ->
                     result.add(PassageStatus(PassagePhase.SCHEDULED, TimetableTime.epochSeconds(tomorrow, d.minutes, timeZoneId), d.minutes, null, null, isTomorrow = true))
                 }
             }
@@ -208,6 +214,15 @@ object StopBoard {
             else -> PassagePhase.LIVE
         }
     }
+
+    /**
+     * Départs prévus de la journée [isoDate] à l'arrêt, sans ceux des courses qui partent de leur terminus
+     * pendant une coupure : une coupure « dès 21 h 20 » laisse finir les courses parties avant.
+     */
+    private fun scheduled(timetable: LineTimetable, stopIndexes: List<Int>, isoDate: String, cutWindows: List<CutWindow>, timeZoneId: String): List<TimetableDeparture> =
+        timetable.departures(stopIndexes, isoDate).filter { d ->
+            !d.isTerminus && cutWindows.none { it.contains(TimetableTime.epochSeconds(isoDate, timetable.tripStartMinutes(d), timeZoneId)) }
+        }
 
     private fun rank(phase: PassagePhase): Int = if (phase == PassagePhase.APPROACHING) 0 else 1
 

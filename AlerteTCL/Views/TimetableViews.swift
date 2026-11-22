@@ -482,7 +482,7 @@ private struct TimetableDayList: View {
     private func upcoming(at nowMs: Int64) -> [PassageStatus] {
         StopBoard.shared.upcoming(
             passages: livePassages, approaching: approaching, timetable: timetable,
-            stopIndexes: TimetableFormat.kotlinInts(stopIndexes), nowEpochMs: nowMs,
+            stopIndexes: TimetableFormat.kotlinInts(stopIndexes), nowEpochMs: nowMs, cutWindows: [],
             timeZoneId: StopApproach.shared.TIME_ZONE, limit: 3, shortDestination: { _ in nil }
         )
     }

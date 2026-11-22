@@ -535,7 +535,7 @@ struct MergedStopDetailSheet: View {
                     LineBoardCard(
                         board: StopBoard.shared.board(
                             group: group, approaching: approaches[group.key] ?? [], timetable: timetables[group.key],
-                            stopIndexes: stopIndexes[group.key] ?? [], nowEpochMs: nowMs, timeZoneId: StopApproach.shared.TIME_ZONE
+                            stopIndexes: stopIndexes[group.key] ?? [], nowEpochMs: nowMs, cutWindows: [], timeZoneId: StopApproach.shared.TIME_ZONE
                         ),
                         nowMs: nowMs,
                         timetableKnown: timetables[group.key] != nil,
