@@ -145,12 +145,6 @@ final class AlertViewModel: ObservableObject {
         alerts.filter { $0.ligneCom == line.ligneCom || (!line.ligneCli.isEmpty && $0.ligneCli == line.ligneCli) }
     }
     
-    /// La ligne de ce nom (`ligne_com` d'une alerte), connue du réseau ou reconstruite d'après son nom.
-    func line(named name: String) -> TransportLine {
-        allLines.first { $0.ligneCom.caseInsensitiveCompare(name) == .orderedSame }
-            ?? TransportLine(ligneCom: name, ligneCli: name, mode: TransportMode.detectFromLine(name))
-    }
-
     /// Alertes en cours (déjà commencées) pour une ligne
     func ongoingAlerts(for line: TransportLine) -> [TCLAlert] {
         alerts(for: line).filter { $0.isOngoing && $0.severity != .info }

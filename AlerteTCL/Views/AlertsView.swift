@@ -22,7 +22,7 @@ struct NewAlertsView: View {
 
                 let upcomingCuts = NetworkCuts.shared.upcoming(file: viewModel.networkCuts, nowEpoch: Int64(Date().timeIntervalSince1970))
                 if !upcomingCuts.isEmpty {
-                    UpcomingCutsSection(groups: upcomingCuts) { cut in selectedLine = viewModel.line(named: cut.ligne) }
+                    UpcomingCutsSection(groups: upcomingCuts) { cut in selectedLine = TransportLine(shared: LineRegistry.shared.line(name: cut.ligne)) }
                         .padding(.top, 24)
                 }
 
@@ -542,7 +542,7 @@ struct LineDetailSheet: View {
 
     /// Ce qui ne circule pas sur la ligne : ses coupures en cours, puis la prochaine annoncée.
     private var cutBlocks: [NetworkCuts.LineBlock] {
-        NetworkCuts.shared.lineBlocks(file: viewModel.networkCuts, line: line.ligneCom, nowEpoch: Int64(Date().timeIntervalSince1970))
+        NetworkCuts.shared.lineBlocks(file: viewModel.networkCuts, line: line.displayName, nowEpoch: Int64(Date().timeIntervalSince1970))
     }
     
     private var lineAlerts: [TCLAlert] {

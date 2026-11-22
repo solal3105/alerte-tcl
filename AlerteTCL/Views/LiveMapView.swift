@@ -65,7 +65,7 @@ struct LiveMapView: View {
                 networkCuts: alertViewModel.networkCuts,
                 cutsNow: cutsNow,
                 cutPreview: cutPreview,
-                onCutTap: { cut in cutLine = alertViewModel.line(named: cut.ligne) }
+                onCutTap: { cut in cutLine = TransportLine(shared: LineRegistry.shared.line(name: cut.ligne)) }
             )
             .ignoresSafeArea()
             .frame(maxWidth: .infinity, maxHeight: .infinity)

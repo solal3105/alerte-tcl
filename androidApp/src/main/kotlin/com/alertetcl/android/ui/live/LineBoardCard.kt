@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Tram
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,7 +50,9 @@ import com.alertetcl.android.ui.colorFromHex
 import com.alertetcl.android.ui.components.LineBadge
 import com.alertetcl.android.ui.theme.Tokens
 import com.alertetcl.shared.models.LineBoard
+import com.alertetcl.android.ui.cuts.CutNoticeRow
 import com.alertetcl.shared.models.LineColors
+import com.alertetcl.shared.models.NetworkCuts
 import com.alertetcl.shared.models.PassagePhase
 import com.alertetcl.shared.models.PassageStatus
 import com.alertetcl.shared.models.PassageTexts
@@ -78,7 +81,9 @@ internal fun LineBoardCard(
     timetableKnown: Boolean,
     onLocate: (PassageStatus) -> Unit,
     onShowOnMap: () -> Unit,
-    onShowTimetable: () -> Unit
+    onShowTimetable: () -> Unit,
+    /** La ligne ne passe pas ici dans ce sens, maintenant ou plus tard aujourd'hui. */
+    cut: NetworkCuts.StopCut? = null
 ) {
     val group = board.group
     val first = board.first
@@ -124,6 +129,10 @@ internal fun LineBoardCard(
                 PassageTexts.thenLine(board)?.let {
                     Text(it, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+            }
+            cut?.let {
+                HorizontalDivider(modifier = Modifier.padding(end = 10.dp, top = 4.dp, bottom = 4.dp))
+                Box(modifier = Modifier.padding(end = 10.dp)) { CutNoticeRow(it, nowMs / 1000) }
             }
         }
     }

@@ -190,6 +190,14 @@ import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 import com.alertetcl.shared.models.MapFilterTexts
+import com.alertetcl.shared.models.LineRegistry
+import com.alertetcl.shared.models.NetworkCut
+import com.alertetcl.shared.models.NetworkCuts
+import com.alertetcl.shared.models.NetworkCutsFile
+import com.alertetcl.shared.models.TransportLine
+import com.alertetcl.android.ui.alerts.LineSheet
+import com.alertetcl.android.ui.cuts.CutPreviewBanner
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.offset
 
 
@@ -278,6 +286,16 @@ fun LiveMapScreen() {
 
     val alerts by alertsVm.alerts.collectAsState()
     val alertsError by alertsVm.errorMessage.collectAsState()
+    val networkCuts by alertsVm.networkCuts.collectAsState()
+    // Instant de lecture des coupures (secondes), avancé chaque minute : un tiret du soir devient
+    // coupé à l'heure dite sans attendre une nouvelle lecture.
+    var cutsNow by remember { mutableLongStateOf(System.currentTimeMillis() / 1000) }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(60_000); cutsNow = System.currentTimeMillis() / 1000 } }
+    // Coupure annoncée montrée sur la carte « comme elle sera », jusqu'à « Revenir au direct ».
+    var cutPreview by remember { mutableStateOf<NetworkCut?>(null) }
+    // Fiche de la ligne d'une pastille touchée.
+    var cutLine by remember { mutableStateOf<TransportLine?>(null) }
+    var zoomShowsStops by remember { mutableStateOf(false) }
 
     val store = remember { com.alertetcl.android.data.FavoritesStore(context) }
     val favorites by store.favoriteLines.collectAsState(initial = emptySet())
@@ -322,8 +340,10 @@ fun LiveMapScreen() {
     val filteredVehicles by remember {
         derivedStateOf {
             val focus = stopFocus
+            // Aperçu d'une coupure annoncée : la carte ne montre pas maintenant, donc aucun véhicule.
+            if (cutPreview != null) emptyList()
             // Le filtre d'arrêt prime sur les autres : on veut voir ces bus, quels que soient les réglages.
-            if (focus != null) vehicles.filter(focus::matches)
+            else if (focus != null) vehicles.filter(focus::matches)
             else vehicles.filter { it.vehicleType in selectedTypes && (selectedLines.isEmpty() || it.lineName in selectedLines) }
         }
     }
@@ -463,9 +483,15 @@ fun LiveMapScreen() {
                                 .zoom(12.5)
                                 .build()
                         }
+                        map.addOnCameraIdleListener { zoomShowsStops = map.cameraPosition.zoom >= MapStyle.ZOOM_STOPS }
                         map.addOnMapClickListener { latLng ->
                             val screen = map.projection.toScreenLocation(latLng)
                             val pt = PointF(screen.x, screen.y)
+                            // Pastille d'une coupure : la fiche de sa ligne.
+                            map.queryRenderedFeatures(pt, CUTS_PIN_LAYER).firstOrNull()?.getStringProperty("line")?.let { line ->
+                                cutLine = LineRegistry.line(line)
+                                return@addOnMapClickListener true
+                            }
                             val vf = map.queryRenderedFeatures(pt, VEHICLES_LAYER)
                             if (vf.isNotEmpty()) {
                                 val id = vf[0].getStringProperty("id")
@@ -513,8 +539,16 @@ fun LiveMapScreen() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
         if (filtersHideAll) FiltersHideAllBanner(onClear = clearFilters)
+        // Aperçu d'une coupure annoncée : la carte ne montre pas maintenant, le bandeau le dit.
+        cutPreview?.let { preview ->
+            CutPreviewBanner(
+                cut = preview,
+                title = NetworkCuts.previewTitle(preview, cutsNow) ?: NetworkCuts.subject(preview),
+                onClose = { cutPreview = null }
+            )
+        }
         // Fiche d'arrêt ouverte : elle dit tout de cet arrêt, le bandeau du véhicule ne s'y superpose pas.
-        stopFocus?.takeIf { selectedStop.value == null }?.let { focus ->
+        stopFocus?.takeIf { selectedStop.value == null && cutPreview == null }?.let { focus ->
             val vehicleId = focus.vehicleId
             if (vehicleId != null) {
                 val vehicle = vehicles.firstOrNull { it.id == vehicleId }
@@ -629,8 +663,8 @@ fun LiveMapScreen() {
                     PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
                 )
                 // Tout en bas : sous les arrêts et les véhicules.
-                addLayerUnder(style, casing, STOPS_LAYER, VEHICLES_HALO_LAYER)
-                addLayerUnder(style, lineLayer, STOPS_LAYER, VEHICLES_HALO_LAYER)
+                addLayerUnder(style, casing, CUTS_CASING_LAYER, STOPS_LAYER, VEHICLES_HALO_LAYER)
+                addLayerUnder(style, lineLayer, CUTS_CASING_LAYER, STOPS_LAYER, VEHICLES_HALO_LAYER)
             } else {
                 style.getSourceAs<GeoJsonSource>(src)?.setGeoJson(geojson)
             }
@@ -876,14 +910,65 @@ fun LiveMapScreen() {
                             PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
                         )
                     badgeLayer.setMinZoom(MapStyle.ZOOM_STOP_BADGES.toFloat())
-                    // Sous les véhicules, au-dessus des tracés.
-                    addLayerUnder(style, circleLayer, VEHICLES_HALO_LAYER)
-                    addLayerUnder(style, badgeLayer, VEHICLES_HALO_LAYER)
+                    // Sous les marques des coupures et les véhicules, au-dessus des tracés.
+                    addLayerUnder(style, circleLayer, CUT_MARKS_LAYER, VEHICLES_HALO_LAYER)
+                    addLayerUnder(style, badgeLayer, CUT_MARKS_LAYER, VEHICLES_HALO_LAYER)
                 }
             }
         } else {
             style.getSourceAs<GeoJsonSource>(STOPS_SRC)?.setGeoJson(geojson)
         }
+    }
+
+    // Coupures du réseau : tracés, pastilles et marques des arrêts, relus à chaque lecture, chaque
+    // minute, à l'aperçu d'une coupure annoncée et quand les arrêts apparaissent au zoom.
+    val surfaceArgb = MaterialTheme.colorScheme.surface.toArgb()
+    val onSurfaceArgb = MaterialTheme.colorScheme.onSurface.toArgb()
+    LaunchedEffect(mapStyle, networkCuts, cutsNow, cutPreview, zoomShowsStops, showBusTraces, selectedLines, transitLines.value, busLines.value, mergedStops) {
+        val style = mapStyle ?: return@LaunchedEffect
+        val file = networkCuts
+        val preview = cutPreview
+        val zoom = if (zoomShowsStops) MapStyle.ZOOM_STOPS else 0.0
+        val capturedTransit = transitLines.value
+        val capturedBus = busLines.value
+        val capturedStops = mergedStops
+        val now = cutsNow
+        val busTraces = showBusTraces
+        val filters = selectedLines
+        val (drawn, marks) = withContext(Dispatchers.Default) {
+            val mapCuts = if (preview != null) listOfNotNull(NetworkCuts.previewCut(preview, now))
+                else NetworkCuts.mapCuts(file, now).filter { NetworkCuts.isShown(it, zoom, busTraces, filters) }
+            val drawn = mapCuts.map { cut ->
+                DrawnCut(cut, cut.traces.ifEmpty {
+                    capturedTransit.filter { it.name.equals(cut.line, ignoreCase = true) }.map { it.points } +
+                        capturedBus.filter { it.name.equals(cut.line, ignoreCase = true) }.map { it.points }
+                })
+            }
+            val marks = if (preview != null || file == null) emptyList() else capturedStops.mapNotNull { stop ->
+                val mark = NetworkCuts.stopMark(NetworkCuts.stopCuts(file, stop.nom, stop.coordinate, stop.allLines, now), stop.allLines)
+                if (mark == NetworkCuts.StopMark.NONE) null else MarkedStop(stop.coordinate, mark)
+            }
+            drawn to marks
+        }
+        if (!style.isFullyLoaded) return@LaunchedEffect
+        glInitMutex.withLock {
+            if (!style.isFullyLoaded) return@LaunchedEffect
+            syncCutLayers(
+                style, drawn, marks, isDark, surfaceArgb, onSurfaceArgb,
+                below = arrayOf(STOPS_LAYER, CUT_MARKS_LAYER, VEHICLES_HALO_LAYER),
+                marksBelow = arrayOf(VEHICLES_HALO_LAYER)
+            )
+        }
+    }
+
+    // « Voir sur la carte » d'une coupure annoncée : les feuilles se ferment, la carte cadre le tronçon,
+    // sans les véhicules, jusqu'à « Revenir au direct ».
+    val showCut: (NetworkCut) -> Unit = { cut ->
+        showNetworkSheet = false
+        cutLine = null
+        selectedStop.value = null
+        cutPreview = cut
+        fitCamera(mapLibreMap, cut.traces.flatMap { it.points }.map { LatLng(it.latitude, it.longitude) })
     }
 
     // ── Bottom sheets ───────────────────────────────────────────────────
@@ -911,9 +996,13 @@ fun LiveMapScreen() {
                     selectedStop.value = null
                     vm.focusOnStop(StopLineFocus.forVehicle(vehicle))
                     fitCamera(mapLibreMap, listOf(LatLng(vehicle.latitude, vehicle.longitude), LatLng(stop.latitude, stop.longitude)))
-                }
+                },
+                networkCuts = networkCuts
             )
         }
+    }
+    cutLine?.let { line ->
+        LineSheet(line = line, viewModel = alertsVm, onShowCut = showCut, onDismiss = { cutLine = null })
     }
     timetableStart?.let { start ->
         TimetableDialog(start = start, vehicles = vehicles, onDismiss = { timetableStart = null })
@@ -926,7 +1015,7 @@ fun LiveMapScreen() {
                     SegmentedButton(selected = networkTab == 1, onClick = { networkTab = 1 }, shape = SegmentedButtonDefaults.itemShape(1, 2)) { Text("Horaires") }
                 }
                 Box(Modifier.fillMaxSize()) {
-                    if (networkTab == 0) com.alertetcl.android.ui.alerts.AlertsScreen(viewModel = alertsVm)
+                    if (networkTab == 0) com.alertetcl.android.ui.alerts.AlertsScreen(viewModel = alertsVm, onShowCut = showCut)
                     else TimetableFlow(start = TimetableStart.Search, vehicles = vehicles, onDismiss = { showNetworkSheet = false })
                 }
             }
@@ -1360,7 +1449,9 @@ private fun MergedStopDetailSheet(
     /** Ouvre la fiche horaire théorique d'une ligne à cet arrêt. */
     onTimetable: (TimetableStart.ForStop) -> Unit,
     /** Cadre la carte sur un véhicule en approche et l'arrêt. */
-    onLocateVehicle: (Vehicle) -> Unit
+    onLocateVehicle: (Vehicle) -> Unit,
+    /** Coupures du réseau : les horaires prévus pendant une coupure sont retirés et la carte du sens le dit. */
+    networkCuts: NetworkCutsFile?
 ) {
     val context = LocalContext.current
     // Terminus par ligne et sens, pour déduire le sens d'une destination affichée.
@@ -1439,9 +1530,15 @@ private fun MergedStopDetailSheet(
     // L'état de chaque passage se recalcule chaque seconde : aucun délai ne reste figé entre deux rafraîchissements.
     var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(1000); nowMs = System.currentTimeMillis() } }
-    val boards = remember(groupedPassages, approaches, timetableSnapshot, nowMs) {
+    val stopCuts = remember(networkCuts, nowMs / 60_000) {
+        NetworkCuts.stopCuts(networkCuts, stop.nom, stop.coordinate, stop.allLines, nowMs / 1000)
+    }
+    val boards = remember(groupedPassages, approaches, timetableSnapshot, nowMs, stopCuts) {
         groupedPassages.map { group ->
-            StopBoard.board(group, approaches[group.key].orEmpty(), timetableSnapshot[group.key], stopIndexes[group.key].orEmpty(), nowMs)
+            StopBoard.board(
+                group, approaches[group.key].orEmpty(), timetableSnapshot[group.key], stopIndexes[group.key].orEmpty(), nowMs,
+                cutWindows = NetworkCuts.windowsAt(stopCuts, group.line, group.directionCode)
+            )
         }
     }
 
@@ -1529,7 +1626,8 @@ private fun MergedStopDetailSheet(
                     },
                     onShowTimetable = {
                         onTimetable(TimetableStart.ForStop(group.line, group.terminus, stopIds.toSet(), stop.nom))
-                    }
+                    },
+                    cut = NetworkCuts.noticeFor(stopCuts, group.line, group.directionCode)
                 )
             }
         }
