@@ -321,9 +321,18 @@ fun LiveMapScreen() {
     val busLines = produceState<List<BusLine>>(initialValue = emptyList()) {
         value = runCatching { BusLineService.shared.fetchBusLines() }.getOrDefault(emptyList())
     }
-    // Chargé une seule fois au démarrage (comme iOS), affichage contrôlé par zoom/toggle
-    val stops = produceState<List<TransitStop>>(initialValue = emptyList()) {
-        value = runCatching { TransitStopService.shared.fetchStops() }.getOrDefault(emptyList())
+    // Chargés au démarrage avec plusieurs essais, puis à nouveau au retour sur l'appli tant qu'ils
+    // manquent (comme iOS) ; affichage contrôlé par le zoom.
+    var stopsRequest by remember { mutableIntStateOf(0) }
+    val stops = produceState<List<TransitStop>>(initialValue = emptyList(), stopsRequest) {
+        if (value.isEmpty()) value = TransitStopService.shared.fetchStopsRetrying()
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START && stops.value.isEmpty()) stopsRequest++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     // Index des fiches horaires : rafraîchit la palette officielle des couleurs de lignes.
     // ... et retire des filtres enregistrés les lignes qui n'existent plus (renumérotation du réseau).
