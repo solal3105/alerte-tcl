@@ -76,7 +76,10 @@ object NetworkCuts {
         SOON
     }
 
-    /** Une coupure telle que la carte la dessine. [anchor] : la pastille, null tant que la plateforme ne l'a pas placée sur le tracé de la ligne. */
+    /**
+     * Une coupure telle que la carte la dessine. [anchor] : la pastille, null tant que la plateforme ne l'a pas placée sur le tracé de la ligne.
+     * [traces] vide : toute la ligne est grisée sur son propre tracé si [greysLine], sinon seule la pastille est posée (coupure non placée).
+     */
     data class MapCut(
         val cut: NetworkCut,
         val style: MapStyleKind,
@@ -87,13 +90,16 @@ object NetworkCuts {
         /** Métro, tram et trambus se voient de loin ; un bus seulement de près, ou si on le demande. */
         val isRail: Boolean
     ) {
+        /** Sans tracé publié, la ligne entière se grise ; une alerte que la lecture n'a pas su placer ne grise rien. */
+        val greysLine: Boolean get() = cut.placed
         val line: String get() = cut.ligne
         val colorHex: String get() = cut.couleur
     }
 
     /**
      * Ce que la carte dessine maintenant : les coupures en cours et celles de plus tard dans la journée.
-     * Les arrêts seuls fermés n'ont pas de pastille : leur arrêt porte la marque ([stopMark]).
+     * Les arrêts seuls fermés n'ont pas de pastille : leur arrêt porte la marque ([stopMark]). Une alerte non
+     * placée n'a que sa pastille, sur le tracé de sa ligne.
      */
     fun mapCuts(file: NetworkCutsFile?, nowEpoch: Long): List<MapCut> {
         if (file == null || !isFresh(file, nowEpoch)) return emptyList()
@@ -110,7 +116,7 @@ object NetworkCuts {
     }
 
     private fun mapCut(cut: NetworkCut, timing: Timing, nowEpoch: Long): MapCut? {
-        if (cut.traces.isEmpty() && !cut.wholeLine) return null
+        if (cut.placed && cut.traces.isEmpty() && !cut.wholeLine) return null
         val traces = cut.traces.map { it.points }.filter { it.size >= 2 }
         val partial = cut.partialTimes && timing.phase == Phase.NOW
         val style = if (timing.phase == Phase.NOW && !partial) MapStyleKind.CUT else MapStyleKind.SOON
@@ -164,7 +170,7 @@ object NetworkCuts {
         return all(file).mapNotNull { cut ->
             val line = lines.firstOrNull { it.equals(cut.ligne, ignoreCase = true) } ?: return@mapNotNull null
             val timing = timing(cut, nowEpoch)?.takeIf { it.phase != Phase.UPCOMING } ?: return@mapNotNull null
-            if (cut.wholeLine) return@mapNotNull StopCut(cut, line, null, timing)
+            if (cut.wholeLine) return@mapNotNull StopCut(cut, line, cut.directions.singleOrNull(), timing)
             val here = cut.stops.filter { stop ->
                 val distance = fastDistance2D(stop.coordinate, position)
                 distance <= SAME_PLACE_METERS || (distance <= SAME_NAME_METERS && DirectionMatching.normalize(stop.name) == normalized)
@@ -257,7 +263,7 @@ object NetworkCuts {
             detail = detail,
             note = if (cut.conflictingDates) "Le titre de l'alerte de TCL cite d'autres jours que ses dates officielles, qui sont celles indiquées ici." else null,
             diagram = diagram(cut),
-            status = if (timing.phase == Phase.NOW && !cut.partialTimes) (if (cut.wholeLine) "Ne circule pas" else "En partie coupé") else null
+            status = if (timing.phase == Phase.NOW && !cut.partialTimes && cut.placed) (if (cut.wholeLine) "Ne circule pas" else "En partie coupé") else null
         )
     }
 
@@ -328,6 +334,8 @@ object NetworkCuts {
 
     private fun shape(cut: NetworkCut): Shape {
         if (cut.wholeLine) return Shape("ne circule pas sur toute la ligne", "ne circulera pas", "ne circule pas")
+        // TCL annonce l'arrêt sans que la lecture sache où : on n'en dit pas plus que l'alerte, affichée dessous.
+        if (!cut.placed) return Shape("ne circule pas partout", "ne circulera pas partout", "ne circule pas partout")
         val direction = cut.directions.singleOrNull()
         val towards = direction?.let { cut.destinations[it] }?.let { " vers $it" }.orEmpty()
         if (cut.traces.isEmpty()) {

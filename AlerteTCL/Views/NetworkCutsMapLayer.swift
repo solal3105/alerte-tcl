@@ -68,7 +68,7 @@ final class NetworkCutsMapLayer {
     private var drawn: [String: Drawn] = [:]
 
     /// Pose sur la carte les coupures [cuts] (déjà filtrées pour le zoom), en ne touchant qu'à ce qui change.
-    /// [lineTraces] : tracé de la ligne, pour une ligne entière coupée que le fichier ne dessine pas.
+    /// [lineTraces] : tracé de la ligne, pour une ligne entière coupée que le fichier ne dessine pas, ou la pastille seule d'une alerte non placée.
     func sync(_ cuts: [NetworkCuts.MapCut], lineTraces: (String) -> [[CLLocationCoordinate2D]], on mapView: MKMapView) {
         let wanted = Dictionary(cuts.map { ("\($0.cut.id)|\($0.style)|\($0.label)", $0) }, uniquingKeysWith: { first, _ in first })
         for key in Set(drawn.keys).subtracting(wanted.keys) {
@@ -80,7 +80,7 @@ final class NetworkCutsMapLayer {
             let traces = mapCut.traces.isEmpty
                 ? lineTraces(mapCut.line)
                 : mapCut.traces.map { $0.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) } }
-            let overlays = Self.polylines(for: mapCut, traces: traces)
+            let overlays = mapCut.traces.isEmpty && !mapCut.greysLine ? [] : Self.polylines(for: mapCut, traces: traces)
             mapView.addOverlays(overlays, level: .aboveLabels)
             let annotation = Self.anchor(of: mapCut, traces: traces).map { CutAnnotation(mapCut: mapCut, coordinate: $0) }
             if let annotation { mapView.addAnnotation(annotation) }

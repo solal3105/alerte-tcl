@@ -42,9 +42,13 @@ private const val MARK_ALL_ICON = "cut_mark_all"
 /** Les bitmaps de la carte sont dessinés à cette échelle, comme ceux des arrêts et des véhicules. */
 private const val DENSITY = 3f
 
-/** Une coupure telle que la carte la pose : ses tracés (ceux du fichier, ou ceux de la ligne entière) et sa pastille. */
+/**
+ * Une coupure telle que la carte la pose : ses tracés (ceux du fichier, ou ceux de la ligne entière) et sa pastille.
+ * Une alerte non placée ne grise rien : ses tracés ne servent qu'à poser la pastille.
+ */
 internal data class DrawnCut(val mapCut: NetworkCuts.MapCut, val traces: List<List<LatLng>>) {
     val anchor: LatLng? get() = mapCut.anchor ?: traces.maxByOrNull { it.size }?.let { NetworkCuts.midpoint(it) }
+    val drawnTraces: List<List<LatLng>> get() = if (mapCut.traces.isEmpty() && !mapCut.greysLine) emptyList() else traces
     val pinIcon: String get() = "cutpin_${mapCut.style}_${mapCut.line}_${mapCut.label}".replace(Regex("[^A-Za-z0-9_]"), "_")
 }
 
@@ -66,7 +70,7 @@ internal fun syncCutLayers(
     marksBelow: Array<String>
 ) {
     val lines = FeatureCollection.fromFeatures(cuts.flatMap { drawn ->
-        drawn.traces.filter { it.size >= 2 }.map { trace ->
+        drawn.drawnTraces.filter { it.size >= 2 }.map { trace ->
             Feature.fromGeometry(
                 LineString.fromLngLats(trace.map { Point.fromLngLat(it.longitude, it.latitude) }),
                 JsonObject().apply {

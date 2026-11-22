@@ -138,6 +138,25 @@ class NetworkCutsTest {
     }
 
     @Test
+    fun anUnplacedAlertKeepsOnlyItsPastille() {
+        val unplaced = file.coupures.first { it.ligne == "B" }.copy(
+            id = "C5|C5|Sans service|2026-11-22 04:30:00|00000000", ligne = "C5", mode = "bus",
+            effects = emptyList(), traces = emptyList(), stops = emptyList(), bounds = emptyList()
+        )
+        val withUnplaced = file.copy(nonPlacees = listOf(unplaced))
+        val pastille = NetworkCuts.mapCuts(withUnplaced, sunday).first { it.line == "C5" }
+        assertTrue(pastille.traces.isEmpty())
+        assertTrue(!pastille.greysLine)
+        assertTrue(NetworkCuts.mapCuts(file, sunday).all { it.greysLine })
+        // Aucun arrêt marqué ni horaire retiré : on ne sait pas où la ligne est coupée.
+        assertTrue(NetworkCuts.stopCuts(withUnplaced, "Cordeliers", LatLng(45.7633, 4.8359), listOf("C5"), sunday).isEmpty())
+        val block = NetworkCuts.lineBlocks(withUnplaced, "C5", sunday).single()
+        assertEquals("Le bus C5 ne circule pas partout.", block.headline)
+        assertNull(block.status)
+        assertTrue(block.diagram.isEmpty())
+    }
+
+    @Test
     fun cutsCarryTheIdentityOfTheirAlert() {
         // Même valeur dans coupures/test/coupures.test.mjs.
         assertEquals("D|D|Titre|2026-11-23 21:20:00|c4c01b3c", AlertIdentity.of("D", "D", "Titre", "2026-11-23 21:20:00", "Métro D ne circule pas."))

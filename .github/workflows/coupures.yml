@@ -12,7 +12,7 @@ on:
     - cron: "*/5 * * * *"
   push:
     # Une correction de la lecture est publiée dès qu'elle arrive sur main.
-    branches: [main, claude/project-thread-7f3wfa]
+    branches: [main]
     paths:
       - "coupures/**"
       - ".github/workflows/coupures.yml"

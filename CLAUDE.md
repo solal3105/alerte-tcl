@@ -236,6 +236,20 @@ détection du mode d'une ligne, donc à jour après une renumérotation (la 21 d
 Les filtres de lignes enregistrés sont purgés des numéros disparus (`MapFilterTexts.keepKnownLines`)
 et un bandeau « Tout afficher » apparaît quand les filtres masquent tous les véhicules.
 
+### Coupures du réseau
+
+La carte montre ce qui ne circule pas (ligne arrêtée, tronçon fermé, arrêt non desservi, et quand),
+lu dans le texte des alertes TCL. Cette lecture ne tourne pas dans les applications mais sur GitHub
+(`.github/workflows/coupures.yml`, toutes les 5 minutes, `coupures/`, tests `node --test
+coupures/test/*.test.mjs`), publiée sur la branche orpheline `coupures` et relayée sous `/coupures`
+(`liveRoute`, 60 s) : une tournure nouvelle de TCL se corrige sans nouvelle version. Format et règles de
+lecture : `coupures/README.md`. Côté applications, `NetworkCutsService` lit le fichier et `NetworkCuts`
+(module partagé, testé par `NetworkCutsTest`) décide de tout ce qui s'affiche : dessin de la carte,
+marques des arrêts, bloc de la fiche de ligne, liste « Coupures annoncées », phrases. `StopBoard` retire
+les horaires prévus pendant une coupure (`cutWindows`). Les vues (`NetworkCutViews.swift`,
+`NetworkCutsMapLayer.swift`, `ui/cuts/NetworkCutViews.kt`, `ui/live/NetworkCutsMapLayer.kt`) ne font que
+dessiner ; règles dans `DESIGN.md` (« Coupures du réseau »). Pas de tracé de déviation.
+
 ### Couleurs, textes et règles d'interface
 
 - Toute couleur sémantique vient de `AppColors` (module partagé) : `Color.appAccent`… et les

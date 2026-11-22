@@ -40,8 +40,11 @@ data class NetworkCut(
     @SerialName("arrets") val stops: List<CutStop> = emptyList(),
     @SerialName("bornes") val bounds: List<CutStop> = emptyList()
 ) {
-    /** Toute la ligne est coupée (texte « ne circule pas », ou alerte « sans service » non placée). */
-    val wholeLine: Boolean get() = effects.any { it.whole } || (traces.isEmpty() && stops.isEmpty())
+    /** Toute la ligne est coupée (texte « ne circule pas »). */
+    val wholeLine: Boolean get() = effects.any { it.whole }
+
+    /** La lecture a su placer la coupure (tracé ou arrêts) ; sinon c'est une alerte « sans service » de [NetworkCutsFile.nonPlacees]. */
+    val placed: Boolean get() = traces.isNotEmpty() || stops.isNotEmpty()
 
     /** Fenêtres en secondes epoch, dans l'ordre ; une fin inconnue reste ouverte. */
     val epochWindows: List<CutWindow> by lazy {
